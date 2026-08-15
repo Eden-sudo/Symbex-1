@@ -2,7 +2,7 @@
 
 **SYMBEX-1** es una arquitectura de Edge-AI e inferencia neuronal ultraligera diseñada para microcontroladores de 8-bits con recursos estáticos restringidos (como SRAM limitada y sin Unidad de Punto Flotante).
 
-Desarrollado como un proyecto de investigación en Arquitectura de Software y Mecatrónica en el **CITEP**, este motor permite la ejecución de redes neuronales complejas (como generación de trayectorias y visión artificial básica) utilizando exclusivamente operadores lógicos a nivel de bits.
+Desarrollado como un proyecto de investigación, este motor permite la ejecución de redes neuronales complejas (como generación de trayectorias y visión artificial básica) utilizando exclusivamente operadores lógicos a nivel de bits.
 
 ## 🧠 Características Principales
 
