@@ -1,45 +1,45 @@
 #include "../include/SymbexNetwork.h"
 
-// ---------------------------------------------------------
-// Implementación de SymbexNetwork
-// ---------------------------------------------------------
+// ------------------------------------------------------------------
+// Constructor: Inicializa la red de forma segura
+// ------------------------------------------------------------------
 SymbexNetwork::SymbexNetwork() {
-    total_layers = 0;
-    for (uint8_t i = 0; i < MAX_LAYERS; i++) {
-        layers[i] = nullptr;
+    layer_count = 0;
+    for(int i = 0; i < MAX_LAYERS; i++) {
+        layers[i] = nullptr; // Limpieza de punteros por seguridad
     }
 }
 
+// ------------------------------------------------------------------
+// add_layer: Conecta una nueva capa a la arquitectura secuencial
+// ------------------------------------------------------------------
 bool SymbexNetwork::add_layer(SymbexLayer* layer) {
-    // Agregamos la capa solo si no excedemos el límite estricto de memoria
-    if (total_layers < MAX_LAYERS) {
-        layers[total_layers] = layer;
-        total_layers++;
+    if (layer_count < MAX_LAYERS) {
+        layers[layer_count] = layer;
+        layer_count++;
         return true;
     }
-    return false; 
+    return false; // Retorna falso si se supera el límite de memoria estática
 }
 
-uint8_t SymbexNetwork::predict(const uint8_t* sensor_input) {
-    if (total_layers == 0) return 0; // Red vacía
+// ------------------------------------------------------------------
+// predict: Ejecuta el flujo de datos usando Ping-Pong Buffering
+// ------------------------------------------------------------------
+uint8_t SymbexNetwork::predict(const uint8_t* input) {
+    if (layer_count == 0) return 0; // Red vacía
 
-    // Buffers locales estáticos (Ping-Pong).
-    // Soportan capas ocultas de hasta 256 neuronas (32 bytes)
-    // Esto evita usar malloc() en el microcontrolador.
-    uint8_t buffer_A[32] = {0}; 
-    uint8_t buffer_B[32] = {0};
-
-    const uint8_t* current_input = sensor_input;
+    const uint8_t* current_input = input;
     uint8_t* current_output = buffer_A;
 
-    for (uint8_t i = 0; i < total_layers; i++) {
-        // Ejecutamos la matemática pesada de la capa actual
+    // La información rebota entre el buffer_A y el buffer_B en cada capa
+    for (int i = 0; i < layer_count; i++) {
+        // La capa matemática hace el trabajo pesado (XNOR, <<, POPCOUNT)
         layers[i]->process_layer(current_input, current_output);
         
-        // La salida de esta capa se convierte en la entrada de la siguiente
+        // El resultado actual se convierte en la entrada de la siguiente iteración
         current_input = current_output;
         
-        // Alternamos el rol de los buffers para la siguiente iteración
+        // Intercambio de buffers (Ping-Pong)
         if (current_output == buffer_A) {
             current_output = buffer_B;
         } else {
@@ -47,7 +47,34 @@ uint8_t SymbexNetwork::predict(const uint8_t* sensor_input) {
         }
     }
 
-    // El resultado final es el primer byte del último buffer modificado.
-    // Este byte es el que leerá la tabla LUT de hardware.
-    return current_input[0]; 
+    // Como la red colapsa en un solo byte (Clasificación/Símbolo),
+    // retornamos el primer índice del buffer que actuó como última salida.
+    return current_input[0];
+}
+
+// ------------------------------------------------------------------
+// generate_trajectory: El generador en cadena (Expansión Simbólica)
+// ------------------------------------------------------------------
+void SymbexNetwork::generate_trajectory(uint8_t* state_buffer, int input_size_bytes, int steps, uint8_t bit_mask, uint8_t* output_trajectory) {
+    
+    for(int i = 0; i < steps; i++) {
+        // 1. Inferencia: La red evalúa el estado actual y genera el "símbolo bruto"
+        uint8_t raw_symbol = this->predict(state_buffer);
+        
+        // 2. Expansión Simbólica: Se aplica la máscara lógica (Decodificación de Hardware)
+        // Usamos XOR (^) como ejemplo matemático, pero puede adaptarse a reglas específicas de hardware
+        uint8_t complex_action = raw_symbol ^ bit_mask; 
+        
+        // 3. Almacenamiento: Guardamos la decisión decodificada en la trayectoria final
+        output_trajectory[i] = complex_action;
+        
+        // 4. Retroalimentación (Sliding Window): Actualizamos el estado interno
+        // Movemos todos los bytes históricos un bloque a la izquierda (el más viejo se descarta)
+        for(int j = 0; j < input_size_bytes - 1; j++) {
+            state_buffer[j] = state_buffer[j + 1];
+        }
+        
+        // Inyectamos la última acción generada en la ranura más reciente del buffer
+        state_buffer[input_size_bytes - 1] = complex_action;
+    }
 }

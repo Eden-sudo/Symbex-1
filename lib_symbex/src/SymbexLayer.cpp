@@ -1,63 +1,68 @@
-#include "../include/SymbexNetwork.h"
+#include "../include/SymbexLayer.h"
 
-// ---------------------------------------------------------
-// Helpers Matemáticos (Privados al archivo)
-// ---------------------------------------------------------
-inline uint8_t popcount8_layer(uint8_t n) {
-    uint8_t count = 0;
+SymbexLayer::SymbexLayer(int in, int out, 
+                         const uint8_t* msb, const uint8_t* mid, const uint8_t* lsb, 
+                         const uint8_t* outl_mask, const int16_t* outl_mags, 
+                         const int16_t* thresh) {
+    in_features = in;
+    out_features = out;
+    weights_msb = msb;
+    weights_mid = mid;
+    weights_lsb = lsb;
+    weights_outlier = outl_mask;
+    outlier_magnitudes = outl_mags;
+    thresholds = thresh;
+}
+
+static inline int count_set_bits(uint8_t n) {
+    int count = 0;
     while (n) {
-        count++;
         n &= (n - 1);
+        count++;
     }
     return count;
 }
 
-inline int8_t compute_mac(uint8_t in_bits, uint8_t w_bits) {
-    uint8_t xnor_res = ~(in_bits ^ w_bits);
-    return (int8_t)(2 * popcount8_layer(xnor_res)) - 8;
-}
-
-// ---------------------------------------------------------
-// Implementación de SymbexLayer
-// ---------------------------------------------------------
-SymbexLayer::SymbexLayer(uint16_t inputs, uint16_t neurons, 
-                         const uint8_t* msb, const uint8_t* mid, const uint8_t* lsb, 
-                         const int16_t* th) {
-    num_inputs = inputs;
-    num_neurons = neurons;
-    weights_msb = msb;
-    weights_mid = mid;
-    weights_lsb = lsb;
-    thresholds = th;
-}
-
-void SymbexLayer::process_layer(const uint8_t* input_state, uint8_t* output_state) {
-    uint16_t total_input_bytes = num_inputs / 8;
-    uint16_t total_output_bytes = (num_neurons + 7) / 8; // Redondeo hacia arriba
-
-    // Limpiamos el estado de salida para evitar basura en la memoria
-    for (uint16_t b = 0; b < total_output_bytes; b++) {
-        output_state[b] = 0;
+void SymbexLayer::process_layer(const uint8_t* input, uint8_t* output) {
+    int input_bytes = in_features / 8;
+    int output_bytes = (out_features + 7) / 8;
+    
+    for (int i = 0; i < output_bytes; i++) {
+        output[i] = 0;
     }
 
-    for (uint16_t neuron = 0; neuron < num_neurons; neuron++) {
+    for (int n = 0; n < out_features; n++) {
         int16_t accumulator = 0;
+        
+        for (int b = 0; b < input_bytes; b++) {
+            uint8_t in_val = input[b];
+            int weight_idx = n * input_bytes + b;
 
-        for (uint16_t i = 0; i < total_input_bytes; i++) {
-            uint8_t in_bits = input_state[i];
-            uint16_t weight_idx = (neuron * total_input_bytes) + i;
+            // 1. VIA PRINCIPAL (K=3 Normal)
+            uint8_t xnor_msb = ~(in_val ^ weights_msb[weight_idx]);
+            uint8_t xnor_mid = ~(in_val ^ weights_mid[weight_idx]);
+            uint8_t xnor_lsb = ~(in_val ^ weights_lsb[weight_idx]);
 
-            int8_t sum_msb = compute_mac(in_bits, weights_msb[weight_idx]);
-            int8_t sum_mid = compute_mac(in_bits, weights_mid[weight_idx]);
-            int8_t sum_lsb = compute_mac(in_bits, weights_lsb[weight_idx]);
+            int16_t bipol_msb = (count_set_bits(xnor_msb) * 2) - 8;
+            int16_t bipol_mid = (count_set_bits(xnor_mid) * 2) - 8;
+            int16_t bipol_lsb = (count_set_bits(xnor_lsb) * 2) - 8;
 
-            // Reconstrucción del Bit-Slicing (K=3)
-            accumulator += (sum_msb << 2) + (sum_mid << 1) + sum_lsb;
+            accumulator += (bipol_msb << 2) + (bipol_mid << 1) + bipol_lsb;
+            
+            // 2. VIA SECUNDARIA (Abstraccion de Outliers)
+            // Evaluamos si los datos de entrada coinciden con los patrones atipicos
+            uint8_t xnor_outl = ~(in_val ^ weights_outlier[weight_idx]);
+            int outl_matches = count_set_bits(xnor_outl);
+            
+            // Si hay un nivel de coincidencia alto con el ruido atipico, inyectamos la magnitud
+            if (outl_matches > 4) { 
+                // Sumamos la fuerza del outlier a esta neurona
+                accumulator += outlier_magnitudes[n]; 
+            }
         }
 
-        // Activación: Si supera el umbral, encendemos el bit en el arreglo de salida
-        if (accumulator >= thresholds[neuron]) {
-            output_state[neuron / 8] |= (1 << (neuron % 8));
+        if (accumulator >= thresholds[n]) {
+            output[n / 8] |= (1 << (7 - (n % 8))); 
         }
     }
 }
