@@ -19,6 +19,8 @@ Desarrollado como un proyecto de investigación, este motor permite la ejecució
 ## 👨‍💻 Autores
 Investigación y desarrollo de arquitectura a cargo de:
 *   **Carlos Eden Duarte**
+
+Redacción y documentación:
 *   **Bryan Mendez**
 
 ## 📄 Licencia
