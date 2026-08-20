@@ -5,7 +5,7 @@
 #include "SymbexLayer.h"
 
 // Límites estáticos diseñados para microcontroladores (Ajustables según necesidad)
-#define MAX_LAYERS 5
+#define MAX_LAYERS 4
 #define BUFFER_SIZE 32 // Suficiente para redes embebidas, sin usar RAM dinámica
 
 class SymbexNetwork {
@@ -27,8 +27,8 @@ public:
     // Motor de Inferencia (Devuelve un byte crudo o 'símbolo base')
     uint8_t predict(const uint8_t* input);
 
-    // Motor Autoregresivo (Generador de trayectorias en cadena con Máscaras de Bits)
-    void generate_trajectory(uint8_t* state_buffer, int input_size_bytes, int steps, uint8_t bit_mask, uint8_t* output_trajectory);
+    // Motor de Clasificación (Sin M_factor externo)
+    int classify(const uint8_t* input);
 };
 
 #endif // SYMBEX_NETWORK_H

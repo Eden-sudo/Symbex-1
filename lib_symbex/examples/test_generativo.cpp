@@ -1,20 +1,26 @@
 #include <iostream>
 #include <iomanip>
 #include "../include/SymbexNetwork.h"
-#include "../include/symbex_weights.h" 
+#include "../include/symbex_weights.h"  
 
 int main() {
     SymbexNetwork network;
-    SymbexLayer hidden_layer(64, 8, weights_msb, weights_mid, weights_lsb, thresholds);
+    
+    // CIRUGÍA APLICADA: Actualizamos al nuevo constructor Dual-Path
+    // Usamos los sufijos _0 exportados por el CDT de Python.
+    // Nota: El compilador ensanchó la capa de 64->128 a 64->256 (M=2)
+    SymbexLayer hidden_layer(64, 256, 
+                             weights_msb_0, weights_mid_0, weights_lsb_0, 
+                             weights_outlier_0, outlier_magnitudes_0, thresholds_0);
+                             
     network.add_layer(&hidden_layer);
 
     // Estado inicial de los sensores
     uint8_t current_state[8] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77};
     
     // MÁSCARA DE SEGURIDAD (Regla física)
-    // 0b01111111 (0x7F) -> Usaremos AND lógico. 
-    // Esto asegura que el Bit Más Significativo NUNCA se encienda (ej. "No pasar a velocidad máxima").
-    uint8_t safety_mask = 0x7F; 
+    // 0b01111111 (0x7F) -> Usaremos AND lógico.  
+    uint8_t safety_mask = 0x7F;  
 
     std::cout << "=========================================================================\n";
     std::cout << "  INSPECCIÓN PROFUNDA: BUCLE AUTOREGRESIVO Y EXPANSIÓN SIMBÓLICA\n";
@@ -35,14 +41,14 @@ int main() {
         uint8_t action = raw_symbol & safety_mask;
 
         // 4. Mostrar la transformación
-        std::cout << "-> Red cruda: 0x" << std::hex << std::setw(2) << (int)raw_symbol 
+        std::cout << "-> Red cruda: 0x" << std::hex << std::setw(2) << (int)raw_symbol  
                   << " -> Filtro AND: 0x" << std::setw(2) << (int)action << "\n";
 
-        // 5. Retroalimentación manual (para ver el proceso paso a paso)
+        // 5. Retroalimentación manual
         for(int j = 0; j < 7; j++) {
             current_state[j] = current_state[j + 1];
         }
-        current_state[7] = action; // La nueva acción entra al final de la cinta
+        current_state[7] = action; 
     }
 
     std::cout << "\n=========================================================================\n";

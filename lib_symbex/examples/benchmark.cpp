@@ -1,69 +1,60 @@
 #include <iostream>
-#include <chrono>
 #include <iomanip>
-#include "../include/SymbexNetwork.h"
+#include <chrono>
+#include <vector>
+#include <random>
+#include "../include/SymbexLayer.h"
+#include "../include/symbex_weights.h"
 
-// ¡El cerebro exportado por Python!
-#include "../include/symbex_weights.h" 
+using namespace std::chrono;
 
 int main() {
-    std::cout << "==========================================\n";
-    std::cout << "  BENCHMARK CIENTIFICO: SYMBEX-1 ENGINE\n";
-    std::cout << "==========================================\n\n";
+    std::cout << "=========================================================\n";
+    std::cout << "  SYMBEX-1: BENCHMARK DE VELOCIDAD NATIVA (C++)\n";
+    std::cout << "=========================================================\n\n";
 
-    SymbexNetwork network;
+    // Usaremos la capa 0 exportada (64 -> 256 neuronas)
+    // Nota: Asegurate de que los nombres coincidan con los generados en symbex_weights.h
+    SymbexLayer hidden_layer(64, 256, 
+                             weights_msb_0, weights_mid_0, weights_lsb_0, 
+                             weights_outlier_0, outlier_magnitudes_0, thresholds_0);
+
+    const int NUM_INFERENCIAS = 10000;
+    std::cout << "[*] Generando " << NUM_INFERENCIAS << " muestras de sensores aleatorios...\n";
     
-    // Conectamos la capa usando los nombres de los arreglos del .h
-    SymbexLayer hidden_layer(64, 8, weights_msb, weights_mid, weights_lsb, thresholds);
-    network.add_layer(&hidden_layer);
-
-    // Entrada simulada de 64 bits (8 bytes)
-    const uint8_t sensor_input[8] = {0xAA, 0xFF, 0x00, 0x55, 0xAA, 0xFF, 0x00, 0x55};
-    uint8_t output = 0;
-
-    // 3. WARM-UP (Calentamiento del procesador y caché)
-    for (int i = 0; i < 1000; i++) {
-        output = network.predict(sensor_input);
-    }
-
-    // 4. PRUEBA DE ESTRÉS (Medición de Tiempo)
-    const int ITERATIONS = 100000;
+    // Generar datos aleatorios
+    std::vector<std::vector<uint8_t>> inputs(NUM_INFERENCIAS, std::vector<uint8_t>(8));
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 255);
     
-    auto start_time = std::chrono::high_resolution_clock::now();
-    
-    for (int i = 0; i < ITERATIONS; i++) {
-        output = network.predict(sensor_input); // ¡Inferencia real!
+    for (int i = 0; i < NUM_INFERENCIAS; i++) {
+        for (int j = 0; j < 8; j++) {
+            inputs[i][j] = dis(gen);
+        }
     }
     
-    auto end_time = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::micro> total_us = end_time - start_time;
-
-    // 5. CÁLCULOS MATEMÁTICOS PARA EL PAPER
-    double avg_latency_us = total_us.count() / ITERATIONS;
-    double throughput_ips = 1000000.0 / avg_latency_us;
-
-    // Calculo de Memoria Estática (ROM) -> Pesos y Umbrales
-    size_t flash_usage = sizeof(weights_msb) + sizeof(weights_mid) + sizeof(weights_lsb) + sizeof(thresholds);
+    uint8_t output_buffer[32]; // 256 / 8
     
-    // Calculo de Memoria Dinámica (SRAM) -> El chasis de la red + Ping-Pong Buffers (2 x 32 bytes)
-    size_t sram_usage = sizeof(SymbexNetwork) + sizeof(SymbexLayer) + 64; 
+    std::cout << "[*] Ejecutando Benchmark de Velocidad Extrema...\n";
+    
+    auto start = high_resolution_clock::now();
+    
+    for (int i = 0; i < NUM_INFERENCIAS; i++) {
+        hidden_layer.process_layer(inputs[i].data(), output_buffer);
+    }
+    
+    auto end = high_resolution_clock::now();
+    auto duration_us = duration_cast<microseconds>(end - start).count();
+    
+    double tiempo_promedio_us = (double)duration_us / NUM_INFERENCIAS;
+    double inferencias_por_segundo = 1000000.0 / tiempo_promedio_us;
+    
+    std::cout << "\n--- REPORTE DE VELOCIDAD ---\n";
+    std::cout << "[-] Inferencia Total (" << NUM_INFERENCIAS << " ciclos) : " << duration_us / 1000.0 << " ms\n";
+    std::cout << "[+] Tiempo Promedio por Inferencia : " << tiempo_promedio_us << " microsegundos\n";
+    std::cout << "[+] Tasa de Procesamiento (FPS/Hz) : " << inferencias_por_segundo << " Hz\n";
+    std::cout << "=========================================================\n";
 
-    // 6. IMPRESIÓN DEL REPORTE DE RESULTADOS
-    std::cout << "[+] PRUEBA DE ESTRÉS COMPLETADA (" << ITERATIONS << " iteraciones)\n\n";
-    
-    std::cout << "--- MÉTRICAS DE RENDIMIENTO ---\n";
-    std::cout << std::left << std::setw(30) << "Latencia Promedio:" 
-              << avg_latency_us << " microsegundos/inferencia\n";
-    std::cout << std::left << std::setw(30) << "Throughput Máximo:" 
-              << (int)throughput_ips << " inferencias/segundo\n";
-              
-    std::cout << "\n--- MÉTRICAS DE MEMORIA ---\n";
-    std::cout << std::left << std::setw(30) << "Consumo en Flash (ROM):" 
-              << flash_usage << " bytes\n";
-    std::cout << std::left << std::setw(30) << "Consumo en SRAM (RAM):" 
-              << sram_usage << " bytes estaticos (No Malloc)\n";
-              
-    std::cout << "\n==========================================\n";
-    
     return 0;
 }
