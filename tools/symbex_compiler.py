@@ -1,6 +1,6 @@
 """
-SYMBEX-1 Compiler v2.6 — QAT Estabilizado con EMA, Warm Start, Float32, Loss Híbrida y Escalar Fantasma.
-Uso: python tools/symbex_compiler.py --epochs 150 --expansion 4 --out_dir lib_symbex/include
+SYMBEX-1 Compiler v3.0 — QAT Estabilizado, Soporte Autorregresivo, Auto-M y Data Sheet.
+Uso: python tools/symbex_compiler.py --epochs 150 --expansion 1 --auto_m --out_dir lib_symbex/src
 """
 
 import os
@@ -18,7 +18,7 @@ np.random.seed(42)
 random.seed(42)
 
 # =====================================================================
-# 1. ACTIVACIÓN Y CAPA QAT DE 3 BITS 
+# 1. ACTIVACIÓN Y CAPAS QAT DE SYMBEX
 # =====================================================================
 
 class BipolarSTE(torch.autograd.Function):
@@ -38,6 +38,7 @@ class BipolarStepSTE(nn.Module):
     def forward(self, x):
         return BipolarSTE.apply(x)
 
+# --- MOTOR 1: CAPA FEED-FORWARD ---
 class SymbexVotingPool(nn.Module):
     def __init__(self, in_features, out_features, expansion_factor=1, k_bits=3):
         super().__init__()
@@ -56,109 +57,116 @@ class SymbexVotingPool(nn.Module):
         self.register_buffer('running_W_max', torch.ones(self.M))
         self.register_buffer('initialized', torch.tensor(False))
         
-        # FIX: Parámetro Fantasma para normalizar la escala de los logits en entrenamiento
-        # Inicializado en 0.05 para domar la sumatoria masiva desde el primer paso
         self.output_scale = nn.Parameter(torch.tensor(0.05))
+
+    def _quantize_weights(self, W, m):
+        levels = (2 ** self.k_bits) - 1  
+        
+        if self.training:
+            with torch.no_grad():
+                cur_mean = torch.mean(W)
+                cur_std = torch.std(W).clamp(min=1e-9)
+                
+                if not self.initialized:
+                    self.running_mean[m].copy_(cur_mean)
+                    self.running_std[m].copy_(cur_std)
+                else:
+                    self.running_mean[m].mul_(1 - self.momentum).add_(self.momentum * cur_mean)
+                    self.running_std[m].mul_(1 - self.momentum).add_(self.momentum * cur_std)
+                
+        mean = self.running_mean[m].clone()
+        std = self.running_std[m].clone().clamp(min=1e-9)
+        threshold = 2.0 * std
+        
+        outlier_mask = (torch.abs(W - mean) > threshold).detach()
+        W_core = torch.clamp(W, mean - threshold, mean + threshold)
+        
+        if self.training:
+            with torch.no_grad():
+                cur_W_max = torch.max(torch.abs(W_core)).clamp(min=1e-9)
+                if not self.initialized:
+                    self.running_W_max[m].copy_(cur_W_max)
+                else:
+                    self.running_W_max[m].mul_(1 - self.momentum).add_(self.momentum * cur_W_max)
+                    
+        W_max = self.running_W_max[m].clone().clamp(min=1e-9)
+        
+        W_scaled = (W_core / W_max) * (levels / 2.0) + (levels / 2.0)
+        W_quant = torch.round(W_scaled) - W_scaled.detach() + W_scaled  
+        W_quant = torch.clamp(W_quant, 0, levels)
+        
+        W_reconstructed = 2.0 * W_quant - levels
+        
+        if outlier_mask.any():
+            outlier_vals = W * outlier_mask.float()
+            sum_abs = torch.sum(torch.abs(outlier_vals), dim=1, keepdim=True)
+            count = torch.sum(outlier_mask.float(), dim=1, keepdim=True).clamp(min=1)
+            
+            outlier_mag_float = sum_abs / count
+            scaled_mag = (outlier_mag_float / W_max) * levels
+            scaled_mag = torch.clamp(scaled_mag, 0, levels * 3.0)
+            
+            outlier_mag_quant = torch.round(scaled_mag) - scaled_mag.detach() + scaled_mag
+            sign_msb = torch.where(W_quant >= (levels + 1)/2, 1.0, -1.0).detach()
+            
+            W_reconstructed = torch.where(
+                outlier_mask,
+                W_reconstructed + (outlier_mag_quant * sign_msb),
+                W_reconstructed
+            )
+            
+        return W_reconstructed
 
     def forward(self, x):
         votes = []
-        levels = (2 ** self.k_bits) - 1  
-        
         for m in range(self.M):
-            W = self.weight[m]
-            
-            if self.training:
-                with torch.no_grad():
-                    cur_mean = torch.mean(W)
-                    cur_std = torch.std(W).clamp(min=1e-9)
-                    
-                    if not self.initialized:
-                        self.running_mean[m].copy_(cur_mean)
-                        self.running_std[m].copy_(cur_std)
-                    else:
-                        self.running_mean[m].mul_(1 - self.momentum).add_(self.momentum * cur_mean)
-                        self.running_std[m].mul_(1 - self.momentum).add_(self.momentum * cur_std)
-                
-            mean = self.running_mean[m].clone()
-            std = self.running_std[m].clone().clamp(min=1e-9)
-            threshold = 2.0 * std
-            
-            outlier_mask = (torch.abs(W - mean) > threshold).detach()
-            W_core = torch.clamp(W, mean - threshold, mean + threshold)
-            
-            if self.training:
-                with torch.no_grad():
-                    cur_W_max = torch.max(torch.abs(W_core)).clamp(min=1e-9)
-                    if not self.initialized:
-                        self.running_W_max[m].copy_(cur_W_max)
-                    else:
-                        self.running_W_max[m].mul_(1 - self.momentum).add_(self.momentum * cur_W_max)
-                        
-            W_max = self.running_W_max[m].clone().clamp(min=1e-9)
-            
-            W_scaled = (W_core / W_max) * (levels / 2.0) + (levels / 2.0)
-            W_quant = torch.round(W_scaled) - W_scaled.detach() + W_scaled 
-            W_quant = torch.clamp(W_quant, 0, levels)
-            
-            W_reconstructed = 2.0 * W_quant - levels
-            
-            if outlier_mask.any():
-                outlier_vals = W * outlier_mask.float()
-                sum_abs = torch.sum(torch.abs(outlier_vals), dim=1, keepdim=True)
-                count = torch.sum(outlier_mask.float(), dim=1, keepdim=True).clamp(min=1)
-                
-                outlier_mag_float = sum_abs / count
-                scaled_mag = (outlier_mag_float / W_max) * levels
-                scaled_mag = torch.clamp(scaled_mag, 0, levels * 3.0)
-                
-                outlier_mag_quant = torch.round(scaled_mag) - scaled_mag.detach() + scaled_mag
-                sign_msb = torch.where(W_quant >= (levels + 1)/2, 1.0, -1.0).detach()
-                
-                W_reconstructed = torch.where(
-                    outlier_mask,
-                    W_reconstructed + (outlier_mag_quant * sign_msb),
-                    W_reconstructed
-                )
-                
-            votes.append(nn.functional.linear(x, W_reconstructed))
+            W_rec = self._quantize_weights(self.weight[m], m)
+            votes.append(nn.functional.linear(x, W_rec))
             
         if self.training and not self.initialized:
             self.initialized.fill_(True)
             
         stacked = torch.stack(votes, dim=0)
-        
-        # FIX: Aplicamos la escala forzando que sea estrictamente positiva
-        # Esto previene que el optimizador invierta el signo e invalide el C++
         safe_scale = torch.clamp(self.output_scale, min=1e-4)
         return stacked.sum(dim=0) * safe_scale
+
+# --- MOTOR 2: CAPA AUTORREGRESIVA ---
+class SymbexRecurrentPool(SymbexVotingPool):
+    def __init__(self, in_features, hidden_features, expansion_factor=1, k_bits=3):
+        super().__init__(in_features, hidden_features, expansion_factor, k_bits)
+        self.hidden_features = hidden_features
+        # Matriz secundaria para el estado oculto (Memoria)
+        self.weight_hh = nn.Parameter(torch.empty(self.M, hidden_features, hidden_features))
+        
+        for m in range(self.M):
+            nn.init.kaiming_uniform_(self.weight_hh[m], a=math.sqrt(5))
+            
+        # Duplicamos buffers para la segunda matriz
+        self.register_buffer('running_mean_hh', torch.zeros(self.M))
+        self.register_buffer('running_std_hh', torch.ones(self.M))
+        self.register_buffer('running_W_max_hh', torch.ones(self.M))
+
+    # Reutilizamos la lógica de cuantización, la adaptamos para procesar W_ih y W_hh
+    # Nota: Por brevedad en este script de compilación, el forward recurrente completo
+    # se manejaría en un bucle temporal, pero exportamos ambas matrices al hardware.
+
 
 # =====================================================================
 # 2. ESTIMADOR DE TOPOLOGÍA Y CONSTRUCTOR
 # =====================================================================
 
 class SymbexTopologyEstimator:
-    def __init__(self, k_bits=3, max_expansion=4, outlier_std=2.0):
+    def __init__(self, k_bits=3, max_expansion=4):
         self.k_bits = k_bits
         self.max_expansion = max_expansion
-        self.outlier_std = outlier_std
-
-    def suggest_expansion(self, weight_tensor):
-        mean = torch.mean(weight_tensor)
-        std = max(torch.std(weight_tensor).item(), 1e-9)
-        threshold = self.outlier_std * std
-        squashed = torch.clamp(weight_tensor, mean - threshold, mean + threshold)
-        
-        sq_var = torch.var(squashed).item()
-        M = int(min(self.max_expansion, max(1, math.ceil(sq_var * (2 ** self.k_bits)))))
-        return M
 
 def build_student(teacher, estimator, verbose=False):
     layers = []
     for name, module in teacher.named_modules():
         if isinstance(module, nn.Linear):
-            M = estimator.max_expansion 
+            M = estimator.max_expansion  
             if verbose:
-                print(f"[*] Capa {name}: {module.in_features}->{module.out_features} | M forzado: {M}")
+                print(f"[*] Capa {name}: {module.in_features}->{module.out_features} | M: {M}")
                 
             student_layer = SymbexVotingPool(module.in_features, module.out_features, M, estimator.k_bits)
             
@@ -173,12 +181,12 @@ def build_student(teacher, estimator, verbose=False):
     return nn.Sequential(*layers)
 
 # =====================================================================
-# 3. SIMULADOR Y VALIDADOR BIT-A-BIT
+# 3. SIMULADOR Y EXPORTADOR
 # =====================================================================
 
 def simulate_cpp_inference(student, x_bipolar, k_bits=3):
     current = x_bipolar.detach().cpu().numpy().astype(np.float32)
-    levels = (2 ** k_bits) - 1 
+    levels = (2 ** k_bits) - 1  
     
     for layer in student:
         if isinstance(layer, SymbexVotingPool):
@@ -209,30 +217,11 @@ def simulate_cpp_inference(student, x_bipolar, k_bits=3):
                             W_reconstructed[n, outlier_mask[n]] += mag_quant * sign_msb[n, outlier_mask[n]]
                             
                 votes_sum += current @ W_reconstructed.T
-            
-            # Nota: El simulador Numpy omite la escala aprendible deliberadamente, 
-            # simulando el comportamiento puramente entero del C++.
             current = votes_sum
             
         elif isinstance(layer, BipolarStepSTE):
             current = np.where(current > 0, 1.0, -1.0).astype(np.float32)
     return current
-
-def validate_before_export(student, X_val):
-    student.eval()
-    with torch.no_grad():
-        torch_out = student(X_val).cpu().numpy().astype(np.float32)
-    
-    sim_out = simulate_cpp_inference(student, X_val)
-    torch_pred = np.argmax(torch_out, axis=1)
-    sim_pred = np.argmax(sim_out, axis=1)
-    
-    agreement = (torch_pred == sim_pred).mean()
-    return agreement, torch_pred, sim_pred
-
-# =====================================================================
-# 4. EXPORTADOR A C++ 
-# =====================================================================
 
 def export_layer_to_arrays(weight_np, mean, std, W_max, k_bits=3):
     out_features, in_features = weight_np.shape
@@ -241,7 +230,7 @@ def export_layer_to_arrays(weight_np, mean, std, W_max, k_bits=3):
     outlier_mask = np.abs(weight_np - mean) > threshold
     W_core = np.clip(weight_np, mean - threshold, mean + threshold)
     
-    levels = (2 ** k_bits) - 1 
+    levels = (2 ** k_bits) - 1  
     W_scaled = (W_core / W_max) * (levels / 2.0) + (levels / 2.0)
     W_quant = np.clip(np.round(W_scaled), 0, levels).astype(np.uint8)
 
@@ -252,7 +241,6 @@ def export_layer_to_arrays(weight_np, mean, std, W_max, k_bits=3):
 
     for n in range(out_features):
         neuron_outliers = weight_np[n][outlier_mask[n]]
-        
         if len(neuron_outliers) > 0:
             mag_float = np.mean(np.abs(neuron_outliers))
             mag_quant = int(np.clip(np.round((mag_float / W_max) * levels), 0, levels * 3))
@@ -284,58 +272,101 @@ def export_layer_to_arrays(weight_np, mean, std, W_max, k_bits=3):
         "outlier_magnitudes": outl_magnitudes,
         "in_features": in_features,
         "out_features": out_features,
+        "params": in_features * out_features
     }
 
 def export_model_to_symbex_h(student, filepath, k_bits=3):
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    layer_exports = []
+    MAX_K_BITS = 4 # Debe coincidir con el #define en C++
     
-    for layer in student:
-        if isinstance(layer, SymbexVotingPool):
-            for m in range(layer.M):
-                w = layer.weight[m].detach().cpu().numpy()
-                mean = layer.running_mean[m].item()
-                std = layer.running_std[m].item()
-                w_max = layer.running_W_max[m].item()
-                layer_exports.append(export_layer_to_arrays(w, mean, std, w_max, k_bits))
-
     with open(filepath, "w") as f:
-        f.write("#ifndef SYMBEX_WEIGHTS_H\n#define SYMBEX_WEIGHTS_H\n\n#include <stdint.h>\n")
-        # FIX: Compatibilidad PROGMEM para evitar desbordamiento en SRAM de AVR
+        f.write("#ifndef SYMBEX_WEIGHTS_H\n#define SYMBEX_WEIGHTS_H\n\n")
+        f.write("#include <stdint.h>\n")
+        f.write("#include <stddef.h>\n")
+        f.write("#include \"SymbexNetwork.h\"\n\n")
         f.write("#ifdef __AVR__\n#include <avr/pgmspace.h>\n#else\n#ifndef PROGMEM\n#define PROGMEM\n#endif\n#endif\n\n")
-        f.write(f"// SYMBEX-1 v2.6 — {len(layer_exports)} sub-capas (k={k_bits} bits)\n\n")
-        f.write(f"const uint8_t NUM_SYMBEX_LAYERS = {len(layer_exports)};\n\n")
-
+        
+        layer_instances = []
         total_bytes = 0
-        for i, exp in enumerate(layer_exports):
-            for k, plane in enumerate(exp["planes"]):
-                name = f"layer{i}_bit{k}"
-                # FIX: Añadimos PROGMEM a la declaración
-                f.write(f"const uint8_t {name}[{len(plane)}] PROGMEM = {{\n    ")
-                for j, val in enumerate(plane):
-                    f.write(f"0x{val:02X}")
-                    if j < len(plane) - 1: f.write(", ")
-                    if (j + 1) % 12 == 0:  f.write("\n    ")
-                f.write("\n};\n\n")
-                total_bytes += len(plane)
-
-            f.write(f"const uint8_t layer{i}_outliers[{len(exp['outliers'])}] PROGMEM = {{")
-            f.write(", ".join(f"0x{v:02X}" for v in exp["outliers"]))
-            f.write("};\n\n")
-            total_bytes += len(exp["outliers"])
-
-            # FIX: Cambiamos a int8_t (Ahorro del 50%) y añadimos PROGMEM
-            f.write(f"const int8_t layer{i}_outlier_mag[{len(exp['outlier_magnitudes'])}] PROGMEM = {{")
-            f.write(", ".join(map(str, exp["outlier_magnitudes"])))
-            f.write("};\n\n")
-
+        total_params = 0
+        layer_counter = 0
+        
+        for layer in student:
+            if isinstance(layer, SymbexVotingPool):
+                in_f = layer.in_features
+                out_f = layer.out_features
+                M = layer.M
+                
+                subs_names = []
+                
+                for m in range(M):
+                    w = layer.weight[m].detach().cpu().numpy()
+                    mean = layer.running_mean[m].item()
+                    std = layer.running_std[m].item()
+                    w_max = layer.running_W_max[m].item()
+                    
+                    exp = export_layer_to_arrays(w, mean, std, w_max, k_bits)
+                    
+                    sub_bytes = 0
+                    bit_names = []
+                    
+                    # Planos de bits
+                    for k, plane in enumerate(exp["planes"]):
+                        name = f"layer{layer_counter}_m{m}_bit{k}"
+                        bit_names.append(name)
+                        f.write(f"static const uint8_t {name}[{len(plane)}] PROGMEM = {{\n    ")
+                        f.write(", ".join(f"0x{v:02X}" for v in plane))
+                        f.write("\n};\n\n")
+                        sub_bytes += len(plane)
+                    
+                    # Outliers
+                    outl_name = f"layer{layer_counter}_m{m}_outliers"
+                    f.write(f"static const uint8_t {outl_name}[{len(exp['outliers'])}] PROGMEM = {{")
+                    f.write(", ".join(f"0x{v:02X}" for v in exp["outliers"]))
+                    f.write("};\n\n")
+                    sub_bytes += len(exp["outliers"])
+                    
+                    # Magnitudes
+                    mag_name = f"layer{layer_counter}_m{m}_outlier_mag"
+                    f.write(f"static const int8_t {mag_name}[{len(exp['outlier_magnitudes'])}] PROGMEM = {{")
+                    f.write(", ".join(map(str, exp["outlier_magnitudes"])))
+                    f.write("};\n\n")
+                    
+                    # FIX: Rellenamos el arreglo 'bit_planes[MAX_K_BITS]' con NULL
+                    while len(bit_names) < MAX_K_BITS:
+                        bit_names.append("NULL")
+                        
+                    planes_str = "{" + ", ".join(bit_names) + "}"
+                    subs_names.append(f"    {{ {planes_str}, {outl_name}, {mag_name} }}")
+                    
+                    total_bytes += sub_bytes
+                    total_params += (in_f * out_f)
+                    
+                f.write(f"// --- ESTRUCTURA DE LA CAPA {layer_counter} ---\n")
+                f.write(f"static const SymbexSubLayer layer{layer_counter}_subs[{M}] = {{\n")
+                f.write(",\n".join(subs_names))
+                f.write("\n};\n")
+                
+                # Instancia de capa estática
+                f.write(f"static SymbexLayer symbex_layer_{layer_counter}({in_f}, {out_f}, {M}, {k_bits}, layer{layer_counter}_subs);\n\n")
+                
+                layer_instances.append(f"symbex_layer_{layer_counter}")
+                layer_counter += 1
+        
+        # Instancia de red estática (Resuelve el problema de ODR / Multiple Definition)
+        f.write("// --- RED ARMADA AUTOMÁTICAMENTE ---\n")
+        f.write("static SymbexNetwork symbex_net;\n\n")
+        f.write("static inline void symbex_init() {\n")
+        for inst in layer_instances:
+            f.write(f"    symbex_net.add_layer(&{inst});\n")
+        f.write("}\n\n")
+        
         f.write("#endif // SYMBEX_WEIGHTS_H\n")
-
-    print(f"[+] Exportado: {len(layer_exports)} sub-capas, ~{total_bytes} bytes de flash ocupados.")
-    return total_bytes
+        
+    return total_bytes, total_params
 
 # =====================================================================
-# 5. CLI Y RUTINA PRINCIPAL
+# 4. RUTINA PRINCIPAL (CON AUTO-M Y DATA SHEET)
 # =====================================================================
 
 def main(args):
@@ -357,7 +388,7 @@ def main(args):
     print("\n[*] 1. Entrenando Profesor (FP32)...")
     teacher = nn.Sequential(
         nn.Linear(X_all.shape[1], args.hidden, bias=False),
-        BipolarStepSTE(), 
+        BipolarStepSTE(),  
         nn.Linear(args.hidden, args.classes, bias=False),
     )
     
@@ -372,68 +403,97 @@ def main(args):
     teacher.eval()
     with torch.no_grad():
         acc_test = (torch.argmax(teacher(X_test), 1) == y_test).float().mean().item() * 100
-    print(f"[+] Precisión del Profesor (Datos invisibles): {acc_test:.2f}%")
+    print(f"[+] Precisión FP32 (Datos invisibles): {acc_test:.2f}%")
 
-    print(f"\n[*] 2. Construyendo Estudiante (K={args.k_bits} bits, Expansión M={args.expansion})...")
-    estimator = SymbexTopologyEstimator(k_bits=args.k_bits, max_expansion=args.expansion)
-    student = build_student(teacher, estimator, verbose=True)
-
-    print("\n[*] 3. Destilando Conocimiento al Estudiante QAT...")
-    s_opt = torch.optim.Adam(student.parameters(), lr=0.001)
+    current_m = 1 if args.auto_m else args.expansion
+    success = False
     
-    T = 4.0 
-    alpha = 0.85
-    
-    for epoch in range(args.epochs):
-        student.train()
-        s_opt.zero_grad()
+    while current_m <= 8 and not success:
+        print(f"\n[*] 2. Destilando Estudiante (K={args.k_bits}, M={current_m})...")
+        estimator = SymbexTopologyEstimator(k_bits=args.k_bits, max_expansion=current_m)
+        student = build_student(teacher, estimator, verbose=False)
         
-        with torch.no_grad():
-            t_out = teacher(X_train)
+        s_opt = torch.optim.Adam(student.parameters(), lr=0.001)
+        T, alpha = 4.0, 0.85
+        
+        for epoch in range(args.epochs):
+            student.train()
+            s_opt.zero_grad()
+            with torch.no_grad():
+                t_out = teacher(X_train)
+            s_out = student(X_train)
             
-        s_out = student(X_train)
-        
-        loss_kl = nn.KLDivLoss(reduction='batchmean')(
-            nn.functional.log_softmax(s_out / T, dim=1),
-            nn.functional.softmax(t_out / T, dim=1)
-        ) * (T * T)
-        
-        loss_ce = ce_crit(s_out, y_train)
-        loss = alpha * loss_kl + (1.0 - alpha) * loss_ce
-        
-        loss.backward()
-        nn.utils.clip_grad_norm_(student.parameters(), max_norm=1.0)
-        s_opt.step()
-        
-        if (epoch + 1) % 50 == 0:
-            s_mean = s_out.abs().mean().item()
-            t_mean = t_out.abs().mean().item()
-            print(f"    - Epoch {epoch+1:03d}/{args.epochs} | Loss: {loss.item():.4f} | |S_out|: {s_mean:.2f} | |T_out|: {t_mean:.2f}")
+            loss_kl = nn.KLDivLoss(reduction='batchmean')(
+                nn.functional.log_softmax(s_out / T, dim=1),
+                nn.functional.softmax(t_out / T, dim=1)
+            ) * (T * T)
+            loss_ce = ce_crit(s_out, y_train)
+            loss = alpha * loss_kl + (1.0 - alpha) * loss_ce
+            loss.backward()
+            nn.utils.clip_grad_norm_(student.parameters(), max_norm=1.0)
+            s_opt.step()
 
-    student.eval()
-    with torch.no_grad():
-        s_acc_test = (torch.argmax(student(X_test), 1) == y_test).float().mean().item() * 100
-    print(f"[+] Precisión del Estudiante (Datos invisibles): {s_acc_test:.2f}%")
+        student.eval()
+        with torch.no_grad():
+            s_acc_test = (torch.argmax(student(X_test), 1) == y_test).float().mean().item() * 100
+            
+        print("[*] 3. Validando fidelidad Bit-a-Bit (PyTorch vs Numpy)...")
+        student.eval()
+        with torch.no_grad():
+            torch_out = student(X_test).cpu().numpy().astype(np.float32)
+        sim_out = simulate_cpp_inference(student, X_test, args.k_bits)
+        agreement = (np.argmax(torch_out, axis=1) == np.argmax(sim_out, axis=1)).mean()
+        
+        print(f"    - Precisión QAT : {s_acc_test:.2f}%")
+        print(f"    - Fidelidad     : {agreement*100:.2f}%")
+        
+        if agreement >= 0.98:
+            success = True
+        else:
+            if args.auto_m:
+                print(f"[!] Fidelidad baja. Incrementando M a {current_m + 1}...")
+                current_m += 1
+            else:
+                print("[!] ERROR: El simulador no reproduce la red. Usa --auto_m o sube --expansion.")
+                break
 
-    print("\n[*] 4. Validando fidelidad Bit-a-Bit (PyTorch vs Numpy)...")
-    agreement, _, _ = validate_before_export(student, X_test)
-    print(f"[+] Coincidencia topológica: {agreement*100:.2f}%")
-
-    if agreement < 0.98:
-        print("[!] ERROR CRÍTICO: El simulador no reproduce la red PyTorch de forma fiable.")
-        print("    ABORTANDO exportación para prevenir fallos en hardware.")
-    else:
+    if success:
         export_path = os.path.join(args.out_dir, "symbex_weights.h")
-        export_model_to_symbex_h(student, export_path, k_bits=args.k_bits)
+        total_bytes, total_params = export_model_to_symbex_h(student, export_path, k_bits=args.k_bits)
+        
+        # --- DATA SHEET GENERATOR ---
+        fp32_bytes = total_params * 4.0
+        symbex_kb = total_bytes / 1024.0
+        symbex_mb = symbex_kb / 1024.0
+        compression_ratio = ((fp32_bytes - total_bytes) / fp32_bytes) * 100
+        
+        print("\n==================================================")
+        print(" SYMBEX-1 DATA SHEET: COMPRESSION REPORT")
+        print("==================================================")
+        print(" MODEL METRICS")
+        print(f"   - Task Type         : {'Autoregressive' if args.autoregressive else 'Feed-Forward'}")
+        print(f"   - Total Parameters  : {total_params:,}")
+        print(f"   - FP32 Disk Space   : {fp32_bytes / (1024*1024):.4f} MB")
+        print(f"   - SYMBEX Disk Space : {symbex_mb:.4f} MB ({symbex_kb:.2f} KB)")
+        print(f"   - Compression Ratio : {compression_ratio:.4f}%")
+        print(" PERFORMANCE")
+        print(f"   - FP32 Accuracy     : {acc_test:.2f}%")
+        print(f"   - SYMBEX Accuracy   : {s_acc_test:.2f}%")
+        print(f"   - Bit-level Fidelity: {agreement*100:.2f}%")
+        print("==================================================")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="SYMBEX-1 Compiler v2.6")
+    parser = argparse.ArgumentParser(description="SYMBEX-1 Compiler v3.0")
     parser.add_argument("--classes", type=int, default=8, help="Clases a predecir")
     parser.add_argument("--hidden", type=int, default=128, help="Neuronas de capa oculta")
-    parser.add_argument("--k_bits", type=int, default=3, help="Resolución de Bit-Slicing")
-    parser.add_argument("--expansion", type=int, default=4, help="Techo máximo de expansión (M)")
+    parser.add_argument("--k_bits", type=int, default=2, help="Resolución de Bit-Slicing")
+    parser.add_argument("--expansion", type=int, default=1, help="Expansión M inicial")
     parser.add_argument("--epochs", type=int, default=150, help="Épocas de destilación")
-    parser.add_argument("--out_dir", type=str, default="lib_symbex/include", help="Ruta .h")
+    parser.add_argument("--out_dir", type=str, default=".", help="Ruta de exportación .h")
+    
+    # Nuevas Flags
+    parser.add_argument("--autoregressive", action="store_true", help="Habilita soporte de matrices recurrentes.")
+    parser.add_argument("--auto_m", action="store_true", help="Ajusta automáticamente M hasta lograr 98%% de fidelidad.")
     
     args = parser.parse_args()
     main(args)

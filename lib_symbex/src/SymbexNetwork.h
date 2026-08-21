@@ -4,30 +4,28 @@
 #include <stdint.h>
 #include "SymbexLayer.h"
 
-// Límites estáticos diseñados para microcontroladores (Ajustables según necesidad)
-#define MAX_LAYERS 4
-#define BUFFER_SIZE 32 // Suficiente para redes embebidas, sin usar RAM dinámica
+// Definimos los límites de memoria estática (SRAM) para los microcontroladores
+#define MAX_LAYERS 8
+#define BUFFER_SIZE 128
 
 class SymbexNetwork {
 private:
     SymbexLayer* layers[MAX_LAYERS];
-    int layer_count;
+    uint8_t layer_count;
     
-    // Ping-Pong Buffers: Alternan memoria para evitar fragmentación de la SRAM
+    // Buffers de propagación (Ping-Pong) para Feed-Forward
     uint8_t buffer_A[BUFFER_SIZE];
     uint8_t buffer_B[BUFFER_SIZE];
+    
+    // Buffer preparado para el futuro modo autorregresivo (Generación de secuencias)
+    uint8_t state_buffer[BUFFER_SIZE]; 
 
 public:
-    // Constructor
     SymbexNetwork();
-
-    // Orquestación
+    
     bool add_layer(SymbexLayer* layer);
-
-    // Motor de Inferencia (Devuelve un byte crudo o 'símbolo base')
-    uint8_t predict(const uint8_t* input);
-
-    // Motor de Clasificación (Sin M_factor externo)
+    
+    // Inferencia clásica
     int classify(const uint8_t* input);
 };
 
