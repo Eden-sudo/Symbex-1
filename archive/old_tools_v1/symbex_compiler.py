@@ -1,5 +1,5 @@
 """
-SYMBEX-1 Compiler v3.0 — QAT Estabilizado, Soporte Autorregresivo, Auto-M y Data Sheet.
+SYMBEX-1 Compiler v3.2 — QAT Estabilizado, Auto-M con Safeguards y Data Sheet Fidedigno.
 Uso: python tools/symbex_compiler.py --epochs 150 --expansion 1 --auto_m --out_dir lib_symbex/src
 """
 
@@ -13,9 +13,12 @@ import torch.nn as nn
 from sklearn.datasets import load_digits
 from sklearn.model_selection import train_test_split
 
+# Fijar semillas para reproducibilidad absoluta
 torch.manual_seed(42)
 np.random.seed(42)
 random.seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 # =====================================================================
 # 1. ACTIVACIÓN Y CAPAS QAT DE SYMBEX
@@ -25,6 +28,7 @@ class BipolarSTE(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x):
         ctx.save_for_backward(x)
+        # Empate en 0.0 va a -1.0 (Alineado con el simulador C++)
         return torch.where(x > 0, torch.ones_like(x), -torch.ones_like(x))
 
     @staticmethod
@@ -60,7 +64,7 @@ class SymbexVotingPool(nn.Module):
         self.output_scale = nn.Parameter(torch.tensor(0.05))
 
     def _quantize_weights(self, W, m):
-        levels = (2 ** self.k_bits) - 1  
+        levels = (2 ** self.k_bits) - 1   
         
         if self.training:
             with torch.no_grad():
@@ -76,7 +80,9 @@ class SymbexVotingPool(nn.Module):
                 
         mean = self.running_mean[m].clone()
         std = self.running_std[m].clone().clamp(min=1e-9)
-        threshold = 2.0 * std
+        
+        # [MITIGACIÓN]: Piso mínimo al umbral para evitar falsos outliers en capas muertas
+        threshold = torch.clamp(2.0 * std, min=1e-4)
         
         outlier_mask = (torch.abs(W - mean) > threshold).detach()
         W_core = torch.clamp(W, mean - threshold, mean + threshold)
@@ -92,7 +98,7 @@ class SymbexVotingPool(nn.Module):
         W_max = self.running_W_max[m].clone().clamp(min=1e-9)
         
         W_scaled = (W_core / W_max) * (levels / 2.0) + (levels / 2.0)
-        W_quant = torch.round(W_scaled) - W_scaled.detach() + W_scaled  
+        W_quant = torch.round(W_scaled) - W_scaled.detach() + W_scaled   
         W_quant = torch.clamp(W_quant, 0, levels)
         
         W_reconstructed = 2.0 * W_quant - levels
@@ -130,25 +136,19 @@ class SymbexVotingPool(nn.Module):
         safe_scale = torch.clamp(self.output_scale, min=1e-4)
         return stacked.sum(dim=0) * safe_scale
 
-# --- MOTOR 2: CAPA AUTORREGRESIVA ---
+# --- CLASE EN DESARROLLO (No expuesta en el CLI todavía) ---
 class SymbexRecurrentPool(SymbexVotingPool):
     def __init__(self, in_features, hidden_features, expansion_factor=1, k_bits=3):
         super().__init__(in_features, hidden_features, expansion_factor, k_bits)
         self.hidden_features = hidden_features
-        # Matriz secundaria para el estado oculto (Memoria)
         self.weight_hh = nn.Parameter(torch.empty(self.M, hidden_features, hidden_features))
         
         for m in range(self.M):
             nn.init.kaiming_uniform_(self.weight_hh[m], a=math.sqrt(5))
             
-        # Duplicamos buffers para la segunda matriz
         self.register_buffer('running_mean_hh', torch.zeros(self.M))
         self.register_buffer('running_std_hh', torch.ones(self.M))
         self.register_buffer('running_W_max_hh', torch.ones(self.M))
-
-    # Reutilizamos la lógica de cuantización, la adaptamos para procesar W_ih y W_hh
-    # Nota: Por brevedad en este script de compilación, el forward recurrente completo
-    # se manejaría en un bucle temporal, pero exportamos ambas matrices al hardware.
 
 
 # =====================================================================
@@ -164,7 +164,7 @@ def build_student(teacher, estimator, verbose=False):
     layers = []
     for name, module in teacher.named_modules():
         if isinstance(module, nn.Linear):
-            M = estimator.max_expansion  
+            M = estimator.max_expansion   
             if verbose:
                 print(f"[*] Capa {name}: {module.in_features}->{module.out_features} | M: {M}")
                 
@@ -186,7 +186,7 @@ def build_student(teacher, estimator, verbose=False):
 
 def simulate_cpp_inference(student, x_bipolar, k_bits=3):
     current = x_bipolar.detach().cpu().numpy().astype(np.float32)
-    levels = (2 ** k_bits) - 1  
+    levels = (2 ** k_bits) - 1   
     
     for layer in student:
         if isinstance(layer, SymbexVotingPool):
@@ -197,7 +197,8 @@ def simulate_cpp_inference(student, x_bipolar, k_bits=3):
                 mean = layer.running_mean[m].item()
                 std = layer.running_std[m].item()
                 W_max = layer.running_W_max[m].item()
-                threshold = 2.0 * std
+                
+                threshold = max(2.0 * std, 1e-4)
                 
                 outlier_mask = np.abs(W_master - mean) > threshold
                 W_core = np.clip(W_master, mean - threshold, mean + threshold)
@@ -225,12 +226,13 @@ def simulate_cpp_inference(student, x_bipolar, k_bits=3):
 
 def export_layer_to_arrays(weight_np, mean, std, W_max, k_bits=3):
     out_features, in_features = weight_np.shape
-    threshold = 2.0 * std
+    
+    threshold = max(2.0 * std, 1e-4)
     
     outlier_mask = np.abs(weight_np - mean) > threshold
     W_core = np.clip(weight_np, mean - threshold, mean + threshold)
     
-    levels = (2 ** k_bits) - 1  
+    levels = (2 ** k_bits) - 1   
     W_scaled = (W_core / W_max) * (levels / 2.0) + (levels / 2.0)
     W_quant = np.clip(np.round(W_scaled), 0, levels).astype(np.uint8)
 
@@ -277,7 +279,7 @@ def export_layer_to_arrays(weight_np, mean, std, W_max, k_bits=3):
 
 def export_model_to_symbex_h(student, filepath, k_bits=3):
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    MAX_K_BITS = 4 # Debe coincidir con el #define en C++
+    MAX_K_BITS = 4
     
     with open(filepath, "w") as f:
         f.write("#ifndef SYMBEX_WEIGHTS_H\n#define SYMBEX_WEIGHTS_H\n\n")
@@ -310,29 +312,25 @@ def export_model_to_symbex_h(student, filepath, k_bits=3):
                     sub_bytes = 0
                     bit_names = []
                     
-                    # Planos de bits
                     for k, plane in enumerate(exp["planes"]):
                         name = f"layer{layer_counter}_m{m}_bit{k}"
                         bit_names.append(name)
-                        f.write(f"static const uint8_t {name}[{len(plane)}] PROGMEM = {{\n    ")
+                        f.write(f"static const uint8_t {name}[{len(plane)}] PROGMEM = {{\n   ")
                         f.write(", ".join(f"0x{v:02X}" for v in plane))
                         f.write("\n};\n\n")
                         sub_bytes += len(plane)
                     
-                    # Outliers
                     outl_name = f"layer{layer_counter}_m{m}_outliers"
                     f.write(f"static const uint8_t {outl_name}[{len(exp['outliers'])}] PROGMEM = {{")
                     f.write(", ".join(f"0x{v:02X}" for v in exp["outliers"]))
                     f.write("};\n\n")
                     sub_bytes += len(exp["outliers"])
                     
-                    # Magnitudes
                     mag_name = f"layer{layer_counter}_m{m}_outlier_mag"
                     f.write(f"static const int8_t {mag_name}[{len(exp['outlier_magnitudes'])}] PROGMEM = {{")
                     f.write(", ".join(map(str, exp["outlier_magnitudes"])))
                     f.write("};\n\n")
                     
-                    # FIX: Rellenamos el arreglo 'bit_planes[MAX_K_BITS]' con NULL
                     while len(bit_names) < MAX_K_BITS:
                         bit_names.append("NULL")
                         
@@ -347,13 +345,11 @@ def export_model_to_symbex_h(student, filepath, k_bits=3):
                 f.write(",\n".join(subs_names))
                 f.write("\n};\n")
                 
-                # Instancia de capa estática
                 f.write(f"static SymbexLayer symbex_layer_{layer_counter}({in_f}, {out_f}, {M}, {k_bits}, layer{layer_counter}_subs);\n\n")
                 
                 layer_instances.append(f"symbex_layer_{layer_counter}")
                 layer_counter += 1
         
-        # Instancia de red estática (Resuelve el problema de ODR / Multiple Definition)
         f.write("// --- RED ARMADA AUTOMÁTICAMENTE ---\n")
         f.write("static SymbexNetwork symbex_net;\n\n")
         f.write("static inline void symbex_init() {\n")
@@ -366,10 +362,13 @@ def export_model_to_symbex_h(student, filepath, k_bits=3):
     return total_bytes, total_params
 
 # =====================================================================
-# 4. RUTINA PRINCIPAL (CON AUTO-M Y DATA SHEET)
+# 4. RUTINA PRINCIPAL
 # =====================================================================
 
 def main(args):
+    # [MITIGACIÓN]: Falla temprano y con un mensaje claro si el usuario pide algo que rompe C++
+    assert 1 <= args.k_bits <= 4, f"[!] ERROR: k_bits debe estar entre 1 y 4 (límite físico MAX_K_BITS del motor C++). Recibido: {args.k_bits}"
+
     print(f"[*] Cargando Dataset (Clases 0-{args.classes - 1})...")
     digits = load_digits()
     mask = digits.target < args.classes
@@ -388,7 +387,7 @@ def main(args):
     print("\n[*] 1. Entrenando Profesor (FP32)...")
     teacher = nn.Sequential(
         nn.Linear(X_all.shape[1], args.hidden, bias=False),
-        BipolarStepSTE(),  
+        BipolarStepSTE(),   
         nn.Linear(args.hidden, args.classes, bias=False),
     )
     
@@ -461,7 +460,6 @@ def main(args):
         export_path = os.path.join(args.out_dir, "symbex_weights.h")
         total_bytes, total_params = export_model_to_symbex_h(student, export_path, k_bits=args.k_bits)
         
-        # --- DATA SHEET GENERATOR ---
         fp32_bytes = total_params * 4.0
         symbex_kb = total_bytes / 1024.0
         symbex_mb = symbex_kb / 1024.0
@@ -471,28 +469,28 @@ def main(args):
         print(" SYMBEX-1 DATA SHEET: COMPRESSION REPORT")
         print("==================================================")
         print(" MODEL METRICS")
-        print(f"   - Task Type         : {'Autoregressive' if args.autoregressive else 'Feed-Forward'}")
-        print(f"   - Total Parameters  : {total_params:,}")
-        print(f"   - FP32 Disk Space   : {fp32_bytes / (1024*1024):.4f} MB")
-        print(f"   - SYMBEX Disk Space : {symbex_mb:.4f} MB ({symbex_kb:.2f} KB)")
-        print(f"   - Compression Ratio : {compression_ratio:.4f}%")
+        # [MITIGACIÓN]: Ahora el Task Type es honesto y fijo.
+        print("   - Task Type        : Feed-Forward (Static)")
+        print(f"   - Total Parameters : {total_params:,}")
+        print(f"   - FP32 Disk Space  : {fp32_bytes / (1024*1024):.4f} MB")
+        print(f"   - SYMBEX Disk Space: {symbex_mb:.4f} MB ({symbex_kb:.2f} KB)")
+        print(f"   - Compression Ratio: {compression_ratio:.4f}%")
         print(" PERFORMANCE")
-        print(f"   - FP32 Accuracy     : {acc_test:.2f}%")
-        print(f"   - SYMBEX Accuracy   : {s_acc_test:.2f}%")
+        print(f"   - FP32 Accuracy    : {acc_test:.2f}%")
+        print(f"   - SYMBEX Accuracy  : {s_acc_test:.2f}%")
         print(f"   - Bit-level Fidelity: {agreement*100:.2f}%")
         print("==================================================")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="SYMBEX-1 Compiler v3.0")
+    parser = argparse.ArgumentParser(description="SYMBEX-1 Compiler v3.2")
     parser.add_argument("--classes", type=int, default=8, help="Clases a predecir")
     parser.add_argument("--hidden", type=int, default=128, help="Neuronas de capa oculta")
     parser.add_argument("--k_bits", type=int, default=2, help="Resolución de Bit-Slicing")
     parser.add_argument("--expansion", type=int, default=1, help="Expansión M inicial")
     parser.add_argument("--epochs", type=int, default=150, help="Épocas de destilación")
-    parser.add_argument("--out_dir", type=str, default=".", help="Ruta de exportación .h")
+    parser.add_argument("--out_dir", type=str, default="lib_symbex/src", help="Ruta de exportación .h")
     
-    # Nuevas Flags
-    parser.add_argument("--autoregressive", action="store_true", help="Habilita soporte de matrices recurrentes.")
+    # [MITIGACIÓN]: Se elimina la flag --autoregressive para no crear falsas expectativas en el CLI.
     parser.add_argument("--auto_m", action="store_true", help="Ajusta automáticamente M hasta lograr 98%% de fidelidad.")
     
     args = parser.parse_args()
