@@ -55,31 +55,44 @@ Symbex1/
 └── archive/              # Motores densos, scripts viejos y experimentos de la V1
 ```
 
-## Resultados de Validación en Hardware
+## Resultados de Validación en Hardware (SYMBEX-1 V2)
 
-El framework está diseñado para escalar de forma nativa desde microcontroladores de 32 bits hasta chips de 8 bits extremadamente limitados sin FPU.
+El framework está diseñado para escalar de forma nativa desde microcontroladores de 32 bits de alto rendimiento hasta chips de 8 bits extremadamente limitados sin FPU, manteniendo una fidelidad matemática del 100% con PyTorch.
 
-### Perfil de ESP32 - Xtensa 32-bit, 240 MHz
-Red binarizada masiva `64 -> 512 -> 10` (Block-Gating: Size = 32, K_Active = 8).
+### Línea Base del Modelo (Referencia PyTorch FP32)
+*Topología original entrenada en PC antes de la destilación y binarización.*
+* **Parámetros Totales:** 37,888
+* **Tamaño en RAM/Disco (FP32):** ~148 KB
+* **Precisión Base (FP32):** 94.17%
+
+---
+
+### Perfil de Alto Rendimiento (ESP32 - Xtensa 32-bit, 240 MHz)
+*Red binarizada masiva con Block-Gating Dinámico (64 → 512 → 10).*
 
 | Métrica | Valor |
 |---|---|
 | Precisión Universal (Hardware real) | **95.28%** (343/360 aciertos en Test Set) |
-| Latencia Promedio (Pipeline completo)| **496 µs** (~0.5 milisegundos) |
-| Fidelidad bit-a-bit (Python ↔ C++) | 100% (Comportamiento matemáticamente idéntico) |
-| Motor Base | XNOR + Popcount SWAR (sin desempaquetado de memoria) |
+| Latencia Promedio (Pipeline completo)| **645 µs** (~0.6 milisegundos / ~1,550 Hz) |
+| Tamaño Original FP32 (Referencia PC) | **~148 KB** (37,888 parámetros a 32-bits) |
+| Tamaño SYMBEX-1 Comprimido | **~4.8 KB** (Compresión de **~31x**) |
+| Fidelidad bit-a-bit (Python ↔ C++) | **100%** (Comportamiento matemático idéntico) |
+| Motor Base | XNOR + Popcount nativo a 32 bits |
 
-### Perfil de Arduino Uno - ATmega328P, 16 MHz, 8-bit
-*Red binarizada masiva con Block-Gating (64 → 512 → 10). Operando en los estrictos límites físicos de 2KB de RAM sin instrucción popcount nativa.*
+---
+
+### Perfil de Ultra-Baja Memoria (Arduino Uno - ATmega328P, 16 MHz, 8-bit)
+*Misma red masiva operando en los estrictos límites físicos de 2KB de RAM sin instrucción popcount nativa.*
 
 | Métrica | Valor |
 |---|---|
 | Precisión en hardware (Arduino Uno) | **95.28%** (343/360 muestras de prueba) |
 | Latencia Promedio (Pipeline completo) | **~18.3 ms** (~54 Hz) |
 | Huella de Memoria (ROM / Flash) | **~4.8 KB** de pesos (Sketch completo ocupa solo 8.7 KB / 27%) |
-| Motor Base | XNOR puro + Tabla de Búsqueda (LUT) de 8-bits en PROGMEM |
+| Fidelidad bit-a-bit (Python ↔ C++) | **100%** (Comportamiento matemático idéntico) |
+| Motor Base | XNOR seguro (255-XOR) + Tabla de Búsqueda (LUT) de 8-bits en PROGMEM |
 
-> **Nota de Rendimiento:** A diferencia de arquitecturas de 32 bits, el ATmega328P carece de instrucciones nativas para contar bits. Para superar esta limitación física y evitar los bugs de promoción de enteros de GCC (que disparaban la latencia a +26 ms), SYMBEX-1 inyecta un motor basado en una tabla precalculada de 256 bytes en memoria Flash. Esto permite procesar 512 neuronas binarizadas en tan solo 18 milisegundos de forma invulnerable y matemáticamente idéntica a PyTorch.
+> **Nota de Rendimiento (AVR):** A diferencia de las arquitecturas de 32 bits, el ATmega328P carece de instrucciones nativas para contar bits. Para superar esta limitación física y evitar los bugs catastróficos de promoción de enteros de GCC (que corrompen la matemática binaria), SYMBEX-1 inyecta un motor de hardware virtual basado en una tabla precalculada de 256 bytes en la memoria Flash. Esto permite procesar 512 neuronas binarizadas en tan solo 18 milisegundos de forma invulnerable.
 
 ## Créditos
 
