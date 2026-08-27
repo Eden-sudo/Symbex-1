@@ -55,9 +55,12 @@ Symbex1/
 └── archive/              # Motores densos, scripts viejos y experimentos de la V1
 ```
 
-## Resultados de Validación (ESP32 Xtensa)
+## Resultados de Validación en Hardware
 
-Prueba empírica realizada sobre el dataset UCI Optical Digits, procesando una expansión dinámica de `64 -> 512 -> 10` (Block Size = 32, K_Active = 8).
+El framework está diseñado para escalar de forma nativa desde microcontroladores de 32 bits hasta chips de 8 bits extremadamente limitados sin FPU.
+
+### Perfil de ESP32 - Xtensa 32-bit, 240 MHz
+Red binarizada masiva `64 -> 512 -> 10` (Block-Gating: Size = 32, K_Active = 8).
 
 | Métrica | Valor |
 |---|---|
@@ -65,6 +68,18 @@ Prueba empírica realizada sobre el dataset UCI Optical Digits, procesando una e
 | Latencia Promedio (Pipeline completo)| **496 µs** (~0.5 milisegundos) |
 | Fidelidad bit-a-bit (Python ↔ C++) | 100% (Comportamiento matemáticamente idéntico) |
 | Motor Base | XNOR + Popcount SWAR (sin desempaquetado de memoria) |
+
+### Perfil de Arduino Uno - ATmega328P, 16 MHz, 8-bit
+*Red binarizada masiva con Block-Gating (64 → 512 → 10). Operando en los estrictos límites físicos de 2KB de RAM sin instrucción popcount nativa.*
+
+| Métrica | Valor |
+|---|---|
+| Precisión en hardware (Arduino Uno) | **95.28%** (343/360 muestras de prueba) |
+| Latencia Promedio (Pipeline completo) | **~18.3 ms** (~54 Hz) |
+| Huella de Memoria (ROM / Flash) | **~4.8 KB** de pesos (Sketch completo ocupa solo 8.7 KB / 27%) |
+| Motor Base | XNOR puro + Tabla de Búsqueda (LUT) de 8-bits en PROGMEM |
+
+> **Nota de Rendimiento:** A diferencia de arquitecturas de 32 bits, el ATmega328P carece de instrucciones nativas para contar bits. Para superar esta limitación física y evitar los bugs de promoción de enteros de GCC (que disparaban la latencia a +26 ms), SYMBEX-1 inyecta un motor basado en una tabla precalculada de 256 bytes en memoria Flash. Esto permite procesar 512 neuronas binarizadas en tan solo 18 milisegundos de forma invulnerable y matemáticamente idéntica a PyTorch.
 
 ## Créditos
 
