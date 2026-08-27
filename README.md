@@ -45,10 +45,6 @@ Una capa oculta masiva (ej. 512 neuronas) se subdivide en bloques aislados. El *
 ```text
 Symbex1/
 ├── lib_symbex/           # Motor C++ optimizado, HAL y ejemplos (ESP32/AVR)
-├── symbex_v2/            # SDK Python para conversión, destilación y QAT
-│   ├── nn.py             
-│   ├── distiller.py      
-│   └── exporter.py       
 ├── tools/                
 │   ├── train_digits.py   # Compilador principal (FP32 -> Binarizado)
 │   └── send_digit.py     # Validador de hardware end-to-end por puerto Serial
