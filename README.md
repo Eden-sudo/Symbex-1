@@ -60,6 +60,7 @@ Symbex1/
 El framework está diseñado para escalar de forma nativa desde microcontroladores de 32 bits de alto rendimiento hasta chips de 8 bits extremadamente limitados sin FPU, manteniendo una fidelidad matemática del 100% con PyTorch.
 
 ### Línea Base del Modelo (Referencia PyTorch FP32)
+*Red Neuronal Clasificadora de Dígitos (MLP) entrenada con el Digits Dataset (64 features) en PC antes de la destilación y binarización.*
 *Topología original entrenada en PC antes de la destilación y binarización.*
 * **Parámetros Totales:** 37,888
 * **Tamaño en RAM/Disco (FP32):** ~148 KB
