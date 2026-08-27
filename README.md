@@ -57,41 +57,53 @@ Symbex1/
 
 ## Resultados de Validación en Hardware (SYMBEX-1 V2)
 
-El framework está diseñado para escalar de forma nativa desde microcontroladores de 32 bits de alto rendimiento hasta chips de 8 bits extremadamente limitados sin FPU, manteniendo una fidelidad matemática del 100% con PyTorch.
+El framework SYMBEX-1 está diseñado para escalar de manera determinista desde microcontroladores de 32 bits hasta arquitecturas de 8 bits sin FPU (Floating-Point Unit). Las validaciones garantizan equivalencia matemática estricta independientemente de la arquitectura subyacente.
 
-### Línea Base del Modelo (Referencia PyTorch FP32)
-*Red Neuronal Clasificadora de Dígitos (MLP) entrenada con el Digits Dataset (64 features) en PC antes de la destilación y binarización.*
-*Topología original entrenada en PC antes de la destilación y binarización.*
+### 1. Línea Base del Modelo (Referencia PyTorch FP32)
+*Modelo Feed-Forward (MLP) entrenado con el conjunto de datos Digits de Scikit-Learn (64 características), utilizado como "Profesor" para la destilación del modelo binario.*
+* **Topología FP32:** 64 → 128 → 10
 * **Parámetros Totales:** 37,888
-* **Tamaño en RAM/Disco (FP32):** ~148 KB
-* **Precisión Base (FP32):** 94.17%
+* **Tamaño en RAM/Disco:** ~148 KB
+* **Precisión Base (Test Set, 20% split):** 94.17%
 
 ---
 
-### Perfil de Alto Rendimiento (ESP32 - Xtensa 32-bit, 240 MHz)
-*Red binarizada masiva con Block-Gating Dinámico (64 → 512 → 10).*
+### 2. Perfil de Rendimiento en 32-bits (ESP32 - Xtensa, 240 MHz)
+*Red binarizada mediante destilación de conocimiento (Knowledge Distillation) y Block-Gating Dinámico.*
+* **Topología Binaria ("Estudiante"):** 64 → 512 → 10 (Expansión de capacidad 4x respecto a la línea base)
 
 | Métrica | Valor |
 |---|---|
-| Precisión Universal (Hardware real) | **95.28%** (343/360 aciertos en Test Set) |
-| Latencia Promedio (Pipeline completo)| **645 µs** (~0.6 milisegundos / ~1,550 Hz) |
-| Tamaño Original FP32 (Referencia PC) | **~148 KB** (37,888 parámetros a 32-bits) |
-| Tamaño SYMBEX-1 Comprimido | **~4.8 KB** (Compresión de **~31x**) |
-| Fidelidad bit-a-bit (Python ↔ C++) | **100%** (Comportamiento matemático idéntico) |
-| Motor Base | XNOR + Popcount nativo a 32 bits |
+| Precisión de Inferencia | **95.28%** (343/360 aciertos en Test Set)* |
+| Latencia de Inferencia | **~645 µs** (Media sobre 360 ejecuciones continuas) |
+| Tamaño de Pesos (ROM/Flash) | **~4.8 KB** (Tasa de compresión de ~31x vs FP32) |
+| Fidelidad Algorítmica | **100% de acuerdo con simulador binario** en Python (ver Notas) |
+| Motor Base | XNOR + Popcount SWAR (32-bit nativo) |
 
 ---
 
-### Perfil de Ultra-Baja Memoria (Arduino Uno - ATmega328P, 16 MHz, 8-bit)
-*Misma red masiva operando en los estrictos límites físicos de 2KB de RAM sin instrucción popcount nativa.*
+### 3. Perfil de Restricción Extrema en 8-bits (Arduino Uno - ATmega328P, 16 MHz)
+*Misma topología binaria operando dentro de las limitaciones de 2KB de SRAM, probando la portabilidad del motor.*
 
 | Métrica | Valor |
 |---|---|
-| Precisión en hardware (Arduino Uno) | **95.28%** (343/360 muestras de prueba) |
-| Latencia Promedio (Pipeline completo) | **~18.3 ms** (~54 Hz) |
-| Huella de Memoria (ROM / Flash) | **~4.8 KB** de pesos (Sketch completo ocupa solo 8.7 KB / 27%) |
-| Fidelidad bit-a-bit (Python ↔ C++) | **100%** (Comportamiento matemático idéntico) |
-| Motor Base | XNOR seguro (255-XOR) + Tabla de Búsqueda (LUT) de 8-bits en PROGMEM |
+| Precisión de Inferencia | **95.28%** (343/360 aciertos en Test Set) |
+| Latencia de Inferencia | **~18.3 ms** (Media sobre 360 ejecuciones continuas) |
+| Consumo de ROM (Flash) | **~4.8 KB** de pesos (El binario final ocupa 8.7 KB / 27% del total) |
+| Consumo de SRAM (Dinámica)| **311 bytes globales** + picos locales de 72 bytes (buffers) |
+| Fidelidad Algorítmica | **100% de acuerdo con simulador binario** en Python |
+| Motor Base | XNOR seguro (255-XOR) + LUT precalculada (256 bytes en PROGMEM) |
+
+---
+
+### 4. Metodología de Pruebas y Notas Técnicas
+
+*   **Superación de la Línea Base:** El modelo binarizado alcanza un 95.28% frente al 94.17% de la línea base en FP32. Esto no es inherente a la binarización, sino a la arquitectura: el modelo binario "Estudiante" posee una capa oculta de 512 neuronas (frente a las 128 del "Profesor" FP32). La mejora es resultado de esta expansión de capacidad (para compensar la pérdida de precisión numérica) combinada con el proceso de destilación (Knowledge Distillation) que regula el entrenamiento. Ambos modelos fueron evaluados sobre la misma partición estratificada de 360 muestras estáticas.
+*   **Fidelidad Bit-a-Bit:** El término "100% de fidelidad" no compara el modelo FP32 original contra el hardware. Define que la ejecución en C++ produce exactamente los mismos acumuladores internos, los mismos logits y la misma clase de salida que el simulador del modelo binario ejecutado en Python utilizando matrices NumPy. 
+*   **Determinismo Multi-Arquitectura:** Las salidas y acumulaciones intermedias generadas por el ESP32 (aritmética de 32 bits, popcount) y el Arduino Uno (aritmética de 8 bits, LUT de 256 bytes) son bit a bit idénticas. El framework abstrae las diferencias de *endianness* y promoción de enteros (`Integer Promotion`) para garantizar la equivalencia.
+*   **Consumo de SRAM:** En el perfil del ATmega328P, la memoria ROM almacena los pesos. En la SRAM (2 KB disponibles), las variables globales consumen 311 bytes, dejando 1737 bytes libres. Durante la inferencia, la huella dinámica local es estrictamente de 72 bytes adicionales (8 bytes para el buffer de entrada empaquetado + 64 bytes para el buffer de activaciones ocultas de 512 bits).
+*   **Medición de Latencia:** La latencia reportada abarca exclusivamente la ejecución computacional (`forward` y `argmax`) cronometrada en hardware mediante temporizadores nativos (`micros()`) durante un ciclo ininterrumpido de 360 inferencias. Se excluye del tiempo reportado el overhead de transmisión del puerto Serial y la lectura de datos inicial.
+
 
 > **Nota de Rendimiento (AVR):** A diferencia de las arquitecturas de 32 bits, el ATmega328P carece de instrucciones nativas para contar bits. Para superar esta limitación física y evitar los bugs catastróficos de promoción de enteros de GCC (que corrompen la matemática binaria), SYMBEX-1 inyecta un motor de hardware virtual basado en una tabla precalculada de 256 bytes en la memoria Flash. Esto permite procesar 512 neuronas binarizadas en tan solo 18 milisegundos de forma invulnerable.
 
