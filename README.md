@@ -104,8 +104,6 @@ El framework SYMBEX-1 está diseñado para escalar de manera determinista desde 
 > **Nota de Rendimiento (AVR):** A diferencia de las arquitecturas de 32 bits, el ATmega328P carece de instrucciones nativas para contar bits. Para superar esta limitación física y evitar los bugs catastróficos de promoción de enteros de GCC (que corrompen la matemática binaria), SYMBEX-1 inyecta un motor de hardware virtual basado en una tabla precalculada de 256 bytes en la memoria Flash. Esto permite procesar 512 neuronas binarizadas en tan solo 18 milisegundos de forma invulnerable.
 
 ## Créditos
-
-- **Arquitectura y desarrollo C++/Python:** Carlos Duarte
-- **Documentación y diseño conceptual:** Bryan Mendez
+Carlos Duarte
 
 Inspirado en la transición de redes densas hacia enfoques dispersos (como *Mixture of Experts*) y QAT, llevado al extremo del silicio embebido.
