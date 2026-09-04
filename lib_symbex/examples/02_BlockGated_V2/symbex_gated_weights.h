@@ -1,5 +1,5 @@
 // ==================================================
-// SYMBEX-1 V2 (BLOCK-GATED 1-BIT) PESOS EXPORTADOS
+// SYMBEX-1 V2 (BLOCK-GATED 1-BIT) EXPORTED WEIGHTS
 // ==================================================
 
 #include <stdint.h>

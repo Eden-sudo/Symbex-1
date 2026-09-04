@@ -1,109 +1,108 @@
 # SYMBEX-1 (V2 - New Block-Gated Architecture)
 
-SYMBEX-1 es una librería optimizada para microcontroladores que permite la inferencia de redes neuronales binarizadas (BNN). 
+SYMBEX-1 is an optimized library for microcontrollers that enables the inference of Binarized Neural Networks (BNN). 
 
-Incorpora herramientas de entrenamiento y conversión directa para transformar modelos grandes (FP16 o INT) en topologías binarizadas altamente optimizadas. Esto permite que incluso microcontroladores limitados de 8 bits sin FPU (como el ATmega328P) o procesadores embebidos (ESP32) puedan ejecutar redes neuronales complejas de forma precisa y rápida.
+It incorporates training and direct conversion tools to transform large models (FP16 or INT) into highly optimized binarized topologies. This allows even limited 8-bit microcontrollers without an FPU (like the ATmega328P) or embedded processors (like the ESP32) to execute complex neural networks accurately and quickly.
 
-## La Actualización (De V1 a V2): Outliers Estáticos vs. Saltos Dinámicos
+## The Update (From V1 to V2): Static Outliers vs. Dynamic Branching
 
-La primera versión de SYMBEX mitigaba el error de cuantización guardando los *outliers* (los pesos más críticos) en un canal paralelo de matrices numéricas estáticas enteras. Aunque efectivo, estas matrices eran pesadas computacionalmente y consumían memoria vital.
+The first version of SYMBEX mitigated quantization error by storing *outliers* (the most critical weights) in a parallel channel of static integer matrices. While effective, these matrices were computationally heavy and consumed vital memory.
 
-**La actualización V2 incorpora la conversión de esos pesos estáticos y pesados hacia una arquitectura binarizada dinámica (Block-Gating) mucho más ligera.** 
-En lugar de procesar toda la red de forma estática, la arquitectura evalúa los datos periféricos en tiempo real y realiza **saltos dinámicos** (*Early-Exit* físico). Apaga físicamente las ramas y bloques de la red que no son relevantes para la entrada actual. Esto permite mantener la misma precisión global de la red original, pero maximizando la eficiencia y reduciendo drásticamente la latencia y la memoria en uso.
+**The V2 update incorporates the conversion of those heavy, static weights into a much lighter dynamic binarized architecture (Block-Gating).** 
+Instead of processing the entire network statically, the architecture evaluates peripheral data in real-time and performs **dynamic branching** (physical *Early-Exit*). It physically turns off the network branches and blocks that are irrelevant to the current input. This maintains the global accuracy of the original network while maximizing efficiency and drastically reducing latency and memory usage.
 
-## Arquitectura
+## Architecture
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│ Compilador Python (Transformación FP16/INT → 1-Bit Dinámico)│
-│ Teacher FP32 → QAT Estudiante Binarizado (Block-Gating)     │
+│ Python Compiler (FP16/INT → Dynamic 1-Bit Transformation)   │
+│ Teacher FP32 → Binarized Student QAT (Block-Gating)         │
 │ ↓                                                           │
-│ Exportador → symbex_gated_weights.h (Planos de bits)        │
+│ Exporter → symbex_gated_weights.h (Bit planes)              │
 └─────────────────────────────────────────────────────────────┘
                              ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ Inferencia Optimizada (C++ / ESP32 / AVR)                   │
-│ [Input Empaquetado]                                         │
-│    ├─> 1. Director (Gate): Evalúa K bloques y ordena Top-K  │
-│    └─> 2. Músculo (Core): Salto dinámico de bloques apagados│
-│ [Salida Densa]                                              │
-│    └─> 3. Argmax: Decisión final directa sin FP             │
+│ Optimized Inference (C++ / ESP32 / AVR)                     │
+│ [Packed Input]                                              │
+│    ├─> 1. Director (Gate): Evaluates K blocks & sorts Top-K │
+│    └─> 2. Muscle (Core): Dynamic skipping of inactive blocks│
+│ [Dense Output]                                              │
+│    └─> 3. Argmax: Direct final decision without FP          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 1. Motor de Empaquetamiento (XNOR + Popcount)
-Tanto los pesos como las entradas se empaquetan en bits puros. El procesador nunca multiplica aritméticamente; aplica una operación binaria `XNOR` seguida de un conteo de bits (`popcount`). 
-- En hardware avanzado (PC, Xtensa), aprovecha el paralelismo de registros.
-- En microcontroladores sencillos, utiliza el algoritmo **SWAR** (SIMD Within A Register) inyectado mediante una capa HAL (`symbex_config.h`), asegurando un conteo veloz (~15 ciclos) puramente en software.
-- Toda la matemática está simplificada para ser **estrictamente creciente** (se eliminan desplazamientos y restas en inferencia), evaluando directamente la acumulación bruta de aciertos para maximizar la velocidad de reloj.
+### 1. Packing Engine (XNOR + Popcount)
+Both weights and inputs are packed into pure bits. The processor never performs arithmetic multiplication; it applies a binary `XNOR` operation followed by a bit count (`popcount`). 
+- On advanced hardware (PC, Xtensa), it leverages register parallelism.
+- On simple microcontrollers, it uses the **SWAR** (SIMD Within A Register) algorithm injected via a HAL layer (`symbex_config.h`), ensuring a fast count (~15 cycles) purely in software.
+- All math is simplified to be **strictly increasing** (shifts and subtractions are eliminated during inference), directly evaluating the raw accumulation of hits to maximize clock speed.
 
-### 2. Block-Gating y Early Exit (Saltos Dinámicos)
-Una capa oculta masiva (ej. 512 neuronas) se subdivide en bloques aislados. El *Gate* binarizado hace una revisión periférica rápida de la entrada, puntúa la relevancia topológica de cada bloque y activa solo los mejores (Top-K). El bucle principal de inferencia lee estas banderas y ejecuta un salto físico (`continue;`) si el bloque no es necesario, evadiendo ciclos de cálculo muertos.
+### 2. Block-Gating and Early Exit (Dynamic Branching)
+A massive hidden layer (e.g., 512 neurons) is subdivided into isolated blocks. The binarized *Gate* performs a quick peripheral review of the input, scores the topological relevance of each block, and activates only the best ones (Top-K). The main inference loop reads these flags and executes a physical jump (`continue;`) if the block is not needed, evading dead computation cycles.
 
-## Estructura Modular del SDK
+## SDK Modular Structure
 
 ```text
 Symbex1/
-├── lib_symbex/           # Motor C++ optimizado, HAL y ejemplos (ESP32/AVR)
+├── lib_symbex/           # Optimized C++ engine, HAL, and examples (ESP32/AVR)
 ├── tools/                
-│   ├── train_digits.py   # Compilador principal (FP32 -> Binarizado)
-│   └── send_digit.py     # Validador de hardware end-to-end por puerto Serial
-└── archive/              # Motores densos, scripts viejos y experimentos de la V1
+│   ├── train_digits.py   # Main compiler (FP32 -> Binarized)
+│   └── send_digit.py     # End-to-end hardware validator via Serial port
+└── archive/              # Dense engines, old scripts, and V1 experiments
 ```
 
-## Resultados de Validación en Hardware (SYMBEX-1 V2)
+## Hardware Validation Results (SYMBEX-1 V2)
 
-El framework SYMBEX-1 está diseñado para escalar de manera determinista desde microcontroladores de 32 bits hasta arquitecturas de 8 bits sin FPU (Floating-Point Unit). Las validaciones garantizan equivalencia matemática estricta independientemente de la arquitectura subyacente.
+The SYMBEX-1 framework is designed to scale deterministically from 32-bit microcontrollers down to 8-bit architectures without an FPU (Floating-Point Unit). The validations guarantee strict mathematical equivalence regardless of the underlying architecture.
 
-### 1. Línea Base del Modelo (Referencia PyTorch FP32)
-*Modelo Feed-Forward (MLP) entrenado con el conjunto de datos Digits de Scikit-Learn (64 características), utilizado como "Profesor" para la destilación del modelo binario.*
-* **Topología FP32:** 64 → 128 → 10
-* **Parámetros Totales:** 37,888
-* **Tamaño en RAM/Disco:** ~148 KB
-* **Precisión Base (Test Set, 20% split):** 94.17%
+### 1. Model Baseline (PyTorch FP32 Reference)
+*Feed-Forward model (MLP) trained with the Scikit-Learn Digits dataset (64 features), used as a "Teacher" for distilling the binary model.*
+* **FP32 Topology:** 64 → 128 → 10
+* **Total Parameters:** 37,888
+* **RAM/Disk Size:** ~148 KB
+* **Baseline Accuracy (Test Set, 20% split):** 94.17%
 
 ---
 
-### 2. Perfil de Rendimiento en 32-bits (ESP32 - Xtensa, 240 MHz)
-*Red binarizada mediante destilación de conocimiento (Knowledge Distillation) y Block-Gating Dinámico.*
-* **Topología Binaria ("Estudiante"):** 64 → 512 → 10 (Expansión de capacidad 4x respecto a la línea base)
+### 2. 32-bit Performance Profile (ESP32 - Xtensa, 240 MHz)
+*Binarized network using Knowledge Distillation and Dynamic Block-Gating.*
+* **Binary Topology ("Student"):** 64 → 512 → 10 (4x capacity expansion vs baseline)
 
-| Métrica | Valor |
+| Metric | Value |
 |---|---|
-| Precisión de Inferencia | **95.28%** (343/360 aciertos en Test Set)* |
-| Latencia de Inferencia | **~645 µs** (Media sobre 360 ejecuciones continuas) |
-| Tamaño de Pesos (ROM/Flash) | **~4.8 KB** (Tasa de compresión de ~31x vs FP32) |
-| Fidelidad Algorítmica | **100% de acuerdo con simulador binario** en Python (ver Notas) |
-| Motor Base | XNOR + Popcount SWAR (32-bit nativo) |
+| Inference Accuracy | **95.28%** (343/360 hits on Test Set)* |
+| Inference Latency | **~645 µs** (Average over 360 continuous runs) |
+| Weights Size (ROM/Flash) | **~4.8 KB** (~31x compression rate vs FP32) |
+| Algorithmic Fidelity | **100% agreement with binary simulator** in Python (see Notes) |
+| Base Engine | XNOR + Popcount SWAR (Native 32-bit) |
 
 ---
 
-### 3. Perfil de Restricción Extrema en 8-bits (Arduino Uno - ATmega328P, 16 MHz)
-*Misma topología binaria operando dentro de las limitaciones de 2KB de SRAM, probando la portabilidad del motor.*
+### 3. 8-bit Extreme Constraint Profile (Arduino Uno - ATmega328P, 16 MHz)
+*Same binary topology operating within the limitations of 2KB SRAM, proving engine portability.*
 
-| Métrica | Valor |
+| Metric | Value |
 |---|---|
-| Precisión de Inferencia | **95.28%** (343/360 aciertos en Test Set) |
-| Latencia de Inferencia | **~18.3 ms** (Media sobre 360 ejecuciones continuas) |
-| Consumo de ROM (Flash) | **~4.8 KB** de pesos (El binario final ocupa 8.7 KB / 27% del total) |
-| Consumo de SRAM (Dinámica)| **311 bytes globales** + picos locales de 72 bytes (buffers) |
-| Fidelidad Algorítmica | **100% de acuerdo con simulador binario** en Python |
-| Motor Base | XNOR seguro (255-XOR) + LUT precalculada (256 bytes en PROGMEM) |
+| Inference Accuracy | **95.28%** (343/360 hits on Test Set) |
+| Inference Latency | **~18.3 ms** (Average over 360 continuous runs) |
+| ROM Consumption (Flash) | **~4.8 KB** of weights (Final binary occupies 8.7 KB / 27% of total) |
+| SRAM Consumption (Dynamic)| **311 global bytes** + 72 bytes local peaks (buffers) |
+| Algorithmic Fidelity | **100% agreement with binary simulator** in Python |
+| Base Engine | Safe XNOR (255-XOR) + Precomputed LUT (256 bytes in PROGMEM) |
 
 ---
 
-### 4. Metodología de Pruebas y Notas Técnicas
+### 4. Testing Methodology and Technical Notes
 
-*   **Superación de la Línea Base:** El modelo binarizado alcanza un 95.28% frente al 94.17% de la línea base en FP32. Esto no es inherente a la binarización, sino a la arquitectura: el modelo binario "Estudiante" posee una capa oculta de 512 neuronas (frente a las 128 del "Profesor" FP32). La mejora es resultado de esta expansión de capacidad (para compensar la pérdida de precisión numérica) combinada con el proceso de destilación (Knowledge Distillation) que regula el entrenamiento. Ambos modelos fueron evaluados sobre la misma partición estratificada de 360 muestras estáticas.
-*   **Fidelidad Bit-a-Bit:** El término "100% de fidelidad" no compara el modelo FP32 original contra el hardware. Define que la ejecución en C++ produce exactamente los mismos acumuladores internos, los mismos logits y la misma clase de salida que el simulador del modelo binario ejecutado en Python utilizando matrices NumPy. 
-*   **Determinismo Multi-Arquitectura:** Las salidas y acumulaciones intermedias generadas por el ESP32 (aritmética de 32 bits, popcount) y el Arduino Uno (aritmética de 8 bits, LUT de 256 bytes) son bit a bit idénticas. El framework abstrae las diferencias de *endianness* y promoción de enteros (`Integer Promotion`) para garantizar la equivalencia.
-*   **Consumo de SRAM:** En el perfil del ATmega328P, la memoria ROM almacena los pesos. En la SRAM (2 KB disponibles), las variables globales consumen 311 bytes, dejando 1737 bytes libres. Durante la inferencia, la huella dinámica local es estrictamente de 72 bytes adicionales (8 bytes para el buffer de entrada empaquetado + 64 bytes para el buffer de activaciones ocultas de 512 bits).
-*   **Medición de Latencia:** La latencia reportada abarca exclusivamente la ejecución computacional (`forward` y `argmax`) cronometrada en hardware mediante temporizadores nativos (`micros()`) durante un ciclo ininterrumpido de 360 inferencias. Se excluye del tiempo reportado el overhead de transmisión del puerto Serial y la lectura de datos inicial.
+*   **Beating the Baseline:** The binarized model achieves 95.28% compared to the 94.17% of the FP32 baseline. This is not inherent to binarization, but to the architecture: the "Student" binary model has a hidden layer of 512 neurons (compared to 128 in the FP32 "Teacher"). The improvement is a result of this capacity expansion (to compensate for the loss of numerical precision) combined with the Knowledge Distillation process that regulates training. Both models were evaluated on the same stratified partition of 360 static samples.
+*   **Bit-Level Fidelity:** The term "100% fidelity" does not compare the original FP32 model against the hardware. It defines that the execution in C++ produces exactly the same internal accumulators, the same logits, and the same output class as the binary model simulator executed in Python using NumPy matrices. 
+*   **Multi-Architecture Determinism:** The outputs and intermediate accumulations generated by the ESP32 (32-bit arithmetic, popcount) and the Arduino Uno (8-bit arithmetic, 256-byte LUT) are bit-for-bit identical. The framework abstracts differences in *endianness* and *Integer Promotion* to guarantee equivalence.
+*   **SRAM Consumption:** In the ATmega328P profile, ROM stores the weights. In SRAM (2 KB available), global variables consume 311 bytes, leaving 1737 bytes free. During inference, the local dynamic footprint is strictly 72 additional bytes (8 bytes for the packed input buffer + 64 bytes for the 512-bit hidden activations buffer).
+*   **Latency Measurement:** The reported latency exclusively covers computational execution (`forward` and `argmax`) timed in hardware using native timers (`micros()`) during an uninterrupted cycle of 360 inferences. Serial port transmission overhead and initial data reading are excluded from the reported time.
 
+> **Performance Note (AVR):** Unlike 32-bit architectures, the ATmega328P lacks native instructions to count bits. To overcome this physical limitation and avoid catastrophic GCC integer promotion bugs (which corrupt binary math), SYMBEX-1 injects a virtual hardware engine based on a precomputed 256-byte table in Flash memory. This allows 512 binarized neurons to be processed in just 18 milliseconds in an invulnerable manner.
 
-> **Nota de Rendimiento (AVR):** A diferencia de las arquitecturas de 32 bits, el ATmega328P carece de instrucciones nativas para contar bits. Para superar esta limitación física y evitar los bugs catastróficos de promoción de enteros de GCC (que corrompen la matemática binaria), SYMBEX-1 inyecta un motor de hardware virtual basado en una tabla precalculada de 256 bytes en la memoria Flash. Esto permite procesar 512 neuronas binarizadas en tan solo 18 milisegundos de forma invulnerable.
-
-## Créditos
+## Credits
 Carlos Duarte
 
-Inspirado en la transición de redes densas hacia enfoques dispersos (como *Mixture of Experts*) y QAT, llevado al extremo del silicio embebido.
+Inspired by the transition from dense networks to sparse approaches (like *Mixture of Experts*) and QAT, pushed to the extreme of embedded silicon.

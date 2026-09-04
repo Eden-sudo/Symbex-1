@@ -4,3 +4,5 @@ __pycache__/
 run_test
 .vscode/
 test_gemelo
+archive/
+.gitignore
