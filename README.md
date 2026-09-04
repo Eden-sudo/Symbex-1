@@ -24,8 +24,8 @@ Instead of processing the entire network statically, the architecture evaluates 
 ┌─────────────────────────────────────────────────────────────┐
 │ Optimized Inference (C++ / ESP32 / AVR)                     │
 │ [Packed Input]                                              │
-│    ├─> 1. Director (Gate): Evaluates K blocks & sorts Top-K │
-│    └─> 2. Muscle (Core): Dynamic skipping of inactive blocks│
+│    ├─> 1. Gate: Evaluates K blocks & sorts Top-K            │
+│    └─> 2. Core: Dynamic skipping of inactive blocks         │
 │ [Dense Output]                                              │
 │    └─> 3. Argmax: Direct final decision without FP          │
 └─────────────────────────────────────────────────────────────┘
@@ -38,17 +38,16 @@ Both weights and inputs are packed into pure bits. The processor never performs 
 - All math is simplified to be **strictly increasing** (shifts and subtractions are eliminated during inference), directly evaluating the raw accumulation of hits to maximize clock speed.
 
 ### 2. Block-Gating and Early Exit (Dynamic Branching)
-A massive hidden layer (e.g., 512 neurons) is subdivided into isolated blocks. The binarized *Gate* performs a quick peripheral review of the input, scores the topological relevance of each block, and activates only the best ones (Top-K). The main inference loop reads these flags and executes a physical jump (`continue;`) if the block is not needed, evading dead computation cycles.
+A massive hidden layer (e.g., 512 neurons) is subdivided into isolated blocks. The binarized Gate performs a quick peripheral review of the input, scores the topological relevance of each block, and activates only the best ones (Top-K). The main inference loop reads these flags and executes a physical jump (`continue;`) if the block is not needed, evading dead computation cycles.
 
 ## SDK Modular Structure
 
 ```text
 Symbex1/
 ├── lib_symbex/           # Optimized C++ engine, HAL, and examples (ESP32/AVR)
-├── tools/                
-│   ├── train_digits.py   # Main compiler (FP32 -> Binarized)
-│   └── send_digit.py     # End-to-end hardware validator via Serial port
-└── archive/              # Dense engines, old scripts, and V1 experiments
+└── tools/                
+    ├── symbex_compiler.py # Main universal compiler (CLI for FP32 -> Binarized V1/V2)
+    └── compiler_core/     # Modular Python core (Models, Trainer, Validator, Exporter)
 ```
 
 ## Hardware Validation Results (SYMBEX-1 V2)

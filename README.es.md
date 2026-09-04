@@ -24,8 +24,8 @@ En lugar de procesar toda la red de forma estática, la arquitectura evalúa los
 ┌─────────────────────────────────────────────────────────────┐
 │ Inferencia Optimizada (C++ / ESP32 / AVR)                   │
 │ [Input Empaquetado]                                         │
-│    ├─> 1. Director (Gate): Evalúa K bloques y ordena Top-K  │
-│    └─> 2. Músculo (Core): Salto dinámico de bloques apagados│
+│    ├─> 1. Gate: Evalúa K bloques y ordena Top-K             │
+│    └─> 2. Core: Salto dinámico de bloques apagados          │
 │ [Salida Densa]                                              │
 │    └─> 3. Argmax: Decisión final directa sin FP             │
 └─────────────────────────────────────────────────────────────┘
@@ -38,17 +38,16 @@ Tanto los pesos como las entradas se empaquetan en bits puros. El procesador nun
 - Toda la matemática está simplificada para ser **estrictamente creciente** (se eliminan desplazamientos y restas en inferencia), evaluando directamente la acumulación bruta de aciertos para maximizar la velocidad de reloj.
 
 ### 2. Block-Gating y Early Exit (Saltos Dinámicos)
-Una capa oculta masiva (ej. 512 neuronas) se subdivide en bloques aislados. El *Gate* binarizado hace una revisión periférica rápida de la entrada, puntúa la relevancia topológica de cada bloque y activa solo los mejores (Top-K). El bucle principal de inferencia lee estas banderas y ejecuta un salto físico (`continue;`) si el bloque no es necesario, evadiendo ciclos de cálculo muertos.
+Una capa oculta masiva (ej. 512 neuronas) se subdivide en bloques aislados. El Gate binarizado hace una revisión periférica rápida de la entrada, puntúa la relevancia topológica de cada bloque y activa solo los mejores (Top-K). El bucle principal de inferencia lee estas banderas y ejecuta un salto físico (`continue;`) si el bloque no es necesario, evadiendo ciclos de cálculo muertos.
 
 ## Estructura Modular del SDK
 
 ```text
 Symbex1/
 ├── lib_symbex/           # Motor C++ optimizado, HAL y ejemplos (ESP32/AVR)
-├── tools/                
-│   ├── train_digits.py   # Compilador principal (FP32 -> Binarizado)
-│   └── send_digit.py     # Validador de hardware end-to-end por puerto Serial
-└── archive/              # Motores densos, scripts viejos y experimentos de la V1
+└── tools/                
+    ├── symbex_compiler.py # Compilador maestro universal (CLI para FP32 -> Binarizado V1/V2)
+    └── compiler_core/     # Núcleo modular en Python (Modelos, Entrenador, Validador, Exportador)
 ```
 
 ## Resultados de Validación en Hardware (SYMBEX-1 V2)
