@@ -69,26 +69,18 @@ The chip computes exactly the integer simulation, so the accuracy of a SYMBEX mo
 
 ## Interpretation
 
-**The hardware favors multiplication, not the arithmetic of the binary model.** Both chips were designed
-around multiply-accumulate:
-
-- The **ESP32-S3** has 8-bit multiply-accumulate SIMD (PIE): one instruction does 16 int8 multiply-adds.
-  It has **no popcount instruction**, scalar or vector. The binary layers can use its 128-bit XOR, but the
-  bit counting that follows runs in software (SWAR or a lookup table). With the model in RAM, the INT8
-  network uses that SIMD at full speed (0.876 ms), and SYMBEX, in scalar C, is 17x slower.
-- The **classic ESP32** has neither multiply SIMD nor popcount. There, the INT8 weights (242 KB) fit neither in
-  the flash cache (32 KB) nor in the free RAM, so every INT8 layer waits for flash; the SYMBEX weights are
-  3.5x smaller and fit in RAM, and SYMBEX is 1.6x (flash) to 2.5x (RAM) faster. **On this chip the advantage
-  comes from the size of the model in memory, not from faster arithmetic.**
-
-What the binary model gains on both chips, independently of the hardware:
-
-- **3.5x less flash** (69 KB vs. 242 KB) for the same accuracy within 0.4 points, with a model twice as wide.
-- **Its binary layers are cheap even without hardware support**: on the S3, layer 1 (512 -> 256 at 1 bit) takes
-  0.49 ms, against 2.19 ms for the INT8 layer of a quarter of the size (with its weights in flash).
-- Its bottleneck here is the **first layer, which receives 8-bit pixels** (96-98% of the time). Reducing its
-  input bits (e.g. 2-4 bit planes, as in the SYMBEX v3 encoder study) is the natural next step, and a core
-  with a popcount instruction would remove the software counting cost of every binary layer.
+- **On the classic ESP32, SYMBEX is faster in every configuration**: 1.6x with its weights in flash and 2.5x with
+  them in RAM. The binary model is 3.5x smaller: it fits in RAM and in the flash cache, where the INT8 model does
+  not. That is the advantage of binarization working as intended.
+- **Width buys the accuracy back.** The CDT made the binary network twice as wide; it still is 3.5x smaller and
+  faster than the INT8 network, within 0.4 points of its accuracy.
+- **Every layer of SYMBEX is binary, the first one included.** Only the input data is 8-bit (the pixels); the
+  first layer has 1-bit weights and is computed with masks, without multiplications. It is the layer with the
+  most operations (784 x 512) and each of them adds an 8-bit value, so it takes 96-98% of the time.
+- **On the ESP32-S3, INT8 with its model in RAM is faster (0.876 ms)** because it uses the PIE SIMD multiplier and
+  the current SYMBEX engine does not. The S3 has no popcount instruction, but its multiplier can do the counting:
+  `../poc_s3_bin_vs_int8.py` measures a binary weight at 0.322 cycles against 0.531 for an ESP-NN INT8 weight
+  (1.65x faster, 8x less memory). That kernel goes into the engine next, and this benchmark will be re-measured.
 
 ## How to reproduce
 

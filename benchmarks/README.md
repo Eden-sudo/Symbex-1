@@ -9,8 +9,11 @@ model** and evaluated on the **same images**.
 |---|---|---|---|
 | [`mlp_fashion/`](mlp_fashion/) | MLP 784-256-128-10 | Fashion-MNIST | complete: ESP32 and ESP32-S3, 3 seeds, official TFLite Micro |
 
-In preparation: convolutional benchmarks (CIFAR-10 and Visual Wake Words with the SYMBEX v3 boolean engine,
-and a VGG-style CNN through the CDT, once convolutional export is integrated).
+| `poc_s3_bin_vs_int8.py` | one 256 x 512 layer, every kernel | synthetic | ESP32-S3: binary with the PIE multiplier 1.65x faster per weight than ESP-NN INT8 |
+
+Being prepared for publication: the convolutional benchmarks of the SYMBEX v3 boolean engine (CIFAR-10 and
+Visual Wake Words, already measured on the ESP32 and the ESP32-S3 against the MLPerf Tiny INT8 models), and a
+VGG-style CNN through the CDT once its convolutional export is integrated.
 
 ## Layout of a benchmark
 
