@@ -1,0 +1,21 @@
+{
+ "n": 2000,
+ "acc_pytorch": 88.1,
+ "acc_entero": 88.1,
+ "fidelidad": 100.0,
+ "acuerdo_bits": [
+  100.0,
+  100.0
+ ],
+ "flash_bytes": 71096,
+ "header": "runs/symbex_s42/modelo_symbex.h",
+ "exactitud_c": 100.0,
+ "nota_c": "",
+ "int8": {
+  "acc_int8": 88.44999999999999,
+  "acuerdo_fp32": 99.8,
+  "flash_bytes": 236328,
+  "exactitud_c": 100.0,
+  "header": "runs/symbex_s42/modelo_int8.h"
+ }
+}

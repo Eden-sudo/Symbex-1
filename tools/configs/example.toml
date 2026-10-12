@@ -1,0 +1,144 @@
+# =============================================================================
+# SYMBEX-1 CDT configuration
+#
+#   python cdt.py symbex.toml                 # everything from this file
+#   python cdt.py symbex.toml --epochs 10     # same, but a flag overrides one value
+#
+# Priority: built-in defaults < this file < command-line flags (a flag always wins).
+# A copy of the configuration actually used is saved in the output directory,
+# so every result can be reproduced.
+# =============================================================================
+
+[model]
+# Path to the ORIGINAL trained model (PyTorch .pth). FP32 is best: if it is already
+# quantized (e.g. INT8), the CDT warns, because part of the information is already lost.
+file = "models/resnet8.pth"
+
+# Where the model's ARCHITECTURE is defined, as "python_file.py:ClassName".
+#
+# Why: the usual way to save a PyTorch model,
+#     torch.save(model.state_dict(), "resnet8.pth")
+# stores ONLY the weights (the numbers), not the structure (which layers, how they connect).
+# To rebuild the model, the CDT needs the Python class you wrote, e.g.
+#     # models/resnet8.py
+#     class ResNet8(nn.Module): ...
+# and then:   definition = "models/resnet8.py:ResNet8"
+# The CDT creates an empty ResNet8() and loads the weights from `file` into it.
+# The class must be buildable with no arguments: ResNet8().
+#
+# Leave it EMPTY ("") when the file already contains the structure:
+#     torch.save(model, "resnet8.pth")      (whole model)
+#     a TorchScript file (torch.jit.save)
+# The CDT detects which case it is, and tells you if the class is missing.
+definition = ""
+
+# Binarization method:
+#   "plain"   -> default. lib_symbex engine. Conv layers go to conv, linear layers to dense
+#                (detected automatically from the model, no flag needed).
+#   "gated"   -> block-gated layers. Only for MLPs (linear layers).
+#   "boolean" -> SYMBEX v3 boolean engine (available once it is integrated into lib_symbex).
+method = "plain"
+
+[data]
+# Directory with the user's dataset (training + validation).
+directory = "data/cifar10"
+
+# How the data is stored in `directory`:
+#   "npy"          x.npy (samples) + y.npy (integer labels), and optionally val.npy
+#                  (True for the samples used for validation). Like the VWW / Wake Vision data.
+#   "imagefolder"  one sub-folder per class: directory/cat/*.png, directory/dog/*.png ...
+#                  (with train/ and val/ sub-folders if the split is already made)
+#   "cifar10", "mnist", ...   a torchvision dataset, downloaded into `directory` if missing
+format = "npy"
+
+# Fraction of the data used for validation when the format does not define the split (0-1).
+validation_split = 0.1
+
+# Per-channel normalization applied to the inputs, if your model was trained with it:
+#   mean = [0.4914, 0.4822, 0.4465]    std = [0.2470, 0.2435, 0.2616]
+# Leave both empty ([]) for no normalization (npy uint8 data is scaled to 0-1 first).
+mean = []
+std  = []
+
+# Number of REAL samples used for the sensitivity scan (32 or more recommended).
+# Never random noise: with random data the activations mean nothing.
+calibration_samples = 32
+
+[hardware]
+# Target microcontroller resources, in KB. Use 0 for anything the board does not have.
+ram_kb   = 320        # internal SRAM
+flash_kb = 4096       # program flash
+psram_kb = 0          # external PSRAM (0 = none). If RAM is over budget but fits with PSRAM, the
+                      # plan is accepted and marked "needs PSRAM (slower)".
+
+# Native word size of the CPU, in bits (8 for AVR, 32 for ESP32 / Cortex-M). The engine stores each
+# weight row padded to a whole word, so the memory estimate uses it.
+cpu_bits = 32
+
+[target]
+# Fraction of the hardware the model may use (0 < budget <= 1). 0.25 = 25% of RAM and flash.
+# It is a CEILING: the CDT starts at 1 bit and only raises the bits of a layer when needed.
+budget = 0.25
+
+# Cosine similarity (0-1) used by the estimate to SUGGEST bits per layer, and by the search to order
+# which layer to raise first (lowest cosine = most sensitive). The final decision is by accuracy.
+tolerance = 0.99
+
+# Bit options the search may choose from. "bin" = SYMBEX 1-bit binarization.
+options = ["bin", 2, 4, 8]
+
+# How the bits are decided (train stage): every layer starts at 1 bit ("bin"); after a quick trial,
+# if the accuracy drop vs. the original is larger than max_accuracy_drop (in accuracy POINTS),
+# the most sensitive layer goes up to the next option, and the trial repeats.
+max_accuracy_drop = 2.0
+
+# Epochs of each quick trial of that search (short: it only compares plans, the final training
+# uses [training] epochs). Quick trials underestimate the final accuracy.
+search_epochs = 5
+
+# Widths the search may try before raising bits (plain chain networks: MLPs, CNNs without residual
+# connections): the hidden layers become 1.5x, 2x wider,
+# starting from copies of the original neurons. Binary networks often recover accuracy with width.
+widths = [1.0, 1.5, 2.0]
+
+[training]
+epochs = 150
+
+# Distillation: the original model teaches the binarized one (true / false).
+distill     = true
+temperature = 4.0     # softening of the teacher's outputs (distillation only)
+alpha       = 0.85    # weight of the teacher vs. the true labels (distillation only)
+
+learning_rate = 1e-3
+batch_size    = 256
+
+# Which checkpoint to keep: "last" (the fair number to compare) or "best"
+# (best TEST epoch: optimistic, it selects on the test set).
+checkpoint = "last"
+
+seed = 42             # fixed seed: same configuration -> same result
+
+[output]
+# Where to write the result. Empty = "<model name>_binarized/" next to the model,
+# created automatically.
+directory = ""
+
+# Detailed console output (one block per layer) instead of only the summary tables.
+verbose = true
+
+# Where lib_symbex is (relative to where cdt.py runs). Used by the validate stage to compile the
+# exported header on this PC and check that the C gives exactly the integer simulation.
+lib_path = "../Symbex1_PIO/lib/lib_symbex"
+
+# Validation samples used by the export / validate stage.
+validation_samples = 2000
+
+[chip]
+# Measure the exported model on a real board (needs PlatformIO and the board connected).
+# "" = skip, "esp32" = classic ESP32, "s3" = ESP32-S3.
+board = ""
+port = "/dev/ttyUSB0"
+baud = 921600
+samples = 1000        # validation images sent to the board
+upload = true         # false = the firmware is already on the board
+popcount = "lut16"    # "lut16" (64 KB table, fastest) or "swar" (no table, minimum RAM)

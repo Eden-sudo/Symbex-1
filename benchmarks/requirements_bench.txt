@@ -1,0 +1,6 @@
+# env_bench: the official INT8 side of the benchmarks (TensorFlow Lite). Python 3.11 or 3.12.
+# Install PyTorch (CPU) first, then this file -- see README.md.
+tensorflow
+numpy
+pyserial
+platformio

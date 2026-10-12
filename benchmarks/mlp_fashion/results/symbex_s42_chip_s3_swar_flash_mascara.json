@@ -1,0 +1,47 @@
+{
+ "placa": "s3",
+ "hal": "esp32s3: PIE ee.xorq + SWAR",
+ "popcount": "swar",
+ "pesos": "flash",
+ "primera": "mascara",
+ "n": 1000,
+ "igual_simulacion": 100.0,
+ "precision": 87.1,
+ "mediana_ms": 16.915,
+ "min_ms": 16.909,
+ "capas": [
+  {
+   "paso": "layer 0: 784 -> 512 (uint8 x 1 bit) + thresholds",
+   "mediana_ms": 15.456
+  },
+  {
+   "paso": "layer 1: 512 -> 256 (1 bit x 1 bit) + thresholds",
+   "mediana_ms": 1.426
+  },
+  {
+   "paso": "layer 2: 256 -> 10 (1 bit x 1 bit) + argmax",
+   "mediana_ms": 0.033
+  }
+ ],
+ "ram": {
+  "buffers": 2976,
+  "entrada": 784,
+  "tabla_popcount": 0,
+  "pila_usada": 696,
+  "pesos_en_ram": 0,
+  "total": 4456
+ },
+ "flash_modelo": 71096,
+ "int8": {
+  "igual_simulacion": 100.0,
+  "precision": 87.2,
+  "mediana_ms": 15.746,
+  "capas_ms": [
+   13.456,
+   2.194,
+   0.093
+  ],
+  "ram_buffers": 1568,
+  "flash": 236328
+ }
+}

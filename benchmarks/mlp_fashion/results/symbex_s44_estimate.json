@@ -1,0 +1,58 @@
+{
+ "saltadas": [],
+ "flash_total": 31432,
+ "ram_pico": 130,
+ "limite_flash": 1048576.0,
+ "limite_ram": 81920.0,
+ "presupuesto": 0.25,
+ "tolerancia": 0.99,
+ "opciones": [
+  "bin"
+ ],
+ "palabra_bits": 32,
+ "cabe": true,
+ "layers": [
+  {
+   "name": "red.1",
+   "type": "Linear",
+   "shape": "256x784",
+   "choice": "bin",
+   "meets": false,
+   "options": {
+    "bin": {
+     "fid": 0.756283700466156,
+     "flash": 26624,
+     "ram": 98
+    }
+   }
+  },
+  {
+   "name": "red.4",
+   "type": "Linear",
+   "shape": "128x256",
+   "choice": "bin",
+   "meets": false,
+   "options": {
+    "bin": {
+     "fid": 0.2219896912574768,
+     "flash": 4608,
+     "ram": 32
+    }
+   }
+  },
+  {
+   "name": "red.7",
+   "type": "Linear",
+   "shape": "10x128",
+   "choice": "bin",
+   "meets": false,
+   "options": {
+    "bin": {
+     "fid": 0.7837492227554321,
+     "flash": 200,
+     "ram": 16
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+{
+ "precision": 88.5,
+ "acuerdo_fp32": 99.7,
+ "tflite_bytes": 248040,
+ "input_scale": 0.003921568859368563,
+ "input_zero_point": -128,
+ "n": 2000
+}

@@ -1,0 +1,47 @@
+{
+ "placa": "s3",
+ "hal": "esp32s3: lut16 (tabla de 64 KB en RAM)",
+ "popcount": "lut16",
+ "pesos": "ram",
+ "primera": "planos",
+ "n": 1000,
+ "igual_simulacion": 100.0,
+ "precision": 87.1,
+ "mediana_ms": 18.76,
+ "min_ms": 18.669,
+ "capas": [
+  {
+   "paso": "layer 0: 784 -> 512 (uint8 x 1 bit) + thresholds",
+   "mediana_ms": 18.4045
+  },
+  {
+   "paso": "layer 1: 512 -> 256 (1 bit x 1 bit) + thresholds",
+   "mediana_ms": 0.338
+  },
+  {
+   "paso": "layer 2: 256 -> 10 (1 bit x 1 bit) + argmax",
+   "mediana_ms": 0.018
+  }
+ ],
+ "ram": {
+  "buffers": 2976,
+  "entrada": 784,
+  "tabla_popcount": 65540,
+  "pila_usada": 696,
+  "pesos_en_ram": 71096,
+  "total": 141092
+ },
+ "flash_modelo": 71096,
+ "int8": {
+  "igual_simulacion": 100.0,
+  "precision": 87.2,
+  "mediana_ms": 15.745,
+  "capas_ms": [
+   13.454,
+   2.194,
+   0.093
+  ],
+  "ram_buffers": 1568,
+  "flash": 236328
+ }
+}
