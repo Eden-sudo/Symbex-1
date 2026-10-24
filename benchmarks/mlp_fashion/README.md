@@ -108,6 +108,62 @@ Latency of the distilled models (the same network, so the same speed as the labe
 - One task, one FP32 model; SYMBEX trained with 3 seeds (the INT8 model has no training, so no seeds).
 - Energy has not been measured; latency and memory have.
 
+## Low-bit baselines: INT4 and INT2 (PC only)
+
+`fashion_int4.py` quantizes the same FP32 architecture (784-256-128-10) with per-channel symmetric INT4 / INT2
+weights and int8 activations, by PTQ (max-abs, MSE clipping) and QAT (STE, learnable scales, the CDT's KD recipe),
+and evaluates it in integer arithmetic. `pareto.py` collects every `results/*.json` into accuracy vs. packed
+weight bytes (`results/pareto.json`).
+
+| Model | Accuracy (10k) | Weights |
+|---|---|---|
+| INT2 QAT, 15 epochs, 3 seeds | 88.15% | 58.7 KB |
+| SYMBEX 1 bit x2, 3 seeds | 87.02% | 66.9 KB |
+| INT4 QAT, 15 epochs, 3 seeds | 88.26% | 117.4 KB |
+| INT8 QAT, 5 epochs, 3 seeds | 88.27% | 234.8 KB |
+
+On weight bytes alone, **INT2 QAT dominates SYMBEX 1 bit x2** on this MLP: smaller and about 1.1 points more
+accurate. SYMBEX's remaining advantage is compute (1-bit activations: XNOR/popcount instead of int8 MACs), which
+these PC numbers do not measure. Caveats: the INT runs use a locally retrained FP32 model (87.82% vs. 88.17%);
+INT2 here is ternary (3 of 4 levels); requantization is simulated with a float multiplier.
+
+```
+python fashion_int4.py --bits 4 2 --semillas 3 --epocas 15
+python pareto.py
+```
+
+## PopLUT probe: codebook-compressed binary weights (PC only)
+
+`poplut_probe.py` tests whether the 1-bit weights of a trained SYMBEX x2 model can be stored as indices into a
+small codebook of 32-bit words. Every weight row of `red.1` and `red.4` is cut into 32-bit words; each word is
+stored as a codebook index plus a complement bit (the word is `c_k` or `~c_k`). `red.7` stays plain 1 bit. The
+codebook is learned by binary k-means in Hamming distance, then everything except the compressed signs (BatchNorm,
+input thresholds, last layer) is fine-tuned for 3 epochs.
+
+Base model: SYMBEX x2, seed 42, 15 epochs, 86.34% on the 10k test images, 66,880 B of 1-bit weights.
+
+| Codebook K | Post hoc | After fine-tune | Weights |
+|---|---|---|---|
+| 16 | 34.23% | 77.30% | 11,008 B |
+| 64 | 51.83% | 81.02% | 15,616 B |
+| 256 | 73.37% | 84.04% | 21,376 B |
+
+At K=256 the compressed layers cost about 0.31-0.34 bits per weight, with 19-20% of the weight bits changed
+(Hamming). The kill criterion was fixed before running: K=256 after fine-tuning losing more than 1 point against
+the base model discards PopLUT as a direct replacement. It loses 2.30 points, so **the verdict is discarded**.
+
+As a size point it is still of some interest. The binary x1 model (784-256-128-10), 15 epochs with the current CDT
+(validation split held out of train), reaches 82.85% on test with about 29.3 KB of 1-bit weights
+(`results/symbex_x1_e15_train.json`, field `test.acc_symbex`). PopLUT K=256 on x2 is 1.19 points more accurate and
+about 27% smaller than that x1. INT2 QAT (88.15%, 58.7 KB) still dominates in accuracy.
+
+Caveats: the x2 model was trained before the val/test leak fix (last checkpoint, no selection); a single k-means
+seed; not tested on the chip; the C lookup kernel does not exist yet.
+
+```
+python poplut_probe.py --modelo runs/symbex_local_s42/model_binarized.pth
+```
+
 ## How to reproduce
 
 ```

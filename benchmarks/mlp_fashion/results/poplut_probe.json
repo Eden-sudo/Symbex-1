@@ -1,0 +1,144 @@
+{
+  "modelo": "runs/symbex_local_s42/model_binarized.pth",
+  "acc_base": 86.33999824523926,
+  "bytes_pesos_base": 66880,
+  "comprimidas": [
+    "red.1",
+    "red.4"
+  ],
+  "epocas_ft": 3,
+  "semilla_kmeans": 0,
+  "criterio": "K=256 after the fine-tune loses more than 1.0 point(s) vs. base -> discarded",
+  "veredicto": "discarded",
+  "resultados": [
+    {
+      "k": 16,
+      "acc_posthoc": 34.22999978065491,
+      "acc_ft": 77.30000019073486,
+      "perdida_ft": 9.039998054504395,
+      "bytes_pesos": 11008,
+      "capas": {
+        "red.1": {
+          "forma": [
+            512,
+            784
+          ],
+          "palabras": 12800,
+          "codebook": 16,
+          "error_hamming": 0.28164610570790816,
+          "entropia_bits_por_palabra": 4.820233740785662,
+          "bytes_indices": 8000,
+          "bytes_codebook": 64,
+          "bytes_1bit": 50176,
+          "tabla_por_inferencia": 400,
+          "busquedas_por_inferencia": 12800,
+          "bytes": 8064,
+          "bits_por_peso": 0.16071428571428573
+        },
+        "red.4": {
+          "forma": [
+            256,
+            512
+          ],
+          "palabras": 4096,
+          "codebook": 16,
+          "error_hamming": 0.3117523193359375,
+          "entropia_bits_por_palabra": 4.940812031798378,
+          "bytes_indices": 2560,
+          "bytes_codebook": 64,
+          "bytes_1bit": 16384,
+          "tabla_por_inferencia": 256,
+          "busquedas_por_inferencia": 4096,
+          "bytes": 2624,
+          "bits_por_peso": 0.16015625
+        }
+      }
+    },
+    {
+      "k": 64,
+      "acc_posthoc": 51.829999685287476,
+      "acc_ft": 81.01999759674072,
+      "perdida_ft": 5.320000648498535,
+      "bytes_pesos": 15616,
+      "capas": {
+        "red.1": {
+          "forma": [
+            512,
+            784
+          ],
+          "palabras": 12800,
+          "codebook": 64,
+          "error_hamming": 0.23383689413265307,
+          "entropia_bits_por_palabra": 6.787242119629482,
+          "bytes_indices": 11200,
+          "bytes_codebook": 256,
+          "bytes_1bit": 50176,
+          "tabla_por_inferencia": 1600,
+          "busquedas_por_inferencia": 12800,
+          "bytes": 11456,
+          "bits_por_peso": 0.22831632653061223
+        },
+        "red.4": {
+          "forma": [
+            256,
+            512
+          ],
+          "palabras": 4096,
+          "codebook": 64,
+          "error_hamming": 0.26071929931640625,
+          "entropia_bits_por_palabra": 6.901074238177175,
+          "bytes_indices": 3584,
+          "bytes_codebook": 256,
+          "bytes_1bit": 16384,
+          "tabla_por_inferencia": 1024,
+          "busquedas_por_inferencia": 4096,
+          "bytes": 3840,
+          "bits_por_peso": 0.234375
+        }
+      }
+    },
+    {
+      "k": 256,
+      "acc_posthoc": 73.36999773979187,
+      "acc_ft": 84.0399980545044,
+      "perdida_ft": 2.3000001907348633,
+      "bytes_pesos": 21376,
+      "capas": {
+        "red.1": {
+          "forma": [
+            512,
+            784
+          ],
+          "palabras": 12800,
+          "codebook": 256,
+          "error_hamming": 0.19439074457908162,
+          "entropia_bits_por_palabra": 8.715607157533015,
+          "bytes_indices": 14400,
+          "bytes_codebook": 1024,
+          "bytes_1bit": 50176,
+          "tabla_por_inferencia": 6400,
+          "busquedas_por_inferencia": 12800,
+          "bytes": 15424,
+          "bits_por_peso": 0.30739795918367346
+        },
+        "red.4": {
+          "forma": [
+            256,
+            512
+          ],
+          "palabras": 4096,
+          "codebook": 256,
+          "error_hamming": 0.20059967041015625,
+          "entropia_bits_por_palabra": 8.823161960549534,
+          "bytes_indices": 4608,
+          "bytes_codebook": 1024,
+          "bytes_1bit": 16384,
+          "tabla_por_inferencia": 4096,
+          "busquedas_por_inferencia": 4096,
+          "bytes": 5632,
+          "bits_por_peso": 0.34375
+        }
+      }
+    }
+  ]
+}

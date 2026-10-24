@@ -21,6 +21,7 @@ import sys as _sys
 from . import dense as _dense
 from .dense import plain as _dense_plain, core as _dense_core, gated as _dense_gated
 from .dense.plain import DensePlain
+from .dense.ternary import DenseTernary
 from .conv.plain import ConvPlain
 from .kbit import DenseKBit, ConvKBit
 from .base import RSign
@@ -39,6 +40,7 @@ LinearKBit = DenseKBit
 METHODS = {
     ("dense", "plain"): DensePlain,
     ("conv", "plain"): ConvPlain,
+    ("dense", "ternary"): DenseTernary,
 }
 KBIT = {"dense": DenseKBit, "conv": ConvKBit}
 
@@ -66,7 +68,8 @@ def apply_method(model, method="plain"):
     return model
 
 
-def apply_plan(model, plan, first=None, keep_first_input=True, primera=None, mantener_entrada_primera=None):
+def apply_plan(model, plan, first=None, keep_first_input=True, primera=None, mantener_entrada_primera=None,
+               bin_method="plain"):
     """
     Replaces each nn.Conv2d / nn.Linear named in `plan` (in place): "bin" -> plain (1 bit),
     an integer k >= 2 -> kbit. Layers not in `plan` are left as they are (FP32).
@@ -74,6 +77,7 @@ def apply_plan(model, plan, first=None, keep_first_input=True, primera=None, man
     (same rule as apply_method). If None, the first layer in definition order is used.
     keep_first_input=False quantizes that input too (e.g. an INT8 reference, where the
     deployed model also receives a quantized input).
+    bin_method: the METHODS entry a "bin" layer uses ("plain" by default; "ternary" for dense layers).
     Call this BEFORE model.to(device).
     primera / mantener_entrada_primera: old names of first / keep_first_input (kept until every caller is translated).
     """
@@ -98,7 +102,9 @@ def apply_plan(model, plan, first=None, keep_first_input=True, primera=None, man
         kind = "conv" if isinstance(layer, nn.Conv2d) else "dense"
         quantize_in = full_name != first or not keep_first_input
         if op == "bin":
-            new_layer = METHODS[(kind, "plain")].from_float(layer, binarize_input=quantize_in)
+            if (kind, bin_method) not in METHODS:
+                raise ValueError(f"layer {full_name}: method '{bin_method}' is not available for {kind} layers")
+            new_layer = METHODS[(kind, bin_method)].from_float(layer, binarize_input=quantize_in)
         elif isinstance(op, int) and op >= 2:
             new_layer = KBIT[kind].from_float(layer, op, quantize_input=quantize_in)
         else:
