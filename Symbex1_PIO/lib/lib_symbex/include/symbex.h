@@ -11,6 +11,7 @@
 #include "layers/spatial/symbex_conv2d.h"
 #include "layers/vector/symbex_dense.h"
 #include "layers/vector/symbex_gated.h"
+#include "layers/vector/symbex_ternary.h"
 // #include "layers/spatial/symbex_conv1d.h"  -- pendiente
 // #include "layers/spatial/symbex_pool.h"    -- pendiente
 

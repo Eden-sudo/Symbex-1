@@ -18,6 +18,7 @@ init_thresholds(model, x)    starts every RSign threshold at the per-channel MED
 import torch
 import torch.nn as nn
 from .linear.plain import LinearPlain
+from .linear.ternary import LinearTernary
 from .conv.plain import ConvPlain
 from .kbit import LinearKBit, ConvKBit
 from .base import RSign
@@ -27,6 +28,7 @@ from .kbit import CuantizadorActivacion
 METHODS = {
     ("linear", "plain"): LinearPlain,
     ("conv", "plain"): ConvPlain,
+    ("linear", "ternary"): LinearTernary,
 }
 KBIT = {"linear": LinearKBit, "conv": ConvKBit}
 
@@ -54,7 +56,7 @@ def apply_method(model, method="plain"):
     return model
 
 
-def apply_plan(model, plan, primera=None, mantener_entrada_primera=True):
+def apply_plan(model, plan, primera=None, mantener_entrada_primera=True, metodo_bin="plain"):
     """
     Replaces each nn.Conv2d / nn.Linear named in `plan` (in place): "bin" -> plain (1 bit),
     an integer k >= 2 -> kbit. Layers not in `plan` are left as they are (FP32).
@@ -62,6 +64,7 @@ def apply_plan(model, plan, primera=None, mantener_entrada_primera=True):
     (same rule as apply_method). If None, the first layer in definition order is used.
     mantener_entrada_primera=False quantizes that input too (e.g. an INT8 reference, where the
     deployed model also receives a quantized input).
+    metodo_bin: the METHODS entry a "bin" layer uses ("plain" by default; "ternary" for linear layers).
     Call this BEFORE model.to(device).
     """
     nombres = {m: n for n, m in model.named_modules()}
@@ -81,7 +84,9 @@ def apply_plan(model, plan, primera=None, mantener_entrada_primera=True):
         kind = "conv" if isinstance(layer, nn.Conv2d) else "linear"
         entrada = completo != primera or not mantener_entrada_primera
         if op == "bin":
-            nuevo = METHODS[(kind, "plain")].from_float(layer, binarize_input=entrada)
+            if (kind, metodo_bin) not in METHODS:
+                raise ValueError(f"layer {completo}: method '{metodo_bin}' is not available for {kind} layers")
+            nuevo = METHODS[(kind, metodo_bin)].from_float(layer, binarize_input=entrada)
         elif isinstance(op, int) and op >= 2:
             nuevo = KBIT[kind].from_float(layer, op, quantize_input=entrada)
         else:

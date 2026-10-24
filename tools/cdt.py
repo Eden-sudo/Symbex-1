@@ -84,7 +84,8 @@ DEFAULTS = {
 }
 STAGES = ["inspect", "estimate", "train", "export", "validate", "chip"]
 INTEGRATED = ["inspect", "estimate", "train", "export", "validate", "chip"]
-METHODS = ["plain", "gated", "boolean"]
+METHODS = ["plain", "gated", "boolean", "ternary"]
+BITS_PESO_BIN = {"ternary": 2}         # weight bits of a "bin" layer per method (default 1: one sign bit)
 FORMATS_LOCAL = ["npy", "imagefolder"]
 
 
@@ -378,8 +379,9 @@ def stage_inspect(modelo, origen_modelo, cfg):
         print("    [!] the model is not FP32: part of the information is already lost, the estimate is less reliable")
     kind = "conv" if convs else "mlp"
     print(f"    kind        : {kind}  -> method '{cfg['model']['method']}'")
-    if cfg["model"]["method"] == "gated" and convs:
-        sys.exit("[X] method 'gated' only supports MLPs (linear layers), and this model has Conv2d layers")
+    if cfg["model"]["method"] in ("gated", "ternary") and convs:
+        sys.exit(f"[X] method '{cfg['model']['method']}' only supports MLPs (linear layers), "
+                 "and this model has Conv2d layers")
     if cfg["model"]["method"] == "boolean":
         sys.exit("[X] method 'boolean' (SYMBEX v3) is not integrated into lib_symbex yet: use 'plain'")
     if cfg["output"]["verbose"]:
@@ -415,17 +417,19 @@ def _bits(op):
     return 1 if op == "bin" else int(op)
 
 
-def _memoria_plan(filas, plan, ancho=1.0, palabra=32):
+def _memoria_plan(filas, plan, ancho=1.0, palabra=32, bits_bin=1):
     """(flash bytes, peak RAM bytes) of a plan at a width. Exact arithmetic from the layer shapes:
     hidden layers get `ancho` times more outputs (and the next layer `ancho` times more inputs); each
-    output row is padded to a whole CPU word; per-channel parameters as in Sensitivity.memoria_capa."""
+    output row is padded to a whole CPU word; per-channel parameters as in Sensitivity.memoria_capa.
+    bits_bin: weight bits of a "bin" layer (1 plain, 2 ternary: two bit planes); its activations stay 1 bit."""
     flash, rams = 0, []
     for i, f in enumerate(filas):
         bits = _bits(plan[f["name"]])
+        bits_w = bits_bin if plan[f["name"]] == "bin" else bits
         mi = 1.0 if i == 0 else ancho
         mo = 1.0 if i == len(filas) - 1 else ancho
         canales = int(round(f["canales"] * mo))
-        fila = -(-int(round(f["fan_in"] * mi)) * bits // palabra) * palabra
+        fila = -(-int(round(f["fan_in"] * mi)) * bits_w // palabra) * palabra
         flash += (canales * fila + 7) // 8 + canales * (4 if plan[f["name"]] == "bin" else 8)
         rams.append((int(round(f["n_entradas"] * mi)) * bits + 7) // 8)
     return flash, max(a + b for a, b in zip(rams, rams[1:] + [0]))
@@ -462,7 +466,8 @@ def _entrenar_plan(modelo, maestro, plan, primera, train, trl, val_l, cfg, epoch
     base = copy.deepcopy(modelo).cpu()
     if ancho > 1:
         widen(base, ancho, calib[:2], seed=tr["seed"])
-    alumno = apply_plan(base, plan, primera=primera)
+    metodo = cfg["model"]["method"]
+    alumno = apply_plan(base, plan, primera=primera, metodo_bin=metodo if metodo == "ternary" else "plain")
     init_thresholds(alumno, calib)
     comunes = dict(epochs=epochs, lr=tr["learning_rate"], device=dev, verbose=verbose, ruta_checkpoint=ruta,
                    guardar={"last": "ultima", "best": "mejor"}[tr["checkpoint"]],
@@ -522,6 +527,7 @@ def stage_train(modelo, train, val, estimacion, cfg, salida, kind="mlp"):
     filas = estimacion["filas"]
     primera = filas[0]["name"]
     palabra = cfg["hardware"]["cpu_bits"]
+    bits_bin = BITS_PESO_BIN.get(cfg["model"]["method"], 1)
     opciones = sorted(t["options"], key=_bits)
     anchos = sorted(set(float(a) for a in t["widths"]))
     if len(anchos) > 1:                              # widening only works on plain chains: check it once
@@ -552,7 +558,7 @@ def stage_train(modelo, train, val, estimacion, cfg, salida, kind="mlp"):
     print(f"    {'step':>4} | {'plan':<26} | {'flash KB':>9} | {'accuracy':>8} | {'drop':>6} | decision")
     print("    " + "-" * 84)
     plan, ancho = {f["name"]: opciones[0] for f in filas}, anchos[0]
-    flash, ram = _memoria_plan(filas, plan, ancho, palabra)
+    flash, ram = _memoria_plan(filas, plan, ancho, palabra, bits_bin)
     ok, nota = _cabe(flash, ram, estimacion, cfg)
     if not ok:
         sys.exit(f"[X] even the smallest plan does not fit the budget ({nota}: flash {flash / 1024:.1f} KB, "
@@ -562,7 +568,7 @@ def stage_train(modelo, train, val, estimacion, cfg, salida, kind="mlp"):
         res = _entrenar_plan(modelo, maestro, plan, primera, train, trl, val_l, cfg, t["search_epochs"], dev, ancho)
         acc = res["promedio_final"]
         caida = acc_original - acc
-        flash, ram = _memoria_plan(filas, plan, ancho, palabra)
+        flash, ram = _memoria_plan(filas, plan, ancho, palabra, bits_bin)
         fila = dict(step=paso, width=ancho, plan={k: str(v) for k, v in plan.items()}, flash=flash, ram=ram,
                     accuracy=acc, drop=caida)
         historial.append(fila)
@@ -574,7 +580,7 @@ def stage_train(modelo, train, val, estimacion, cfg, salida, kind="mlp"):
             mas_anchos = [a for a in anchos if a > ancho]
             if all(v == opciones[0] for v in plan.values()):
                 for a in mas_anchos:
-                    fl, rm = _memoria_plan(filas, plan, a, palabra)
+                    fl, rm = _memoria_plan(filas, plan, a, palabra, bits_bin)
                     if _cabe(fl, rm, estimacion, cfg)[0]:
                         siguiente = (f"wider -> x{a:g}", plan, a)
                         break
@@ -585,7 +591,7 @@ def stage_train(modelo, train, val, estimacion, cfg, salida, kind="mlp"):
                 for f in candidatas:
                     prueba = dict(plan)
                     prueba[f["name"]] = opciones[opciones.index(plan[f["name"]]) + 1]
-                    fl, rm = _memoria_plan(filas, prueba, ancho, palabra)
+                    fl, rm = _memoria_plan(filas, prueba, ancho, palabra, bits_bin)
                     if _cabe(fl, rm, estimacion, cfg)[0]:
                         siguiente = (f"raise {f['name']} -> {prueba[f['name']]}", prueba, ancho)
                         break
@@ -601,7 +607,7 @@ def stage_train(modelo, train, val, estimacion, cfg, salida, kind="mlp"):
         print(f"    [!] the accepted drop ({t['max_accuracy_drop']} points) was not reached; the last plan is used")
 
     # ---------------- final training of the chosen width and plan
-    flash, ram = _memoria_plan(filas, plan, ancho, palabra)
+    flash, ram = _memoria_plan(filas, plan, ancho, palabra, bits_bin)
     nota = _cabe(flash, ram, estimacion, cfg)[1]
     print(f"\n    FINAL TRAINING  ({tr['epochs']} epochs, {'distillation' if tr['distill'] else 'labels only'},"
           f" width x{ancho:g})")
@@ -650,9 +656,11 @@ def stage_export(entrenado, val, cfg, salida, kind, modelo_original=None, train=
     from compiler_core.export.dense import exportar_y_validar, exportar_int8
     print("\n[4-5] EXPORT + VALIDATE")
     plan = entrenado["plan"]
-    if kind != "mlp" or cfg["model"]["method"] != "plain":
-        print("    [!] export is only integrated for MLPs with the plain method; skipped")
+    if kind != "mlp" or cfg["model"]["method"] not in ("plain", "ternary"):
+        print("    [!] export is only integrated for MLPs with the plain or ternary method; skipped")
         return None
+    if cfg["model"]["method"] == "ternary":
+        from compiler_core.export.ternary import exportar_y_validar
     if any(op != "bin" for op in plan.values()):
         print("    [!] the plan has k-bit layers (" + ", ".join(f"{k}: {v}" for k, v in plan.items() if v != "bin")
               + "): the C dense layer with k > 1 is not verified yet, so only all-1-bit plans are exported."
@@ -740,7 +748,9 @@ def main():
     res_export = stage_export(entrenado, val, cfg, salida, kind, modelo, train)
     if args.stop_after in ("export", "validate") or res_export is None:
         return
-    if cfg["chip"]["board"]:
+    if cfg["chip"]["board"] and cfg["model"]["method"] == "ternary":
+        print("\n[6] CHIP  skipped: the chip harness (export/dense.py medir_en_chip) does not build symbex_ternary.c yet")
+    elif cfg["chip"]["board"]:
         stage_chip(res_export, cfg, salida)
     else:
         print("\n[6] CHIP  skipped: set [chip] board = \"esp32\" or \"s3\" (or --board esp32) to measure on a board")

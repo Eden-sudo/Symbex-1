@@ -43,15 +43,16 @@ INT32_MIN, INT32_MAX = -2 ** 31, 2 ** 31 - 1
 # ---------------------------------------------------------------------------------------------------
 # 1. structure
 # ---------------------------------------------------------------------------------------------------
-def _hojas_en_orden(modelo, x):
-    """Modules in the order the forward pass runs them: every LinearPlain as ONE unit (its inner RSign is
-    part of it) and every other leaf module that is not inside a LinearPlain."""
+def _hojas_en_orden(modelo, x, clase=None):
+    """Modules in the order the forward pass runs them: every LinearPlain (or `clase`) as ONE unit (its inner
+    RSign is part of it) and every other leaf module that is not inside one."""
     from ..methods.linear.plain import LinearPlain
-    unidades = [n for n, m in modelo.named_modules() if isinstance(m, LinearPlain)]
+    clase = clase or LinearPlain
+    unidades = [n for n, m in modelo.named_modules() if isinstance(m, clase)]
     orden, hooks = [], []
     for n, m in modelo.named_modules():
         dentro = any(n.startswith(u + ".") for u in unidades)
-        if isinstance(m, LinearPlain) or (len(list(m.children())) == 0 and not dentro):
+        if isinstance(m, clase) or (len(list(m.children())) == 0 and not dentro):
             hooks.append(m.register_forward_hook(lambda mod, e, s: orden.append(mod)))
     estaba = modelo.training
     modelo.eval()
@@ -68,16 +69,17 @@ def _hojas_en_orden(modelo, x):
     return res
 
 
-def analizar(modelo, x):
+def analizar(modelo, x, clase=None):
     """Returns the layer groups [(LinearPlain, BatchNorm1d or None, has ReLU)], or raises ValueError
-    explaining what is not supported."""
+    explaining what is not supported. `clase`: the layer class to look for (LinearPlain by default)."""
     from ..methods.linear.plain import LinearPlain
+    clase = clase or LinearPlain
     grupos, actual = [], None
-    for m in _hojas_en_orden(modelo, x):
+    for m in _hojas_en_orden(modelo, x, clase):
         nombre = type(m).__name__
         if isinstance(m, (nn.Flatten, nn.Dropout, nn.Identity)):
             continue
-        if isinstance(m, LinearPlain):
+        if isinstance(m, clase):
             actual = [m, None, False]
             grupos.append(actual)
         elif isinstance(m, nn.BatchNorm1d) and actual is not None and actual[1] is None and not actual[2]:
@@ -85,10 +87,10 @@ def analizar(modelo, x):
         elif isinstance(m, nn.ReLU) and actual is not None and not actual[2]:
             actual[2] = True
         else:
-            raise ValueError(f"dense export: unsupported module {nombre} (supported: LinearPlain -> "
+            raise ValueError(f"dense export: unsupported module {nombre} (supported: {clase.__name__} -> "
                              f"[BatchNorm1d] -> [ReLU], repeated). k-bit layers cannot be exported yet.")
     if not grupos:
-        raise ValueError("dense export: no LinearPlain layer found (is every layer 'bin'?)")
+        raise ValueError(f"dense export: no {clase.__name__} layer found (is every layer 'bin'?)")
     if grupos[-1][2]:
         raise ValueError("dense export: the last layer cannot have a ReLU (it produces the logits)")
     return [tuple(g) for g in grupos]

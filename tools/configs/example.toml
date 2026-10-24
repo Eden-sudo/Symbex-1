@@ -36,6 +36,8 @@ definition = ""
 #   "plain"   -> default. lib_symbex engine. Conv layers go to conv, linear layers to dense
 #                (detected automatically from the model, no flag needed).
 #   "gated"   -> block-gated layers. Only for MLPs (linear layers).
+#   "ternary" -> weights in {-1, 0, +1} (2 bit planes: sign + nonzero mask), +-1 activations. Only for MLPs.
+#                See configs/ternary_fashion.toml.
 #   "boolean" -> SYMBEX v3 boolean engine (available once it is integrated into lib_symbex).
 method = "plain"
 
