@@ -302,7 +302,9 @@ def load_model(cfg):
 
 
 def load_data(cfg):
-    """Returns (train dataset, validation dataset) as TensorDatasets or torchvision datasets."""
+    """Returns (train, validation, test) datasets. Validation drives every selection (search, checkpoint);
+    test is touched once, for the final report. Formats without a separate test set (npy, imagefolder
+    without a test/ folder) return test=None and the final report falls back to validation."""
     import numpy as np
     import torch
     from torch.utils.data import TensorDataset, random_split
@@ -315,6 +317,10 @@ def load_data(cfg):
             forma = (1, -1) + (1,) * (x.dim() - 2)
             x = (x - torch.tensor(d["mean"]).view(forma)) / torch.tensor(d["std"]).view(forma)
         return x
+
+    def _dividir(todo):
+        n_val = max(1, int(len(todo) * d["validation_split"]))
+        return tuple(random_split(todo, [len(todo) - n_val, n_val], generator=gen))
 
     if fmt == "npy":
         rx, ry = os.path.join(carpeta, "x.npy"), os.path.join(carpeta, "y.npy")
@@ -336,10 +342,8 @@ def load_data(cfg):
         rv = os.path.join(carpeta, "val.npy")
         if os.path.exists(rv):
             val = torch.from_numpy(np.load(rv).astype(bool))
-            return TensorDataset(x[~val], y[~val]), TensorDataset(x[val], y[val])
-        todo = TensorDataset(x, y)
-        n_val = max(1, int(len(todo) * d["validation_split"]))
-        return tuple(random_split(todo, [len(todo) - n_val, n_val], generator=gen))
+            return TensorDataset(x[~val], y[~val]), TensorDataset(x[val], y[val]), None
+        return _dividir(TensorDataset(x, y)) + (None,)
 
     import torchvision
     import torchvision.transforms as T
@@ -347,17 +351,18 @@ def load_data(cfg):
     tf = T.Compose(pasos)
     if fmt == "imagefolder":
         tr, va = os.path.join(carpeta, "train"), os.path.join(carpeta, "val")
+        te = os.path.join(carpeta, "test")
+        test = torchvision.datasets.ImageFolder(te, tf) if os.path.isdir(te) else None
         if os.path.isdir(tr) and os.path.isdir(va):
-            return torchvision.datasets.ImageFolder(tr, tf), torchvision.datasets.ImageFolder(va, tf)
-        todo = torchvision.datasets.ImageFolder(carpeta, tf)
-        n_val = max(1, int(len(todo) * d["validation_split"]))
-        return tuple(random_split(todo, [len(todo) - n_val, n_val], generator=gen))
+            return torchvision.datasets.ImageFolder(tr, tf), torchvision.datasets.ImageFolder(va, tf), test
+        return _dividir(torchvision.datasets.ImageFolder(tr if os.path.isdir(tr) else carpeta, tf)) + (test,)
     nombre = {"cifar10": "CIFAR10", "cifar100": "CIFAR100", "mnist": "MNIST",
               "fashionmnist": "FashionMNIST"}.get(fmt.lower().replace("-", "").replace("_", ""))
     if nombre is None:
         sys.exit(f"[X] [data] format {fmt!r} not supported (npy, imagefolder, cifar10, cifar100, mnist, fashionmnist)")
     clase = getattr(torchvision.datasets, nombre)
-    return clase(carpeta, train=True, download=True, transform=tf), clase(carpeta, train=False, download=True, transform=tf)
+    return _dividir(clase(carpeta, train=True, download=True, transform=tf)) + (
+        clase(carpeta, train=False, download=True, transform=tf),)
 
 
 # ---------------------------------------------------------------------------
@@ -517,7 +522,7 @@ def _predicciones(modelo, val_l, dev):
     return torch.cat(out)
 
 
-def stage_train(modelo, train, val, estimacion, cfg, salida, kind="mlp"):
+def stage_train(modelo, train, val, estimacion, cfg, salida, kind="mlp", test=None):
     import torch
     from torch.utils.data import DataLoader
     from compiler_core.train import evaluar
@@ -640,11 +645,22 @@ def stage_train(modelo, train, val, estimacion, cfg, salida, kind="mlp"):
           f"validation samples (how much of the original's behavior it keeps)")
     print(f"    RETAINED : of the {int(bien_o.sum())} samples the original gets right, the binarized model still gets "
           f"{retenido:.2f}% right (knowledge kept); it also gets right {ganado} that the original got wrong")
+    prueba = {}
+    if test is not None:                              # held-out test: evaluated once, after every selection
+        test_l = DataLoader(test, batch_size=max(tr["batch_size"], 512), num_workers=2)
+        prueba = dict(acc_fp32=evaluar(maestro, test_l, dev),
+                      acc_int8=_referencias(modelo, train, test_l, filas, cfg, dev)["acc_int8"],
+                      acc_symbex=evaluar(res["modelo"], test_l, dev), n=len(test))
+        print(f"\n    HELD-OUT TEST ({prueba['n']} samples, not used for any selection): FP32 {prueba['acc_fp32']:.2f}%"
+              f" | INT8 {prueba['acc_int8']:.2f}% | SYMBEX {prueba['acc_symbex']:.2f}%")
+    else:
+        print("\n    [!] no separate test set for this data format: the accuracies above are on the validation"
+              " split that also drove the search and checkpoint selection (optimistic)")
     with open(os.path.join(salida, "train.json"), "w") as fh:
         json.dump(dict(width=ancho, plan={k: str(v) for k, v in plan.items()}, flash_total=flash, ram_peak=ram,
                        references=ref, acc_original=acc_original, acc_last=ultima,
                        acc_mean_last5=res["promedio_final"], acc_best_epoch=res["mejor_test"], identity=identidad, retained=retenido, gained=ganado,
-                       search=historial, history=res["historial"]), fh, indent=1)
+                       test=prueba, search=historial, history=res["historial"]), fh, indent=1)
     print(f"    -> {ruta}\n    -> {os.path.join(salida, 'train.json')}")
     res["plan"] = plan
     res["ancho"] = ancho
@@ -737,15 +753,16 @@ def main():
     kind = stage_inspect(modelo, origen_modelo, cfg)
     if args.stop_after == "inspect":
         return
-    train, val = load_data(cfg)
-    print(f"\n[*] data: {len(train)} training / {len(val)} validation samples ({cfg['data']['format']})")
+    train, val, test = load_data(cfg)
+    print(f"\n[*] data: {len(train)} training / {len(val)} validation / "
+          f"{len(test) if test is not None else 'no'} test samples ({cfg['data']['format']})")
     estimacion = stage_estimate(modelo, train, cfg, salida)
     if args.stop_after == "estimate":
         return
-    entrenado = stage_train(modelo, train, val, estimacion, cfg, salida, kind)
+    entrenado = stage_train(modelo, train, val, estimacion, cfg, salida, kind, test=test)
     if args.stop_after == "train":
         return
-    res_export = stage_export(entrenado, val, cfg, salida, kind, modelo, train)
+    res_export = stage_export(entrenado, test if test is not None else val, cfg, salida, kind, modelo, train)
     if args.stop_after in ("export", "validate") or res_export is None:
         return
     if cfg["chip"]["board"] and cfg["model"]["method"] == "ternary":
