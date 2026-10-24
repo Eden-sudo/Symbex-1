@@ -16,6 +16,19 @@
 extern "C" {
 #endif
 
+/*
+ * Layout for the ESP32-S3 PIE kernel (-DSYMBEX_USE_PIE): ee.vld.128 ignores the low 4 address bits,
+ * so the kernel only runs when BOTH operands are 16-byte aligned (else that call takes the default
+ * path, same result). Declare weight arrays and activation buffers with SYMBEX_ALIGN16; for every
+ * neuron row of a dense layer to stay aligned, the row stride ceil(in_features / 32) words must be a
+ * multiple of 4 (in_features a multiple of 128, or rows padded to it).
+ */
+#if defined(__GNUC__)
+#define SYMBEX_ALIGN16 __attribute__((aligned(16)))
+#else
+#define SYMBEX_ALIGN16
+#endif
+
 /* XNOR + popcount sobre bloques de bits: devuelve 2*coincidencias - n_bits_reales. */
 int32_t symbex_xnor_popcount(const uint32_t* a, const uint32_t* b, int n_palabras, int n_bits_reales);
 

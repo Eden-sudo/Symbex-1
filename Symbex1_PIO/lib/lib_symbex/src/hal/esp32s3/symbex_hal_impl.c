@@ -8,6 +8,13 @@
  * hal/generico): padding bits never count. Where the padding already differed (the convs),
  * the result is identical to before.
  * -DSYMBEX_HAL_PRUEBA_SIN_PIE replaces the PIE instruction with C (only for testing on a PC).
+ *
+ * -DSYMBEX_USE_PIE (opt-in, default OFF) selects the PIE multiplier kernel for symbex_xnor_popcount:
+ * 128-bit ee.xorq, then the bit count done by the SIMD unit (bit planes ee.andq/ee.vsr.32 accumulated
+ * per byte with ee.vadds.s8, summed by ee.vmulas.u8.accx against a vector of ones). Needs a and b
+ * 16-byte aligned (see SYMBEX_ALIGN16 in hal/symbex_hal.h); otherwise that call uses the default path
+ * below. Bits past the last full 128-bit block are counted in C, so any n_bits_reales is exact.
+ * With SYMBEX_HAL_PRUEBA_SIN_PIE every PIE instruction of that kernel is emulated in C, one to one.
  */
 
 #include <stdbool.h>
@@ -106,6 +113,159 @@ static int32_t xnor_pie_swar(const uint32_t* a, const uint32_t* b, int n_bits_re
     return n_bits_reales - 2 * dif;
 }
 
+#if defined(SYMBEX_USE_PIE)
+
+/*
+ * PIE multiplier kernel. One "lote" (batch) = up to PIE_BLOQUES_POR_LOTE blocks of 128 bits:
+ *   q2 = a XOR b                                  ee.xorq
+ *   8 times: q4 += q2 AND 0x01..01 ; q2 >>= 1     ee.andq, ee.vadds.s8, ee.vsr.32 (SAR = 1)
+ *   ACCX = sum_i q4[i] * 1                        ee.vmulas.u8.accx against the ones vector
+ * q4 holds, per byte, how many set bits that byte position had across the batch: at most 8 per block,
+ * so 15 blocks (120) never reach the s8 saturation limit (127). The 0x01 vector is both the bit mask
+ * and the "ones" operand of the multiplier. ee.vsr.32 may be arithmetic: the sign bits it shifts in
+ * only reach bits 25..31 of each lane and the mask keeps bits 0, 8, 16, 24, so it does not matter.
+ */
+#define PIE_BLOQUES_POR_LOTE 15
+
+static const uint8_t pie_unos[16] __attribute__((aligned(16))) = {
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+};
+
+#if !defined(SYMBEX_HAL_PRUEBA_SIN_PIE)
+
+#define PIE_PLANO_BIT                     \
+        "ee.andq q3, q2, q5 \n\t"         \
+        "ee.vadds.s8 q4, q4, q3 \n\t"     \
+        "ee.vsr.32 q2, q2 \n\t"
+
+/* Differences (popcount of a XOR b) over n_bloques (1..15) blocks of 128 bits; advances *pa and *pb. */
+static inline int32_t pie_dif_lote(const uint32_t** pa, const uint32_t** pb, int n_bloques) {
+    int32_t dif;
+    uint32_t sar_previo;
+    int n = n_bloques;
+    /* GCC has no clobber name for SAR on Xtensa: it is saved and restored inside the block */
+    asm volatile (
+        "rsr.sar %[sar] \n\t"
+        "ee.zero.accx \n\t"
+        "ee.zero.q q4 \n\t"
+        "ee.vld.128.ip q5, %[unos], 0 \n\t"
+        "ssai 1 \n\t"
+        "1: \n\t"
+        "ee.vld.128.ip q0, %[a], 16 \n\t"
+        "ee.vld.128.ip q1, %[b], 16 \n\t"
+        "ee.xorq q2, q0, q1 \n\t"
+        PIE_PLANO_BIT PIE_PLANO_BIT PIE_PLANO_BIT PIE_PLANO_BIT
+        PIE_PLANO_BIT PIE_PLANO_BIT PIE_PLANO_BIT
+        "ee.andq q3, q2, q5 \n\t"
+        "ee.vadds.s8 q4, q4, q3 \n\t"
+        "addi %[n], %[n], -1 \n\t"
+        "bnez %[n], 1b \n\t"
+        "ee.vmulas.u8.accx q4, q5 \n\t"
+        "rur.accx_0 %[dif] \n\t"
+        "wsr.sar %[sar] \n\t"
+        : [a] "+r"(*pa), [b] "+r"(*pb), [n] "+r"(n), [dif] "=&r"(dif), [sar] "=&r"(sar_previo)
+        : [unos] "r"(pie_unos)
+        : "memory"
+    );
+    return dif;
+}
+
+#undef PIE_PLANO_BIT
+
+#else  /* SYMBEX_HAL_PRUEBA_SIN_PIE: C emulation of each PIE instruction used above, same order */
+
+typedef struct { uint8_t b[16]; } pie_q;
+
+static void emu_vld128_ip(pie_q* q, const uint32_t** p) {          /* ee.vld.128.ip q, p, 16 */
+    const uint8_t* bytes = (const uint8_t*)*p;
+    for (int i = 0; i < 16; i++) q->b[i] = bytes[i];
+    *p += 4;
+}
+static void emu_xorq(pie_q* d, const pie_q* x, const pie_q* y) {
+    for (int i = 0; i < 16; i++) d->b[i] = (uint8_t)(x->b[i] ^ y->b[i]);
+}
+static void emu_andq(pie_q* d, const pie_q* x, const pie_q* y) {
+    for (int i = 0; i < 16; i++) d->b[i] = (uint8_t)(x->b[i] & y->b[i]);
+}
+static void emu_vadds_s8(pie_q* d, const pie_q* x, const pie_q* y) {   /* signed, saturating */
+    for (int i = 0; i < 16; i++) {
+        int s = (int)(int8_t)x->b[i] + (int)(int8_t)y->b[i];
+        d->b[i] = (uint8_t)(int8_t)(s > 127 ? 127 : (s < -128 ? -128 : s));
+    }
+}
+static void emu_vsr32(pie_q* d, const pie_q* s, unsigned sar) {      /* 4 little-endian 32-bit lanes */
+    for (int l = 0; l < 4; l++) {
+        uint32_t v = 0;
+        for (int k = 0; k < 4; k++) v |= (uint32_t)s->b[4 * l + k] << (8 * k);
+#if defined(SYMBEX_PIE_EMU_VSR_LOGICO)
+        v = v >> sar;
+#else
+        v = (uint32_t)((int32_t)v >> sar);                              /* arithmetic (worst case) */
+#endif
+        for (int k = 0; k < 4; k++) d->b[4 * l + k] = (uint8_t)(v >> (8 * k));
+    }
+}
+static void emu_vmulas_u8_accx(uint64_t* accx, const pie_q* x, const pie_q* y) {
+    uint64_t s = 0;
+    for (int i = 0; i < 16; i++) s += (uint64_t)x->b[i] * y->b[i];
+    *accx = (*accx + s) & 0xFFFFFFFFFFULL;                               /* ACCX is 40 bits */
+}
+
+/* Batches run by the emulated kernel: lets a PC test prove the PIE path was taken (no fallback). */
+unsigned long symbex_pie_prueba_lotes = 0;
+
+static int32_t pie_dif_lote(const uint32_t** pa, const uint32_t** pb, int n_bloques) {
+    pie_q q0, q1, q2, q3, q4, q5;
+    symbex_pie_prueba_lotes++;
+    uint64_t accx = 0;                                                   /* ee.zero.accx */
+    for (int i = 0; i < 16; i++) q4.b[i] = 0;                            /* ee.zero.q q4 */
+    for (int i = 0; i < 16; i++) q5.b[i] = pie_unos[i];                  /* ee.vld.128.ip q5, unos, 0 */
+    const unsigned sar = 1;                                              /* ssai 1 */
+    int n = n_bloques;
+    do {
+        emu_vld128_ip(&q0, pa);
+        emu_vld128_ip(&q1, pb);
+        emu_xorq(&q2, &q0, &q1);
+        for (int k = 0; k < 7; k++) {
+            emu_andq(&q3, &q2, &q5);
+            emu_vadds_s8(&q4, &q4, &q3);
+            emu_vsr32(&q2, &q2, sar);
+        }
+        emu_andq(&q3, &q2, &q5);
+        emu_vadds_s8(&q4, &q4, &q3);
+    } while (--n != 0);                                                  /* addi / bnez */
+    emu_vmulas_u8_accx(&accx, &q4, &q5);
+    return (int32_t)(uint32_t)accx;                                      /* rur.accx_0 */
+}
+
+#endif /* SYMBEX_HAL_PRUEBA_SIN_PIE */
+
+static inline int pie_alineado(const uint32_t* a, const uint32_t* b) {
+    return (((uintptr_t)a | (uintptr_t)b) & 15u) == 0;
+}
+
+/* Same contract as symbex_xnor_popcount; a and b must be 16-byte aligned. */
+static int32_t xnor_pie_vmulas(const uint32_t* a, const uint32_t* b, int n_bits_reales) {
+    int bloques = n_bits_reales / 128;
+    int32_t dif = 0;
+    const uint32_t* pa = a;
+    const uint32_t* pb = b;
+    while (bloques > 0) {
+        const int lote = bloques < PIE_BLOQUES_POR_LOTE ? bloques : PIE_BLOQUES_POR_LOTE;
+        dif += pie_dif_lote(&pa, &pb, lote);
+        bloques -= lote;
+    }
+    const int bits_cola = n_bits_reales % 128;                           /* tail: < 4 words, in C */
+    const int completas = bits_cola / 32;
+    const int resto = bits_cola % 32;
+    int w = 0;
+    for (; w < completas; w++) dif += popcount_swar(pa[w] ^ pb[w]);
+    if (resto) dif += popcount_swar((pa[w] ^ pb[w]) & ((1UL << resto) - 1UL));
+    return n_bits_reales - 2 * dif;
+}
+
+#endif /* SYMBEX_USE_PIE */
+
 int32_t symbex_hal_popcount32(uint32_t x) {
 #if defined(RUTA_LUT16)
     if (lut16_lista()) return tabla16[x & 0xFFFFU] + tabla16[x >> 16];
@@ -117,6 +277,9 @@ int32_t symbex_hal_popcount32(uint32_t x) {
 int32_t symbex_xnor_popcount(const uint32_t* a, const uint32_t* b, int n_palabras, int n_bits_reales) {
     if (n_bits_reales > n_palabras * 32) n_bits_reales = n_palabras * 32;   /* never read past the buffer */
     if (n_bits_reales <= 0) return 0;
+#if defined(SYMBEX_USE_PIE)
+    if (pie_alineado(a, b)) return xnor_pie_vmulas(a, b, n_bits_reales);
+#endif
 #if defined(RUTA_LUT16)
     if (lut16_lista()) {
         const uint8_t* t = tabla16;
@@ -139,7 +302,12 @@ int32_t symbex_xnor_popcount(const uint32_t* a, const uint32_t* b, int n_palabra
 }
 
 const char* symbex_hal_nombre(void) {
-#if defined(RUTA_LUT16)
+#if defined(SYMBEX_USE_PIE) && defined(RUTA_LUT16)
+    if (lut16_lista()) return "esp32s3: PIE ee.xorq + ee.vmulas (datos alineados a 16), si no lut16";
+    return "esp32s3: PIE ee.xorq + ee.vmulas (datos alineados a 16), si no PIE ee.xorq + SWAR";
+#elif defined(SYMBEX_USE_PIE)
+    return "esp32s3: PIE ee.xorq + ee.vmulas (datos alineados a 16), si no PIE ee.xorq + SWAR";
+#elif defined(RUTA_LUT16)
     if (lut16_lista()) return "esp32s3: lut16 (tabla de 64 KB en RAM)";
     return "esp32s3: PIE ee.xorq + SWAR (NO hubo RAM para lut16)";
 #else
