@@ -1,0 +1,192 @@
+{
+ "por": "pesos_bytes",
+ "filas": [
+  {
+   "modelo": "INT2 QAT 15 ep mean of 3 seeds",
+   "bits": 2,
+   "acc_2000": 88.25,
+   "acc_10k": 88.14999999999999,
+   "pesos_bytes": 58688,
+   "total_bytes": 61840,
+   "fp32_10k": 87.82,
+   "fuente": "int2_e15_pc.json",
+   "pareto": true
+  },
+  {
+   "modelo": "INT2 QAT 5 ep mean of 3 seeds",
+   "bits": 2,
+   "acc_2000": 88.11666666666667,
+   "acc_10k": 87.99000000000001,
+   "pesos_bytes": 58688,
+   "total_bytes": 61840,
+   "fp32_10k": 87.82,
+   "fuente": "int2_pc.json",
+   "pareto": false
+  },
+  {
+   "modelo": "INT2 PTQ MSE",
+   "bits": 2,
+   "acc_2000": 87.1,
+   "acc_10k": 85.87,
+   "pesos_bytes": 58688,
+   "total_bytes": 61840,
+   "fp32_10k": 87.82,
+   "fuente": "int2_pc.json",
+   "pareto": false
+  },
+  {
+   "modelo": "INT2 PTQ MAXABS",
+   "bits": 2,
+   "acc_2000": 47.15,
+   "acc_10k": 45.45,
+   "pesos_bytes": 58688,
+   "total_bytes": 61840,
+   "fp32_10k": 87.82,
+   "fuente": "int2_pc.json",
+   "pareto": false
+  },
+  {
+   "modelo": "SYMBEX 1-bit s42 x2 (784-512-256-10)",
+   "bits": 1,
+   "acc_2000": 88.1,
+   "acc_10k": 87.34,
+   "pesos_bytes": 66880,
+   "total_bytes": 71096,
+   "fp32_10k": 88.17,
+   "fuente": "symbex_s42_export.json",
+   "pareto": false
+  },
+  {
+   "modelo": "SYMBEX 1-bit mean of 3 seeds",
+   "bits": 1,
+   "acc_2000": 87.58333333333333,
+   "acc_10k": 87.01666666666667,
+   "pesos_bytes": 66880,
+   "total_bytes": 71096,
+   "fp32_10k": 88.17,
+   "fuente": "symbex_s*_export.json",
+   "pareto": false
+  },
+  {
+   "modelo": "SYMBEX 1-bit s44 x2 (784-512-256-10)",
+   "bits": 1,
+   "acc_2000": 87.5,
+   "acc_10k": 86.94,
+   "pesos_bytes": 66880,
+   "total_bytes": 71096,
+   "fp32_10k": 88.17,
+   "fuente": "symbex_s44_export.json",
+   "pareto": false
+  },
+  {
+   "modelo": "SYMBEX 1-bit s43 x2 (784-512-256-10)",
+   "bits": 1,
+   "acc_2000": 87.15,
+   "acc_10k": 86.77,
+   "pesos_bytes": 66880,
+   "total_bytes": 71096,
+   "fp32_10k": 88.17,
+   "fuente": "symbex_s43_export.json",
+   "pareto": false
+  },
+  {
+   "modelo": "INT4 QAT 15 ep mean of 3 seeds",
+   "bits": 4,
+   "acc_2000": 88.61666666666666,
+   "acc_10k": 88.26,
+   "pesos_bytes": 117376,
+   "total_bytes": 120528,
+   "fp32_10k": 87.82,
+   "fuente": "int4_e15_pc.json",
+   "pareto": true
+  },
+  {
+   "modelo": "INT4 QAT 5 ep mean of 3 seeds",
+   "bits": 4,
+   "acc_2000": 88.55,
+   "acc_10k": 88.25,
+   "pesos_bytes": 117376,
+   "total_bytes": 120528,
+   "fp32_10k": 87.82,
+   "fuente": "int4_pc.json",
+   "pareto": false
+  },
+  {
+   "modelo": "INT4 PTQ MAXABS",
+   "bits": 4,
+   "acc_2000": 88.1,
+   "acc_10k": 87.83,
+   "pesos_bytes": 117376,
+   "total_bytes": 120528,
+   "fp32_10k": 87.82,
+   "fuente": "int4_pc.json",
+   "pareto": false
+  },
+  {
+   "modelo": "INT4 PTQ MSE",
+   "bits": 4,
+   "acc_2000": 87.7,
+   "acc_10k": 87.74,
+   "pesos_bytes": 117376,
+   "total_bytes": 120528,
+   "fp32_10k": 87.82,
+   "fuente": "int4_pc.json",
+   "pareto": false
+  },
+  {
+   "modelo": "INT8 QAT 5 ep mean of 3 seeds",
+   "bits": 8,
+   "acc_2000": 88.58333333333333,
+   "acc_10k": 88.26666666666667,
+   "pesos_bytes": 234752,
+   "total_bytes": 237904,
+   "fp32_10k": 87.82,
+   "fuente": "int8_pc.json",
+   "pareto": false
+  },
+  {
+   "modelo": "INT8 official TFLite (PTQ)",
+   "bits": 8,
+   "acc_2000": 88.5,
+   "acc_10k": null,
+   "pesos_bytes": 234752,
+   "total_bytes": 248040,
+   "fp32_10k": 88.17,
+   "fuente": "tflite_pc.json",
+   "pareto": false
+  },
+  {
+   "modelo": "INT8 CDT reference (PTQ) s42",
+   "bits": 8,
+   "acc_2000": 88.44999999999999,
+   "acc_10k": null,
+   "pesos_bytes": 234752,
+   "total_bytes": 236328,
+   "fp32_10k": 88.17,
+   "fuente": "symbex_s42_export.json",
+   "pareto": false
+  },
+  {
+   "modelo": "INT8 PTQ MSE",
+   "bits": 8,
+   "acc_2000": 87.9,
+   "acc_10k": 87.92999999999999,
+   "pesos_bytes": 234752,
+   "total_bytes": 237904,
+   "fp32_10k": 87.82,
+   "fuente": "int8_pc.json",
+   "pareto": false
+  },
+  {
+   "modelo": "INT8 PTQ MAXABS",
+   "bits": 8,
+   "acc_2000": 87.8,
+   "acc_10k": 87.83,
+   "pesos_bytes": 234752,
+   "total_bytes": 237904,
+   "fp32_10k": 87.82,
+   "fuente": "int8_pc.json",
+   "pareto": false
+  }
+ ]
+}

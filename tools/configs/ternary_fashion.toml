@@ -1,0 +1,56 @@
+# =============================================================================
+# SYMBEX-1 CDT -- ternary MLP on Fashion-MNIST (method "ternary").
+#
+#   cd tools
+#   python cdt.py configs/ternary_fashion.toml
+#   python cdt.py configs/ternary_fashion.toml --method plain --output-directory ../benchmarks/mlp_fashion/runs/plain
+#
+# Paths are relative to tools/. The FP32 model is the one of benchmarks/mlp_fashion (784 -> 256 -> 128 -> 10);
+# create it first with:   cd benchmarks/mlp_fashion && python -c "from model import get_fp32; get_fp32()"
+#
+# Ternary weights take 2 bits each in flash (sign plane + nonzero mask) and stay multiplier-free:
+#     dot = popcount(mask & ~(a ^ sign)) - popcount(mask & (a ^ sign))
+# Width is fixed at x1 and every layer is "bin" (ternary here), so it compares with the plain method at equal width.
+# =============================================================================
+
+[model]
+file       = "../benchmarks/mlp_fashion/models/fashion_mlp.pth"
+definition = "../benchmarks/mlp_fashion/model.py:FashionMLP"
+method     = "ternary"
+
+[data]
+directory           = "../benchmarks/data/fashionmnist"
+format              = "fashionmnist"
+validation_split    = 0.1
+calibration_samples = 64
+mean = [0.2860]
+std  = [0.3530]
+
+[hardware]
+ram_kb   = 320
+flash_kb = 4096
+psram_kb = 0
+cpu_bits = 32
+
+[target]
+budget            = 0.25
+tolerance         = 0.99
+options           = ["bin"]          # every layer ternary (the only exportable plan for this method)
+max_accuracy_drop = 100.0            # no search: one quick trial, then the final training
+search_epochs     = 1
+widths            = [1.0]            # equal width to the original (and to a plain run with the same file)
+
+[training]
+epochs     = 5
+distill    = true
+checkpoint = "last"
+seed       = 42
+
+[output]
+directory          = "../benchmarks/mlp_fashion/runs/ternary"   # benchmarks/**/runs/ is git-ignored
+verbose            = false
+lib_path           = "../Symbex1_PIO/lib/lib_symbex"
+validation_samples = 2000
+
+[chip]
+board = ""                            # the chip stage is not integrated for "ternary" yet

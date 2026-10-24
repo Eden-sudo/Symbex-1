@@ -93,7 +93,8 @@ DEFAULTS = {
 STAGES = ["inspect", "estimate", "train", "export", "chip"]
 STAGE_NAMES = STAGES + ["validate"]
 INTEGRATED = list(STAGES)
-METHODS = ["plain", "gated", "boolean"]
+METHODS = ["plain", "gated", "boolean", "ternary"]
+BIN_WEIGHT_BITS = {"ternary": 2}       # weight bits of a "bin" layer per method (default 1: one sign bit)
 FORMATS_LOCAL = ["npy", "imagefolder"]
 
 
@@ -328,7 +329,9 @@ def load_model(cfg):
 
 
 def load_data(cfg):
-    """Returns (train dataset, validation dataset) as TensorDatasets or torchvision datasets."""
+    """Returns (train, validation, test) datasets. Validation drives every selection (search, checkpoint);
+    test is touched once, for the final report. Formats without a separate test set (npy, imagefolder
+    without a test/ folder) return test=None and the final report falls back to validation."""
     import numpy as np
     import torch
     from torch.utils.data import TensorDataset, random_split
@@ -346,6 +349,10 @@ def load_data(cfg):
             shape = (1, -1) + (1,) * (x.dim() - 2)
             x = (x - torch.tensor(d["mean"]).view(shape)) / torch.tensor(d["std"]).view(shape)
         return x
+
+    def split(everything):
+        n_val = max(1, int(len(everything) * d["validation_split"]))
+        return tuple(random_split(everything, [len(everything) - n_val, n_val], generator=gen))
 
     if fmt == "npy":
         rx, ry = os.path.join(folder, "x.npy"), os.path.join(folder, "y.npy")
@@ -367,10 +374,8 @@ def load_data(cfg):
         rv = os.path.join(folder, "val.npy")
         if os.path.exists(rv):
             val = torch.from_numpy(np.load(rv).astype(bool))
-            return TensorDataset(x[~val], y[~val]), TensorDataset(x[val], y[val])
-        everything = TensorDataset(x, y)
-        n_val = max(1, int(len(everything) * d["validation_split"]))
-        return tuple(random_split(everything, [len(everything) - n_val, n_val], generator=gen))
+            return TensorDataset(x[~val], y[~val]), TensorDataset(x[val], y[val]), None
+        return split(TensorDataset(x, y)) + (None,)
 
     import torchvision
     import torchvision.transforms as T
@@ -379,17 +384,18 @@ def load_data(cfg):
     tf = T.Compose(steps)
     if fmt == "imagefolder":
         tr, va = os.path.join(folder, "train"), os.path.join(folder, "val")
+        te = os.path.join(folder, "test")
+        test = torchvision.datasets.ImageFolder(te, tf) if os.path.isdir(te) else None
         if os.path.isdir(tr) and os.path.isdir(va):
-            return torchvision.datasets.ImageFolder(tr, tf), torchvision.datasets.ImageFolder(va, tf)
-        everything = torchvision.datasets.ImageFolder(folder, tf)
-        n_val = max(1, int(len(everything) * d["validation_split"]))
-        return tuple(random_split(everything, [len(everything) - n_val, n_val], generator=gen))
+            return torchvision.datasets.ImageFolder(tr, tf), torchvision.datasets.ImageFolder(va, tf), test
+        return split(torchvision.datasets.ImageFolder(tr if os.path.isdir(tr) else folder, tf)) + (test,)
     name = {"cifar10": "CIFAR10", "cifar100": "CIFAR100", "mnist": "MNIST",
               "fashionmnist": "FashionMNIST"}.get(fmt.lower().replace("-", "").replace("_", ""))
     if name is None:
         sys.exit(f"[X] [data] format {fmt!r} not supported (npy, imagefolder, cifar10, cifar100, mnist, fashionmnist)")
     class_name = getattr(torchvision.datasets, name)
-    return class_name(folder, train=True, download=True, transform=tf), class_name(folder, train=False, download=True, transform=tf)
+    return split(class_name(folder, train=True, download=True, transform=tf)) + (
+        class_name(folder, train=False, download=True, transform=tf),)
 
 
 # ---------------------------------------------------------------------------
@@ -411,8 +417,9 @@ def stage_inspect(model, model_source, cfg):
         print("    [!] the model is not FP32: part of the information is already lost, the estimate is less reliable")
     kind = "conv" if convs else "mlp"
     print(f"    kind        : {kind}  -> method '{cfg['model']['method']}'")
-    if cfg["model"]["method"] == "gated" and convs:
-        sys.exit("[X] method 'gated' only supports MLPs (linear layers), and this model has Conv2d layers")
+    if cfg["model"]["method"] in ("gated", "ternary") and convs:
+        sys.exit(f"[X] method '{cfg['model']['method']}' only supports MLPs (linear layers), "
+                 "and this model has Conv2d layers")
     if cfg["model"]["method"] == "boolean":
         print("    method      : boolean -- a fully binary network, trained as defined (lib_symbex layers/conv/symbex_bool)")
     if cfg["output"]["verbose"]:
@@ -453,17 +460,19 @@ def _bits(op):
     return 1 if op == "bin" else int(op)
 
 
-def _plan_memory(rows, plan, width=1.0, word=32):
+def _plan_memory(rows, plan, width=1.0, word=32, bin_bits=1):
     """(flash bytes, peak RAM bytes) of a plan at a width. Exact arithmetic from the layer shapes:
     hidden layers get `width` times more outputs (and the next layer `width` times more inputs); each
-    output row is padded to a whole CPU word; per-channel parameters as in Sensitivity.layer_memory."""
+    output row is padded to a whole CPU word; per-channel parameters as in Sensitivity.layer_memory.
+    bin_bits: weight bits of a "bin" layer (1 plain, 2 ternary: two bit planes); its activations stay 1 bit."""
     flash, rams = 0, []
     for i, f in enumerate(rows):
         bits = _bits(plan[f["name"]])
+        weight_bits = bin_bits if plan[f["name"]] == "bin" else bits
         mi = 1.0 if i == 0 else width
         mo = 1.0 if i == len(rows) - 1 else width
         channels = int(round(f["channels"] * mo))
-        row = -(-int(round(f["fan_in"] * mi)) * bits // word) * word
+        row = -(-int(round(f["fan_in"] * mi)) * weight_bits // word) * word
         flash += (channels * row + 7) // 8 + channels * (4 if plan[f["name"]] == "bin" else 8)
         rams.append((int(round(f["n_inputs"] * mi)) * bits + 7) // 8)
     return flash, max(a + b for a, b in zip(rams, rams[1:] + [0]))
@@ -501,9 +510,10 @@ def _train_plan(model, teacher, plan, first, train, trl, val_l, cfg, epochs, dev
     base = copy.deepcopy(model).cpu()
     if width > 1:
         widen(base, width, calib[:2], seed=tr["seed"])
-    student = apply_plan(base, plan, first=first)
+    method = cfg["model"]["method"]
+    student = apply_plan(base, plan, first=first, bin_method=method if method == "ternary" else "plain")
     init_thresholds(student, calib)
-    common = dict(epochs=epochs, lr=tr["learning_rate"], device=dev, verbose=verbose, checkpoint_path=path,
+    common =dict(epochs=epochs, lr=tr["learning_rate"], device=dev, verbose=verbose, checkpoint_path=path,
                    save=tr["checkpoint"],
                    average_last=min(5, epochs), bn_momentum=0.3)
     if tr["distill"]:
@@ -579,7 +589,7 @@ def _predictions(model, val_l, dev):
     return torch.cat(out)
 
 
-def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp"):
+def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp", test=None):
     if cfg["model"]["method"] == "boolean":
         from compiler_core.export import boolean
         return boolean.train(model, train, val, cfg, out_dir)
@@ -592,6 +602,7 @@ def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp"):
     rows = estimate_res["rows"]
     first = rows[0]["name"]
     word = cfg["hardware"]["cpu_bits"]
+    bin_bits = BIN_WEIGHT_BITS.get(cfg["model"]["method"], 1)
     options = sorted(t["options"], key=_bits)
     widths = sorted(set(float(a) for a in t["widths"]))
     if len(widths) > 1:                              # widening only works on plain chains: check it once
@@ -637,7 +648,7 @@ def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp"):
     print(f"    {'step':>4} | {'plan':<26} | {'flash KB':>9} | {'accuracy':>8} | {'drop':>6} | decision")
     print("    " + "-" * 84)
     plan, width = {f["name"]: options[0] for f in rows}, widths[0]
-    flash, ram = _plan_memory(rows, plan, width, word)
+    flash, ram = _plan_memory(rows, plan, width, word, bin_bits)
     ok, note = _fits(flash, ram, estimate_res, cfg)
     if not ok:
         sys.exit(f"[X] even the smallest plan does not fit the budget ({note}: flash {flash / 1024:.1f} KB, "
@@ -647,7 +658,7 @@ def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp"):
         res = _train_plan(model, teacher, plan, first, train, trl, val_l, cfg, t["search_epochs"], dev, width)
         acc = res["final_average"]
         drop = acc_original - acc
-        flash, ram = _plan_memory(rows, plan, width, word)
+        flash, ram = _plan_memory(rows, plan, width, word, bin_bits)
         row = dict(step=step, width=width, plan={k: str(v) for k, v in plan.items()}, flash=flash, ram=ram,
                     accuracy=acc, drop=drop)
         history.append(row)
@@ -659,7 +670,7 @@ def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp"):
             wider = [a for a in widths if a > width]
             if all(v == options[0] for v in plan.values()):
                 for a in wider:
-                    fl, rm = _plan_memory(rows, plan, a, word)
+                    fl, rm = _plan_memory(rows, plan, a, word, bin_bits)
                     if _fits(fl, rm, estimate_res, cfg)[0]:
                         next_step = (f"wider -> x{a:g}", plan, a)
                         break
@@ -670,7 +681,7 @@ def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp"):
                 for f in candidates:
                     trial = dict(plan)
                     trial[f["name"]] = options[options.index(plan[f["name"]]) + 1]
-                    fl, rm = _plan_memory(rows, trial, width, word)
+                    fl, rm = _plan_memory(rows, trial, width, word, bin_bits)
                     if _fits(fl, rm, estimate_res, cfg)[0]:
                         next_step = (f"raise {f['name']} -> {trial[f['name']]}", trial, width)
                         break
@@ -686,7 +697,7 @@ def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp"):
         print(f"    [!] the accepted drop ({t['max_accuracy_drop']} points) was not reached; the last plan is used")
 
     # ---------------- final training of the chosen width and plan
-    flash, ram = _plan_memory(rows, plan, width, word)
+    flash, ram = _plan_memory(rows, plan, width, word, bin_bits)
     note = _fits(flash, ram, estimate_res, cfg)[1]
     print(f"\n    FINAL TRAINING  ({tr['epochs']} epochs, {'distillation' if tr['distill'] else 'labels only'},"
           f" width x{width:g})")
@@ -727,8 +738,20 @@ def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp"):
           f"validation samples (how much of the original's behavior it keeps)")
     print(f"    RETAINED : of the {int(orig_correct.sum())} samples the original gets right, the binarized model still gets "
           f"{retained:.2f}% right (knowledge kept); it also gets right {gained} that the original got wrong")
+    held_out = {}
+    if test is not None:                              # held-out test: evaluated once, after every selection
+        test_l = DataLoader(test, batch_size=max(tr["batch_size"], 512), num_workers=2)
+        held_out = dict(acc_fp32=evaluate(teacher, test_l, dev), acc_symbex=evaluate(res["model"], test_l, dev),
+                        acc_int8=_references(model, train, test_l, rows, cfg, dev)["acc_int8"] if with_int8 else None,
+                        n=len(test))
+        int8_text = f" | INT8 {held_out['acc_int8']:.2f}%" if with_int8 else ""
+        print(f"\n    HELD-OUT TEST ({held_out['n']} samples, not used for any selection): "
+              f"FP32 {held_out['acc_fp32']:.2f}%{int8_text} | SYMBEX {held_out['acc_symbex']:.2f}%")
+    else:
+        print("\n    [!] no separate test set for this data format: the accuracies above are on the validation"
+              " split that also drove the search and checkpoint selection (optimistic)")
     with open(os.path.join(out_dir, "train.json"), "w") as fh:
-        json.dump(dict(width=width, plan={k: str(v) for k, v in plan.items()}, flash_total=flash, ram_peak=ram,
+        json.dump(dict(test=held_out, width=width, plan={k: str(v) for k, v in plan.items()}, flash_total=flash, ram_peak=ram,
                        references=ref, acc_original=acc_original, acc_last=last,
                        acc_mean_last5=res["final_average"], acc_best_epoch=res["best_test"], identity=identity, retained=retained, gained=gained,
                        search=history, history=res["history"]), fh, indent=1)
@@ -806,9 +829,12 @@ def stage_export(trained, val, cfg, out_dir, kind, original_model=None, train=No
     from compiler_core.export.int8_reference import export_int8
     print("\n[4-5] EXPORT + VALIDATE")
     plan = trained["plan"]
-    if kind != "mlp" or cfg["model"]["method"] != "plain":
-        print("    [!] export is only integrated for MLPs with the plain method; skipped")
+    if kind != "mlp" or cfg["model"]["method"] not in ("plain", "ternary"):
+        print("    [!] export is only integrated for MLPs with the plain or ternary method; skipped")
         return None
+    ternary = cfg["model"]["method"] == "ternary"
+    if ternary:
+        from compiler_core.export.ternary import export_and_validate
     if any(op != "bin" for op in plan.values()):
         print("    [!] the plan has k-bit layers (" + ", ".join(f"{k}: {v}" for k, v in plan.items() if v != "bin")
               + "): the C dense layer with k > 1 is not verified yet, so only all-1-bit plans are exported."
@@ -817,7 +843,8 @@ def stage_export(trained, val, cfg, out_dir, kind, original_model=None, train=No
     try:
         res = export_and_validate(trained["model"], val, out_dir, cfg["output"]["lib_path"], cfg["data"]["mean"],
                                  cfg["data"]["std"], cfg["output"]["validation_samples"],
-                                 arithmetic=choose_arithmetic(cfg, out_dir, _dense_shapes(trained["model"])),
+                                 arithmetic="and" if ternary
+                                 else choose_arithmetic(cfg, out_dir, _dense_shapes(trained["model"])),
                                  input_bits=cfg["data"]["input_bits"])
     except ValueError as e:
         print(f"    [X] {e}")
@@ -955,7 +982,9 @@ def load_trained(model, train, estimate_res, cfg, out_dir):
     base = copy.deepcopy(model).cpu()
     if width > 1:
         widen(base, width, torch.stack([train[i][0] for i in range(2)]), seed=cfg["training"]["seed"])
-    student = apply_plan(base, plan, first=estimate_res["rows"][0]["name"])
+    method = cfg["model"]["method"]
+    student = apply_plan(base, plan, first=estimate_res["rows"][0]["name"],
+                         bin_method=method if method == "ternary" else "plain")
     student.load_state_dict(torch.load(wp, map_location="cpu"))
     student.eval()
     print(f"\n[3] TRAIN  skipped: resumed the trained model from {out_dir} (width x{width:g}, plan "
@@ -1008,10 +1037,11 @@ def main():
     kind = stage_inspect(model, model_source, cfg)       # always: cheap, and every later stage needs `kind`
     if end == STAGES.index("inspect"):
         return
-    train = val = None
+    train = val = test = None
     if start <= STAGES.index("export"):                  # estimate / train / export need the data
-        train, val = load_data(cfg)
-        print(f"\n[*] data: {len(train)} training / {len(val)} validation samples ({cfg['data']['format']})")
+        train, val, test = load_data(cfg)
+        print(f"\n[*] data: {len(train)} training / {len(val)} validation / "
+              f"{len(test) if test is not None else 'no'} test samples ({cfg['data']['format']})")
     estimate_res = trained = res_export = None
     if runs("estimate"):
         estimate_res = stage_estimate(model, train, cfg, out_dir)
@@ -1020,20 +1050,22 @@ def main():
     if end == STAGES.index("estimate"):
         return
     if runs("train"):
-        trained = stage_train(model, train, val, estimate_res, cfg, out_dir, kind)
+        trained = stage_train(model, train, val, estimate_res, cfg, out_dir, kind, test=test)
     elif start == STAGES.index("export"):
         trained = load_trained(model, train, estimate_res, cfg, out_dir)
     if end == STAGES.index("train"):
         return
     if runs("export"):
-        res_export = stage_export(trained, val, cfg, out_dir, kind, model, train)
+        res_export = stage_export(trained, test if test is not None else val, cfg, out_dir, kind, model, train)
         if res_export is None:
             return
     else:
         res_export = load_export(cfg, out_dir)
     if end == STAGES.index("export"):
         return
-    if cfg["chip"]["board"]:
+    if cfg["chip"]["board"] and cfg["model"]["method"] == "ternary":
+        print("\n[6] CHIP  skipped: the chip harness (chip/measure.py) does not build symbex_ternary.c yet")
+    elif cfg["chip"]["board"]:
         stage_chip(res_export, cfg, out_dir)
     else:
         print("\n[6] CHIP  skipped: set [chip] board = \"esp32\" or \"s3\" (or --board esp32) to measure on a board")

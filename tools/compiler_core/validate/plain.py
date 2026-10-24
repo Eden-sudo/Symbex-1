@@ -23,7 +23,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from ..export.plain import _fold_bn, _rprelu_params
+from ..export.plain import _fold_bn, _padding, _rprelu_params
 
 
 def _float_a_q(x, q_act):
@@ -89,6 +89,7 @@ def _preparar_bloque(bloque, q_act, q_mult):
     datos = dict(
         bloque=bloque, tiene_downsample=bloque.necesita_downsample,
         w1_bin=torch.from_numpy(np.where(w1 >= 0, 1.0, -1.0).astype(np.float32)), stride1=stride1,
+        padding1=_padding(bloque.conv1), padding2=_padding(bloque.conv2),
         escala1=escala1, shift1=shift1, gamma1=gamma1, zeta1=zeta1, slope1=slope1,
         w2_bin=torch.from_numpy(np.where(w2 >= 0, 1.0, -1.0).astype(np.float32)),
         escala2=escala2, shift2=shift2, gamma2=gamma2, zeta2=zeta2, slope2=slope2,
@@ -99,7 +100,7 @@ def _preparar_bloque(bloque, q_act, q_mult):
         escala_d, shift_d = _fold_bn(ds.bn, np.abs(wd).mean(axis=(1, 2, 3)), q_act, q_mult)
         datos.update(
             ds_w_bin=torch.from_numpy(np.where(wd >= 0, 1.0, -1.0).astype(np.float32)),
-            ds_padding=wd.shape[2] // 2, ds_escala=escala_d, ds_shift=shift_d,
+            ds_padding=_padding(ds.conv), ds_escala=escala_d, ds_shift=shift_d,
             ds_beta_rsign=_float_a_q(ds.rsign.beta.detach().numpy().flatten(), q_act),
         )
     return datos
@@ -119,14 +120,14 @@ def _simular_bloque(capa, x_q, q_act, q_mult):
     beta_r1 = _float_a_q(capa["bloque"].rsign1.beta.detach().numpy().flatten(), q_act).reshape(-1, 1, 1)
     x_bits = torch.from_numpy(np.where(x_q >= beta_r1, 1.0, -1.0).astype(np.float32)).unsqueeze(0)
     with torch.no_grad():
-        raw1 = F.conv2d(x_bits, capa["w1_bin"], stride=capa["stride1"], padding=1)[0].numpy()
+        raw1 = F.conv2d(x_bits, capa["w1_bin"], stride=capa["stride1"], padding=capa["padding1"])[0].numpy()
     salida1_q = _aplicar_rprelu(raw1, identity_q, capa["gamma1"], capa["zeta1"], capa["slope1"],
                                 capa["escala1"], capa["shift1"], q_act, q_mult)
 
     beta_r2 = _float_a_q(capa["bloque"].rsign2.beta.detach().numpy().flatten(), q_act).reshape(-1, 1, 1)
     bits2 = torch.from_numpy(np.where(salida1_q >= beta_r2, 1.0, -1.0).astype(np.float32)).unsqueeze(0)
     with torch.no_grad():
-        raw2 = F.conv2d(bits2, capa["w2_bin"], stride=1, padding=1)[0].numpy()
+        raw2 = F.conv2d(bits2, capa["w2_bin"], stride=1, padding=capa["padding2"])[0].numpy()
     return _aplicar_rprelu(raw2, salida1_q, capa["gamma2"], capa["zeta2"], capa["slope2"],
                            capa["escala2"], capa["shift2"], q_act, q_mult)
 
@@ -162,7 +163,7 @@ def _simular_stem(modelo, x_bits, q_act, q_mult):
     w = modelo.conv1.weight.detach().numpy()
     w_bin = torch.from_numpy(np.where(w >= 0, 1.0, -1.0).astype(np.float32))
     with torch.no_grad():
-        raw = F.conv2d(x_bits, w_bin, stride=1, padding=1)[0].numpy()
+        raw = F.conv2d(x_bits, w_bin, stride=1, padding=_padding(modelo.conv1))[0].numpy()
     escala, shift = _fold_bn(modelo.bn1, np.abs(w).mean(axis=(1, 2, 3)), q_act, q_mult)
     gamma, zeta, slope = _rprelu_params(modelo.rprelu_stem, q_act)
     identity_cero = np.zeros(raw.shape, dtype=np.int64)   # int64 explicito -- np.zeros_like(raw) heredaba float32 del conv2d y rompia el shift de mas abajo
@@ -218,11 +219,9 @@ def verificar_fidelidad_conv(modelo, testloader, convertir_entrada, q_act=16, q_
             for n, (raw, logit_q) in enumerate(_detalle_clasificador(modelo, x_q, q_act, q_mult)):
                 print(f"    clase {n} | raw={raw} | logit_q={logit_q}")
 
-        x_final = torch.from_numpy(_q_a_float(x_q, q_act)).unsqueeze(0).float()
-        with torch.no_grad():
-            flat = x_final.view(1, -1)
-            salida = modelo.linear(modelo.rsign_final(flat))
-            clase_sim = modelo.bn_final(salida).argmax(dim=1).item()
+        # integer classifier, the same arithmetic as symbex_clasificador_binario_argmax (first strict maximum wins)
+        logits_q = [logit_q for _, logit_q in _detalle_clasificador(modelo, x_q, q_act, q_mult)]
+        clase_sim = int(np.argmax(logits_q))
 
         total += 1
         coincidencias += (clase_sim == clase_real)

@@ -4,9 +4,11 @@ import numpy as np
 
 from .report import print_report
 
+MAX_K_BITS = 4      # plane slots of SymbexSubLayer in the C header
+
 
 def _is_voting_pool(layer):
-    # by name, so export/ does not depend on the methods package (same trick validator.py uses)
+    # by name, so export/ does not depend on the methods package
     return type(layer).__name__ == "SymbexVotingPool"
 
 
@@ -71,9 +73,11 @@ def _write_header_v1(student, filepath, k_bits=3):
     Exports a Bitslice (V1) PyTorch model to a C++ header file.
     Includes legacy structure generation (SymbexLayer).
     """
+    if not 1 <= k_bits <= MAX_K_BITS:
+        raise ValueError(f"[EXPORT]: k_bits ({k_bits}) exceeds the C header limit (1-{MAX_K_BITS}): SymbexSubLayer has "
+                         f"{MAX_K_BITS} plane slots, and k >= 6 outlier magnitudes overflow int8_t")
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    MAX_K_BITS = 4
-    
+
     with open(filepath, "w") as f:
         f.write("#ifndef SYMBEX_WEIGHTS_H\n#define SYMBEX_WEIGHTS_H\n\n")
         f.write("#include <stdint.h>\n")

@@ -41,15 +41,16 @@ INT32_MIN, INT32_MAX = -2 ** 31, 2 ** 31 - 1
 # ---------------------------------------------------------------------------------------------------
 # 1. structure
 # ---------------------------------------------------------------------------------------------------
-def _leaves_in_order(model, x):
-    """Modules in the order the forward pass runs them: every DensePlain as ONE unit (its inner RSign is
-    part of it) and every other leaf module that is not inside a DensePlain."""
+def _leaves_in_order(model, x, cls=None):
+    """Modules in the order the forward pass runs them: every DensePlain (or `cls`) as ONE unit (its inner
+    RSign is part of it) and every other leaf module that is not inside one."""
     from ..methods.dense.plain import DensePlain
-    units = [n for n, m in model.named_modules() if isinstance(m, DensePlain)]
+    cls = cls or DensePlain
+    units = [n for n, m in model.named_modules() if isinstance(m, cls)]
     order, hooks = [], []
     for n, m in model.named_modules():
         inside = any(n.startswith(u + ".") for u in units)
-        if isinstance(m, DensePlain) or (len(list(m.children())) == 0 and not inside):
+        if isinstance(m, cls) or (len(list(m.children())) == 0 and not inside):
             hooks.append(m.register_forward_hook(lambda mod, e, s: order.append(mod)))
     was_training = model.training
     model.eval()
@@ -66,16 +67,17 @@ def _leaves_in_order(model, x):
     return res
 
 
-def analyze(model, x):
+def analyze(model, x, cls=None):
     """Returns the layer groups [(DensePlain, BatchNorm1d or None, has ReLU)], or raises ValueError
-    explaining what is not supported."""
+    explaining what is not supported. `cls`: the layer class to look for (DensePlain by default)."""
     from ..methods.dense.plain import DensePlain
+    cls = cls or DensePlain
     groups, current = [], None
-    for m in _leaves_in_order(model, x):
+    for m in _leaves_in_order(model, x, cls):
         name = type(m).__name__
         if isinstance(m, (nn.Flatten, nn.Dropout, nn.Identity)):
             continue
-        if isinstance(m, DensePlain):
+        if isinstance(m, cls):
             current = [m, None, False]
             groups.append(current)
         elif isinstance(m, nn.BatchNorm1d) and current is not None and current[1] is None and not current[2]:
@@ -83,10 +85,10 @@ def analyze(model, x):
         elif isinstance(m, nn.ReLU) and current is not None and not current[2]:
             current[2] = True
         else:
-            raise ValueError(f"dense export: unsupported module {name} (supported: DensePlain -> "
+            raise ValueError(f"dense export: unsupported module {name} (supported: {cls.__name__} -> "
                              f"[BatchNorm1d] -> [ReLU], repeated). k-bit layers cannot be exported yet.")
     if not groups:
-        raise ValueError("dense export: no DensePlain layer found (is every layer 'bin'?)")
+        raise ValueError(f"dense export: no {cls.__name__} layer found (is every layer 'bin'?)")
     if groups[-1][2]:
         raise ValueError("dense export: the last layer cannot have a ReLU (it produces the logits)")
     return [tuple(g) for g in groups]
@@ -148,6 +150,9 @@ def fold(groups, mean=(), std=()):
         d = dict(signs=signs, A=A, B=B, u8_input=(i == 0), last=(i == len(groups) - 1))
         if not d["last"]:
             next_layer = groups[i + 1][0]
+            if not hasattr(next_layer.rsign, "beta"):
+                raise ValueError(f"dense export: layer {i + 1} does not binarize its input (binarize_input=False); "
+                                 "only the first layer may take real inputs")
             betas = next_layer.rsign.beta.detach().double().cpu().numpy().ravel()
             T = np.zeros(len(A), dtype=np.int64)
             for j in range(len(A)):

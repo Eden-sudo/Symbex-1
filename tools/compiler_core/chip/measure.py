@@ -85,6 +85,8 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
                 warned = True
             if time.time() - t0 > 60:
                 raise RuntimeError("chip: the board did not start (no 'SYMBEX ready')")
+        if ram is None:
+            raise RuntimeError("chip: the board sent 'INT8:' without its 'RAM:' line (garbled serial?): retry")
         if verbose:
             print(f"    board ready | popcount: {hal}")
         for i in range(n):

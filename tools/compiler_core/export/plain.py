@@ -57,6 +57,18 @@ def _filas(w, layout):
     return w.reshape(w.shape[0], -1)
 
 
+def _padding(conv):
+    """The conv's own integer padding (square), the value the C engine and the simulator must use."""
+    p = conv.padding
+    if isinstance(p, str):
+        raise ValueError(f"[EXPORT]: padding={p!r} is not supported; give the conv an integer padding")
+    if isinstance(p, int):
+        return p
+    if len(set(p)) != 1:
+        raise ValueError(f"[EXPORT]: non-square padding {tuple(p)} is not supported by the C engine")
+    return int(p[0])
+
+
 def _fold_bn(bn, alpha, q_act, q_mult):
     """BatchNorm (+ weight scale alpha, if any) -> integer (escala, shift) per channel."""
     gamma = bn.weight.detach().numpy()
@@ -134,7 +146,7 @@ def _export_conv(f, name, conv, bn, act, rsign, stride, positions, q_act, q_mult
     gamma, zeta, slope = _rprelu_params(act, q_act)
     beta_in = np.zeros(w.shape[1]) if rsign is None else _q(rsign.beta.detach().numpy().flatten(), q_act)
     words = _write_conv(f, name, _filas(w, layout), escala, shift, gamma, zeta, slope, beta_in,
-                        w.shape[1], w.shape[0], w.shape[2], stride, w.shape[2] // 2)
+                        w.shape[1], w.shape[0], w.shape[2], stride, _padding(conv))
     out, inp = w.shape[0], w.shape[1]
     parts = {"escala (int32)": 4 * out, "shift_bn (int32)": 4 * out,
              "rprelu (gamma, zeta, slope, log2, signo)": 14 * out, "thresholds (RSign, int32)": 4 * inp}
@@ -148,7 +160,7 @@ def _export_downsample(f, name, ds, positions, q_act, q_mult, layout):
     beta_in = _q(ds.rsign.beta.detach().numpy().flatten(), q_act)
     packed, words = _pack_rows(_filas(w, layout))
     f.write(f"#define {name}_IN_CH {w.shape[1]}\n#define {name}_OUT_CH {w.shape[0]}\n")
-    f.write(f"#define {name}_KERNEL {w.shape[2]}\n#define {name}_PADDING {w.shape[2] // 2}\n")
+    f.write(f"#define {name}_KERNEL {w.shape[2]}\n#define {name}_PADDING {_padding(ds.conv)}\n")
     f.write(f"#define {name}_WINDOW_ELEMS {w.shape[1] * w.shape[2] * w.shape[3]}\n\n")
     _weights(f, name, packed, words,
              f"Verificación Downsample: {w.shape[0]} canales de salida, {words} palabras por canal", "Canal")
@@ -186,6 +198,13 @@ def export_resnet_dsp(model, out_path, q_act=16, q_mult=20, input_size=32, detai
     rows = []
     res = input_size
 
+    res_final = input_size // 2 ** (len(model._nombres_capas) - 1)    # the stem keeps the size, each later stage halves it
+    last_ch = getattr(model, model._nombres_capas[-1])[-1].conv2.weight.shape[0]
+    if model.linear.weight.shape[1] != last_ch * res_final * res_final:
+        raise ValueError(f"[EXPORT]: input_size={input_size} does not match the classifier: it expects "
+                         f"{model.linear.weight.shape[1]} features, the last stage gives "
+                         f"{last_ch * res_final * res_final}")
+
     with open(out_path, "w") as f:
         f.write(f"#ifndef {guard}\n#define {guard}\n\n#include <stdint.h>\n\n")
         f.write(f"#define SYMBEX_Q_ACT {q_act}\n#define SYMBEX_Q_MULT {q_mult}\n\n")
@@ -212,11 +231,6 @@ def export_resnet_dsp(model, out_path, q_act=16, q_mult=20, input_size=32, detai
 
         rows.append(_export_classifier(f, model, q_act, q_mult))
         f.write(f"#endif // {guard}\n")
-
-    last_ch = getattr(model, model._nombres_capas[-1])[-1].conv2.weight.shape[0]
-    if model.linear.weight.shape[1] != last_ch * res * res:
-        print(f"[!] input_size={input_size} does not match the classifier: it expects "
-              f"{model.linear.weight.shape[1]} features, the last stage gives {last_ch * res * res}")
 
     print_report(model, rows, out_path, detail=detail)
     return rows

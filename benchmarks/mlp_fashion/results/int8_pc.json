@@ -1,0 +1,195 @@
+{
+ "bits": 8,
+ "esquema": "pesos por canal simetricos rango estrecho, activaciones int8 por tensor, simulacion entera",
+ "modelo_fp32": "models/fashion_mlp.pth",
+ "acc_fp32": 87.9,
+ "acc_fp32_10k": 87.82,
+ "metodos": {
+  "ptq_maxabs": {
+   "precision": 87.8,
+   "n": 2000,
+   "precision_10k": 87.83,
+   "n_10k": 10000,
+   "acuerdo_fake_quant": 100.0,
+   "niveles_por_capa": [
+    255,
+    255,
+    243
+   ],
+   "niveles_maximos": 255,
+   "pesos_bytes": 234752,
+   "escalas_bytes": 1576,
+   "sesgos_bytes": 1576,
+   "total_bytes": 237904
+  },
+  "ptq_mse": {
+   "precision": 87.9,
+   "n": 2000,
+   "precision_10k": 87.92999999999999,
+   "n_10k": 10000,
+   "acuerdo_fake_quant": 100.0,
+   "niveles_por_capa": [
+    255,
+    255,
+    239
+   ],
+   "niveles_maximos": 255,
+   "pesos_bytes": 234752,
+   "escalas_bytes": 1576,
+   "sesgos_bytes": 1576,
+   "total_bytes": 237904
+  },
+  "qat": {
+   "semillas": [
+    {
+     "precision": 88.6,
+     "n": 2000,
+     "precision_10k": 88.23,
+     "n_10k": 10000,
+     "acuerdo_fake_quant": 100.0,
+     "niveles_por_capa": [
+      221,
+      208,
+      164
+     ],
+     "niveles_maximos": 255,
+     "pesos_bytes": 234752,
+     "escalas_bytes": 1576,
+     "sesgos_bytes": 1576,
+     "total_bytes": 237904,
+     "semilla": 42,
+     "epocas": 5,
+     "history": [
+      [
+       0,
+       0.048691467875242235,
+       88.27000000000001
+      ],
+      [
+       1,
+       0.04150321224133174,
+       88.01
+      ],
+      [
+       2,
+       0.035555618949731194,
+       88.14
+      ],
+      [
+       3,
+       0.03366270596981048,
+       88.12
+      ],
+      [
+       4,
+       0.032853094907601674,
+       88.23
+      ]
+     ]
+    },
+    {
+     "precision": 88.6,
+     "n": 2000,
+     "precision_10k": 88.3,
+     "n_10k": 10000,
+     "acuerdo_fake_quant": 100.0,
+     "niveles_por_capa": [
+      228,
+      193,
+      171
+     ],
+     "niveles_maximos": 255,
+     "pesos_bytes": 234752,
+     "escalas_bytes": 1576,
+     "sesgos_bytes": 1576,
+     "total_bytes": 237904,
+     "semilla": 43,
+     "epocas": 5,
+     "history": [
+      [
+       0,
+       0.049004167370001475,
+       87.99
+      ],
+      [
+       1,
+       0.03697384693622589,
+       88.42
+      ],
+      [
+       2,
+       0.035686799204349515,
+       88.33
+      ],
+      [
+       3,
+       0.03391294864416122,
+       88.2
+      ],
+      [
+       4,
+       0.03282775015036265,
+       88.3
+      ]
+     ]
+    },
+    {
+     "precision": 88.55,
+     "n": 2000,
+     "precision_10k": 88.27000000000001,
+     "n_10k": 10000,
+     "acuerdo_fake_quant": 99.98,
+     "niveles_por_capa": [
+      229,
+      211,
+      96
+     ],
+     "niveles_maximos": 255,
+     "pesos_bytes": 234752,
+     "escalas_bytes": 1576,
+     "sesgos_bytes": 1576,
+     "total_bytes": 237904,
+     "semilla": 44,
+     "epocas": 5,
+     "history": [
+      [
+       0,
+       0.051522897068659465,
+       88.71
+      ],
+      [
+       1,
+       0.037259218295415245,
+       88.27000000000001
+      ],
+      [
+       2,
+       0.035530593514442446,
+       88.23
+      ],
+      [
+       3,
+       0.033714647154013316,
+       88.22
+      ],
+      [
+       4,
+       0.03288528131246567,
+       88.25
+      ]
+     ]
+    }
+   ],
+   "pesos_bytes": 234752,
+   "escalas_bytes": 1576,
+   "sesgos_bytes": 1576,
+   "total_bytes": 237904,
+   "precision": 88.58333333333333,
+   "precision_10k": 88.26666666666667,
+   "precision_10k_std": 0.03511884584283952,
+   "n": 2000,
+   "epocas": 5
+  }
+ },
+ "segundos": 40.0
+}
