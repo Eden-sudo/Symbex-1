@@ -82,6 +82,30 @@ The chip computes exactly the integer simulation, so the accuracy of a SYMBEX mo
   `../poc_s3_bin_vs_int8.py` measures a binary weight at 0.322 cycles against 0.531 for an ESP-NN INT8 weight
   (1.65x faster, 8x less memory). That kernel goes into the engine next, and this benchmark will be re-measured.
 
+## Low-bit baselines: INT4 and INT2 (PC only)
+
+`fashion_int4.py` quantizes the same FP32 architecture (784-256-128-10) with per-channel symmetric INT4 / INT2
+weights and int8 activations, by PTQ (max-abs, MSE clipping) and QAT (STE, learnable scales, the CDT's KD recipe),
+and evaluates it in integer arithmetic. `pareto.py` collects every `results/*.json` into accuracy vs. packed
+weight bytes (`results/pareto.json`).
+
+| Model | Accuracy (10k) | Weights |
+|---|---|---|
+| INT2 QAT, 15 epochs, 3 seeds | 88.15% | 58.7 KB |
+| SYMBEX 1 bit x2, 3 seeds | 87.02% | 66.9 KB |
+| INT4 QAT, 15 epochs, 3 seeds | 88.26% | 117.4 KB |
+| INT8 QAT, 5 epochs, 3 seeds | 88.27% | 234.8 KB |
+
+On weight bytes alone, **INT2 QAT dominates SYMBEX 1 bit x2** on this MLP: smaller and about 1.1 points more
+accurate. SYMBEX's remaining advantage is compute (1-bit activations: XNOR/popcount instead of int8 MACs), which
+these PC numbers do not measure. Caveats: the INT runs use a locally retrained FP32 model (87.82% vs. 88.17%);
+INT2 here is ternary (3 of 4 levels); requantization is simulated with a float multiplier.
+
+```
+python fashion_int4.py --bits 4 2 --semillas 3 --epocas 15
+python pareto.py
+```
+
 ## How to reproduce
 
 ```
