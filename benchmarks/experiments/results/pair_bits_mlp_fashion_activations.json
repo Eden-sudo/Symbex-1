@@ -1,0 +1,61 @@
+{
+ "args": {
+  "arch": "mlp",
+  "dataset": "fashion",
+  "width": 0,
+  "epochs": 20,
+  "seeds": 3,
+  "pair_on": "activations",
+  "batch": 256
+ },
+ "results": [
+  {
+   "config": "flat, width H",
+   "width": 256,
+   "weight_bits": 1,
+   "activation_bits": 1,
+   "accuracy_last": 86.27333333333333,
+   "accuracy_last_std": 0.2081665999466094,
+   "accuracy_last5": 86.09066666666668,
+   "weight_kb": 28.65625,
+   "binary_ops": 234752,
+   "seconds": 22.484328031539917
+  },
+  {
+   "config": "flat, width 2H (same memory as pair)",
+   "width": 512,
+   "weight_bits": 1,
+   "activation_bits": 1,
+   "accuracy_last": 86.71666666666665,
+   "accuracy_last_std": 0.04041451884326987,
+   "accuracy_last5": 86.64533333333334,
+   "weight_kb": 65.3125,
+   "binary_ops": 535040,
+   "seconds": 21.61740732192993
+  },
+  {
+   "config": "pair (activations), width H",
+   "width": 256,
+   "weight_bits": 1,
+   "activation_bits": 2,
+   "accuracy_last": 88.37666666666667,
+   "accuracy_last_std": 0.08386497083606279,
+   "accuracy_last5": 88.29533333333332,
+   "weight_kb": 28.65625,
+   "binary_ops": 469504,
+   "seconds": 29.109588384628296
+  },
+  {
+   "config": "flat, width 461 (~same binary ops as pair)",
+   "width": 461,
+   "weight_bits": 1,
+   "activation_bits": 1,
+   "accuracy_last": 86.65333333333332,
+   "accuracy_last_std": 0.10408329997330641,
+   "accuracy_last5": 86.538,
+   "weight_kb": 57.343017578125,
+   "binary_ops": 469754,
+   "seconds": 22.183576107025146
+  }
+ ]
+}

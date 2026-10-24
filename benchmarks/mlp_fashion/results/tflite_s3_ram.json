@@ -1,10 +1,10 @@
 {
- "placa": "s3",
- "modelo_ram": true,
+ "board": "s3",
+ "model_ram": true,
  "n": 1000,
- "precision": 87.2,
- "igual_pc": 100.0,
- "mediana_ms": 0.876,
+ "accuracy": 87.2,
+ "equal_pc": 100.0,
+ "median_ms": 0.876,
  "min_ms": 0.875,
  "arena_kb": 4.77734375,
  "flash_kb": 242.2265625

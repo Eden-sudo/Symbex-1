@@ -1,0 +1,32 @@
+{
+ "board": "esp32",
+ "hal": "generic: SWAR fallback in software",
+ "popcount": "swar",
+ "weights": "flash",
+ "first_layer": "mask",
+ "n": 360,
+ "equal_simulation": 100.0,
+ "accuracy": 93.61111111111111,
+ "median_ms": 0.444,
+ "min_ms": 0.44,
+ "layers": [
+  {
+   "step": "layer 0: 64 -> 512 (1-bit input x 1 bit) + thresholds",
+   "median_ms": 0.425
+  },
+  {
+   "step": "layer 1: 512 -> 10 (1 bit x 1 bit) + argmax",
+   "median_ms": 0.019
+  }
+ ],
+ "ram": {
+  "buffers": 176,
+  "input_bytes": 64,
+  "popcount_table": 0,
+  "stack_used": 480,
+  "weights_in_ram": 0,
+  "total": 720
+ },
+ "model_flash": 6904,
+ "arithmetic": "xnor"
+}

@@ -1,0 +1,44 @@
+{
+ "args": {
+  "dataset": "fashion",
+  "width": 256,
+  "epochs": 20,
+  "seeds": 3,
+  "batch": 256
+ },
+ "results": [
+  {
+   "config": "flat, width H",
+   "width": 256,
+   "bits_per_element": 1,
+   "accuracy_last": 86.27333045005798,
+   "accuracy_last_std": 0.20816726041946973,
+   "accuracy_last5": 86.09066406885783,
+   "weight_kb": 28.65625,
+   "binary_ops": 234752,
+   "seconds": 21.406500577926636
+  },
+  {
+   "config": "flat, width 2H (same memory as pair)",
+   "width": 512,
+   "bits_per_element": 1,
+   "accuracy_last": 86.71666582425435,
+   "accuracy_last_std": 0.040414342649954346,
+   "accuracy_last5": 86.64533217748006,
+   "weight_kb": 65.3125,
+   "binary_ops": 535040,
+   "seconds": 20.833312034606934
+  },
+  {
+   "config": "pair, width H",
+   "width": 256,
+   "bits_per_element": 2,
+   "accuracy_last": 88.62999677658081,
+   "accuracy_last_std": 0.2426922341081908,
+   "accuracy_last5": 88.56133063634236,
+   "weight_kb": 57.3125,
+   "binary_ops": 939008,
+   "seconds": 35.99909973144531
+  }
+ ]
+}

@@ -1,0 +1,444 @@
+{
+ "version": 2,
+ "board": "s3",
+ "popcount": "lut16",
+ "hal": "esp32s3: lut16 (64 KB table in RAM)",
+ "n_out": 64,
+ "widths": [
+  32,
+  64,
+  96,
+  128,
+  256,
+  512,
+  1024
+ ],
+ "weights": "flash",
+ "cpu_mhz": 240,
+ "measurements": [
+  {
+   "kernel": "xnor",
+   "n_in": 32,
+   "ns": 11424,
+   "checksum": -140,
+   "cycles_per_neuron": 42.84,
+   "cycles_per_weight": 1.33875
+  },
+  {
+   "kernel": "and_pad",
+   "n_in": 32,
+   "ns": 17727,
+   "checksum": -140,
+   "cycles_per_neuron": 66.47625,
+   "cycles_per_weight": 2.0773828125
+  },
+  {
+   "kernel": "and_nopad",
+   "n_in": 32,
+   "ns": 13969,
+   "checksum": -140,
+   "cycles_per_neuron": 52.38375,
+   "cycles_per_weight": 1.6369921875
+  },
+  {
+   "kernel": "first_mask",
+   "n_in": 32,
+   "ns": 47333,
+   "checksum": -101306,
+   "cycles_per_neuron": 177.49875,
+   "cycles_per_weight": 5.5468359375
+  },
+  {
+   "kernel": "first_planes",
+   "n_in": 32,
+   "ns": 87030,
+   "checksum": -101306,
+   "cycles_per_neuron": 326.3625,
+   "cycles_per_weight": 10.198828125
+  },
+  {
+   "kernel": "first_and_pad",
+   "n_in": 32,
+   "ns": 24909,
+   "checksum": -101306,
+   "cycles_per_neuron": 93.40875,
+   "cycles_per_weight": 2.9190234375
+  },
+  {
+   "kernel": "first_and_nopad",
+   "n_in": 32,
+   "ns": 46818,
+   "checksum": -101306,
+   "cycles_per_neuron": 175.5675,
+   "cycles_per_weight": 5.486484375
+  },
+  {
+   "kernel": "xnor",
+   "n_in": 64,
+   "ns": 15176,
+   "checksum": 1882,
+   "cycles_per_neuron": 56.91,
+   "cycles_per_weight": 0.88921875
+  },
+  {
+   "kernel": "and_pad",
+   "n_in": 64,
+   "ns": 17882,
+   "checksum": 1882,
+   "cycles_per_neuron": 67.0575,
+   "cycles_per_weight": 1.0477734375
+  },
+  {
+   "kernel": "and_nopad",
+   "n_in": 64,
+   "ns": 20000,
+   "checksum": 1882,
+   "cycles_per_neuron": 75.0,
+   "cycles_per_weight": 1.171875
+  },
+  {
+   "kernel": "first_mask",
+   "n_in": 64,
+   "ns": 77352,
+   "checksum": 168372,
+   "cycles_per_neuron": 290.07,
+   "cycles_per_weight": 4.53234375
+  },
+  {
+   "kernel": "first_planes",
+   "n_in": 64,
+   "ns": 139705,
+   "checksum": 168372,
+   "cycles_per_neuron": 523.89375,
+   "cycles_per_weight": 8.18583984375
+  },
+  {
+   "kernel": "first_and_pad",
+   "n_in": 64,
+   "ns": 27588,
+   "checksum": 168372,
+   "cycles_per_neuron": 103.455,
+   "cycles_per_weight": 1.616484375
+  },
+  {
+   "kernel": "first_and_nopad",
+   "n_in": 64,
+   "ns": 77941,
+   "checksum": 168372,
+   "cycles_per_neuron": 292.27875,
+   "cycles_per_weight": 4.56685546875
+  },
+  {
+   "kernel": "xnor",
+   "n_in": 96,
+   "ns": 18636,
+   "checksum": -2152,
+   "cycles_per_neuron": 69.885,
+   "cycles_per_weight": 0.72796875
+  },
+  {
+   "kernel": "and_pad",
+   "n_in": 96,
+   "ns": 18090,
+   "checksum": -2152,
+   "cycles_per_neuron": 67.8375,
+   "cycles_per_weight": 0.706640625
+  },
+  {
+   "kernel": "and_nopad",
+   "n_in": 96,
+   "ns": 25818,
+   "checksum": -2152,
+   "cycles_per_neuron": 96.8175,
+   "cycles_per_weight": 1.008515625
+  },
+  {
+   "kernel": "first_mask",
+   "n_in": 96,
+   "ns": 107363,
+   "checksum": 424558,
+   "cycles_per_neuron": 402.61125,
+   "cycles_per_weight": 4.1938671874999995
+  },
+  {
+   "kernel": "first_planes",
+   "n_in": 96,
+   "ns": 192090,
+   "checksum": 424558,
+   "cycles_per_neuron": 720.3375,
+   "cycles_per_weight": 7.5035156249999995
+  },
+  {
+   "kernel": "first_and_pad",
+   "n_in": 96,
+   "ns": 30272,
+   "checksum": 424558,
+   "cycles_per_neuron": 113.52,
+   "cycles_per_weight": 1.1824999999999999
+  },
+  {
+   "kernel": "first_and_nopad",
+   "n_in": 96,
+   "ns": 109090,
+   "checksum": 424558,
+   "cycles_per_neuron": 409.0875,
+   "cycles_per_weight": 4.2613281249999995
+  },
+  {
+   "kernel": "xnor",
+   "n_in": 128,
+   "ns": 22111,
+   "checksum": 2654,
+   "cycles_per_neuron": 82.91625,
+   "cycles_per_weight": 0.647783203125
+  },
+  {
+   "kernel": "and_pad",
+   "n_in": 128,
+   "ns": 18333,
+   "checksum": 2654,
+   "cycles_per_neuron": 68.74875,
+   "cycles_per_weight": 0.537099609375
+  },
+  {
+   "kernel": "and_nopad",
+   "n_in": 128,
+   "ns": 18222,
+   "checksum": 2654,
+   "cycles_per_neuron": 68.3325,
+   "cycles_per_weight": 0.53384765625
+  },
+  {
+   "kernel": "first_mask",
+   "n_in": 128,
+   "ns": 137444,
+   "checksum": -597876,
+   "cycles_per_neuron": 515.415,
+   "cycles_per_weight": 4.0266796875
+  },
+  {
+   "kernel": "first_planes",
+   "n_in": 128,
+   "ns": 246444,
+   "checksum": -597876,
+   "cycles_per_neuron": 924.165,
+   "cycles_per_weight": 7.2200390625
+  },
+  {
+   "kernel": "first_and_pad",
+   "n_in": 128,
+   "ns": 33000,
+   "checksum": -597876,
+   "cycles_per_neuron": 123.75,
+   "cycles_per_weight": 0.966796875
+  },
+  {
+   "kernel": "first_and_nopad",
+   "n_in": 128,
+   "ns": 33000,
+   "checksum": -597876,
+   "cycles_per_neuron": 123.75,
+   "cycles_per_weight": 0.966796875
+  },
+  {
+   "kernel": "xnor",
+   "n_in": 256,
+   "ns": 36000,
+   "checksum": -5116,
+   "cycles_per_neuron": 135.0,
+   "cycles_per_weight": 0.52734375
+  },
+  {
+   "kernel": "and_pad",
+   "n_in": 256,
+   "ns": 29200,
+   "checksum": -5116,
+   "cycles_per_neuron": 109.5,
+   "cycles_per_weight": 0.427734375
+  },
+  {
+   "kernel": "and_nopad",
+   "n_in": 256,
+   "ns": 29200,
+   "checksum": -5116,
+   "cycles_per_neuron": 109.5,
+   "cycles_per_weight": 0.427734375
+  },
+  {
+   "kernel": "first_mask",
+   "n_in": 256,
+   "ns": 257600,
+   "checksum": -98336,
+   "cycles_per_neuron": 966.0,
+   "cycles_per_weight": 3.7734375
+  },
+  {
+   "kernel": "first_planes",
+   "n_in": 256,
+   "ns": 454400,
+   "checksum": -98336,
+   "cycles_per_neuron": 1704.0,
+   "cycles_per_weight": 6.65625
+  },
+  {
+   "kernel": "first_and_pad",
+   "n_in": 256,
+   "ns": 56600,
+   "checksum": -98336,
+   "cycles_per_neuron": 212.25,
+   "cycles_per_weight": 0.8291015625
+  },
+  {
+   "kernel": "first_and_nopad",
+   "n_in": 256,
+   "ns": 56600,
+   "checksum": -98336,
+   "cycles_per_neuron": 212.25,
+   "cycles_per_weight": 0.8291015625
+  },
+  {
+   "kernel": "xnor",
+   "n_in": 512,
+   "ns": 64000,
+   "checksum": -6260,
+   "cycles_per_neuron": 240.0,
+   "cycles_per_weight": 0.46875
+  },
+  {
+   "kernel": "and_pad",
+   "n_in": 512,
+   "ns": 51000,
+   "checksum": -6260,
+   "cycles_per_neuron": 191.25,
+   "cycles_per_weight": 0.37353515625
+  },
+  {
+   "kernel": "and_nopad",
+   "n_in": 512,
+   "ns": 51000,
+   "checksum": -6260,
+   "cycles_per_neuron": 191.25,
+   "cycles_per_weight": 0.37353515625
+  },
+  {
+   "kernel": "first_mask",
+   "n_in": 512,
+   "ns": 501000,
+   "checksum": -173384,
+   "cycles_per_neuron": 1878.75,
+   "cycles_per_weight": 3.66943359375
+  },
+  {
+   "kernel": "first_planes",
+   "n_in": 512,
+   "ns": 882000,
+   "checksum": -173384,
+   "cycles_per_neuron": 3307.5,
+   "cycles_per_weight": 6.4599609375
+  },
+  {
+   "kernel": "first_and_pad",
+   "n_in": 512,
+   "ns": 104000,
+   "checksum": -173384,
+   "cycles_per_neuron": 390.0,
+   "cycles_per_weight": 0.76171875
+  },
+  {
+   "kernel": "first_and_nopad",
+   "n_in": 512,
+   "ns": 104000,
+   "checksum": -173384,
+   "cycles_per_neuron": 390.0,
+   "cycles_per_weight": 0.76171875
+  },
+  {
+   "kernel": "xnor",
+   "n_in": 1024,
+   "ns": 119500,
+   "checksum": -5066,
+   "cycles_per_neuron": 448.125,
+   "cycles_per_weight": 0.4376220703125
+  },
+  {
+   "kernel": "and_pad",
+   "n_in": 1024,
+   "ns": 94000,
+   "checksum": -5066,
+   "cycles_per_neuron": 352.5,
+   "cycles_per_weight": 0.34423828125
+  },
+  {
+   "kernel": "and_nopad",
+   "n_in": 1024,
+   "ns": 94000,
+   "checksum": -5066,
+   "cycles_per_neuron": 352.5,
+   "cycles_per_weight": 0.34423828125
+  },
+  {
+   "kernel": "first_mask",
+   "n_in": 1024,
+   "ns": 985000,
+   "checksum": -255728,
+   "cycles_per_neuron": 3693.75,
+   "cycles_per_weight": 3.607177734375
+  },
+  {
+   "kernel": "first_planes",
+   "n_in": 1024,
+   "ns": 1722500,
+   "checksum": -255728,
+   "cycles_per_neuron": 6459.375,
+   "cycles_per_weight": 6.3079833984375
+  },
+  {
+   "kernel": "first_and_pad",
+   "n_in": 1024,
+   "ns": 198500,
+   "checksum": -255728,
+   "cycles_per_neuron": 744.375,
+   "cycles_per_weight": 0.7269287109375
+  },
+  {
+   "kernel": "first_and_nopad",
+   "n_in": 1024,
+   "ns": 198500,
+   "checksum": -255728,
+   "cycles_per_neuron": 744.375,
+   "cycles_per_weight": 0.7269287109375
+  }
+ ],
+ "fit": {
+  "xnor": {
+   "fixed": 30.549693557582742,
+   "per_word": 13.058005986316992
+  },
+  "and_pad": {
+   "fixed": 27.13150684931505,
+   "per_word": 10.18679794520548
+  },
+  "and_nopad": {
+   "fixed": 46.500171037628306,
+   "per_word": 9.398220496009124
+  },
+  "first_mask": {
+   "fixed": 62.08813854047903,
+   "per_word": 113.47693985176741
+  },
+  "first_planes": {
+   "fixed": 128.62951111744593,
+   "per_word": 197.9579874572406
+  },
+  "first_and_pad": {
+   "fixed": 20.484118150684893,
+   "per_word": 22.741248929794512
+  },
+  "first_and_nopad": {
+   "fixed": 183.45432297605478,
+   "per_word": 16.108007411630563
+  }
+ },
+ "checksums_ok": true,
+ "best_arithmetic": "and"
+}

@@ -1,8 +1,9 @@
 /*
- * symbex_bitops.c -- implementacion. Logica identica al original de
- * symbex_conv.cpp (El Mesero + El Ayudante), solo con parametros
- * explicitos en vez de una struct de capa, y usando SYMBEX_READ_W32
- * de core/symbex_core.h (portabilidad AVR/PROGMEM ya resuelta ahi).
+ * symbex_bitops.c -- Bitwise operations implementation.
+ *
+ * The logic is identical to the original symbex_conv.cpp, but uses explicit
+ * parameters instead of a layer struct, and relies on SYMBEX_READ_W32
+ * from core/symbex_core.h (AVR/PROGMEM portability is handled there).
  */
 
 #include "ops/symbex_bitops.h"
@@ -31,25 +32,23 @@ void symbex_insert_bits(uint32_t* plane, uint32_t bit_start_local, uint8_t n_bit
         ? (0xFFFFFFFFUL << bit_offset)
         : (((1UL << n_bits) - 1) << bit_offset);
 
-    // Limpiar primero (AND con la mascara invertida), DESPUES
-    // insertar (OR) -- asi funciona sin importar el valor inicial
-    // del buffer (antes asumia que arrancaba en cero, y con
-    // patch_buffer arrancando en 0xFFFFFFFF era un no-op total).
-    plane[word_idx] = (plane[word_idx] & ~mask_low) | (value << bit_offset);
+    // Clear first (AND with inverted mask), THEN insert (OR).
+    // This works regardless of the buffer's initial value (previously it assumed an all-zero start, which
+    // caused a total no-op if patch_buffer started with 0xFFFFFFFF).
+    // The inserted bits are masked too: a value with bits above n_bits can no longer overwrite the neighbors.
+    plane[word_idx] = (plane[word_idx] & ~mask_low) | ((value << bit_offset) & mask_low);
 
     if (bit_offset + n_bits > 32) {
         uint8_t bits_high = n_bits - (32 - bit_offset);
         uint32_t mask_high = (1UL << bits_high) - 1;
-        plane[word_idx + 1] = (plane[word_idx + 1] & ~mask_high) | (value >> (32 - bit_offset));
+        plane[word_idx + 1] = (plane[word_idx + 1] & ~mask_high) | ((value >> (32 - bit_offset)) & mask_high);
     }
 }
 
-int32_t symbex_popcount_and(const uint32_t* a, const uint32_t* b, uint16_t n_palabras) {
-    int32_t total = 0;
-    for (uint16_t w = 0; w < n_palabras; w++) {
-        total += symbex_hal_popcount32(a[w] & b[w]);
-    }
-    return total;
+/* count(a AND b). Delegates to the HAL (symbex_and_popcount), so it gets the SIMD path of the chip when there
+   is one (ESP32-S3 PIE, with 16-byte aligned buffers and n_words a multiple of 4) and portable C otherwise. */
+int32_t symbex_popcount_and(const uint32_t* a, const uint32_t* b, uint16_t n_words) {
+    return symbex_and_popcount(a, b, (int)n_words);
 }
 
 void symbex_load_line_buffer(
@@ -71,7 +70,7 @@ void symbex_load_line_buffer(
                 uint32_t src_word_idx = (ic * in_h * words_per_row) + (ih * words_per_row);
                 memcpy(&sram_buffer[sram_word_idx], &source_input[src_word_idx], words_per_row * sizeof(uint32_t));
             } else {
-                // Relleno de ceros para el padding de convolucion
+                // Zero-fill for convolution padding
                 memset(&sram_buffer[sram_word_idx], 0, words_per_row * sizeof(uint32_t));
             }
         }

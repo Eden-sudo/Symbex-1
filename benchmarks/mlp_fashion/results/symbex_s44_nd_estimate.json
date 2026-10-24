@@ -1,0 +1,58 @@
+{
+ "skipped": [],
+ "flash_total": 31432,
+ "ram_peak": 130,
+ "flash_limit": 1048576.0,
+ "ram_limit": 81920.0,
+ "budget": 0.25,
+ "tolerance": 0.99,
+ "options": [
+  "bin"
+ ],
+ "word_bits": 32,
+ "fits": true,
+ "layers": [
+  {
+   "name": "red.1",
+   "type": "Linear",
+   "shape": "256x784",
+   "choice": "bin",
+   "meets": false,
+   "options": {
+    "bin": {
+     "fid": 0.756283700466156,
+     "flash": 26624,
+     "ram": 98
+    }
+   }
+  },
+  {
+   "name": "red.4",
+   "type": "Linear",
+   "shape": "128x256",
+   "choice": "bin",
+   "meets": false,
+   "options": {
+    "bin": {
+     "fid": 0.2219896912574768,
+     "flash": 4608,
+     "ram": 32
+    }
+   }
+  },
+  {
+   "name": "red.7",
+   "type": "Linear",
+   "shape": "10x128",
+   "choice": "bin",
+   "meets": false,
+   "options": {
+    "bin": {
+     "fid": 0.7837492227554321,
+     "flash": 200,
+     "ram": 16
+    }
+   }
+  }
+ ]
+}

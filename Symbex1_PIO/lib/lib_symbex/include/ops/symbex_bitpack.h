@@ -1,7 +1,7 @@
 /*
- * symbex_bitpack.h -- empaqueta puntuaciones enteras crudas (como
- * las que devuelve symbex_dense_forward) en bits, para poder usarlas
- * como entrada de la proxima capa.
+ * symbex_bitpack.h -- packs raw integer scores (like the ones
+ * returned by symbex_dense_forward) into bits, so they can be
+ * used as the input for the next layer.
  */
 
 #ifndef SYMBEX_BITPACK_H
@@ -14,11 +14,11 @@ extern "C" {
 #endif
 
 /*
- * Empaqueta n puntuaciones crudas en bits -- bipolar STE:
- * puntuacion >= 0 -> bit 1, sino bit 0.
+ * Packs n raw scores into bits -- bipolar STE:
+ * score >= 0 -> bit 1, else -> bit 0.
  *
- * scores: n valores int32_t (puntuaciones crudas de una capa).
- * out_bits: buffer de salida, (n+31)/32 palabras.
+ * scores: n int32_t values (raw scores of a layer).
+ * out_bits: output buffer, (n+31)/32 words.
  */
 void symbex_bitpack_from_scores(const int32_t* scores, uint32_t* out_bits, uint16_t n);
 

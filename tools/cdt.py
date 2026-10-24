@@ -33,13 +33,19 @@ Stages
                   Quick trials are short, so they UNDERestimate the final accuracy: the search may raise a
                   layer the full training would not need.
     4. export     (MLP, every layer at 1 bit) folds the trained model into integers and writes
-                  modelo_symbex.h for lib_symbex (symbex_mlp_inferir(const uint8_t* x))
+                  model_symbex.h for lib_symbex (symbex_mlp_infer(const uint8_t* x))
     6. chip       ([chip] board = "esp32" / "s3") builds and flashes an ESP-IDF project with the header and
                   lib_symbex, streams validation images and reports: equal to the integer simulation (must be
                   100%), accuracy and latency measured on the chip. Needs PlatformIO + a connected board.
     5. validate   (runs together with export) FIDELITY: PyTorch vs. the integer simulation (what folding
                   costs); EXACTNESS: the compiled C on this PC vs. the integer simulation (must be 100%)
---stop-after chooses the last stage to run (default: the last one that is integrated).
+Choosing the stages ([run] from / to in the TOML, or --from / --to):
+    python cdt.py my.toml                          every stage: inspect -> estimate -> train -> export -> chip
+    python cdt.py my.toml --to export              create, train, export and validate (no board)
+    python cdt.py my.toml --from export            reuse the trained model in the output folder: export, validate, board
+    python cdt.py my.toml --from chip --board s3   only the board, with the existing export
+Starting after a stage reuses what that stage left in the output directory (train.json + model_binarized.pth,
+export.json + model_symbex.h + validation_*.u8). --stop-after is the old name of --to.
 
 Outputs (in the output directory, "<model name>_binarized/" by default)
     config_used.toml   the exact configuration of this run (to reproduce it)
@@ -71,19 +77,22 @@ except ModuleNotFoundError:             # pragma: no cover
 DEFAULTS = {
     "model": {"file": "", "definition": "", "method": "plain"},
     "data": {"directory": "", "format": "npy", "validation_split": 0.1, "calibration_samples": 32,
-             "mean": [], "std": []},
+             "mean": [], "std": [], "input_bits": 8},
     "hardware": {"ram_kb": 320, "flash_kb": 4096, "psram_kb": 0, "cpu_bits": 32},
     "target": {"budget": 0.25, "tolerance": 0.99, "options": ["bin", 2, 4, 8], "max_accuracy_drop": 2.0,
                "search_epochs": 5, "widths": [1.0, 1.5, 2.0]},
     "training": {"epochs": 150, "distill": True, "temperature": 4.0, "alpha": 0.85, "learning_rate": 1e-3,
-                 "batch_size": 256, "checkpoint": "last", "seed": 42},
+                 "batch_size": 256, "checkpoint": "last", "seed": 42, "data_on_gpu": False},
     "output": {"directory": "", "verbose": True, "lib_path": "../Symbex1_PIO/lib/lib_symbex",
-               "validation_samples": 2000},
+               "validation_samples": 2000, "arithmetic": "auto", "int8_reference": False},
     "chip": {"board": "", "port": "/dev/ttyUSB0", "baud": 921600, "samples": 1000, "upload": True,
-             "popcount": "lut16"},
+             "popcount": "lut16", "weights": "flash", "compare_arithmetic": False},
+    "run": {"from": "inspect", "to": "chip"},
 }
-STAGES = ["inspect", "estimate", "train", "export", "validate", "chip"]
-INTEGRATED = ["inspect", "estimate", "train", "export", "validate", "chip"]
+# Stages in order. "validate" runs together with "export" (accepted as a name for it).
+STAGES = ["inspect", "estimate", "train", "export", "chip"]
+STAGE_NAMES = STAGES + ["validate"]
+INTEGRATED = list(STAGES)
 METHODS = ["plain", "gated", "boolean"]
 FORMATS_LOCAL = ["npy", "imagefolder"]
 
@@ -98,10 +107,10 @@ def _flag_names():
             for sec, keys in DEFAULTS.items() for k in keys}
 
 
-def _parse_list(texto):
+def _parse_list(text):
     """'bin,2,4,8' -> ['bin', 2, 4, 8]; '0.5,0.5,0.5' -> [0.5, 0.5, 0.5]."""
     out = []
-    for p in (x.strip() for x in texto.split(",") if x.strip()):
+    for p in (x.strip() for x in text.split(",") if x.strip()):
         try:
             out.append(int(p))
         except ValueError:
@@ -116,125 +125,143 @@ def build_parser():
     ap = argparse.ArgumentParser(description="SYMBEX-1 CDT", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     ap.add_argument("config", nargs="?", default="", help="TOML configuration file (optional)")
     ap.add_argument("--show-config", action="store_true", help="print the final configuration and exit")
-    ap.add_argument("--stop-after", choices=STAGES, default=INTEGRATED[-1], help="last stage to run")
+    ap.add_argument("--stop-after", choices=STAGE_NAMES, default=None,
+                    help="last stage to run (same as --to; kept for the old scripts)")
     for (sec, k), flag in _flag_names().items():
         v = DEFAULTS[sec][k]
         dest = f"{sec}__{k}"
-        ayuda = f"[{sec}] {k}"
+        help_text = f"[{sec}] {k}"
         if isinstance(v, bool):
-            ap.add_argument(f"--{flag}", dest=dest, action=argparse.BooleanOptionalAction, default=None, help=ayuda)
+            ap.add_argument(f"--{flag}", dest=dest, action=argparse.BooleanOptionalAction, default=None, help=help_text)
         elif isinstance(v, list):
             ap.add_argument(f"--{flag}", dest=dest, type=_parse_list, default=None,
-                            help=ayuda + " (comma separated)")
+                            help=help_text + " (comma separated)")
         else:
-            ap.add_argument(f"--{flag}", dest=dest, type=type(v), default=None, help=ayuda)
+            ap.add_argument(f"--{flag}", dest=dest, type=type(v), default=None, help=help_text)
     return ap
 
 
 def load_config(args):
     """defaults < TOML file < flags. Returns (config, list of 'where each value came from' notes)."""
     cfg = copy.deepcopy(DEFAULTS)
-    origen = {}
+    source = {}
     if args.config:
         if tomllib is None:
             sys.exit("[X] Reading TOML needs Python 3.11 or newer (tomllib).")
         if not os.path.exists(args.config):
             sys.exit(f"[X] Configuration file not found: {args.config}")
         with open(args.config, "rb") as f:
-            archivo = tomllib.load(f)
-        for sec, keys in archivo.items():
+            file_data = tomllib.load(f)
+        for sec, keys in file_data.items():
             if sec not in cfg:
                 sys.exit(f"[X] {args.config}: unknown section [{sec}] (valid: {', '.join(cfg)})")
             for k, v in keys.items():
                 if k not in cfg[sec]:
                     sys.exit(f"[X] {args.config}: unknown field '{k}' in [{sec}] (valid: {', '.join(cfg[sec])})")
                 cfg[sec][k] = v
-                origen[(sec, k)] = "file"
+                source[(sec, k)] = "file"
     for sec, keys in DEFAULTS.items():
         for k in keys:
             v = getattr(args, f"{sec}__{k}")
             if v is not None:
                 cfg[sec][k] = v
-                origen[(sec, k)] = "flag"
-    return cfg, origen
+                source[(sec, k)] = "flag"
+    return cfg, source
+
+
+def _stage_index(name):
+    return STAGES.index("export" if name == "validate" else name)
 
 
 def validate_config(cfg):
     """Checks types and ranges before anything heavy runs. Exits with a clear message on the first problem."""
-    errores = []
+    errors = []
     m, d, h, t, tr = cfg["model"], cfg["data"], cfg["hardware"], cfg["target"], cfg["training"]
     if not m["file"]:
-        errores.append("[model] file is empty: the path of the original model is required")
+        errors.append("[model] file is empty: the path of the original model is required")
+    r = cfg["run"]
+    for key in ("from", "to"):
+        if r[key] not in STAGE_NAMES:
+            errors.append(f"[run] {key} must be one of {STAGES}, got {r[key]!r}")
+    if r["from"] in STAGE_NAMES and r["to"] in STAGE_NAMES and \
+            _stage_index(r["from"]) > _stage_index(r["to"]):
+        errors.append(f"[run] from ({r['from']}) comes after to ({r['to']})")
     if m["method"] not in METHODS:
-        errores.append(f"[model] method must be one of {METHODS}, got {m['method']!r}")
+        errors.append(f"[model] method must be one of {METHODS}, got {m['method']!r}")
     if not d["directory"]:
-        errores.append("[data] directory is empty")
+        errors.append("[data] directory is empty")
     if not (0 < d["validation_split"] < 1):
-        errores.append("[data] validation_split must be between 0 and 1")
+        errors.append("[data] validation_split must be between 0 and 1")
     if d["calibration_samples"] < 1:
-        errores.append("[data] calibration_samples must be >= 1")
+        errors.append("[data] calibration_samples must be >= 1")
     if len(d["mean"]) != len(d["std"]):
-        errores.append("[data] mean and std must have the same length (or both be empty)")
+        errors.append("[data] mean and std must have the same length (or both be empty)")
     for k in ("ram_kb", "flash_kb"):
         if h[k] <= 0:
-            errores.append(f"[hardware] {k} must be > 0")
+            errors.append(f"[hardware] {k} must be > 0")
     if h["psram_kb"] < 0:
-        errores.append("[hardware] psram_kb must be >= 0")
+        errors.append("[hardware] psram_kb must be >= 0")
     if h["cpu_bits"] not in (8, 16, 32, 64):
-        errores.append("[hardware] cpu_bits must be 8, 16, 32 or 64")
+        errors.append("[hardware] cpu_bits must be 8, 16, 32 or 64")
     if not (0 < t["budget"] <= 1):
-        errores.append("[target] budget must be in (0, 1]")
+        errors.append("[target] budget must be in (0, 1]")
     if not (0 < t["tolerance"] <= 1):
-        errores.append("[target] tolerance must be in (0, 1]")
+        errors.append("[target] tolerance must be in (0, 1]")
     for op in t["options"]:
         if op != "bin" and not (isinstance(op, int) and 1 <= op <= 16):
-            errores.append(f"[target] options: unknown option {op!r} (use 'bin' or 1-16 bits)")
+            errors.append(f"[target] options: unknown option {op!r} (use 'bin' or 1-16 bits)")
     if t["max_accuracy_drop"] < 0:
-        errores.append("[target] max_accuracy_drop must be >= 0 (accuracy points)")
+        errors.append("[target] max_accuracy_drop must be >= 0 (accuracy points)")
+    if not isinstance(cfg["data"]["input_bits"], int) or not 1 <= cfg["data"]["input_bits"] <= 8:
+        errors.append("[data] input_bits must be an integer from 1 to 8")
     if t["search_epochs"] < 1:
-        errores.append("[target] search_epochs must be >= 1")
+        errors.append("[target] search_epochs must be >= 1")
     if not t["widths"] or any((not isinstance(a, (int, float))) or a < 1 for a in t["widths"]):
-        errores.append("[target] widths must be a list of numbers >= 1 (e.g. [1.0, 1.5, 2.0])")
+        errors.append("[target] widths must be a list of numbers >= 1 (e.g. [1.0, 1.5, 2.0])")
+    if cfg["output"]["arithmetic"] not in ("auto", "and", "xnor"):
+        errors.append("[output] arithmetic must be \"auto\" (default), \"and\" or \"xnor\"")
+    if cfg["chip"]["weights"] not in ("flash", "ram"):
+        errors.append("[chip] weights must be \"flash\" or \"ram\"")
     if cfg["chip"]["popcount"] not in ("lut16", "swar"):
-        errores.append("[chip] popcount must be \"lut16\" (64 KB table, fastest) or \"swar\" (no table, minimum RAM)")
-    if cfg["chip"]["board"] not in ("", "esp32", "s3"):
-        errores.append("[chip] board must be \"\" (no chip), \"esp32\" or \"s3\"")
+        errors.append("[chip] popcount must be \"lut16\" (64 KB table, fastest) or \"swar\" (no table, minimum RAM)")
+    if cfg["chip"]["board"] not in ("", "esp32", "s3", "uno"):
+        errors.append("[chip] board must be \"\" (no chip), \"esp32\", \"s3\" or \"uno\"")
     if tr["checkpoint"] not in ("last", "best"):
-        errores.append("[training] checkpoint must be 'last' or 'best'")
+        errors.append("[training] checkpoint must be 'last' or 'best'")
     if tr["epochs"] < 1 or tr["batch_size"] < 1:
-        errores.append("[training] epochs and batch_size must be >= 1")
+        errors.append("[training] epochs and batch_size must be >= 1")
     if not (0 <= tr["alpha"] <= 1):
-        errores.append("[training] alpha must be in [0, 1]")
-    if errores:
-        sys.exit("[X] Configuration errors:\n    " + "\n    ".join(errores))
+        errors.append("[training] alpha must be in [0, 1]")
+    if errors:
+        sys.exit("[X] Configuration errors:\n    " + "\n    ".join(errors))
 
 
-def _toml_valor(v):
+def _toml_value(v):
     if isinstance(v, bool):
         return "true" if v else "false"
     if isinstance(v, str):
         return json.dumps(v)
     if isinstance(v, list):
-        return "[" + ", ".join(_toml_valor(x) for x in v) + "]"
+        return "[" + ", ".join(_toml_value(x) for x in v) + "]"
     return repr(v)
 
 
 def to_toml(cfg):
     """Writes the configuration back as TOML (our structure only: sections of plain values and lists)."""
-    lineas = []
+    lines = []
     for sec, keys in cfg.items():
-        lineas.append(f"[{sec}]")
-        lineas += [f"{k} = {_toml_valor(v)}" for k, v in keys.items()]
-        lineas.append("")
-    return "\n".join(lineas)
+        lines.append(f"[{sec}]")
+        lines += [f"{k} = {_toml_value(v)}" for k, v in keys.items()]
+        lines.append("")
+    return "\n".join(lines)
 
 
-def print_config(cfg, origen):
+def print_config(cfg, source):
     print("\nCONFIGURATION  (value  <- where it came from: default / file / flag)")
     for sec, keys in cfg.items():
         print(f"  [{sec}]")
         for k, v in keys.items():
-            print(f"    {k:<20} = {_toml_valor(v):<28} <- {origen.get((sec, k), 'default')}")
+            print(f"    {k:<20} = {_toml_value(v):<28} <- {source.get((sec, k), 'default')}")
 
 
 def output_directory(cfg):
@@ -249,12 +276,12 @@ def output_directory(cfg):
 # ---------------------------------------------------------------------------
 # Loading (PyTorch is imported only here, so --show-config works without it)
 # ---------------------------------------------------------------------------
-def _es_torchscript(ruta):
+def _is_torchscript(path):
     """A TorchScript archive is a zip with a constants.pkl / code/ entry; a torch.save file is not."""
     import zipfile
-    if not zipfile.is_zipfile(ruta):
+    if not zipfile.is_zipfile(path):
         return False
-    with zipfile.ZipFile(ruta) as z:
+    with zipfile.ZipFile(path) as z:
         return any(n.endswith("constants.pkl") or "/code/" in n for n in z.namelist())
 
 
@@ -263,41 +290,41 @@ def load_model(cfg):
        TorchScript file | whole model saved with torch.save(model) | weights only + [model] definition."""
     import torch
     import torch.nn as nn
-    ruta, definicion = cfg["model"]["file"], cfg["model"]["definition"]
-    if not os.path.exists(ruta):
-        sys.exit(f"[X] Model file not found: {ruta}")
-    if _es_torchscript(ruta):
-        modelo = torch.jit.load(ruta, map_location="cpu")
-        return modelo.eval(), "TorchScript"
+    path, definition = cfg["model"]["file"], cfg["model"]["definition"]
+    if not os.path.exists(path):
+        sys.exit(f"[X] Model file not found: {path}")
+    if _is_torchscript(path):
+        model = torch.jit.load(path, map_location="cpu")
+        return model.eval(), "TorchScript"
     # weights_only=False is needed for a whole saved model: only load files you trust
-    obj = torch.load(ruta, map_location="cpu", weights_only=False)
+    obj = torch.load(path, map_location="cpu", weights_only=False)
     if isinstance(obj, nn.Module):
         return obj.eval(), "whole model (torch.save(model))"
     if isinstance(obj, dict):
-        estado = obj.get("state_dict", obj.get("model_state_dict", obj))
-        if not definicion:
-            sys.exit(f"[X] {ruta} contains only the weights (a state_dict): set [model] definition = "
+        state = obj.get("state_dict", obj.get("model_state_dict", obj))
+        if not definition:
+            sys.exit(f"[X] {path} contains only the weights (a state_dict): set [model] definition = "
                      f"\"python_file.py:ClassName\" so the CDT can rebuild the architecture.")
-        if ":" not in definicion:
-            sys.exit(f"[X] [model] definition must look like \"file.py:ClassName\", got {definicion!r}")
-        archivo, clase = definicion.rsplit(":", 1)
-        if not os.path.exists(archivo):
-            sys.exit(f"[X] [model] definition: file not found: {archivo}")
-        spec = importlib.util.spec_from_file_location("cdt_user_model", archivo)
+        if ":" not in definition:
+            sys.exit(f"[X] [model] definition must look like \"file.py:ClassName\", got {definition!r}")
+        file_data, class_name = definition.rsplit(":", 1)
+        if not os.path.exists(file_data):
+            sys.exit(f"[X] [model] definition: file not found: {file_data}")
+        spec = importlib.util.spec_from_file_location("cdt_user_model", file_data)
         mod = importlib.util.module_from_spec(spec)
-        sys.path.insert(0, os.path.dirname(os.path.abspath(archivo)))
+        sys.path.insert(0, os.path.dirname(os.path.abspath(file_data)))
         spec.loader.exec_module(mod)
-        if not hasattr(mod, clase):
-            sys.exit(f"[X] [model] definition: {archivo} has no class {clase}")
+        if not hasattr(mod, class_name):
+            sys.exit(f"[X] [model] definition: {file_data} has no class {class_name}")
         try:
-            modelo = getattr(mod, clase)()
+            model = getattr(mod, class_name)()
         except TypeError as e:
-            sys.exit(f"[X] [model] definition: {clase}() must be buildable with no arguments ({e})")
-        faltan, sobran = modelo.load_state_dict(estado, strict=False)
-        if faltan or sobran:
-            sys.exit(f"[X] The weights do not match {clase}: missing {list(faltan)[:5]}, unexpected {list(sobran)[:5]}")
-        return modelo.eval(), f"weights + {definicion}"
-    sys.exit(f"[X] {ruta}: unrecognized content ({type(obj).__name__})")
+            sys.exit(f"[X] [model] definition: {class_name}() must be buildable with no arguments ({e})")
+        missing, extra = model.load_state_dict(state, strict=False)
+        if missing or extra:
+            sys.exit(f"[X] The weights do not match {class_name}: missing {list(missing)[:5]}, unexpected {list(extra)[:5]}")
+        return model.eval(), f"weights + {definition}"
+    sys.exit(f"[X] {path}: unrecognized content ({type(obj).__name__})")
 
 
 def load_data(cfg):
@@ -306,17 +333,22 @@ def load_data(cfg):
     import torch
     from torch.utils.data import TensorDataset, random_split
     d = cfg["data"]
-    fmt, carpeta = d["format"], d["directory"]
+    fmt, folder = d["format"], d["directory"]
     gen = torch.Generator().manual_seed(cfg["training"]["seed"])
 
-    def normalizar(x):
+    from compiler_core.train.standard import InputBitQuantizer
+    s_bits = 8 - d["input_bits"]
+    quantize = InputBitQuantizer(d["input_bits"])          # picklable: DataLoader workers need it (Python 3.14)
+
+    def normalize(x):
+        x = quantize(x)
         if d["mean"]:
-            forma = (1, -1) + (1,) * (x.dim() - 2)
-            x = (x - torch.tensor(d["mean"]).view(forma)) / torch.tensor(d["std"]).view(forma)
+            shape = (1, -1) + (1,) * (x.dim() - 2)
+            x = (x - torch.tensor(d["mean"]).view(shape)) / torch.tensor(d["std"]).view(shape)
         return x
 
     if fmt == "npy":
-        rx, ry = os.path.join(carpeta, "x.npy"), os.path.join(carpeta, "y.npy")
+        rx, ry = os.path.join(folder, "x.npy"), os.path.join(folder, "y.npy")
         for r in (rx, ry):
             if not os.path.exists(r):
                 sys.exit(f"[X] [data] format npy: {r} not found")
@@ -330,65 +362,69 @@ def load_data(cfg):
         x = x.float()
         if x.dim() == 4 and x.shape[-1] in (1, 3) and x.shape[1] not in (1, 3):
             x = x.permute(0, 3, 1, 2).contiguous()           # NHWC -> NCHW
-        x = normalizar(x)
+        x = normalize(x)
         y = torch.from_numpy(y)
-        rv = os.path.join(carpeta, "val.npy")
+        rv = os.path.join(folder, "val.npy")
         if os.path.exists(rv):
             val = torch.from_numpy(np.load(rv).astype(bool))
             return TensorDataset(x[~val], y[~val]), TensorDataset(x[val], y[val])
-        todo = TensorDataset(x, y)
-        n_val = max(1, int(len(todo) * d["validation_split"]))
-        return tuple(random_split(todo, [len(todo) - n_val, n_val], generator=gen))
+        everything = TensorDataset(x, y)
+        n_val = max(1, int(len(everything) * d["validation_split"]))
+        return tuple(random_split(everything, [len(everything) - n_val, n_val], generator=gen))
 
     import torchvision
     import torchvision.transforms as T
-    pasos = [T.ToTensor()] + ([T.Normalize(d["mean"], d["std"])] if d["mean"] else [])
-    tf = T.Compose(pasos)
+    steps = [T.ToTensor()] + ([quantize] if s_bits else []) + \
+            ([T.Normalize(d["mean"], d["std"])] if d["mean"] else [])
+    tf = T.Compose(steps)
     if fmt == "imagefolder":
-        tr, va = os.path.join(carpeta, "train"), os.path.join(carpeta, "val")
+        tr, va = os.path.join(folder, "train"), os.path.join(folder, "val")
         if os.path.isdir(tr) and os.path.isdir(va):
             return torchvision.datasets.ImageFolder(tr, tf), torchvision.datasets.ImageFolder(va, tf)
-        todo = torchvision.datasets.ImageFolder(carpeta, tf)
-        n_val = max(1, int(len(todo) * d["validation_split"]))
-        return tuple(random_split(todo, [len(todo) - n_val, n_val], generator=gen))
-    nombre = {"cifar10": "CIFAR10", "cifar100": "CIFAR100", "mnist": "MNIST",
+        everything = torchvision.datasets.ImageFolder(folder, tf)
+        n_val = max(1, int(len(everything) * d["validation_split"]))
+        return tuple(random_split(everything, [len(everything) - n_val, n_val], generator=gen))
+    name = {"cifar10": "CIFAR10", "cifar100": "CIFAR100", "mnist": "MNIST",
               "fashionmnist": "FashionMNIST"}.get(fmt.lower().replace("-", "").replace("_", ""))
-    if nombre is None:
+    if name is None:
         sys.exit(f"[X] [data] format {fmt!r} not supported (npy, imagefolder, cifar10, cifar100, mnist, fashionmnist)")
-    clase = getattr(torchvision.datasets, nombre)
-    return clase(carpeta, train=True, download=True, transform=tf), clase(carpeta, train=False, download=True, transform=tf)
+    class_name = getattr(torchvision.datasets, name)
+    return class_name(folder, train=True, download=True, transform=tf), class_name(folder, train=False, download=True, transform=tf)
 
 
 # ---------------------------------------------------------------------------
 # Stages
 # ---------------------------------------------------------------------------
-def stage_inspect(modelo, origen_modelo, cfg):
+def stage_inspect(model, model_source, cfg):
     import torch
     import torch.nn as nn
-    capas = [(n, m) for n, m in modelo.named_modules() if isinstance(m, (nn.Conv2d, nn.Linear))]
-    convs = sum(isinstance(m, nn.Conv2d) for _, m in capas)
-    lineales = len(capas) - convs
-    tipos = {p.dtype for p in modelo.parameters()}
-    cuantizado = any("quantized" in type(m).__module__ for m in modelo.modules())
-    print(f"\n[1] INSPECT  ({origen_modelo})")
-    print(f"    layers      : {len(capas)}  ({convs} Conv2d, {lineales} Linear)")
-    print(f"    parameters  : {sum(p.numel() for p in modelo.parameters()):,}")
-    print(f"    precision   : {', '.join(str(t).replace('torch.', '') for t in tipos) or 'unknown'}")
-    if cuantizado or (tipos and not tipos <= {torch.float32, torch.float64}):
+    layers = [(n, m) for n, m in model.named_modules() if isinstance(m, (nn.Conv2d, nn.Linear))]
+    convs = sum(isinstance(m, nn.Conv2d) for _, m in layers)
+    dense_layers = len(layers) - convs
+    types = {p.dtype for p in model.parameters()}
+    quantized = any("quantized" in type(m).__module__ for m in model.modules())
+    print(f"\n[1] INSPECT  ({model_source})")
+    print(f"    layers      : {len(layers)}  ({convs} Conv2d, {dense_layers} Linear)")
+    print(f"    parameters  : {sum(p.numel() for p in model.parameters()):,}")
+    print(f"    precision   : {', '.join(str(t).replace('torch.', '') for t in types) or 'unknown'}")
+    if quantized or (types and not types <= {torch.float32, torch.float64}):
         print("    [!] the model is not FP32: part of the information is already lost, the estimate is less reliable")
     kind = "conv" if convs else "mlp"
     print(f"    kind        : {kind}  -> method '{cfg['model']['method']}'")
     if cfg["model"]["method"] == "gated" and convs:
         sys.exit("[X] method 'gated' only supports MLPs (linear layers), and this model has Conv2d layers")
     if cfg["model"]["method"] == "boolean":
-        sys.exit("[X] method 'boolean' (SYMBEX v3) is not integrated into lib_symbex yet: use 'plain'")
+        print("    method      : boolean -- a fully binary network, trained as defined (lib_symbex layers/conv/symbex_bool)")
     if cfg["output"]["verbose"]:
-        for n, m in capas:
+        for n, m in layers:
             print(f"      {n:<32} {type(m).__name__:<8} {'x'.join(str(s) for s in m.weight.shape)}")
     return kind
 
 
-def stage_estimate(modelo, train, cfg, salida):
+def stage_estimate(model, train, cfg, out_dir):
+    if cfg["model"]["method"] == "boolean":
+        print("\n[2] ESTIMATE  skipped: method 'boolean' (the network is already binary; its memory is in the export)")
+        return dict(rows=[])
     import torch
     from compiler_core.sensitivity import Sensitivity
     n = min(cfg["data"]["calibration_samples"], len(train))
@@ -397,16 +433,18 @@ def stage_estimate(modelo, train, cfg, salida):
     calib = torch.stack([train[i][0] for i in idx])
     print(f"\n[2] ESTIMATE  ({n} calibration samples, shape {tuple(calib.shape)})")
     h, t = cfg["hardware"], cfg["target"]
-    res = Sensitivity(modelo).estimar(calib, ram_kb=h["ram_kb"], flash_kb=h["flash_kb"], presupuesto=t["budget"],
-                                      tolerancia=t["tolerance"], opciones=t["options"],
-                                      detalle=cfg["output"]["verbose"], palabra_bits=h["cpu_bits"])
-    limpio = {k: v for k, v in res.items() if k != "filas"}
-    limpio["layers"] = [dict(name=f["name"], type=f["type"], shape=f["shape"], choice=f["elegida"],
-                             meets=f["cumple"], options={str(o): v for o, v in f["opciones"].items()})
-                        for f in res["filas"]]
-    with open(os.path.join(salida, "estimate.json"), "w") as fh:
-        json.dump(limpio, fh, indent=1, default=str)
-    print(f"    -> {os.path.join(salida, 'estimate.json')}")
+    res = Sensitivity(model).estimate(calib, ram_kb=h["ram_kb"], flash_kb=h["flash_kb"], budget=t["budget"],
+                                      tolerance=t["tolerance"], options=t["options"],
+                                      detail=cfg["output"]["verbose"], word_bits=h["cpu_bits"])
+    old_keys = {"filas", "saltadas", "ram_pico", "limite_flash", "limite_ram", "presupuesto", "tolerancia",
+                "opciones", "palabra_bits", "cabe"}
+    clean = {k: v for k, v in res.items() if k != "rows" and k not in old_keys}
+    clean["layers"] = [dict(name=f["name"], type=f["type"], shape=f["shape"], choice=f["chosen"],
+                             meets=f["meets"], options={str(o): v for o, v in f["options"].items()})
+                        for f in res["rows"]]
+    with open(os.path.join(out_dir, "estimate.json"), "w") as fh:
+        json.dump(clean, fh, indent=1, default=str)
+    print(f"    -> {os.path.join(out_dir, 'estimate.json')}")
     print("    (the CHOICE column is a cosine-based suggestion; the train stage decides the bits by accuracy)")
     return res
 
@@ -415,241 +453,359 @@ def _bits(op):
     return 1 if op == "bin" else int(op)
 
 
-def _memoria_plan(filas, plan, ancho=1.0, palabra=32):
+def _plan_memory(rows, plan, width=1.0, word=32):
     """(flash bytes, peak RAM bytes) of a plan at a width. Exact arithmetic from the layer shapes:
-    hidden layers get `ancho` times more outputs (and the next layer `ancho` times more inputs); each
-    output row is padded to a whole CPU word; per-channel parameters as in Sensitivity.memoria_capa."""
+    hidden layers get `width` times more outputs (and the next layer `width` times more inputs); each
+    output row is padded to a whole CPU word; per-channel parameters as in Sensitivity.layer_memory."""
     flash, rams = 0, []
-    for i, f in enumerate(filas):
+    for i, f in enumerate(rows):
         bits = _bits(plan[f["name"]])
-        mi = 1.0 if i == 0 else ancho
-        mo = 1.0 if i == len(filas) - 1 else ancho
-        canales = int(round(f["canales"] * mo))
-        fila = -(-int(round(f["fan_in"] * mi)) * bits // palabra) * palabra
-        flash += (canales * fila + 7) // 8 + canales * (4 if plan[f["name"]] == "bin" else 8)
-        rams.append((int(round(f["n_entradas"] * mi)) * bits + 7) // 8)
+        mi = 1.0 if i == 0 else width
+        mo = 1.0 if i == len(rows) - 1 else width
+        channels = int(round(f["channels"] * mo))
+        row = -(-int(round(f["fan_in"] * mi)) * bits // word) * word
+        flash += (channels * row + 7) // 8 + channels * (4 if plan[f["name"]] == "bin" else 8)
+        rams.append((int(round(f["n_inputs"] * mi)) * bits + 7) // 8)
     return flash, max(a + b for a, b in zip(rams, rams[1:] + [0]))
 
 
-def _cabe(flash, ram, estimacion, cfg):
+def _fits(flash, ram, estimate_res, cfg):
     """(fits?, note). RAM may also use PSRAM (slower) when [hardware] psram_kb > 0."""
-    if flash > estimacion["limite_flash"]:
+    if flash > estimate_res["flash_limit"]:
         return False, "flash over budget"
-    if ram <= estimacion["limite_ram"]:
+    if ram <= estimate_res["ram_limit"]:
         return True, ""
     psram = cfg["target"]["budget"] * cfg["hardware"]["psram_kb"] * 1024
-    if ram <= estimacion["limite_ram"] + psram:
+    if ram <= estimate_res["ram_limit"] + psram:
         return True, "needs PSRAM (slower)"
     return False, "RAM over budget"
 
 
-def _texto_plan(filas, plan, ancho=1.0):
-    return f"x{ancho:g} " + " ".join("b" if plan[f["name"]] == "bin" else str(plan[f["name"]]) for f in filas)
+def _plan_text(rows, plan, width=1.0):
+    return f"x{width:g} " + " ".join("b" if plan[f["name"]] == "bin" else str(plan[f["name"]]) for f in rows)
 
 
-def _entrenar_plan(modelo, maestro, plan, primera, train, trl, val_l, cfg, epochs, dev, ancho=1.0, ruta=None,
+def _train_plan(model, teacher, plan, first, train, trl, val_l, cfg, epochs, dev, width=1.0, path=None,
                    verbose=False):
-    """Builds the model for `plan` at width `ancho` from the original weights and trains it.
-    Returns the result dict of train/ (the trained model is in res["modelo"])."""
+    """Builds the model for `plan` at width `width` from the original weights and trains it.
+    Returns the result dict of train/ (the trained model is in res["model"])."""
     import torch
     from compiler_core.methods import apply_plan, init_thresholds, widen
-    from compiler_core.train import destilar_estudiante, entrenar
+    from compiler_core.train.distillation import distill_student
+    from compiler_core.train.standard import train_model
     tr = cfg["training"]
     torch.manual_seed(tr["seed"])
     n = min(cfg["data"]["calibration_samples"], len(train))
     idx = torch.randperm(len(train), generator=torch.Generator().manual_seed(tr["seed"]))[:n].tolist()
     calib = torch.stack([train[i][0] for i in idx])
-    base = copy.deepcopy(modelo).cpu()
-    if ancho > 1:
-        widen(base, ancho, calib[:2], seed=tr["seed"])
-    alumno = apply_plan(base, plan, primera=primera)
-    init_thresholds(alumno, calib)
-    comunes = dict(epochs=epochs, lr=tr["learning_rate"], device=dev, verbose=verbose, ruta_checkpoint=ruta,
-                   guardar={"last": "ultima", "best": "mejor"}[tr["checkpoint"]],
-                   promedio_ultimas=min(5, epochs), bn_momentum=0.3)
+    base = copy.deepcopy(model).cpu()
+    if width > 1:
+        widen(base, width, calib[:2], seed=tr["seed"])
+    student = apply_plan(base, plan, first=first)
+    init_thresholds(student, calib)
+    common = dict(epochs=epochs, lr=tr["learning_rate"], device=dev, verbose=verbose, checkpoint_path=path,
+                   save=tr["checkpoint"],
+                   average_last=min(5, epochs), bn_momentum=0.3)
     if tr["distill"]:
-        res = destilar_estudiante(alumno, maestro, trl, val_l, temperatura=tr["temperature"], alpha=tr["alpha"],
-                                  **comunes)
+        res = distill_student(student, teacher, trl, val_l, temperature=tr["temperature"], alpha=tr["alpha"],
+                                  **common)
     else:
-        res = entrenar(alumno, trl, val_l, **comunes)
-    res["modelo"] = alumno
+        res = train_model(student, trl, val_l, **common)
+    res["model"] = student
     return res
 
 
-def _referencias(modelo, train, val_l, filas, cfg, dev):
+class DeviceLoader:
+    """A whole dataset as two tensors on the device, batched there: no worker processes and no copies per batch.
+    For datasets that fit in VRAM ([training] data_on_gpu = true). The dataset's transforms run once, at load
+    time, so they must be deterministic (the CDT's are: normalization and the input_bits quantization)."""
+
+    def __init__(self, dataset, batch_size, device, shuffle=False, generator=None):
+        import torch
+        from torch.utils.data import DataLoader
+        xs, ys = [], []
+        for x, y in DataLoader(dataset, batch_size=1024, num_workers=2):
+            xs.append(x)
+            ys.append(y)
+        self.x, self.y = torch.cat(xs).to(device), torch.cat(ys).to(device)
+        self.batch_size, self.shuffle, self.generator = batch_size, shuffle, generator
+        self.nbytes = self.x.element_size() * self.x.nelement() + self.y.element_size() * self.y.nelement()
+
+    def __len__(self):
+        return -(-len(self.y) // self.batch_size)
+
+    def __iter__(self):
+        import torch
+        n = len(self.y)
+        order = torch.randperm(n, generator=self.generator).to(self.x.device) if self.shuffle else None
+        for i in range(0, n, self.batch_size):
+            sel = order[i:i + self.batch_size] if order is not None else slice(i, i + self.batch_size)
+            yield self.x[sel], self.y[sel]
+
+
+def _references(model, train, val_l, rows, cfg, dev):
     """INT8 reference: the original model with every layer (input included) quantized to 8 bits, weights
     per output channel, activation ranges calibrated on training samples, NO retraining (post-training,
     like TFLite). Flash: 1 byte per weight + scale and zero point per channel (2 x int32)."""
     import torch
     import torch.nn as nn
     from compiler_core.methods import apply_plan, calibrate_ranges
-    from compiler_core.train import evaluar
-    capas = [m for _, m in modelo.named_modules() if isinstance(m, (nn.Conv2d, nn.Linear))]
-    flash_fp32 = sum(p.numel() * 4 for p in modelo.parameters())
-    flash_int8 = sum(m.weight.numel() + m.weight.shape[0] * 8 for m in capas)
-    int8 = apply_plan(copy.deepcopy(modelo).cpu(), {f["name"]: 8 for f in filas}, primera=filas[0]["name"],
-                      mantener_entrada_primera=False).to(dev)
+    from compiler_core.train.standard import evaluate
+    layers = [m for _, m in model.named_modules() if isinstance(m, (nn.Conv2d, nn.Linear))]
+    flash_fp32 = sum(p.numel() * 4 for p in model.parameters())
+    flash_int8 = sum(m.weight.numel() + m.weight.shape[0] * 8 for m in layers)
+    int8 = apply_plan(copy.deepcopy(model).cpu(), {f["name"]: 8 for f in rows}, first=rows[0]["name"],
+                      keep_first_input=False).to(dev)
     gen = torch.Generator().manual_seed(cfg["training"]["seed"])
     idx = torch.randperm(len(train), generator=gen)[:min(1024, len(train))].tolist()
-    lotes = [torch.stack([train[i][0] for i in idx[j:j + 256]]).to(dev) for j in range(0, len(idx), 256)]
-    calibrate_ranges(int8, lotes)
-    acc = evaluar(int8.eval(), val_l, dev)
+    batches = [torch.stack([train[i][0] for i in idx[j:j + 256]]).to(dev) for j in range(0, len(idx), 256)]
+    calibrate_ranges(int8, batches)
+    acc = evaluate(int8.eval(), val_l, dev)
     del int8                                           # free the GPU memory of the reference
     if dev.type == "cuda":
         torch.cuda.empty_cache()
     return dict(acc_int8=acc, flash_int8=flash_int8, flash_fp32=flash_fp32)
 
 
-def _predicciones(modelo, val_l, dev):
+def _predictions(model, val_l, dev):
     import torch
-    estaba = modelo.training
-    modelo.eval()
+    was_training = model.training
+    model.eval()
     out = []
     with torch.no_grad():
         for x, _ in val_l:
-            out.append(modelo(x.to(dev)).argmax(1).cpu())
-    modelo.train(estaba)
+            out.append(model(x.to(dev)).argmax(1).cpu())
+    model.train(was_training)
     return torch.cat(out)
 
 
-def stage_train(modelo, train, val, estimacion, cfg, salida, kind="mlp"):
+def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp"):
+    if cfg["model"]["method"] == "boolean":
+        from compiler_core.export import boolean
+        return boolean.train(model, train, val, cfg, out_dir)
     import torch
     from torch.utils.data import DataLoader
-    from compiler_core.train import evaluar
-    if isinstance(modelo, torch.jit.ScriptModule):
+    from compiler_core.train.standard import evaluate
+    if isinstance(model, torch.jit.ScriptModule):
         sys.exit("[X] train: a TorchScript model cannot be rebuilt layer by layer; give the weights + definition")
     tr, t = cfg["training"], cfg["target"]
-    filas = estimacion["filas"]
-    primera = filas[0]["name"]
-    palabra = cfg["hardware"]["cpu_bits"]
-    opciones = sorted(t["options"], key=_bits)
-    anchos = sorted(set(float(a) for a in t["widths"]))
-    if len(anchos) > 1:                              # widening only works on plain chains: check it once
+    rows = estimate_res["rows"]
+    first = rows[0]["name"]
+    word = cfg["hardware"]["cpu_bits"]
+    options = sorted(t["options"], key=_bits)
+    widths = sorted(set(float(a) for a in t["widths"]))
+    if len(widths) > 1:                              # widening only works on plain chains: check it once
         from compiler_core.methods import widen
         try:
-            widen(copy.deepcopy(modelo).cpu().eval(), anchos[-1], torch.stack([train[i][0] for i in range(2)]))
+            widen(copy.deepcopy(model).cpu().eval(), widths[-1], torch.stack([train[i][0] for i in range(2)]))
         except ValueError as e:
             print(f"    [!] this model cannot be widened ({e}); searched at width x1 only")
-            anchos = [1.0]
+            widths = [1.0]
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     gen = torch.Generator().manual_seed(tr["seed"])
-    trl = DataLoader(train, batch_size=tr["batch_size"], shuffle=True, generator=gen, num_workers=2)
-    val_l = DataLoader(val, batch_size=max(tr["batch_size"], 512), num_workers=2)
-    maestro = modelo.to(dev).eval()
-    acc_original = evaluar(maestro, val_l, dev)
-    ref = _referencias(modelo, train, val_l, filas, cfg, dev)
+    if tr["data_on_gpu"] and dev.type == "cuda":
+        print("    data on the GPU: loading the training and validation sets into VRAM once ...")
+        trl = DeviceLoader(train, tr["batch_size"], dev, shuffle=True, generator=gen)
+        val_l = DeviceLoader(val, max(tr["batch_size"], 512), dev)
+        print(f"    data on the GPU: {(trl.nbytes + val_l.nbytes) / 2**20:.0f} MB of VRAM")
+    else:
+        # persistent workers: created once, not again at every epoch (each restart left the GPU idle for seconds)
+        trl = DataLoader(train, batch_size=tr["batch_size"], shuffle=True, generator=gen, num_workers=2,
+                         persistent_workers=True)
+        val_l = DataLoader(val, batch_size=max(tr["batch_size"], 512), num_workers=2, persistent_workers=True)
+    teacher = model.to(dev).eval()
+    acc_original = evaluate(teacher, val_l, dev)
+    with_int8 = cfg["output"]["int8_reference"]
+    if with_int8:
+        ref = _references(model, train, val_l, rows, cfg, dev)
+    else:
+        ref = dict(acc_int8=None, flash_int8=None, flash_fp32=sum(p.numel() * 4 for p in model.parameters()))
     ref["acc_fp32"] = acc_original
     print(f"\n[3] REFERENCES  (the binarized model is compared against these)")
     print(f"    {'model':<44}{'accuracy':>9}{'flash KB':>11}")
     print(f"    {'FP32 original':<44}{acc_original:>8.2f}%{ref['flash_fp32'] / 1024:>11.1f}")
-    print(f"    {'INT8 post-training (per-channel, like TFLite)':<44}{ref['acc_int8']:>8.2f}%"
-          f"{ref['flash_int8'] / 1024:>11.1f}")
+    if with_int8:
+        print(f"    {'INT8 post-training (per-channel, like TFLite)':<44}{ref['acc_int8']:>8.2f}%"
+              f"{ref['flash_int8'] / 1024:>11.1f}")
+    else:
+        print("    (INT8 reference off: [output] int8_reference = true to compare against INT8 too)")
 
     # ---------------- search: 1 bit at width x1 first; then wider; then more bits on the most sensitive layer
     print(f"\n    SEARCH  (quick trials of {t['search_epochs']} epochs, accept a drop <= {t['max_accuracy_drop']} points;"
-          f" widths {anchos}, options {opciones} | {dev})")
-    print(f"    plan = width, then option per layer: {' '.join(f['name'] for f in filas)}   (b = 1 bit)")
+          f" widths {widths}, options {options} | {dev})")
+    print(f"    plan = width, then option per layer: {' '.join(f['name'] for f in rows)}   (b = 1 bit)")
     print(f"    {'step':>4} | {'plan':<26} | {'flash KB':>9} | {'accuracy':>8} | {'drop':>6} | decision")
     print("    " + "-" * 84)
-    plan, ancho = {f["name"]: opciones[0] for f in filas}, anchos[0]
-    flash, ram = _memoria_plan(filas, plan, ancho, palabra)
-    ok, nota = _cabe(flash, ram, estimacion, cfg)
+    plan, width = {f["name"]: options[0] for f in rows}, widths[0]
+    flash, ram = _plan_memory(rows, plan, width, word)
+    ok, note = _fits(flash, ram, estimate_res, cfg)
     if not ok:
-        sys.exit(f"[X] even the smallest plan does not fit the budget ({nota}: flash {flash / 1024:.1f} KB, "
+        sys.exit(f"[X] even the smallest plan does not fit the budget ({note}: flash {flash / 1024:.1f} KB, "
                  f"RAM {ram / 1024:.1f} KB)")
-    historial, paso = [], 0
+    history, step = [], 0
     while True:
-        res = _entrenar_plan(modelo, maestro, plan, primera, train, trl, val_l, cfg, t["search_epochs"], dev, ancho)
-        acc = res["promedio_final"]
-        caida = acc_original - acc
-        flash, ram = _memoria_plan(filas, plan, ancho, palabra)
-        fila = dict(step=paso, width=ancho, plan={k: str(v) for k, v in plan.items()}, flash=flash, ram=ram,
-                    accuracy=acc, drop=caida)
-        historial.append(fila)
-        siguiente = None
-        if caida <= t["max_accuracy_drop"]:
+        res = _train_plan(model, teacher, plan, first, train, trl, val_l, cfg, t["search_epochs"], dev, width)
+        acc = res["final_average"]
+        drop = acc_original - acc
+        flash, ram = _plan_memory(rows, plan, width, word)
+        row = dict(step=step, width=width, plan={k: str(v) for k, v in plan.items()}, flash=flash, ram=ram,
+                    accuracy=acc, drop=drop)
+        history.append(row)
+        next_step = None
+        if drop <= t["max_accuracy_drop"]:
             decision = "OK: within the accepted drop"
         else:
             # 1) wider, all-1-bit layers first
-            mas_anchos = [a for a in anchos if a > ancho]
-            if all(v == opciones[0] for v in plan.values()):
-                for a in mas_anchos:
-                    fl, rm = _memoria_plan(filas, plan, a, palabra)
-                    if _cabe(fl, rm, estimacion, cfg)[0]:
-                        siguiente = (f"wider -> x{a:g}", plan, a)
+            wider = [a for a in widths if a > width]
+            if all(v == options[0] for v in plan.values()):
+                for a in wider:
+                    fl, rm = _plan_memory(rows, plan, a, word)
+                    if _fits(fl, rm, estimate_res, cfg)[0]:
+                        next_step = (f"wider -> x{a:g}", plan, a)
                         break
             # 2) then more bits on the most sensitive layer (lowest cosine at its current option)
-            if siguiente is None:
-                candidatas = sorted((f for f in filas if opciones.index(plan[f["name"]]) + 1 < len(opciones)),
-                                    key=lambda f: f["opciones"][plan[f["name"]]]["fid"])
-                for f in candidatas:
-                    prueba = dict(plan)
-                    prueba[f["name"]] = opciones[opciones.index(plan[f["name"]]) + 1]
-                    fl, rm = _memoria_plan(filas, prueba, ancho, palabra)
-                    if _cabe(fl, rm, estimacion, cfg)[0]:
-                        siguiente = (f"raise {f['name']} -> {prueba[f['name']]}", prueba, ancho)
+            if next_step is None:
+                candidates = sorted((f for f in rows if options.index(plan[f["name"]]) + 1 < len(options)),
+                                    key=lambda f: f["options"][plan[f["name"]]]["fid"])
+                for f in candidates:
+                    trial = dict(plan)
+                    trial[f["name"]] = options[options.index(plan[f["name"]]) + 1]
+                    fl, rm = _plan_memory(rows, trial, width, word)
+                    if _fits(fl, rm, estimate_res, cfg)[0]:
+                        next_step = (f"raise {f['name']} -> {trial[f['name']]}", trial, width)
                         break
-            decision = siguiente[0] if siguiente else "STOP: nothing else fits the budget or can go up"
-        fila["decision"] = decision
-        print(f"    {paso:>4} | {_texto_plan(filas, plan, ancho):<26} | {flash / 1024:>9.2f} | {acc:>7.2f}% | "
-              f"{caida:>+6.2f} | {decision}")
-        if siguiente is None:
+            decision = next_step[0] if next_step else "STOP: nothing else fits the budget or can go up"
+        row["decision"] = decision
+        print(f"    {step:>4} | {_plan_text(rows, plan, width):<26} | {flash / 1024:>9.2f} | {acc:>7.2f}% | "
+              f"{drop:>+6.2f} | {decision}")
+        if next_step is None:
             break
-        _, plan, ancho = siguiente
-        paso += 1
+        _, plan, width = next_step
+        step += 1
     if not decision.startswith("OK"):
         print(f"    [!] the accepted drop ({t['max_accuracy_drop']} points) was not reached; the last plan is used")
 
     # ---------------- final training of the chosen width and plan
-    flash, ram = _memoria_plan(filas, plan, ancho, palabra)
-    nota = _cabe(flash, ram, estimacion, cfg)[1]
+    flash, ram = _plan_memory(rows, plan, width, word)
+    note = _fits(flash, ram, estimate_res, cfg)[1]
     print(f"\n    FINAL TRAINING  ({tr['epochs']} epochs, {'distillation' if tr['distill'] else 'labels only'},"
-          f" width x{ancho:g})")
+          f" width x{width:g})")
     print(f"    {'layer':<32}{'option':>8}")
-    for f in filas:
+    for f in rows:
         op = plan[f["name"]]
         print(f"    {f['name']:<32}{'bin' if op == 'bin' else str(op) + ' bits':>8}"
-              + ("   (input kept)" if f["name"] == primera else ""))
-    ruta = os.path.join(salida, "model_binarized.pth")
-    res = _entrenar_plan(modelo, maestro, plan, primera, train, trl, val_l, cfg, tr["epochs"], dev, ancho, ruta=ruta,
+              + ("   (input kept)" if f["name"] == first else ""))
+    path = os.path.join(out_dir, "model_binarized.pth")
+    res = _train_plan(model, teacher, plan, first, train, trl, val_l, cfg, tr["epochs"], dev, width, path=path,
                          verbose=cfg["output"]["verbose"])
-    ultima = res["historial"][-1][3]
-    pred_b, pred_o = _predicciones(res["modelo"], val_l, dev), _predicciones(maestro, val_l, dev)
-    etiquetas = torch.cat([y for _, y in val_l])
-    identidad = 100 * float((pred_b == pred_o).float().mean())
-    bien_o = pred_o == etiquetas
-    retenido = 100 * float((pred_b[bien_o] == etiquetas[bien_o]).float().mean()) if bien_o.any() else 0.0
-    ganado = int(((pred_b == etiquetas) & ~bien_o).sum())
-    print(f"\n    binarized validation accuracy: last epoch {ultima:.2f}% | mean of last 5 {res['promedio_final']:.2f}%"
-          f" | (best epoch {res['mejor_test']:.2f}%, optimistic)")
-    print(f"\n    {'model':<34}{'accuracy':>9}{'vs FP32':>9}{'vs INT8':>9}{'flash KB':>10}{'flash vs INT8':>15}")
-    for nombre, acc_m, fl in (("FP32 original", acc_original, ref["flash_fp32"]),
-                              ("INT8 post-training", ref["acc_int8"], ref["flash_int8"]),
-                              ("SYMBEX (" + _texto_plan(filas, plan, ancho) + ")", ultima, flash)):
-        print(f"    {nombre:<34}{acc_m:>8.2f}%{acc_m - acc_original:>+9.2f}{acc_m - ref['acc_int8']:>+9.2f}"
-              f"{fl / 1024:>10.1f}{ref['flash_int8'] / fl:>14.1f}x")
-    print(f"    (flash vs INT8 = how many times less flash than the INT8 model; RAM peak SYMBEX {ram / 1024:.2f} KB"
-          + (f", {nota}" if nota else "") + ")")
-    print(f"    IDENTITY : the binarized model predicts the same class as the original on {identidad:.2f}% of the "
+    last = res["history"][-1][3]
+    pred_b, pred_o = _predictions(res["model"], val_l, dev), _predictions(teacher, val_l, dev)
+    labels = torch.cat([y.cpu() for _, y in val_l])
+    identity = 100 * float((pred_b == pred_o).float().mean())
+    orig_correct = pred_o == labels
+    retained = 100 * float((pred_b[orig_correct] == labels[orig_correct]).float().mean()) if orig_correct.any() else 0.0
+    gained = int(((pred_b == labels) & ~orig_correct).sum())
+    import numpy as np
+    np.savez(os.path.join(out_dir, "predictions.npz"), labels=labels.numpy(), original=pred_o.numpy(),
+             binarized=pred_b.numpy())                      # per-sample predictions, for per-class analysis
+    print(f"\n    binarized validation accuracy: last epoch {last:.2f}% | mean of last 5 {res['final_average']:.2f}%"
+          f" | (best epoch {res['best_test']:.2f}%, optimistic)")
+    base_name, base_flash = ("INT8", ref["flash_int8"]) if with_int8 else ("FP32", ref["flash_fp32"])
+    print(f"\n    {'model':<34}{'accuracy':>9}{'vs FP32':>9}" + (f"{'vs INT8':>9}" if with_int8 else "")
+          + f"{'flash KB':>10}{'flash vs ' + base_name:>15}")
+    models = [("FP32 original", acc_original, ref["flash_fp32"])]
+    if with_int8:
+        models.append(("INT8 post-training", ref["acc_int8"], ref["flash_int8"]))
+    models.append(("SYMBEX (" + _plan_text(rows, plan, width) + ")", last, flash))
+    for name, acc_m, fl in models:
+        print(f"    {name:<34}{acc_m:>8.2f}%{acc_m - acc_original:>+9.2f}"
+              + (f"{acc_m - ref['acc_int8']:>+9.2f}" if with_int8 else "")
+              + f"{fl / 1024:>10.1f}{base_flash / fl:>14.1f}x")
+    print(f"    (flash vs {base_name} = how many times less flash than the {base_name} model; "
+          f"RAM peak SYMBEX {ram / 1024:.2f} KB" + (f", {note}" if note else "") + ")")
+    print(f"    IDENTITY : the binarized model predicts the same class as the original on {identity:.2f}% of the "
           f"validation samples (how much of the original's behavior it keeps)")
-    print(f"    RETAINED : of the {int(bien_o.sum())} samples the original gets right, the binarized model still gets "
-          f"{retenido:.2f}% right (knowledge kept); it also gets right {ganado} that the original got wrong")
-    with open(os.path.join(salida, "train.json"), "w") as fh:
-        json.dump(dict(width=ancho, plan={k: str(v) for k, v in plan.items()}, flash_total=flash, ram_peak=ram,
-                       references=ref, acc_original=acc_original, acc_last=ultima,
-                       acc_mean_last5=res["promedio_final"], acc_best_epoch=res["mejor_test"], identity=identidad, retained=retenido, gained=ganado,
-                       search=historial, history=res["historial"]), fh, indent=1)
-    print(f"    -> {ruta}\n    -> {os.path.join(salida, 'train.json')}")
+    print(f"    RETAINED : of the {int(orig_correct.sum())} samples the original gets right, the binarized model still gets "
+          f"{retained:.2f}% right (knowledge kept); it also gets right {gained} that the original got wrong")
+    with open(os.path.join(out_dir, "train.json"), "w") as fh:
+        json.dump(dict(width=width, plan={k: str(v) for k, v in plan.items()}, flash_total=flash, ram_peak=ram,
+                       references=ref, acc_original=acc_original, acc_last=last,
+                       acc_mean_last5=res["final_average"], acc_best_epoch=res["best_test"], identity=identity, retained=retained, gained=gained,
+                       search=history, history=res["history"]), fh, indent=1)
+    print(f"    -> {path}\n    -> {os.path.join(out_dir, 'train.json')}")
     res["plan"] = plan
-    res["ancho"] = ancho
+    res["width"] = width
     return res
 
 
-def stage_export(entrenado, val, cfg, salida, kind, modelo_original=None, train=None):
+def _dense_shapes(model):
+    """[(n_in, n_out, first)] of the binarized dense layers, in order (for the per-model arithmetic choice)."""
+    import torch.nn as nn
+    from compiler_core.methods.dense.plain import DensePlain
+    shapes = [(m.weight.shape[1], m.weight.shape[0]) for m in model.modules() if isinstance(m, (DensePlain, nn.Linear))]
+    return [(i, o, k == 0) for k, (i, o) in enumerate(shapes)]
+
+
+def choose_arithmetic(cfg, out_dir, shapes=None):
+    """[output] arithmetic: "and" / "xnor" as given; "auto" = the fastest one on the board for THIS model, predicted
+    from the chip profile (tools/chip_profiles/<board>_<popcount>.json, measured now with the kernel benchmark if
+    there is none yet, or if it is damaged) for the real shape of every layer and the [data] input_bits.
+    Without a board: "and" (the same results; it is the faster one on the chips measured so far)."""
+    arithmetic = cfg["output"]["arithmetic"]
+    if arithmetic != "auto":
+        return arithmetic
+    from compiler_core.chip.kernels import load_profile, run_kernels, save_profile
+    ch = cfg["chip"]
+    if not ch["board"]:
+        print("    arithmetic  : auto -> AND (no [chip] board to measure; both give the same results)")
+        return "and"
+    if ch["board"] == "uno":
+        print("    arithmetic  : auto -> XNOR (AVR: no SIMD; its self-contained kernels use XNOR and the smaller rows)")
+        return "xnor"
+    profile = load_profile(ch["board"], ch["popcount"])
+    if profile is None:
+        print(f"    arithmetic  : auto -> no profile for {ch['board']} (popcount {ch['popcount']}): measuring the kernels")
+        try:
+            profile = run_kernels(ch["board"], ch["port"], cfg["output"]["lib_path"],
+                                  os.path.join(out_dir, f"kernels_{ch['board']}"), ch["popcount"], upload=ch["upload"])
+        except (RuntimeError, ValueError) as e:
+            print(f"    [!] kernel benchmark failed ({e}): using AND")
+            return "and"
+        if profile.get("checksums_ok"):
+            print(f"    -> chip profile saved: {save_profile(profile)}")
+    if not profile.get("checksums_ok"):
+        print("    [!] the chip profile is not trusted (checksums differ): using AND")
+        return "and"
+    from compiler_core.chip.kernels import model_cost
+    if shapes:
+        cost = {a: model_cost(profile, shapes, a, input_bits=cfg["data"]["input_bits"]) for a in ("and", "xnor")}
+        best = min(cost, key=cost.get)
+        print(f"    arithmetic  : auto -> {best.upper()} on {ch['board']}, for this model "
+              f"(expected: AND {cost['and'] / 1000:.0f}k cycles, XNOR {cost['xnor'] / 1000:.0f}k cycles, from the chip profile)")
+        return best
+    print(f"    arithmetic  : auto -> {profile['best_arithmetic'].upper()} (fastest on {ch['board']}, from its chip profile)")
+    return profile["best_arithmetic"]
+
+
+def stage_export(trained, val, cfg, out_dir, kind, original_model=None, train=None):
+    if cfg["model"]["method"] == "boolean":
+        from compiler_core.export import boolean
+        print("\n[4-5] EXPORT + VALIDATE  (method 'boolean')")
+        try:
+            res = boolean.export_and_validate(trained["model"], val, out_dir, cfg["output"]["lib_path"],
+                                              cfg["output"]["validation_samples"])
+        except ValueError as e:
+            print(f"    [X] {e}")
+            return None
+        with open(os.path.join(out_dir, "export.json"), "w") as fh:
+            json.dump({k: v for k, v in res.items() if not k.startswith("_")}, fh, indent=1)
+        print(f"    -> {os.path.join(out_dir, 'export.json')}")
+        return res
     import torch
-    from compiler_core.export.dense import exportar_y_validar, exportar_int8
+    from compiler_core.export.dense import export_and_validate
+    from compiler_core.export.int8_reference import export_int8
     print("\n[4-5] EXPORT + VALIDATE")
-    plan = entrenado["plan"]
+    plan = trained["plan"]
     if kind != "mlp" or cfg["model"]["method"] != "plain":
         print("    [!] export is only integrated for MLPs with the plain method; skipped")
         return None
@@ -659,89 +815,226 @@ def stage_export(entrenado, val, cfg, salida, kind, modelo_original=None, train=
               "\n        Run with --options bin to get an exportable model.")
         return None
     try:
-        res = exportar_y_validar(entrenado["modelo"], val, salida, cfg["output"]["lib_path"], cfg["data"]["mean"],
-                                 cfg["data"]["std"], cfg["output"]["validation_samples"])
+        res = export_and_validate(trained["model"], val, out_dir, cfg["output"]["lib_path"], cfg["data"]["mean"],
+                                 cfg["data"]["std"], cfg["output"]["validation_samples"],
+                                 arithmetic=choose_arithmetic(cfg, out_dir, _dense_shapes(trained["model"])),
+                                 input_bits=cfg["data"]["input_bits"])
     except ValueError as e:
         print(f"    [X] {e}")
         return None
-    if modelo_original is not None and train is not None:
+    if cfg["output"]["int8_reference"] and original_model is not None and train is not None:
         try:
             gen = torch.Generator().manual_seed(cfg["training"]["seed"])
             idx = torch.randperm(len(train), generator=gen)[:min(1024, len(train))].tolist()
             calib = torch.stack([train[i][0] for i in idx])
-            res["int8"] = exportar_int8(modelo_original, calib, res["_xs"], res["_x_u8"], res["_y"], salida,
+            res["int8"] = export_int8(original_model, calib, res["_xs"], res["_x_u8"], res["_y"], out_dir,
                                         cfg["output"]["lib_path"], cfg["data"]["mean"], cfg["data"]["std"])
         except ValueError as e:
             print(f"    [!] INT8 reference not exported: {e}")
-    with open(os.path.join(salida, "export.json"), "w") as fh:
+    with open(os.path.join(out_dir, "export.json"), "w") as fh:
         json.dump({k: v for k, v in res.items() if not k.startswith("_")}, fh, indent=1)
-    print(f"    -> {os.path.join(salida, 'export.json')}")
+    print(f"    -> {os.path.join(out_dir, 'export.json')}")
     return res
 
 
-def _int8_de(res_export, salida):
-    """The INT8 reference exported with the model, if any, in the form medir_en_chip expects."""
+def _int8_of(res_export, out_dir):
+    """The INT8 reference exported with the model, if any, in the form measure_on_chip expects."""
     import numpy as np
     r8 = res_export.get("int8")
-    ruta = os.path.join(salida, "validacion_int8.u8")
-    if not r8 or not os.path.exists(ruta):
+    path = os.path.join(out_dir, "validation_int8.u8")
+    if not r8 or not os.path.exists(path):
         return None
-    return dict(header=r8["header"], esperado=np.fromfile(ruta, dtype=np.uint8).astype(np.int64), flash=r8["flash_bytes"])
+    return dict(header=r8["header"], expected=np.fromfile(path, dtype=np.uint8).astype(np.int64), flash=r8["flash_bytes"])
 
 
-def stage_chip(res_export, cfg, salida):
-    import numpy as np
-    from compiler_core.export.dense import medir_en_chip
+def _measure(res_export, header, cfg, out_dir, tag, int8=None):
+    from compiler_core.chip.measure import measure_on_chip
     ch = cfg["chip"]
-    print(f"\n[6] CHIP  ({ch['board']} on {ch['port']}, {ch['samples']} validation images)")
+    return measure_on_chip(header, res_export["_x_u8"], res_export["_y"], res_export["_pred_sim"],
+                           os.path.join(out_dir, f"chip_{ch['board']}{tag}"), cfg["output"]["lib_path"], ch["board"],
+                           ch["port"], ch["baud"], ch["samples"], ch["upload"], ch["popcount"],
+                           res_export["flash_bytes"], weights=ch["weights"], int8=int8)
+
+
+def stage_chip(res_export, cfg, out_dir):
+    ch = cfg["chip"]
+    print(f"\n[6] CHIP  ({ch['board']} on {ch['port']}, {ch['samples']} validation images, weights in {ch['weights']})")
     try:
-        res = medir_en_chip(res_export["header"], res_export["_x_u8"], res_export["_y"], res_export["_pred_sim"],
-                            os.path.join(salida, f"chip_{ch['board']}"), cfg["output"]["lib_path"], ch["board"],
-                            ch["port"], ch["baud"], ch["samples"], ch["upload"], ch["popcount"],
-                            res_export["flash_bytes"], int8=_int8_de(res_export, salida))
+        res = _measure(res_export, res_export["header"], cfg, out_dir, "", _int8_of(res_export, out_dir))
     except (RuntimeError, ValueError) as e:
         print(f"    [X] {e}")
         return None
-    with open(os.path.join(salida, "chip.json"), "w") as fh:
+    res["arithmetic"] = res_export.get("arithmetic")
+    with open(os.path.join(out_dir, "chip.json"), "w") as fh:
         json.dump(res, fh, indent=1)
-    print(f"    -> {os.path.join(salida, 'chip.json')}")
+    print(f"    -> {os.path.join(out_dir, 'chip.json')}")
+    if ch["compare_arithmetic"] and cfg["model"]["method"] == "boolean":
+        print("    (--compare-arithmetic: not for method 'boolean'; its layers use the HAL's AND count on every chip)")
+    elif ch["compare_arithmetic"]:
+        compare_arithmetic(res_export, res, cfg, out_dir)
+    return res
+
+
+def compare_arithmetic(res_export, res_main, cfg, out_dir):
+    """The WHOLE model with the other arithmetic too, on the same board and the same images: the final word on
+    which one is faster for this model (the kernel benchmark only predicts it). Both give the same classes."""
+    from compiler_core.export.dense import flash_bytes, validate_c, write_header
+    main = res_export.get("arithmetic") or "and"
+    other = "xnor" if main == "and" else "and"
+    layers = res_export.get("_layers")
+    if layers is None:
+        print("    [!] compare_arithmetic needs the export of this run (run from the export stage, not from chip)")
+        return None
+    header = os.path.join(out_dir, f"model_symbex_{other}.h")
+    write_header(layers, header, arithmetic=other, input_bits=cfg["data"]["input_bits"])
+    eq, tot, msg = validate_c(header, cfg["output"]["lib_path"], res_export["_x_u8"], res_export["_pred_sim"])
+    if eq is not None and eq != tot:
+        print(f"    [X] the {other.upper()} header is not exact on the PC ({eq}/{tot}): not measured")
+        return None
+    print(f"\n    COMPARISON: the same model with {other.upper()} arithmetic (exact on the PC: {eq}/{tot})")
+    try:
+        res_other = _measure(dict(res_export, flash_bytes=flash_bytes(layers, other)), header, cfg, out_dir, f"_{other}")
+    except (RuntimeError, ValueError) as e:
+        print(f"    [X] {e}")
+        return None
+    res_other["arithmetic"] = other
+    with open(os.path.join(out_dir, f"chip_{other}.json"), "w") as fh:
+        json.dump(res_other, fh, indent=1)
+    rows = sorted([(main, res_main), (other, res_other)], key=lambda r: r[1]["median_ms"])
+    fastest = rows[0][1]["median_ms"]
+    print(f"\n    WHOLE MODEL, BOTH ARITHMETICS  ({cfg['chip']['board']}, weights in {cfg['chip']['weights']}, "
+          f"{res_main['n']} images)")
+    print(f"    {'arithmetic':<12}{'latency ms':>12}{'vs fastest':>12}{'equal to sim.':>15}   per layer (ms)")
+    print("    " + "-" * 86)
+    for name, r in rows:
+        print(f"    {name.upper():<12}{r['median_ms']:>12.3f}{r['median_ms'] / fastest:>11.2f}x{r['equal_simulation']:>14.2f}%   "
+              + "  ".join(f"{c['median_ms']:.3f}" for c in r["layers"]))
+    print(f"    -> on this board, for this model: {rows[0][0].upper()}"
+          + ("  (the export used it)" if rows[0][0] == main else f"  (the export used {main.upper()}: "
+             f"set [output] arithmetic = \"{rows[0][0]}\" to export with it)"))
+    return res_other
+
+
+def _quiet_estimate(model, train, cfg):
+    if cfg["model"]["method"] == "boolean":
+        return dict(rows=[])
+    """The estimate rows (layer shapes and the first layer) without printing: needed to train or to rebuild the
+    trained model when the run starts after the estimate stage."""
+    import torch
+    from compiler_core.sensitivity import Sensitivity
+    n = min(cfg["data"]["calibration_samples"], len(train))
+    gen = torch.Generator().manual_seed(cfg["training"]["seed"])
+    idx = torch.randperm(len(train), generator=gen)[:n].tolist()
+    calib = torch.stack([train[i][0] for i in idx])
+    h, tg = cfg["hardware"], cfg["target"]
+    return Sensitivity(model).estimate(calib, ram_kb=h["ram_kb"], flash_kb=h["flash_kb"], budget=tg["budget"],
+                                       tolerance=tg["tolerance"], options=tg["options"], verbose=False,
+                                       detail=False, word_bits=h["cpu_bits"])
+
+
+def _option(v):
+    """'bin' stays 'bin'; '2' (as saved in JSON) -> 2."""
+    return v if v == "bin" else int(v)
+
+
+def load_trained(model, train, estimate_res, cfg, out_dir):
+    if cfg["model"]["method"] == "boolean":
+        from compiler_core.export import boolean
+        return boolean.load_trained(model, out_dir)
+    """Rebuilds the trained binarized model from out_dir (train.json + model_binarized.pth), without training:
+    the original model, widened as the search chose, binarized with the chosen plan, with the saved weights."""
+    import torch
+    from compiler_core.methods import apply_plan, widen
+    tj, wp = os.path.join(out_dir, "train.json"), os.path.join(out_dir, "model_binarized.pth")
+    for p in (tj, wp):
+        if not os.path.exists(p):
+            sys.exit(f"[X] {p} not found: there is no trained model to resume from (run from the train stage)")
+    info = json.load(open(tj))
+    plan = {k: _option(v) for k, v in info["plan"].items()}
+    width = float(info.get("width", 1.0))
+    base = copy.deepcopy(model).cpu()
+    if width > 1:
+        widen(base, width, torch.stack([train[i][0] for i in range(2)]), seed=cfg["training"]["seed"])
+    student = apply_plan(base, plan, first=estimate_res["rows"][0]["name"])
+    student.load_state_dict(torch.load(wp, map_location="cpu"))
+    student.eval()
+    print(f"\n[3] TRAIN  skipped: resumed the trained model from {out_dir} (width x{width:g}, plan "
+          + " ".join("b" if v == "bin" else str(v) for v in plan.values()) + ")")
+    return dict(model=student, plan=plan, width=width)
+
+
+def load_export(cfg, out_dir):
+    """What the chip stage needs from an existing export in out_dir (model_symbex.h, validation_*.u8, export.json)."""
+    import re
+    from compiler_core.export.dense import load_validation
+    header, ej = os.path.join(out_dir, "model_symbex.h"), os.path.join(out_dir, "export.json")
+    for p in (header, ej, os.path.join(out_dir, "validation_x.u8")):
+        if not os.path.exists(p):
+            sys.exit(f"[X] {p} not found: there is no export to resume from (run from the export stage)")
+    m = re.search(r"#define SYMBEX_MLP_N_INPUTS (\d+)", open(header).read())
+    if not m:
+        sys.exit(f"[X] {header} was exported before the English translation: run from the export stage")
+    res = json.load(open(ej))
+    x, y, sim = load_validation(out_dir, int(m.group(1)))
+    res.update(header=header, _x_u8=x, _y=y, _pred_sim=sim)
+    print(f"\n[4-5] EXPORT  skipped: resumed the export in {out_dir}")
     return res
 
 
 def main():
     args = build_parser().parse_args()
-    cfg, origen = load_config(args)
+    cfg, source = load_config(args)
+    if args.stop_after is not None:                    # old flag, same as --to
+        cfg["run"]["to"] = args.stop_after
+        source[("run", "to")] = "flag"
     if args.show_config:
-        print_config(cfg, origen)
+        print_config(cfg, source)
         return
     validate_config(cfg)
-    salida = output_directory(cfg)
-    os.makedirs(salida, exist_ok=True)
-    with open(os.path.join(salida, "config_used.toml"), "w") as fh:
+    out_dir = output_directory(cfg)
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(out_dir, "config_used.toml"), "w") as fh:
         fh.write(f"# written by cdt.py on {time.strftime('%Y-%m-%d %H:%M:%S')}\n" + to_toml(cfg))
     if cfg["output"]["verbose"]:
-        print_config(cfg, origen)
-    print(f"\n[*] output directory: {salida}   (config_used.toml written)")
+        print_config(cfg, source)
+    start, end = _stage_index(cfg["run"]["from"]), _stage_index(cfg["run"]["to"])
+    runs = lambda stage: start <= STAGES.index(stage) <= end
+    print(f"\n[*] output directory: {out_dir}   (config_used.toml written)")
+    print(f"[*] stages: {' -> '.join(s.upper() if runs(s) else s for s in STAGES)}   (UPPER = runs)")
 
     import torch
     torch.manual_seed(cfg["training"]["seed"])
-    modelo, origen_modelo = load_model(cfg)
-    kind = stage_inspect(modelo, origen_modelo, cfg)
-    if args.stop_after == "inspect":
+    model, model_source = load_model(cfg)
+    kind = stage_inspect(model, model_source, cfg)       # always: cheap, and every later stage needs `kind`
+    if end == STAGES.index("inspect"):
         return
-    train, val = load_data(cfg)
-    print(f"\n[*] data: {len(train)} training / {len(val)} validation samples ({cfg['data']['format']})")
-    estimacion = stage_estimate(modelo, train, cfg, salida)
-    if args.stop_after == "estimate":
+    train = val = None
+    if start <= STAGES.index("export"):                  # estimate / train / export need the data
+        train, val = load_data(cfg)
+        print(f"\n[*] data: {len(train)} training / {len(val)} validation samples ({cfg['data']['format']})")
+    estimate_res = trained = res_export = None
+    if runs("estimate"):
+        estimate_res = stage_estimate(model, train, cfg, out_dir)
+    elif start <= STAGES.index("export"):
+        estimate_res = _quiet_estimate(model, train, cfg)
+    if end == STAGES.index("estimate"):
         return
-    entrenado = stage_train(modelo, train, val, estimacion, cfg, salida, kind)
-    if args.stop_after == "train":
+    if runs("train"):
+        trained = stage_train(model, train, val, estimate_res, cfg, out_dir, kind)
+    elif start == STAGES.index("export"):
+        trained = load_trained(model, train, estimate_res, cfg, out_dir)
+    if end == STAGES.index("train"):
         return
-    res_export = stage_export(entrenado, val, cfg, salida, kind, modelo, train)
-    if args.stop_after in ("export", "validate") or res_export is None:
+    if runs("export"):
+        res_export = stage_export(trained, val, cfg, out_dir, kind, model, train)
+        if res_export is None:
+            return
+    else:
+        res_export = load_export(cfg, out_dir)
+    if end == STAGES.index("export"):
         return
     if cfg["chip"]["board"]:
-        stage_chip(res_export, cfg, salida)
+        stage_chip(res_export, cfg, out_dir)
     else:
         print("\n[6] CHIP  skipped: set [chip] board = \"esp32\" or \"s3\" (or --board esp32) to measure on a board")
 

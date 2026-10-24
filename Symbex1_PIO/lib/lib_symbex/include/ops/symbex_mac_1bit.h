@@ -1,32 +1,32 @@
 /*
- * symbex_mac_1bit.h -- MAC binarizado con aritmetica de punto fijo
- * (DSP), validado end-to-end en Python contra PyTorch real
- * (84.80% vs 86.20% de precision, 500 imagenes de CIFAR-10).
+ * symbex_mac_1bit.h -- Binarized MAC with fixed-point arithmetic (DSP),
+ * validated end-to-end in Python against real PyTorch
+ * (84.80% vs 86.20% accuracy, 500 CIFAR-10 images).
  *
- * REEMPLAZA la version anterior (SYMBEX_MODO_SIMPLE/TRIPLE) -- esa
- * version NO incluia la suma residual (identity) que el forward real
- * del modelo si hace, lo que causaba ~27-38% de error por capa
- * cuando se probo rigurosamente (100+ imagenes, no 1).
+ * REPLACES the older version (SYMBEX_MODO_SIMPLE/TRIPLE) -- that
+ * version DID NOT include the residual addition (identity) that the real
+ * model's forward pass does, which caused a ~27-38% error per layer
+ * when rigorously tested (100+ images, not just 1).
  *
- * Formula, la misma para CUALQUIER conv (1 o 2) de cualquier bloque:
+ * Formula, identical for ANY conv (1 or 2) in any block:
  *
- *   y = (raw_popcount * escala) >> (Q_MULT - Q_ACT)
+ *   y = (raw_popcount * scale) >> (Q_MULT - Q_ACT)
  *   y += shift_bn
- *   y += identity                     <- la suma real, en runtime
+ *   y += identity                     <- the real addition, at runtime
  *   diff = y - gamma_rprelu
- *   si diff <= 0: salida = shift(diff, log2_beta, signo_beta) + zeta
- *   si no:        salida = diff + zeta
+ *   if diff <= 0: output = shift(diff, log2_beta, sign_beta) + zeta
+ *   else:         output = diff + zeta
  *
- * "salida" queda en formato Q_ACT -- se usa DIRECTO como el
- * "identity" de la proxima capa. El bit para alimentar la SIGUIENTE
- * convolucion se obtiene aparte, comparando salida contra el beta
- * del RSign siguiente (ver symbex_dsp_binarizar).
+ * "output" remains in Q_ACT format -- it is used DIRECTLY as the
+ * "identity" for the next layer. The bit to feed the NEXT
+ * convolution is obtained separately, by comparing the output against the beta
+ * of the following RSign (see symbex_dsp_binarize).
  *
- * CAMBIO (version int32): escala pasa de int64 a int32, en
- * SymbexDspParams y en SymbexDspParamsSimple. Con Q_MULT=20 cabe
- * cualquier |escala| < 2048 (el exportador lo verifica). Los
- * productos siguen siendo de 64 bits, pero 32x32->64. Resultado
- * identico bit a bit a la version int64.
+ * CHANGE (int32 version): 'scale' goes from int64 to int32, in both
+ * SymbexDspParams and SymbexDspParamsSimple. With Q_MULT=20, any
+ * |scale| < 2048 fits perfectly (the exporter verifies this).
+ * Multiplications are still 64-bit, but 32x32->64. Result is
+ * bit-exact identical to the int64 version.
  */
 
 #ifndef SYMBEX_MAC_1BIT_H
@@ -40,55 +40,55 @@ extern "C" {
 #endif
 
 /*
- * Parametros DSP de UNA capa (conv1 o conv2 de un bloque), un valor
- * por canal de salida en cada array -- salvo q_act/q_mult, que son
- * globales a toda la red (mismo formato en todas las capas).
+ * DSP parameters for ONE layer (conv1 or conv2 of a block).
+ * One value per output channel in each array -- except q_act/q_mult, 
+ * which are global to the entire network (same format in all layers).
  */
 typedef struct {
-    const int32_t* escala;          // Q_MULT -- alpha*scale_bn combinados (antes int64)
+    const int32_t* scale;           // Q_MULT -- combined alpha*scale_bn (previously int64)
     const int32_t* shift_bn;        // Q_ACT
-    const int32_t* gamma_rprelu;    // Q_ACT -- umbral de la rama de RPReLU (bias1)
+    const int32_t* gamma_rprelu;    // Q_ACT -- RPReLU branch threshold (bias1)
     const int32_t* zeta;            // Q_ACT (bias2)
-    bool usa_shift;                 // true: RPReLU_Shift (potencia de 2, con shift).
-                                     // false: RPReLU normal (multiplicacion, con slope_q)
-    const int8_t* log2_beta;        // solo si usa_shift==true -- exponente,
-                                     // NEGATIVO si beta<1 (el caso comun)
-    const int8_t* signo_beta;       // solo si usa_shift==true -- +1 o -1
-    const int32_t* slope_q;         // solo si usa_shift==false -- pendiente en Q_ACT
-    uint8_t q_act;                  // bits fraccionarios de activaciones
-    uint8_t q_mult;                 // bits fraccionarios del multiplicador
+    bool use_shift;                 // true: RPReLU_Shift (power of 2, uses shifting).
+                                    // false: standard RPReLU (multiplication, uses slope_q)
+    const int8_t* log2_beta;        // only if use_shift==true -- exponent,
+                                    // NEGATIVE if beta < 1 (the common case)
+    const int8_t* sign_beta;        // only if use_shift==true -- +1 or -1
+    const int32_t* slope_q;         // only if use_shift==false -- slope in Q_ACT
+    uint8_t q_act;                  // fractional bits for activations
+    uint8_t q_mult;                 // fractional bits for the multiplier
 } SymbexDspParams;
 
 /*
- * Calcula la salida de UNA capa, para el canal 'canal', dado el
- * popcount crudo de esa posicion y el identity (Q_ACT) que corresponde
- * sumarle. Devuelve la salida en formato Q_ACT -- USARLA como
- * identity de la proxima capa, o pasarla a symbex_dsp_binarizar
- * para obtener el bit que alimenta la siguiente convolucion.
+ * Computes the output of ONE layer, for the given 'channel', given the
+ * raw popcount of that position and the corresponding identity (Q_ACT) 
+ * to add. Returns the output in Q_ACT format -- USE THIS as the
+ * identity for the next layer, or pass it to symbex_dsp_binarize
+ * to get the bit that feeds the next convolution.
  */
-int32_t symbex_dsp_aplicar_capa(int32_t raw_popcount, int32_t identity_q_act, uint16_t canal, const SymbexDspParams* params);
+int32_t symbex_dsp_apply_layer(int32_t raw_popcount, int32_t identity_q_act, uint16_t channel, const SymbexDspParams* params);
 
 /*
- * Convierte un valor Q_ACT (salida de symbex_dsp_aplicar_capa, o la
- * entrada de un bloque) en un bit -- comparando contra el beta
- * (Q_ACT) del RSign correspondiente. sign(valor - beta).
+ * Converts a Q_ACT value (output of symbex_dsp_apply_layer, or the
+ * input of a block) into a bit -- comparing against the beta (Q_ACT)
+ * of the corresponding RSign. Computes sign(value - beta).
  */
-bool symbex_dsp_binarizar(int32_t valor_q_act, int32_t beta_rsign_q_act);
+bool symbex_dsp_binarize(int32_t val_q_act, int32_t beta_rsign_q_act);
 
 /*
- * Version SIMPLIFICADA, para el downsample -- solo BN afin, SIN
- * RPReLU (el downsample no tiene esa rama). y = (raw*escala)>>shift
- * + shift_bn -- eso es directo el "identity" a sumar en el bloque
- * principal, no hace falta ningun paso mas.
+ * SIMPLIFIED version, for the downsample -- affine BN only, NO
+ * RPReLU (the downsample doesn't have that branch). 
+ * y = (raw*scale) >> shift + shift_bn -- this is directly the 
+ * "identity" to add in the main block, no extra steps needed.
  */
 typedef struct {
-    const int32_t* escala;          // antes int64
+    const int32_t* scale;           // previously int64
     const int32_t* shift_bn;
     uint8_t q_act;
     uint8_t q_mult;
 } SymbexDspParamsSimple;
 
-int32_t symbex_dsp_aplicar_downsample(int32_t raw_popcount, uint16_t canal, const SymbexDspParamsSimple* params);
+int32_t symbex_dsp_apply_downsample(int32_t raw_popcount, uint16_t channel, const SymbexDspParamsSimple* params);
 
 #ifdef __cplusplus
 }

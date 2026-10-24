@@ -1,0 +1,20 @@
+{
+ "width": 1,
+ "spec": "16-32-128/1-1-2",
+ "board": "esp32",
+ "weights": "ram",
+ "popcount": "lut16",
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 1,
+   "val_accuracy": 73.35,
+   "flash_kb": 46.4296875,
+   "exactness": 100.0,
+   "chip_accuracy": 74.6,
+   "latency_ms": 60.921,
+   "equal": 100.0,
+   "ram_kb": 125.5625
+  }
+ ]
+}

@@ -51,3 +51,5 @@ sdkconfig.old
 .DS_Store
 benchmarks/cnn_cifar_vgg/
 benchmarks/gpu/
+runs/
+*.bak

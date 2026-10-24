@@ -1,0 +1,29 @@
+{
+ "width": 1.0,
+ "board": null,
+ "weights": "flash",
+ "popcount": "swar",
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 1.0,
+   "val_accuracy": 70.6,
+   "flash_kb": 24.3359375,
+   "exactness": 100.0
+  },
+  {
+   "seed": 43,
+   "width": 1.0,
+   "val_accuracy": 72.18,
+   "flash_kb": 24.3359375,
+   "exactness": 100.0
+  },
+  {
+   "seed": 44,
+   "width": 1.0,
+   "val_accuracy": 71.06,
+   "flash_kb": 24.3359375,
+   "exactness": 100.0
+  }
+ ]
+}

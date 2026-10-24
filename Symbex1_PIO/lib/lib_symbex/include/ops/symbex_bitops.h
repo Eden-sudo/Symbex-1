@@ -1,15 +1,15 @@
 /*
- * symbex_bitops.h -- operaciones de bits de bajo nivel, genericas,
- * usadas por CUALQUIER capa espacial (conv1d, conv2d, pool...).
+ * symbex_bitops.h -- low-level, generic bitwise operations,
+ * used by ANY spatial layer (conv1d, conv2d, pool...).
  *
- * Migrado de symbex_conv.cpp (las funciones "El Mesero" y "El
- * Ayudante") -- rescatado porque maneja el caso GENERAL de anchos
- * de imagen arbitrarios (a diferencia de symbex_extraer_ventana en
- * conv2d, que asume que una fila entra en una palabra de 32 bits).
+ * Migrated from symbex_conv.cpp (the "El Mesero" and "El Ayudante"
+ * functions) -- preserved because it handles the GENERAL case of
+ * arbitrary image widths (unlike symbex_extract_window in conv2d,
+ * which assumes a row fits into a single 32-bit word).
  *
- * NOTA DE DISENO: a diferencia del original, load_line_buffer ya NO
- * recibe una struct de capa completa -- recibe parametros sueltos,
- * para que ops/ no dependa de ningun tipo de capa especifico.
+ * DESIGN NOTE: unlike the original version, load_line_buffer NO LONGER
+ * takes a full layer struct -- it takes discrete parameters so that
+ * ops/ does not depend on any specific layer type.
  */
 
 #ifndef SYMBEX_BITOPS_H
@@ -22,52 +22,51 @@ extern "C" {
 #endif
 
 /*
- * Extrae un rango de N bits (hasta 32) empezando en bit_start,
- * incluso si ese rango CRUZA el limite de una palabra de 32 bits.
+ * Extracts an N-bit range (up to 32) starting at bit_start,
+ * even if that range CROSSES a 32-bit word boundary.
  *
- * plane: bloque de bits de origen.
- * bit_start: posicion inicial, en bits, dentro de plane.
- * n_bits: cuantos bits extraer (1 a 32).
- * Devuelve: los n_bits extraidos, alineados a la derecha.
+ * plane: source bit block.
+ * bit_start: starting position, in bits, within plane.
+ * n_bits: how many bits to extract (1 to 32).
+ * Returns: the extracted n_bits, right-aligned.
  */
 uint32_t symbex_extract_bits(const uint32_t* plane, uint32_t bit_start, uint8_t n_bits);
 
 /*
- * Inserta un valor de N bits en plane, empezando en bit_start_local
- * -- LIMPIA primero esos bits (AND con mascara invertida), despues
- * los pone (OR) -- funciona sin importar el valor inicial de plane
- * (antes asumia que arrancaba en cero; con patch_buffer arrancando
- * en 0xFFFFFFFF esto era un bug real, corregido).
- * Tambien maneja el caso de cruzar el limite de una palabra.
+ * Inserts an N-bit value into plane, starting at bit_start_local.
+ * CLEARS those bits first (AND with inverted mask), then sets them
+ * (OR). This works regardless of the plane's initial value (it
+ * previously assumed an all-zero start; with patch_buffer starting
+ * at 0xFFFFFFFF this was an actual bug, now fixed).
+ * Also handles crossing a word boundary.
  *
- * plane: bloque de bits de destino (se modifica).
- * bit_start_local: posicion inicial, en bits, dentro de plane.
- * n_bits: cuantos bits del value son validos (1 a 32).
- * value: los bits a insertar, alineados a la derecha.
+ * plane: destination bit block (modified in place).
+ * bit_start_local: starting position, in bits, within plane.
+ * n_bits: how many bits of the value are valid (1 to 32).
+ * value: the bits to insert, right-aligned.
  */
 void symbex_insert_bits(uint32_t* plane, uint32_t bit_start_local, uint8_t n_bits, uint32_t value);
 
 /*
- * Cuenta cuantos bits estan en 1 tanto en a como en b (popcount de
- * a AND b), sobre n_palabras completas -- usada para corregir el
- * popcount de padding: cuenta cuantos pesos estan en 1 justo en las
- * posiciones marcadas como padding por una mascara.
+ * Counts how many bits are 1 in both a and b (popcount of a AND b),
+ * over full n_words. Used to correct the padding popcount: counts
+ * how many weights are 1 exactly in the positions marked as padding
+ * by a mask.
  */
-int32_t symbex_popcount_and(const uint32_t* a, const uint32_t* b, uint16_t n_palabras);
+int32_t symbex_popcount_and(const uint32_t* a, const uint32_t* b, uint16_t n_words);
 
 /*
- * Carga un buffer de trabajo (SRAM) con las 'kernel' filas
- * necesarias para procesar la fila de salida 'oh', copiando desde
- * una fuente mas grande (ej. la imagen completa binarizada). Rellena
- * con ceros las filas que caen fuera de los limites (padding de
- * convolucion).
+ * Loads a workspace buffer (SRAM) with the 'kernel' rows needed
+ * to process the output row 'oh', copying from a larger source
+ * (e.g., the full binarized image). Zero-fills rows that fall
+ * out of bounds (convolution padding).
  *
- * source_input: bloque de bits de origen (la imagen completa).
- * sram_buffer: buffer de destino, debe tener espacio para
- *   in_ch * kernel * ((in_w+31)/32) palabras.
- * in_ch, in_h, in_w: dimensiones de la imagen de entrada.
- * kernel, stride, padding: parametros de la convolucion.
- * oh: fila de SALIDA que se va a procesar (no de entrada).
+ * source_input: source bit block (the full image).
+ * sram_buffer: destination buffer, must have room for
+ *   in_ch * kernel * ((in_w+31)/32) words.
+ * in_ch, in_h, in_w: input image dimensions.
+ * kernel, stride, padding: convolution parameters.
+ * oh: OUTPUT row to process (not input).
  */
 void symbex_load_line_buffer(
     const uint32_t* source_input,

@@ -1,0 +1,118 @@
+{
+ "published": 92.59,
+ "parameters": 272474,
+ "finetune_epochs": 3,
+ "blocks": [
+  {
+   "block": "layer1.0",
+   "params": 4672,
+   "at_once": 14.99,
+   "drop_at_once": 77.60000000000001,
+   "adapted": 91.82,
+   "drop_adapted": 0.5800000000000125,
+   "worst_class": "airplane"
+  },
+  {
+   "block": "layer1.1",
+   "params": 4672,
+   "at_once": 77.48,
+   "drop_at_once": 15.11,
+   "adapted": 91.85,
+   "drop_adapted": 0.5500000000000114,
+   "worst_class": "dog"
+  },
+  {
+   "block": "layer1.2",
+   "params": 4672,
+   "at_once": 41.22,
+   "drop_at_once": 51.370000000000005,
+   "adapted": 92.19,
+   "drop_adapted": 0.21000000000000796,
+   "worst_class": "dog"
+  },
+  {
+   "block": "layer2.0",
+   "params": 13952,
+   "at_once": 10.12,
+   "drop_at_once": 82.47,
+   "adapted": 91.48,
+   "drop_adapted": 0.9200000000000017,
+   "worst_class": "cat"
+  },
+  {
+   "block": "layer2.1",
+   "params": 18560,
+   "at_once": 86.36,
+   "drop_at_once": 6.230000000000004,
+   "adapted": 91.89,
+   "drop_adapted": 0.5100000000000051,
+   "worst_class": "dog"
+  },
+  {
+   "block": "layer2.2",
+   "params": 18560,
+   "at_once": 87.41,
+   "drop_at_once": 5.180000000000007,
+   "adapted": 91.54,
+   "drop_adapted": 0.8599999999999994,
+   "worst_class": "dog"
+  },
+  {
+   "block": "layer3.0",
+   "params": 55552,
+   "at_once": 8.77,
+   "drop_at_once": 83.82000000000001,
+   "adapted": 89.78,
+   "drop_adapted": 2.6200000000000045,
+   "worst_class": "cat"
+  },
+  {
+   "block": "layer3.1",
+   "params": 73984,
+   "at_once": 70.5,
+   "drop_at_once": 22.090000000000003,
+   "adapted": 90.28,
+   "drop_adapted": 2.1200000000000045,
+   "worst_class": "cat"
+  },
+  {
+   "block": "layer3.2",
+   "params": 73984,
+   "at_once": 75.9,
+   "drop_at_once": 16.689999999999998,
+   "adapted": 88.66,
+   "drop_adapted": 3.740000000000009,
+   "worst_class": "bird"
+  }
+ ],
+ "shallower": [
+  {
+   "network": "ResNet-14 (removes layer1.2, layer2.2, layer3.2)",
+   "removed": [
+    "layer1.2",
+    "layer2.2",
+    "layer3.2"
+   ],
+   "params": 175258,
+   "at_once": 17.22,
+   "adapted": 86.79,
+   "drop_adapted": 5.609999999999999
+  },
+  {
+   "network": "ResNet-8  (removes blocks 1 and 2 of every stage)",
+   "removed": [
+    "layer1.1",
+    "layer1.2",
+    "layer2.1",
+    "layer2.2",
+    "layer3.1",
+    "layer3.2"
+   ],
+   "params": 78042,
+   "at_once": 13.12,
+   "adapted": 67.44,
+   "drop_adapted": 24.960000000000008
+  }
+ ],
+ "control": 92.4
+}

@@ -17,18 +17,30 @@ init_thresholds(model, x)    starts every RSign threshold at the per-channel MED
 """
 import torch
 import torch.nn as nn
-from .linear.plain import LinearPlain
+import sys as _sys
+from . import dense as _dense
+from .dense import plain as _dense_plain, core as _dense_core, gated as _dense_gated
+from .dense.plain import DensePlain
 from .conv.plain import ConvPlain
-from .kbit import LinearKBit, ConvKBit
+from .kbit import DenseKBit, ConvKBit
 from .base import RSign
-from .kbit import CuantizadorActivacion
+from .kbit import ActivationQuantizer
+
+# The folder linear/ is now dense/. Old imports (compiler_core.methods.linear.plain, ...) keep working until
+# every caller is translated (see RENAMES.md).
+_sys.modules[__name__ + ".linear"] = _dense
+_sys.modules[__name__ + ".linear.plain"] = _dense_plain
+_sys.modules[__name__ + ".linear.core"] = _dense_core
+_sys.modules[__name__ + ".linear.gated"] = _dense_gated
+LinearPlain = DensePlain
+LinearKBit = DenseKBit
 
 # (kind of layer, method name) -> class.  gated / bitslice get added here when they move in.
 METHODS = {
-    ("linear", "plain"): LinearPlain,
+    ("dense", "plain"): DensePlain,
     ("conv", "plain"): ConvPlain,
 }
-KBIT = {"linear": LinearKBit, "conv": ConvKBit}
+KBIT = {"dense": DenseKBit, "conv": ConvKBit}
 
 
 def apply_method(model, method="plain"):
@@ -45,48 +57,53 @@ def apply_method(model, method="plain"):
                if isinstance(child, (nn.Conv2d, nn.Linear))]
 
     for i, (parent, name, layer) in enumerate(targets):
-        kind = "conv" if isinstance(layer, nn.Conv2d) else "linear"
+        kind = "conv" if isinstance(layer, nn.Conv2d) else "dense"
         if (kind, method) not in METHODS:
-            disponibles = sorted(m for k, m in METHODS if k == kind)
+            available = sorted(m for k, m in METHODS if k == kind)
             raise ValueError(f"method '{method}' is not available for {kind} layers "
-                             f"(available: {disponibles})")
+                             f"(available: {available})")
         setattr(parent, name, METHODS[(kind, method)].from_float(layer, binarize_input=(i > 0)))
     return model
 
 
-def apply_plan(model, plan, primera=None, mantener_entrada_primera=True):
+def apply_plan(model, plan, first=None, keep_first_input=True, primera=None, mantener_entrada_primera=None):
     """
     Replaces each nn.Conv2d / nn.Linear named in `plan` (in place): "bin" -> plain (1 bit),
     an integer k >= 2 -> kbit. Layers not in `plan` are left as they are (FP32).
-    `primera`: name of the first layer the forward pass runs; its input is left untouched
+    `first`: name of the first layer the forward pass runs; its input is left untouched
     (same rule as apply_method). If None, the first layer in definition order is used.
-    mantener_entrada_primera=False quantizes that input too (e.g. an INT8 reference, where the
+    keep_first_input=False quantizes that input too (e.g. an INT8 reference, where the
     deployed model also receives a quantized input).
     Call this BEFORE model.to(device).
+    primera / mantener_entrada_primera: old names of first / keep_first_input (kept until every caller is translated).
     """
-    nombres = {m: n for n, m in model.named_modules()}
-    targets = [(parent, name, child, nombres[child])
+    if primera is not None:
+        first = primera
+    if mantener_entrada_primera is not None:
+        keep_first_input = mantener_entrada_primera
+    names = {m: n for n, m in model.named_modules()}
+    targets = [(parent, name, child, names[child])
                for parent in model.modules()
                for name, child in parent.named_children()
                if isinstance(child, (nn.Conv2d, nn.Linear))]
-    if primera is None and targets:
-        primera = targets[0][3]
-    desconocidas = set(plan) - {t[3] for t in targets}
-    if desconocidas:
-        raise ValueError(f"plan names layers that are not Conv2d / Linear of the model: {sorted(desconocidas)}")
-    for parent, name, layer, completo in targets:
-        if completo not in plan:
+    if first is None and targets:
+        first = targets[0][3]
+    unknown = set(plan) - {t[3] for t in targets}
+    if unknown:
+        raise ValueError(f"plan names layers that are not Conv2d / Linear of the model: {sorted(unknown)}")
+    for parent, name, layer, full_name in targets:
+        if full_name not in plan:
             continue
-        op = plan[completo]
-        kind = "conv" if isinstance(layer, nn.Conv2d) else "linear"
-        entrada = completo != primera or not mantener_entrada_primera
+        op = plan[full_name]
+        kind = "conv" if isinstance(layer, nn.Conv2d) else "dense"
+        quantize_in = full_name != first or not keep_first_input
         if op == "bin":
-            nuevo = METHODS[(kind, "plain")].from_float(layer, binarize_input=entrada)
+            new_layer = METHODS[(kind, "plain")].from_float(layer, binarize_input=quantize_in)
         elif isinstance(op, int) and op >= 2:
-            nuevo = KBIT[kind].from_float(layer, op, quantize_input=entrada)
+            new_layer = KBIT[kind].from_float(layer, op, quantize_input=quantize_in)
         else:
-            raise ValueError(f"layer {completo}: unknown option {op!r} ('bin' or an integer >= 2)")
-        setattr(parent, name, nuevo)
+            raise ValueError(f"layer {full_name}: unknown option {op!r} ('bin' or an integer >= 2)")
+        setattr(parent, name, new_layer)
     return model
 
 
@@ -95,37 +112,37 @@ def init_thresholds(model, calibration):
     """Sets each RSign.beta to the per-channel median of the input it receives on `calibration` (real samples),
     moved halfway to the next larger value of that channel (no sample exactly on the threshold).
     Returns the number of thresholds set. Run it right after apply_plan / apply_method."""
-    capturas, hooks = {}, []
+    captured, hooks = {}, []
 
-    def guardar(mod, ent):
-        capturas.setdefault(mod, ent[0].detach())          # returns None: the input is not modified
+    def store(mod, inputs):
+        captured.setdefault(mod, inputs[0].detach())          # returns None: the input is not modified
 
     for m in model.modules():
         if isinstance(m, RSign):
-            hooks.append(m.register_forward_pre_hook(guardar))
-    estaba = model.training
+            hooks.append(m.register_forward_pre_hook(store))
+    was_training = model.training
     model.eval()
     model(calibration)
-    model.train(estaba)
+    model.train(was_training)
     for h in hooks:
         h.remove()
-    for mod, x in capturas.items():
+    for mod, x in captured.items():
         c = x.shape[1]
-        valores = x.movedim(1, 0).reshape(c, -1)
-        mediana = valores.median(dim=1).values
+        values = x.movedim(1, 0).reshape(c, -1)
+        median = values.median(dim=1).values
         # midpoint between the median and the next larger value of that channel: a threshold placed exactly ON
         # a data value creates exact ties, and with discrete inputs (e.g. the +-1 sums of a binary layer) a
         # whole group of samples sits on the boundary, where float rounding decides the bit.
         # If nothing is above the median (e.g. a channel that is always 0 after a ReLU), use the midpoint with the
         # next SMALLER value instead; if the channel is constant, a threshold 1 below it (always +1, no tie).
-        mayores = torch.where(valores > mediana[:, None], valores, torch.full_like(valores, float("inf")))
-        menores = torch.where(valores < mediana[:, None], valores, torch.full_like(valores, float("-inf")))
-        siguiente = mayores.min(dim=1).values
-        anterior = menores.max(dim=1).values
-        beta = torch.where(~torch.isinf(siguiente), (mediana + siguiente) / 2,
-                           torch.where(~torch.isinf(anterior), (mediana + anterior) / 2, mediana - 1.0))
+        larger = torch.where(values > median[:, None], values, torch.full_like(values, float("inf")))
+        smaller = torch.where(values < median[:, None], values, torch.full_like(values, float("-inf")))
+        next_value = larger.min(dim=1).values
+        prev_value = smaller.max(dim=1).values
+        beta = torch.where(~torch.isinf(next_value), (median + next_value) / 2,
+                           torch.where(~torch.isinf(prev_value), (median + prev_value) / 2, median - 1.0))
         mod.beta.copy_(beta.view_as(mod.beta))
-    return len(capturas)
+    return len(captured)
 
 
 @torch.no_grad()
@@ -133,27 +150,27 @@ def calibrate_ranges(model, batches):
     """Post-training calibration of the k-bit activation ranges: runs `batches` (an iterable of input
     tensors) with ONLY the activation quantizers in training mode (running min / max), so BatchNorm
     statistics are not touched. Returns the number of quantizers calibrated."""
-    estaba = model.training
+    was_training = model.training
     model.eval()
-    cuants = [m for m in model.modules() if isinstance(m, CuantizadorActivacion)]
-    for m in cuants:
+    quantizers = [m for m in model.modules() if isinstance(m, ActivationQuantizer)]
+    for m in quantizers:
         m.train()
     for x in batches:
         model(x)
-    model.train(estaba)
-    if not estaba:
+    model.train(was_training)
+    if not was_training:
         model.eval()
-    return len(cuants)
+    return len(quantizers)
 
 
-_SALTAR = (nn.Flatten, nn.Dropout, nn.Dropout2d, nn.Identity, nn.ReLU, nn.ReLU6, nn.LeakyReLU, nn.GELU, nn.SiLU,
+_SKIP = (nn.Flatten, nn.Dropout, nn.Dropout2d, nn.Identity, nn.ReLU, nn.ReLU6, nn.LeakyReLU, nn.GELU, nn.SiLU,
            nn.Tanh, nn.Sigmoid, nn.Hardtanh, nn.MaxPool2d, nn.AvgPool2d, nn.AdaptiveAvgPool2d)
-_CAPAS = (nn.Linear, nn.Conv2d)
-_NORMAS = (nn.BatchNorm1d, nn.BatchNorm2d)
+_LAYERS = (nn.Linear, nn.Conv2d)
+_NORMS = (nn.BatchNorm1d, nn.BatchNorm2d)
 
 
 @torch.no_grad()
-def widen(model, factor, example, ruido=1e-3, seed=0):
+def widen(model, factor, example, noise=1e-3, seed=0, ruido=None):
     """Widens every hidden layer of a plain chain network (in place, FP32, BEFORE apply_plan) by `factor` (>= 1):
     the outputs of every nn.Linear / nn.Conv2d except the last one. The first layer keeps its inputs and the
     last one its outputs.
@@ -165,95 +182,97 @@ def widen(model, factor, example, ruido=1e-3, seed=0):
     must compute the same function (up to the symmetry-breaking noise). Anything the forward pass does outside
     those modules (residual additions, concatenations...) breaks that, and raises ValueError. The model is
     modified in place, so pass a copy. Layers are tracked by NAME. Returns the model."""
+    if ruido is not None:                    # old name of `noise` (kept until every caller is translated)
+        noise = ruido
     if factor < 1:
         raise ValueError("widen: factor must be >= 1")
     if factor == 1:
         return model
-    orden, hooks = [], []
+    order, hooks = [], []
     for n, mod in model.named_modules():
         if len(list(mod.children())) == 0:
-            hooks.append(mod.register_forward_hook(lambda m_, e, s_, n=n: orden.append(n)))
-    estaba = model.training
+            hooks.append(mod.register_forward_hook(lambda m_, e, s_, n=n: order.append(n)))
+    was_training = model.training
     model.eval()
-    referencia = model(example)
+    reference = model(example)
     for h in hooks:
         h.remove()
-    cadena = []                                         # names of the layers / norms, in forward order
-    for n in dict.fromkeys(orden):
+    chain = []                                         # names of the layers / norms, in forward order
+    for n in dict.fromkeys(order):
         mod = model.get_submodule(n)
-        if isinstance(mod, _SALTAR):
+        if isinstance(mod, _SKIP):
             continue
-        if not isinstance(mod, _CAPAS + _NORMAS):
+        if not isinstance(mod, _LAYERS + _NORMS):
             raise ValueError(f"widen: unsupported module {type(mod).__name__} (plain Linear / Conv2d chains only)")
         if isinstance(mod, nn.Conv2d) and mod.groups != 1:
             raise ValueError("widen: grouped / depthwise convolutions are not supported")
-        cadena.append(n)
-    capas = [n for n in cadena if isinstance(model.get_submodule(n), _CAPAS)]
+        chain.append(n)
+    layers = [n for n in chain if isinstance(model.get_submodule(n), _LAYERS)]
     gen = torch.Generator().manual_seed(seed)
 
-    def poner(nombre, nuevo):
-        padre, _, hijo = nombre.rpartition(".")
-        setattr(model.get_submodule(padre) if padre else model, hijo, nuevo)
+    def put(layer_name, new_layer):
+        parent_path, _, attr = layer_name.rpartition(".")
+        setattr(model.get_submodule(parent_path) if parent_path else model, attr, new_layer)
 
-    for i, nombre in enumerate(capas[:-1]):
-        capa = model.get_submodule(nombre)
-        conv = isinstance(capa, nn.Conv2d)
-        n = capa.out_channels if conv else capa.out_features
-        nuevo_n = int(round(n * factor))
-        extra = torch.randint(0, n, (nuevo_n - n,), generator=gen)
+    for i, layer_name in enumerate(layers[:-1]):
+        src_layer = model.get_submodule(layer_name)
+        conv = isinstance(src_layer, nn.Conv2d)
+        n = src_layer.out_channels if conv else src_layer.out_features
+        new_n = int(round(n * factor))
+        extra = torch.randint(0, n, (new_n - n,), generator=gen)
         g = torch.cat([torch.arange(n), extra])                     # new unit j copies original unit g[j]
-        cuenta = torch.bincount(g, minlength=n).float()
+        counts = torch.bincount(g, minlength=n).float()
         # this layer: copy its output units (rows / filters), tiny noise on the copies
         if conv:
-            nueva = nn.Conv2d(capa.in_channels, nuevo_n, capa.kernel_size, capa.stride, capa.padding,
-                              capa.dilation, 1, capa.bias is not None, capa.padding_mode)
+            widened = nn.Conv2d(src_layer.in_channels, new_n, src_layer.kernel_size, src_layer.stride, src_layer.padding,
+                              src_layer.dilation, 1, src_layer.bias is not None, src_layer.padding_mode)
         else:
-            nueva = nn.Linear(capa.in_features, nuevo_n, bias=capa.bias is not None)
-        nueva.weight.copy_(capa.weight[g])
-        if nuevo_n > n and ruido > 0:
-            forma = (nuevo_n - n,) + tuple(capa.weight.shape[1:])
-            nueva.weight[n:] += ruido * capa.weight.abs().mean() * torch.randn(forma, generator=gen)
-        if capa.bias is not None:
-            nueva.bias.copy_(capa.bias[g])
-        poner(nombre, nueva)
+            widened = nn.Linear(src_layer.in_features, new_n, bias=src_layer.bias is not None)
+        widened.weight.copy_(src_layer.weight[g])
+        if new_n > n and noise > 0:
+            shape = (new_n - n,) + tuple(src_layer.weight.shape[1:])
+            widened.weight[n:] += noise * src_layer.weight.abs().mean() * torch.randn(shape, generator=gen)
+        if src_layer.bias is not None:
+            widened.bias.copy_(src_layer.bias[g])
+        put(layer_name, widened)
         # the norm right after it, if any: copy its per-unit parameters and statistics
-        pos = cadena.index(nombre)
-        if pos + 1 < len(cadena) and isinstance(model.get_submodule(cadena[pos + 1]), _NORMAS):
-            bn = model.get_submodule(cadena[pos + 1])
-            nb = type(bn)(nuevo_n, eps=bn.eps, momentum=bn.momentum, affine=bn.affine)
+        pos = chain.index(layer_name)
+        if pos + 1 < len(chain) and isinstance(model.get_submodule(chain[pos + 1]), _NORMS):
+            bn = model.get_submodule(chain[pos + 1])
+            nb = type(bn)(new_n, eps=bn.eps, momentum=bn.momentum, affine=bn.affine)
             if bn.affine:
                 nb.weight.copy_(bn.weight[g])
                 nb.bias.copy_(bn.bias[g])
             nb.running_mean.copy_(bn.running_mean[g])
             nb.running_var.copy_(bn.running_var[g])
-            poner(cadena[pos + 1], nb)
+            put(chain[pos + 1], nb)
         # next layer: split the outgoing weights of each copied unit among its copies
-        sig = model.get_submodule(capas[i + 1])
-        if isinstance(sig, nn.Conv2d):
-            ns = nn.Conv2d(nuevo_n, sig.out_channels, sig.kernel_size, sig.stride, sig.padding, sig.dilation, 1,
-                           sig.bias is not None, sig.padding_mode)
-            ns.weight.copy_(sig.weight[:, g] / cuenta[g][None, :, None, None])
+        next_layer = model.get_submodule(layers[i + 1])
+        if isinstance(next_layer, nn.Conv2d):
+            next_widened = nn.Conv2d(new_n, next_layer.out_channels, next_layer.kernel_size, next_layer.stride, next_layer.padding, next_layer.dilation, 1,
+                           next_layer.bias is not None, next_layer.padding_mode)
+            next_widened.weight.copy_(next_layer.weight[:, g] / counts[g][None, :, None, None])
         else:
-            if sig.in_features % n:
-                raise ValueError(f"widen: {capas[i + 1]} has {sig.in_features} inputs, not a multiple of the "
+            if next_layer.in_features % n:
+                raise ValueError(f"widen: {layers[i + 1]} has {next_layer.in_features} inputs, not a multiple of the "
                                  f"{n} channels before it")
-            hw = sig.in_features // n                      # 1 for MLPs; H*W after a Flatten of a conv map
-            columnas = (g[:, None] * hw + torch.arange(hw)[None, :]).reshape(-1)
-            escala = (1.0 / cuenta[g]).repeat_interleave(hw)
-            ns = nn.Linear(nuevo_n * hw, sig.out_features, bias=sig.bias is not None)
-            ns.weight.copy_(sig.weight[:, columnas] * escala[None, :])
-        if sig.bias is not None:
-            ns.bias.copy_(sig.bias)
-        poner(capas[i + 1], ns)
+            hw = next_layer.in_features // n                      # 1 for MLPs; H*W after a Flatten of a conv map
+            columns = (g[:, None] * hw + torch.arange(hw)[None, :]).reshape(-1)
+            scale = (1.0 / counts[g]).repeat_interleave(hw)
+            next_widened = nn.Linear(new_n * hw, next_layer.out_features, bias=next_layer.bias is not None)
+            next_widened.weight.copy_(next_layer.weight[:, columns] * scale[None, :])
+        if next_layer.bias is not None:
+            next_widened.bias.copy_(next_layer.bias)
+        put(layers[i + 1], next_widened)
 
     # check: same function (up to the noise); anything outside the chain (e.g. residual additions) breaks it
     model.eval()
-    salida = model(example)
-    dif = (salida - referencia).abs().max().item()
-    tolerancia = 1e-3 + (50 * ruido) * referencia.abs().max().item()
-    model.train(estaba)               # the new modules are created in training mode: give them the model's mode
-    if not torch.isfinite(salida).all() or dif > tolerancia:
-        raise ValueError(f"widen: the widened model does not compute the same function (max difference {dif:.3g}): "
+    output = model(example)
+    diff = (output - reference).abs().max().item()
+    tolerance = 1e-3 + (50 * noise) * reference.abs().max().item()
+    model.train(was_training)               # the new modules are created in training mode: give them the model's mode
+    if not torch.isfinite(output).all() or diff > tolerance:
+        raise ValueError(f"widen: the widened model does not compute the same function (max difference {diff:.3g}): "
                          "the forward pass does something outside a plain chain (residual additions, "
                          "concatenations...), which widening does not support")
     return model

@@ -1,0 +1,9 @@
+{
+ "model": "MLPerf Tiny pretrainedResnet_quant.tflite",
+ "url": "https://github.com/mlcommons/tiny/raw/bceb91c5ad2e2deb295547d81505721d3a87d578/benchmark/training/image_classification/trained_models/pretrainedResnet_quant.tflite",
+ "int8_accuracy": 86.97,
+ "model_kb": 96.1875,
+ "input": "raw pixels",
+ "input_scale": 1.0,
+ "input_zero_point": -128
+}

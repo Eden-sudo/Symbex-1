@@ -1,0 +1,14 @@
+{
+ "n": 360,
+ "arithmetic": "and",
+ "acc_pytorch": 89.72222222222223,
+ "acc_integer": 89.72222222222223,
+ "fidelity": 100.0,
+ "bit_agreement": [
+  100.0
+ ],
+ "flash_bytes": 11040,
+ "header": "runs/symbex_s42_b1_w4_t6/model_symbex.h",
+ "c_exactness": 100.0,
+ "c_note": ""
+}

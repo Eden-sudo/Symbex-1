@@ -1,0 +1,47 @@
+{
+ "board": "esp32",
+ "weights": "flash",
+ "popcount": "swar",
+ "input_bits": 1,
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 4.0,
+   "val_accuracy": 94.16666666666667,
+   "flash_kb": 10.78125,
+   "arithmetic": "xnor",
+   "chip_accuracy": 94.16666666666667,
+   "latency_ms": 0.444,
+   "equal": 100.0,
+   "ram_kb": 0.703125,
+   "other_latency_ms": 0.8275
+  },
+  {
+   "seed": 43,
+   "width": 4.0,
+   "val_accuracy": 93.61111111111111,
+   "flash_kb": 10.78125,
+   "arithmetic": "xnor",
+   "chip_accuracy": 93.61111111111111,
+   "latency_ms": 0.444,
+   "equal": 100.0,
+   "ram_kb": 0.703125,
+   "other_latency_ms": 0.8275
+  },
+  {
+   "seed": 44,
+   "width": 4.0,
+   "val_accuracy": 93.33333333333333,
+   "flash_kb": 10.78125,
+   "arithmetic": "xnor",
+   "chip_accuracy": 93.33333333333333,
+   "latency_ms": 0.444,
+   "equal": 100.0,
+   "ram_kb": 0.703125,
+   "other_latency_ms": 0.828
+  }
+ ],
+ "val_accuracy": "93.70 +- 0.42",
+ "latency_ms": "0.44 +- 0.00",
+ "chip_accuracy": "93.70 +- 0.42"
+}

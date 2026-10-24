@@ -1,0 +1,44 @@
+{
+ "skipped": [],
+ "flash_total": 1736,
+ "ram_peak": 24,
+ "flash_limit": 16384.0,
+ "ram_limit": 1024.0,
+ "budget": 0.5,
+ "tolerance": 0.99,
+ "options": [
+  "bin"
+ ],
+ "word_bits": 8,
+ "fits": true,
+ "layers": [
+  {
+   "name": "net.1",
+   "type": "Linear",
+   "shape": "128x64",
+   "choice": "bin",
+   "meets": false,
+   "options": {
+    "bin": {
+     "fid": 0.6271138191223145,
+     "flash": 1536,
+     "ram": 8
+    }
+   }
+  },
+  {
+   "name": "net.4",
+   "type": "Linear",
+   "shape": "10x128",
+   "choice": "bin",
+   "meets": false,
+   "options": {
+    "bin": {
+     "fid": 0.7791714668273926,
+     "flash": 200,
+     "ram": 16
+    }
+   }
+  }
+ ]
+}

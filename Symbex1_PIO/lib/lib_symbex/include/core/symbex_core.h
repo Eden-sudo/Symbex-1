@@ -1,18 +1,17 @@
 /*
- * symbex_core.h -- utilidades generales, portables a cualquier placa.
+ * symbex_core.h -- general utilities, portable to any board.
  *
- * NOTA DE MIGRACION: SYMBEX_BIT_MAC y SYMBEX_XNOR del archivo
- * original fueron RETIRADOS -- estan completamente superados por
- * symbex_xnor_popcount (hal/symbex_hal.h), que SI tiene aceleracion
- * real en ESP32-S3 (el viejo symbex_core.h tenia un placeholder sin
- * llenar para eso, caia a __builtin_popcount sin PIE).
+ * MIGRATION NOTE: SYMBEX_BIT_MAC and SYMBEX_XNOR from the original
+ * file have been REMOVED -- they are completely superseded by
+ * symbex_xnor_popcount (hal/symbex_hal.h), which DOES have real
+ * acceleration on the ESP32-S3 (the old symbex_core.h had an unfilled
+ * placeholder for that, falling back to __builtin_popcount without PIE).
  *
- * PENDIENTE REAL, no resuelto todavia: symbex_xnor_popcount no lee
- * memoria via pgm_read_dword en AVR -- si los pesos viven en flash
- * de un AVR real, hace falta agregar ese soporte a hal/generico
- * antes de que esto funcione correctamente ahi. Se mantiene
- * SYMBEX_READ_W32 aca mientras tanto, para las partes del codigo que
- * todavia leen palabra por palabra.
+ * REAL PENDING TASK, not resolved yet: symbex_xnor_popcount does not read
+ * memory via pgm_read_dword on AVR -- if weights live in the flash
+ * of a real AVR, that support needs to be added to hal/generic
+ * before this works correctly there. SYMBEX_READ_W32 is kept here in the
+ * meantime, for parts of the code that still read word by word.
  */
 
 #ifndef SYMBEX_CORE_H
