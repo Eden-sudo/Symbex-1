@@ -4,6 +4,7 @@ fomo_tflite.py -- the INT8 reference of the fomo_voc_person benchmark: the SAME 
     python fomo_tflite.py                                   # train (once) + INT8 + F1 on the PC
     python fomo_tflite.py --board s3 --port /dev/ttyUSB0    # ... and the latency with TFLite Micro on the board
     python fomo_tflite.py --channels 32-64-128 --blocks 1-2-2 --weight 20 --epochs 60
+    python fomo_tflite.py --channels 32-32-128 --blocks 1-2-2 --seed 43     # another training seed
 
 Run from benchmarks/fomo_voc_person/ with the benchmark environment (env_bench: TensorFlow). The network is the float
 architecture of model.RealFOMO, written directly in Keras (no conversion between frameworks): stem 3x3 stride 2, blocks
@@ -77,6 +78,7 @@ def main():
     ap.add_argument("--weight", type=float, default=20.0)
     ap.add_argument("--epochs", type=int, default=60)
     ap.add_argument("--val", type=int, default=1000)
+    ap.add_argument("--seed", type=int, default=42, help="training seed (42: the file names of the first runs)")
     ap.add_argument("--board", choices=["esp32", "s3"])
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--baud", type=int, default=921600)
@@ -91,7 +93,7 @@ def main():
     from model import f1_score, load                                    # the data and the score
     ch = tuple(int(v) for v in args.channels.split("-"))
     bl = tuple(int(v) for v in args.blocks.split("-"))
-    name = f"c{args.channels}_b{args.blocks}_w{args.weight:g}_e{args.epochs}"
+    name = f"c{args.channels}_b{args.blocks}_w{args.weight:g}_e{args.epochs}" + ("" if args.seed == 42 else f"_s{args.seed}")
     path = os.path.join("models", f"fomo_int8_{name}.tflite")
     os.makedirs("models", exist_ok=True)
     os.makedirs("results", exist_ok=True)
@@ -101,7 +103,7 @@ def main():
     xva, cva, ova = xtr[-nv:], ctr[otr >= len(xtr) - nv], otr[otr >= len(xtr) - nv] - (len(xtr) - nv)
 
     if not os.path.exists(path):
-        tf.keras.utils.set_random_seed(42)
+        tf.keras.utils.set_random_seed(args.seed)
         model = build(ch, bl, tf)
         steps = (len(xtr) - nv) // 128
         opt = tf.keras.optimizers.Adam(tf.keras.optimizers.schedules.CosineDecay(5e-3, steps * args.epochs))
@@ -116,7 +118,7 @@ def main():
             return tf.cond(f, lambda: tf.image.flip_left_right(x), lambda: x), tf.cond(f, lambda: y[:, ::-1], lambda: y)
 
         ds = (tf.data.Dataset.from_tensor_slices((xtr[:-nv].astype(np.float32), ytr[:-nv].astype(np.int32)))
-              .shuffle(4096, seed=42).map(flip, num_parallel_calls=tf.data.AUTOTUNE).batch(128, drop_remainder=True)
+              .shuffle(4096, seed=args.seed).map(flip, num_parallel_calls=tf.data.AUTOTUNE).batch(128, drop_remainder=True)
               .prefetch(tf.data.AUTOTUNE))
         model.compile(optimizer=opt, loss=loss_fn)
         print(f"[*] training the float {args.channels} / {args.blocks} FOMO in Keras ({args.epochs} epochs, person weight "
@@ -141,7 +143,7 @@ def main():
     print(f"    threshold calibrated on {nv} held-out training images: {th:+.3f}  (validation F1 {sva['f1']:.1f}%)")
     print(f"    test F1: default {s0['f1']:.1f}% | calibrated {s1['f1']:.1f}% (precision {s1['precision']:.1f}%, recall "
           f"{s1['recall']:.1f}%)")
-    json.dump(dict(model=path, kb=len(tflite) / 1024, threshold=th, f1_default=s0, f1_calibrated=s1),
+    json.dump(dict(model=path, seed=args.seed, kb=len(tflite) / 1024, threshold=th, f1_default=s0, f1_calibrated=s1),
               open(os.path.join("results", f"tflite_pc_{name}.json"), "w"), indent=1)
     if not args.board:
         return

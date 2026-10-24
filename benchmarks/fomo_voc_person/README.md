@@ -24,7 +24,7 @@ kept out of the training; on the chip the binary threshold costs nothing (it is 
 | | Original shape (32-64-128) | | **Resized for binary (32-32-128)** | |
 |---|---|---|---|---|
 | | **SYMBEX binary** | TFLite INT8 | **SYMBEX binary** | TFLite INT8 |
-| F1 (VOC 2007 test persons) | **31.0 %** | 30.2 % | **31.8 %** | 30.3 % |
+| F1 (VOC 2007 test persons) | **31.0 %** | 30.2 % | **31.2 ± 0.7 %** | 30.1 ± 0.2 % |
 | Latency | **160.8 ms** | 379.1 ms | **126.3 ms** | 256.9 ms |
 | Speed-up | **2.36×** | | **2.03×** | |
 | Flash | **52.3 KB** | 315.7 KB | **41.2 KB** | 236.1 KB |
@@ -34,8 +34,9 @@ kept out of the training; on the chip the binary threshold costs nothing (it is 
 **On the classic ESP32** the binary detector runs in **296.2 ms** (original shape); the INT8 detector does not fit: its
 arena overflows the chip's RAM by 97 KB.
 
-The floating-point version of the same network reaches 32.0 % F1: **binarization costs about one point here**, and the
-binary detector is as accurate as the INT8 one. Person detection in VOC at 96 × 96 is hard for networks this small — the
+The resized shape is reported over 3 training seeds on both sides (42, 43, 44); the original shape, one seed. The
+floating-point version of the same network reaches 32.0 % F1: **binarization costs about one point here**, and the
+binary detector is as accurate as the INT8 one, or slightly more. Person detection in VOC at 96 × 96 is hard for networks this small — the
 limit is the task, the same for every precision.
 
 ### Why detection binarizes so well here
@@ -55,12 +56,16 @@ measured detector — the prediction for 32-32-128 was 125.5 ms, the chip measur
 | Channels / blocks | F1 | S3 ms (predicted) | |
 |---|---|---|---|
 | 32-64-128 / 1-2-2 (the benchmark detector) | 31.0 % | 160.8 | |
-| **32-32-128 / 1-2-2** | **31.8 %** | **125.5** | more accurate and 1.28× faster |
+| **32-32-128 / 1-2-2** | **31.8 %** (3 seeds: 31.2 ± 0.7 %) | **125.5** | as accurate and 1.28× faster |
 | 32-64-64 / 1-2-2 | 31.0 % | 137.5 | |
 | 32-32-32 / 1-2-2 | 29.8 % | 96.3 | 1.67× faster |
 | 16-32-64 / 1-2-2 | 28.5 % | 59.7 | 2.69× faster |
 | 32-64-128 / 2-2-2 | 30.8 % | 197.7 | the extra block in stage 1 does not help |
 | 32-64-128 / 1-2-1 | 26.8 % | 140.3 | the second block of the last stage matters |
+
+The variants were ranked on the test F1 of one seed; the chosen one was then trained with two more seeds, which were
+never used to choose: 30.9 % on average, against 31.8 % for the seed that chose it. Ranking on a validation split
+carved out of the training data is the cleaner method, and the next version of the study uses it.
 
 The middle stage needs few channels, the last stage and the stem pay their cost. The best shape differs from the
 classifier's (`../cnn_cifar_resnet8`): it depends on the task, which is why it is measured and not assumed.
@@ -109,7 +114,8 @@ python fomo_sizing.py --phase depth ; python fomo_sizing.py --phase width
 - **The CDT:** detection as a CDT task (today the training runs in `fomo_train.py`, the export and the chip go through the
   CDT exporter and tools).
 - **Same training budget:** the INT8 reference follows the floating-point recipe (person weight 20, 60 epochs, where it had
-  already plateaued); the binary detector used weight 40 and 100 epochs.
+  already plateaued); the binary detector used weight 40 and 100 epochs. Training INT8 with the binary recipe too
+  closes this difference.
 
 ## References
 

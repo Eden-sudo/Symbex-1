@@ -22,18 +22,19 @@ one included (the image enters as a thermometer of bits); 3 training seeds, labe
 |---|---|---|
 | Accuracy | 71.28 ± 0.81 % | 87.0 % |
 | ESP32-S3 | **40.7 ms (1.28× faster)** | 52.0 ms |
-| ESP32 | **64.8 ms (11.1× faster)** | 717.8 ms |
+| ESP32 | **59.7 ms (12.0× faster)**, weights in RAM; 64.8 ms in flash | 717.8 ms |
 | Flash | **24.3 KB** | 96.2 KB |
 | RAM | **20 KB** | 53-80 KB |
 | Same result as its PC reference | **100 %** | 98.1 % |
 
 **Sized for binary.** The best shape of a binary network is not the INT8 one: a sizing study (blocks and channels per
 stage, latency predicted from measured chip profiles) found that the first stages can be thinner and the last one
-wider. Measured on the chip, 3 seeds:
+wider. Measured on the chip, 3 seeds (on the ESP32 the gain is accuracy at the same speed; the best shape depends on
+the chip):
 
 | Network | Accuracy | ESP32-S3 | ESP32 | RAM |
 |---|---|---|---|---|
-| ResNet-8 shape (16-32-64, 2-2-2 blocks) | 71.28 ± 0.81 % | 40.7 ms | 64.8 ms | 20 KB |
+| ResNet-8 shape (16-32-64, 2-2-2 blocks) | 71.28 ± 0.81 % | 40.7 ms | 59.7 ms (weights in RAM) | 20 KB |
 | **16-32-128, 1-1-2 blocks** | **73.10 ± 0.23 %** | **39.6 ms** | 60.9 ms (weights in RAM) | 15 KB |
 | **16-64-128, 1-1-2 blocks** | **74.45 ± 0.23 %** | 46.6 ms | | 16 KB |
 
@@ -44,7 +45,7 @@ trained with the same recipe.
 
 | | **SYMBEX, binary** | TFLite INT8 |
 |---|---|---|
-| F1 | **31.8 %** | 30.3 % |
+| F1 (3 seeds) | **31.2 ± 0.7 %** | 30.1 ± 0.2 % |
 | ESP32-S3 | **126.3 ms (2.0× faster)** | 256.9 ms |
 | ESP32 | **runs** | does not fit (its arena overflows the RAM) |
 | Flash | **41 KB** | 236 KB |

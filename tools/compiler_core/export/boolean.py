@@ -64,8 +64,10 @@ def _evaluate(model, loader, dev):
     return 100.0 * hits / total
 
 
-def train(model, train_ds, val_ds, cfg, out_dir):
-    """Trains the network as defined (labels only). Returns dict(model, plan={}, width) like stage_train."""
+def train(model, train_ds, val_ds, cfg, out_dir, test_ds=None):
+    """Trains the network as defined (labels only). Returns dict(model, plan={}, width) like stage_train.
+    val_ds (carved out of the training data) is what the training reports while it runs; test_ds, when the data has
+    one, is evaluated ONCE at the end (nothing is chosen with it) and saved as acc_test in train.json."""
     from torch.utils.data import DataLoader
     tr = cfg["training"]
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -98,11 +100,16 @@ def train(model, train_ds, val_ds, cfg, out_dir):
             acc = _evaluate(student, val_l, dev)
             history.append([ep + 1, None, None, acc])
             print(f"    epoch {ep + 1:3d}/{tr['epochs']} | validation {acc:.2f}% | {(time.time() - t0) / 60:.1f} min")
+    acc_test = None
+    if test_ds is not None:                          # held-out test: once, after training, never used to choose
+        acc_test = _evaluate(student, DataLoader(test_ds, batch_size=512, num_workers=2), dev)
+        print(f"    HELD-OUT TEST ({len(test_ds)} samples, not used for any choice): {acc_test:.2f}%")
     student = student.cpu().eval()
     torch.save(student.state_dict(), os.path.join(out_dir, "model_binarized.pth"))
     width = float(getattr(student, "width", 1.0))
     info = dict(method="boolean", width=width, levels=int(student.levels), plan={}, epochs=tr["epochs"],
-                acc_last=history[-1][3], history=history)
+                acc_last=history[-1][3], acc_test=acc_test, n_train=len(train_ds), n_validation=len(val_ds),
+                n_test=None if test_ds is None else len(test_ds), history=history)
     json.dump(info, open(os.path.join(out_dir, "train.json"), "w"), indent=1)
     print(f"    -> {os.path.join(out_dir, 'model_binarized.pth')} | validation accuracy (last epoch) {info['acc_last']:.2f}%")
     return dict(model=student, plan={}, width=width)
@@ -122,9 +129,42 @@ def load_trained(model, out_dir):
 # ---------------------------------------------------------------------------------------------------
 # folding into integers
 # ---------------------------------------------------------------------------------------------------
-def _fold_conv(conv, bn):
+def _uses_bias(layer):
+    """a bias counts only where the layer's forward adds it: the standard Conv2d / Linear do; the binary layers of
+    the SYMBEX models (BinaryConv, BinaryLinear) override forward and never use it, by design"""
+    standard = (torch.nn.Conv2d.forward, torch.nn.Linear.forward)
+    return getattr(layer, "bias", None) is not None and type(layer).forward in standard
+
+
+def _check_conv(conv, where, pointwise=False):
+    """what lib_symbex runs, checked instead of assumed: a square kernel (3x3, or 1x1 for a shortcut), the same stride
+    on both axes (1 or 2; 1 for a shortcut, which follows an OR pool), 'same' padding (k // 2), no dilation, no groups,
+    no bias added (BatchNorm carries the offset). A model outside this would otherwise be exported as a DIFFERENT network:
+    the C-vs-simulation check could not see it, since both would share the wrong assumption."""
+    k, s, p = tuple(conv.kernel_size), tuple(conv.stride), conv.padding
+    problems = []
+    if k[0] != k[1]:
+        problems.append(f"kernel {k} is not square")
+    if pointwise and k[0] != 1:
+        problems.append(f"a shortcut must be a 1x1 convolution (got {k[0]}x{k[1]})")
+    if s[0] != s[1] or s[0] not in (1, 2) or (pointwise and s[0] != 1):
+        problems.append(f"stride {s}: lib_symbex runs 1 or 2 on both axes (a shortcut: 1, after the OR pool)")
+    if p != "same" and tuple(p if isinstance(p, tuple) else (p, p)) != (k[0] // 2, k[1] // 2):
+        problems.append(f"padding {p}: lib_symbex pads k // 2 = {k[0] // 2} on every side")
+    if tuple(conv.dilation) != (1, 1) or conv.groups != 1:
+        problems.append(f"dilation {tuple(conv.dilation)} / groups {conv.groups}: not supported")
+    if _uses_bias(conv):
+        problems.append("the convolution adds a bias: use bias=False (the BatchNorm after it carries the offset)")
+    if problems:
+        raise ValueError(f"boolean export, {where}: " + "; ".join(problems))
+
+
+def _fold_conv(conv, bn, where="conv", pointwise=False):
     """binary conv + BatchNorm + sign -> sign weights (O, C, k, k) in +-1 (rows negated where the scale < 0) and
     integer thresholds on raw: bit = raw >= threshold"""
+    _check_conv(conv, where, pointwise)
+    if bn.running_mean is None or not bn.affine:
+        raise ValueError(f"boolean export, {where}: its BatchNorm needs running statistics and affine parameters")
     w = torch.where(conv.weight.detach() >= 0, 1.0, -1.0).double()
     g = bn.weight.detach().double()
     sd = torch.sqrt(bn.running_var.detach().double() + bn.eps)
@@ -146,12 +186,18 @@ def fold(model, threshold=0.0):
     per-cell detector, FOMO-style) gets a per-cell head; threshold = the calibrated decision threshold on
     (logit of class 1 - logit of class 0), folded into the integer bias of class 1"""
     model = model.cpu().eval()
-    net = dict(levels=int(model.levels), stem=_fold_conv(model.stem, model.stem_bn), blocks=[])
-    for b in model.blocks:
-        blk = dict(conv=_fold_conv(b.conv, b.bn), shortcut=None, pool=False)
+    net = dict(levels=int(model.levels), stem=_fold_conv(model.stem, model.stem_bn, "stem"), blocks=[])
+    if model.stem.in_channels != 3 * net["levels"]:
+        raise ValueError(f"boolean export, stem: {model.stem.in_channels} input channels, the thermometer gives "
+                         f"3 x {net['levels']} = {3 * net['levels']}")
+    for i, b in enumerate(model.blocks):
+        blk = dict(conv=_fold_conv(b.conv, b.bn, f"block {i}"), shortcut=None, pool=False)
         if getattr(b, "changes", False):
-            blk["shortcut"] = _fold_conv(b.ds_conv, b.ds_bn)
+            blk["shortcut"] = _fold_conv(b.ds_conv, b.ds_bn, f"block {i} shortcut", pointwise=True)
             blk["pool"] = b.conv.stride[0] == 2
+        elif b.conv.stride[0] != 1 or b.conv.in_channels != b.conv.out_channels:
+            raise ValueError(f"boolean export, block {i}: it changes the shape (stride {b.conv.stride[0]}, "
+                             f"{b.conv.in_channels} -> {b.conv.out_channels}) but has no shortcut convolution")
         net["blocks"].append(blk)
     lin, bn = (model.head, model.head_bn) if hasattr(model, "head") else (model.fc, model.fc_bn)
     g = bn.weight.detach().double()
@@ -165,6 +211,10 @@ def fold(model, threshold=0.0):
         if np.abs(v).max() * 2 ** FC_SHIFT >= 2 ** 31:
             raise ValueError(f"boolean export: the classifier {name} does not fit in int32 with {FC_SHIFT} fraction bits")
     w = lin.weight.detach()
+    if hasattr(model, "head"):
+        _check_conv(lin, "per-cell head", pointwise=True)
+    elif _uses_bias(lin):
+        raise ValueError("boolean export, classifier: it adds a bias; use bias=False (its BatchNorm carries the offset)")
     net["cells"] = hasattr(model, "head")
     net["fc_w"] = torch.where((w.flatten(1) if net["cells"] else w) >= 0, 1.0, -1.0).double().numpy()
     # classifier: (classes, C*H*W) in CHW order | per-cell head: (classes, C), applied at every cell

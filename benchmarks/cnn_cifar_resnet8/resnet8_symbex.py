@@ -99,30 +99,35 @@ def main():
         if subprocess.run(cmd).returncode != 0:
             print(f"[X] the CDT failed on seed {seed}")
         tr, ex, ch = (load(os.path.join(out_dir, f)) for f in ("train.json", "export.json", "chip.json"))
-        row = dict(seed=seed, width=args.width, val_accuracy=tr.get("acc_last"), flash_kb=(ex.get("flash_bytes") or 0) / 1024,
+        # test accuracy: acc_test since the CDT keeps a validation split apart (train.json n_test); in runs made before,
+        # the CDT validated on the test set itself, so their acc_last IS the test accuracy
+        test_acc = tr.get("acc_test") if "acc_test" in tr else tr.get("acc_last")
+        row = dict(seed=seed, width=args.width, val_accuracy=tr.get("acc_last") if "acc_test" in tr else None,
+                   test_accuracy=test_acc, flash_kb=(ex.get("flash_bytes") or 0) / 1024,
                    exactness=ex.get("exactness"))
         if args.board and ch:
             row.update(chip_accuracy=ch.get("accuracy"), latency_ms=ch.get("median_ms"), equal=ch.get("equal_simulation"),
                        ram_kb=(ch.get("ram") or {}).get("total", 0) / 1024)
         rows.append(row)
 
-    print(f"\n    SEEDS  (fully binary ResNet-8, width x{args.width:g}; validation accuracy on the 10,000 CIFAR-10 test images, "
-          f"last epoch)")
-    head = f"    {'seed':>5}{'val acc':>10}{'flash KB':>10}{'C exact':>9}"
+    print(f"\n    SEEDS  (fully binary ResNet-8, width x{args.width:g}; last epoch; test = the 10,000 CIFAR-10 test images, "
+          f"used for no choice; val = the validation split carved out of the training data, '-' in older runs)")
+    head = f"    {'seed':>5}{'test acc':>10}{'val acc':>10}{'flash KB':>10}{'C exact':>9}"
     if args.board:
         head += f"{'chip acc':>10}{'ms':>10}{'equal':>8}{'RAM KB':>9}"
     print(head)
     for r in rows:
-        line = (f"    {r['seed']:>5}{(r['val_accuracy'] or 0):>9.2f}%{r['flash_kb']:>10.1f}"
+        val = f"{r['val_accuracy']:.2f}%" if r["val_accuracy"] is not None else "-"
+        line = (f"    {r['seed']:>5}{(r['test_accuracy'] or 0):>9.2f}%{val:>10}{r['flash_kb']:>10.1f}"
                 f"{(str(round(r['exactness'])) + '%') if r['exactness'] is not None else '-':>9}")
         if args.board and "latency_ms" in r:
             line += f"{(r['chip_accuracy'] or 0):>9.2f}%{(r['latency_ms'] or 0):>10.2f}{(r['equal'] or 0):>7.0f}%{r['ram_kb']:>9.2f}"
         print(line)
-    accs = [r["val_accuracy"] for r in rows if r["val_accuracy"] is not None]
+    accs = [r["test_accuracy"] for r in rows if r["test_accuracy"] is not None]
     if accs:
         import statistics
         sd = statistics.stdev(accs) if len(accs) > 1 else 0.0
-        print(f"    validation accuracy over {len(accs)} seed(s): {statistics.mean(accs):.2f} +- {sd:.2f} %")
+        print(f"    test accuracy over {len(accs)} seed(s): {statistics.mean(accs):.2f} +- {sd:.2f} %")
     tag = f"{args.board}_{args.popcount}{'_ram' if args.weights == 'ram' else ''}" if args.board else "pc"
     path = os.path.join("results", f"symbex_seeds_{tag}_{name}.json")
     json.dump(dict(width=args.width, spec=args.spec or None, board=args.board, weights=args.weights, popcount=args.popcount,
