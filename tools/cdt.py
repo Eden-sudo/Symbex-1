@@ -592,7 +592,7 @@ def _predictions(model, val_l, dev):
 def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp", test=None):
     if cfg["model"]["method"] == "boolean":
         from compiler_core.export import boolean
-        return boolean.train(model, train, val, cfg, out_dir)
+        return boolean.train(model, train, val, cfg, out_dir, test)
     import torch
     from torch.utils.data import DataLoader
     from compiler_core.train.standard import evaluate
