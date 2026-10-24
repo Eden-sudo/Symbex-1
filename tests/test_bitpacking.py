@@ -13,7 +13,7 @@ import torch
 from compiler_core.export.bitslice import _export_layer_to_arrays_v1, _write_header_v1
 from compiler_core.export.dense import _empaquetar
 from compiler_core.export.gated import export_model_v2_to_h
-from compiler_core.export.plain import _filas, _pack_rows
+from compiler_core.export.plain import _filas, _pack_rows, _padding
 from compiler_core.methods.linear.bitslice import SymbexVotingPool
 from compiler_core.methods.linear.core import BipolarStepSTE
 from compiler_core.methods.linear.gated import SymbexBlockGatedPool
@@ -176,3 +176,16 @@ def test_bitslice_outlier_magnitudes_fit_the_int8_header_array(k_bits):
     exp = _export_layer_to_arrays_v1(pool.weight[0].detach().numpy(), pool.running_mean[0].item(),
                                      pool.running_std[0].item(), pool.running_W_max[0].item(), k_bits)
     assert max(exp["outlier_magnitudes"]) <= 127
+
+
+@pytest.mark.parametrize("padding,esperado", [(0, 0), (1, 1), ((2, 2), 2)])
+def test_conv_padding_is_taken_from_the_layer_not_the_kernel(padding, esperado):
+    conv = torch.nn.Conv2d(4, 8, kernel_size=3, padding=padding)
+    assert _padding(conv) == esperado
+
+
+@pytest.mark.parametrize("padding", ["same", (1, 0)])
+def test_conv_padding_rejects_string_and_non_square(padding):
+    conv = torch.nn.Conv2d(4, 8, kernel_size=3, padding=padding)
+    with pytest.raises(ValueError, match=r"\[EXPORT\]"):
+        _padding(conv)
