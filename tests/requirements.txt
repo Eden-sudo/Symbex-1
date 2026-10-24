@@ -1,0 +1,6 @@
+# Test-only environment (CPU). Create it inside the repo:
+#   python3 -m venv .venv && .venv/bin/pip install -r tests/requirements.txt
+# The C tests additionally need gcc (or clang as gcc) on PATH; they are skipped without it.
+torch
+numpy
+pytest
