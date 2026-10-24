@@ -1,155 +1,155 @@
 # SYMBEX-1 -- Binary neural networks for microcontrollers
 
-SYMBEX-1 turns a trained neural network into a **binarized network that runs on small microcontrollers**,
-and measures it on real chips against the official INT8 toolchain.
-
-**Version 3 achieves binarized convolutional networks running on the ESP32**, faster than the official INT8
-models of the MLPerf Tiny benchmark, and a compiler (the CDT) that takes any FP32 model from training to a
-validated binary model on the chip.
+SYMBEX-1 compiles neural networks into **fully binary networks that run on small microcontrollers**, and measures
+them on real chips against the official INT8 toolchain (TensorFlow Lite Micro).
 
 It has three parts:
 
-- **`lib_symbex`** -- a portable C inference engine for binary layers (XNOR + popcount, integer thresholds).
-- **The CDT** (`tools/cdt.py`) -- takes an FP32 model, your data and your hardware limits, and produces a
-  binarized model, its C header, and a bit-exact validation of it, ready for the chip.
-- **`benchmarks/`** -- reproducible comparisons against TensorFlow Lite / TensorFlow Lite Micro INT8, starting
-  from the same FP32 model, on the same images, on the same chip.
+- **`lib_symbex`** -- a portable C inference engine for binary networks: bit counting instead of multiplication,
+  integer thresholds, no floating point. One hardware layer per chip family (generic, ESP32, ESP32-S3, AVR).
+- **The CDT** (`tools/cdt.py`) -- takes a model, your data and your hardware limits, trains the binary network,
+  folds it into integers, writes its C header and checks it bit by bit, on the PC and on the chip.
+- **`benchmarks/`** -- reproducible comparisons against INT8 TensorFlow Lite Micro on the same chips.
 
-## Why binary networks
+## Results (ESP32-S3 and ESP32, 240 MHz, one core)
 
-A 1-bit weight is **8 times smaller** than an INT8 weight and 32 times smaller than an FP32 one, and a 1-bit
-multiply-accumulate is an XNOR followed by a bit count. On a microcontroller, with kilobytes of RAM and a small
-flash cache, that changes what fits and how fast it runs:
+### Image classification: a fully binary ResNet-8 ([`benchmarks/cnn_cifar_resnet8`](benchmarks/cnn_cifar_resnet8/))
 
-- **The model fits where INT8 does not.** A binary model can live in RAM, or fit in the flash cache, where the
-  INT8 model of the same network cannot.
-- **Accuracy can be bought back with width.** A binary layer is so cheap that the network can be made wider to
-  recover the accuracy lost to binarization, and still be smaller and faster than INT8. INT8 cannot do the
-  same without paying full price in memory.
-- **The arithmetic is cheap even on hardware that was not designed for it.** Current microcontrollers are built
-  around multiplication (int8 SIMD) and have no popcount instruction; even so, a proof of concept on the
-  ESP32-S3 shows that its own SIMD multiplier can do the bit counting, and then a binary weight costs
-  **less than an INT8 weight** on the same hardware (see Results).
+CIFAR-10, against the official INT8 ResNet-8 of MLPerf Tiny. Every layer of the SYMBEX network is binary, the first
+one included (the image enters as a thermometer of bits); 3 training seeds, labels only.
 
-## Results
+| | **SYMBEX, binary** | MLPerf Tiny INT8 |
+|---|---|---|
+| Accuracy | 71.28 ± 0.81 % | 87.0 % |
+| ESP32-S3 | **40.7 ms (1.28× faster)** | 52.0 ms |
+| ESP32 | **64.8 ms (11.1× faster)** | 717.8 ms |
+| Flash | **24.3 KB** | 96.2 KB |
+| RAM | **20 KB** | 53-80 KB |
+| Same result as its PC reference | **100 %** | 98.1 % |
 
-### Binarized convolutional networks (SYMBEX v3 boolean engine)
+**Sized for binary.** The best shape of a binary network is not the INT8 one: a sizing study (blocks and channels per
+stage, latency predicted from measured chip profiles) found that the first stages can be thinner and the last one
+wider. Measured on the chip, 3 seeds:
 
-Measured on the chip against the official INT8 models of MLPerf Tiny (TensorFlow Lite Micro), with several
-training seeds. These results come from the v3 research engine; their benchmark folder is being prepared for
-publication in `benchmarks/`.
-
-| Task | SYMBEX model | Accuracy | ESP32 (no SIMD) | ESP32-S3 |
+| Network | Accuracy | ESP32-S3 | ESP32 | RAM |
 |---|---|---|---|---|
-| CIFAR-10 | x1 | 71.44 +- 0.22% | **17.5x faster than INT8** (40.5 ms vs. 710 ms) | 1.52x faster (34.2 ms vs. 52 ms) |
-| CIFAR-10 | x2 | 82.90 +- 0.29% | 3.7x faster than INT8 (189 ms) | -- |
-| Visual Wake Words | x2 | 84.19 +- 0.47% (INT8: 86.71%) | 3.5x faster than INT8 (147 ms vs. 521 ms) | -- |
+| ResNet-8 shape (16-32-64, 2-2-2 blocks) | 71.28 ± 0.81 % | 40.7 ms | 64.8 ms | 20 KB |
+| **16-32-128, 1-1-2 blocks** | **73.10 ± 0.23 %** | **39.6 ms** | 60.9 ms (weights in RAM) | 15 KB |
+| **16-64-128, 1-1-2 blocks** | **74.45 ± 0.23 %** | 46.6 ms | | 16 KB |
 
-The v3 convolutional engine keeps a small **learned int8 encoder** as its first layer (the image enters there);
-every layer after it is binary. Its intermediate RAM goes down to 16 KB with the software popcount.
+### Person detection: FOMO, binary against the same detector in INT8 ([`benchmarks/fomo_voc_person`](benchmarks/fomo_voc_person/))
 
-### MLP on Fashion-MNIST, end to end through the CDT ([`benchmarks/mlp_fashion`](benchmarks/mlp_fashion/))
+Pascal VOC persons, 96 × 96 images, a 12 × 12 grid of person centers. The INT8 reference is **the same architecture**
+trained with the same recipe.
 
-Same FP32 model (88.17%), official TFLite Micro INT8, same 1000 images, every layer of SYMBEX at 1 bit:
+| | **SYMBEX, binary** | TFLite INT8 |
+|---|---|---|
+| F1 | **31.8 %** | 30.3 % |
+| ESP32-S3 | **126.3 ms (2.0× faster)** | 256.9 ms |
+| ESP32 | **runs** | does not fit (its arena overflows the RAM) |
+| Flash | **41 KB** | 236 KB |
+| RAM | **51 KB** | 223 KB |
+| Same result as its PC reference | **100 %** | 88 % |
 
-| | Accuracy | Weights | ESP32 (no SIMD) | ESP32-S3 |
-|---|---|---|---|---|
-| INT8, TensorFlow Lite Micro | 87.20% | 242 KB | 41.97 ms (does not fit in RAM) | 0.88 ms (model in RAM) |
-| **SYMBEX, 1 bit, x2 width (3 seeds)** | 86.80 +- 0.36% | **69 KB** | **16.70 ms (2.5x faster)**, 25.54 ms with weights in flash (1.6x faster) | 14.78 ms |
+Detection binarizes well: every cell answers a yes/no question, and the binary detector is as accurate as the INT8 one.
 
-The CDT made the binary network twice as wide to keep its accuracy within 0.4 points of INT8, and it is still
-3.5x smaller and faster on the ESP32. On the ESP32-S3 the current engine does not use the SIMD multiplier yet
-(next result).
+### Dense networks ([`benchmarks/mlp_fashion`](benchmarks/mlp_fashion/), [`benchmarks/mlp_digits`](benchmarks/mlp_digits/))
 
-### The cost of one weight on the ESP32-S3 (proof of concept, same hardware for both)
+Fashion-MNIST, every layer at 1 bit, twice as wide: 86.80 ± 0.36 % (INT8: 87.20 %) with **69 KB of weights against
+242 KB**, and **2.5× faster than INT8 on the ESP32** (16.70 ms against 41.97 ms). These figures are being re-measured
+with the current engine and the corrected validation split (see Methodology).
 
-One layer of 256 x 512 weights in internal RAM, both sides using the native PIE SIMD multiply instruction
-(`ee.vmulas`): INT8 through Espressif's ESP-NN kernel; binary as a 128-bit XOR followed by the bit count done
-by the same multiplier against a vector of ones.
+### Why it is faster: counting bits against multiplying
 
-| Kernel | Cycles per weight | Speed | Weight memory |
-|---|---|---|---|
-| INT8, ESP-NN (PIE SIMD) | 0.531 | 1.00x | 128 KB |
-| **Binary, PIE XOR + PIE multiplier** | **0.322** | **1.65x** | **16 KB** |
+`tools/count_bench.py` measures the raw arithmetic of each chip on the same convolution pattern: binary (bit counting)
+against int8 (multiply-accumulate).
+
+| Chip | Binary against int8, raw arithmetic |
+|---|---|
+| ESP32 (no SIMD) | **11-17× faster** |
+| ESP32-S3 (8-bit SIMD, no popcount instruction) | 1.05-2.1× faster (the SIMD multiplier counts the bits: `pie_swar`) |
+| x86 (AVX2 / VNNI) | 1.5-3.8× |
 
 ## How it works
 
-1. **Binarization.** Weights and activations become -1 / +1 (one bit). A dot product of two 1-bit vectors of
-   length n is `n - 2 * popcount(a XOR b)`: no multiplications.
-2. **Everything else folds into integers.** The weight scale, BatchNorm, the activation and the binarization
-   threshold of the next layer collapse into **one integer threshold per neuron**: `bit = (raw >= T)`.
-   Inference has no floating point.
-3. **The input stays as it comes.** The data (pixels, sensor values) enters the first layer as 8-bit integers;
-   the weights of that layer are 1 bit too, and it is computed without multiplications (masks).
-4. **The CDT decides how far to go.** It measures the sensitivity of every layer, starts with every layer at
-   1 bit, widens the network or raises the bits of the most sensitive layer only if the accuracy drop is larger
-   than you accept, within your hardware budget. It retrains with distillation from the original model, folds
-   the result into integers, writes the C header, and checks it.
-5. **Bit-exact validation.** The compiled C (on the PC and on the chip) must reproduce an integer simulation of
-   the model **100%**: every exported model is checked, every time.
+1. **Every layer is binary.** Weights and activations are one bit. A convolution is a bit count (AND or XOR followed
+   by popcount); a residual shortcut is an OR of bits; pooling is an OR.
+2. **The input becomes bits too.** Each pixel enters as a thermometer (8 levels per color), so the first layer is binary
+   like the rest.
+3. **Everything else folds into integers.** Scale, BatchNorm and the activation collapse into one integer threshold per
+   output: `bit = (count >= T)`. No floating point at inference.
+4. **The counting method is chosen per chip.** A native popcount instruction where there is one, a 64 KB table or SWAR
+   on the ESP32, the SIMD multiplier on the ESP32-S3. `count_bench.py` measures them; the library picks the fastest.
+5. **Bit-exact, always.** The compiled C, on the PC and on the chip, must reproduce the integer simulation of the model
+   100 %: every exported model is checked, every time.
 
 ## Methodology
 
-- **Same starting point:** one FP32 model, trained once; SYMBEX and INT8 both start from that file.
-- **Independent baseline:** the INT8 model is produced by the official TensorFlow Lite converter and runs with
-  the official TensorFlow Lite Micro, in a separate environment that imports nothing from SYMBEX.
-- **Same images, same chip:** medians of 1000 inferences measured on the chip (`esp_timer`), one core, 240 MHz.
-- **Checked results:** SYMBEX against its integer simulation, TFLite Micro against the TFLite interpreter on
-  the PC; both must agree 100%.
-- **Several seeds** for the SYMBEX training; accuracy as mean +- standard deviation.
+- **Same architecture** whenever SYMBEX is compared with INT8 (the official MLPerf model, or the same network trained
+  with the same recipe); a resized binary network is compared with INT8 resized the same way.
+- **Independent baseline:** INT8 through the official TensorFlow Lite converter and TensorFlow Lite Micro, in a
+  separate environment that imports nothing from SYMBEX.
+- **Measured on the chip:** medians over 1000 inferences (`esp_timer`), one core, 240 MHz; RAM measured on the chip.
+- **Several seeds** for SYMBEX: accuracy as mean ± standard deviation.
+- **Validation split:** model and variant selection must use a validation split carved out of the training data, with
+  the test set evaluated once. A review found places where the test set was used for selection (some CDT runs, the
+  choice of variants in the sizing studies); the fix is being applied and the affected figures re-measured.
 
 ## Current state and next steps
 
-- **The engine does not use the S3 SIMD multiplier yet.** The proof of concept above shows the gain; it goes
-  into the S3 hardware layer next. Until then, on the ESP32-S3 with the model in RAM, INT8 is faster.
-- **The CDT does not export convolutional networks yet.** They are binarized and trained by the CDT, and they
-  run on the chip with the v3 engine; joining both (CDT export to the v3 engine) is in progress.
-- **The first layer receives 8-bit data**, and in the MLP it carries most of the operations (96% of the time).
-  Splitting the input into bit planes is the next step.
-- **Accuracy depends on the task**: within 0.4 points of INT8 on Fashion-MNIST; on CIFAR-10 the gap closes with
-  width (x2) at a still lower cost than INT8 on the ESP32.
-- **Energy has not been measured** yet; latency and memory are.
+- **1D convolutions** for sensor data (human activity recognition), compared with the closest prior work: the
+  binary library of Daghero et al. (2021), in their own simulated RISC-V environment (GVSoC) and on real silicon.
+- **More chips:** Arm Cortex-M33 and RISC-V (RP2350).
+- **Distillation** from the official floating-point MLPerf ResNet-8.
+- **Energy** has not been measured yet; latency and memory are.
 
 ## Repository layout
 
 ```
-lib_symbex/        C inference engine and its hardware abstraction layer (generic, ESP32, ESP32-S3, AVR)
-                   (currently in Symbex1_PIO/lib/lib_symbex)
+Symbex1_PIO/               PlatformIO project
+  lib/lib_symbex/          the C engine (include/, src/, hal/), and tests/run_tests.py (bit-exact tests, 3 HALs)
+  src/main.cpp             minimal example: a demo network checked against its PC simulation on your board
 tools/
-  cdt.py           the CDT: configuration (TOML) -> inspect -> estimate -> train -> export -> validate -> chip
-  probar_chip.py   tests an exported model on a board: exactness, accuracy, latency per layer, RAM
-  compiler_core/   the library behind the CDT (sensitivity, methods, training, export)
-  configs/         example.toml: every option, commented
-  tests/           tests of the CDT pieces (run from tools/: python -m tests.test_mezclas)
-benchmarks/        reproducible comparisons against TensorFlow Lite Micro (see benchmarks/README.md)
-docs/              documentation (English and Spanish)
+  cdt.py                   the CDT: configuration (TOML) -> train -> export -> validate -> chip
+  chip_test.py             runs an exported model on a board: exactness, accuracy, latency per layer, RAM
+  fine_profile.py          time per library function on the chip
+  count_bench.py           raw arithmetic of each chip (binary against int8)
+  compiler_core/           the library behind the CDT
+  configs/                 example.toml: every option, commented
+benchmarks/                reproducible comparisons against TensorFlow Lite Micro, one folder per task
+docs/                      documentation (English and Spanish)
 ```
 
 ## Quick start
 
 ```
-# 1. configure: copy tools/configs/example.toml and fill in your model, data and hardware
-# 2. run the CDT (from tools/)
+# the library on your board (PlatformIO): the example must print "8/8 equal to the PC simulation"
+cd Symbex1_PIO && pio run -t upload && pio device monitor -b 115200
+
+# the library tests (gcc)
+python Symbex1_PIO/lib/lib_symbex/tests/run_tests.py
+
+# a model through the CDT (from tools/), then on a board
 python cdt.py my_model.toml
-# 3. test the result on a board
-python probar_chip.py <output folder> --board esp32 --port /dev/ttyUSB0
+python chip_test.py <output folder> --board esp32 --port /dev/ttyUSB0
 ```
 
-Requirements: Python with PyTorch; gcc (exactness check on the PC); PlatformIO and pyserial for the chip.
+Requirements: Python with PyTorch; gcc; PlatformIO and pyserial for the chip; TensorFlow for the INT8 baselines.
 
 ## Previous versions
 
-Version 2 reported results on the scikit-learn Digits dataset with the `gated` and `bitslice` methods. During
-the version 3 review, errors were found in those methods (the gates of `gated` did not receive a training
-signal; the `bitslice` simulator did not correspond to the C engine). Those results are not reported here
-until the methods are rebuilt and re-measured.
+Version 2 reported results on the scikit-learn Digits dataset with the `gated` and `bitslice` methods. During the
+version 3 review, errors were found in those methods; those results are not reported until the methods are rebuilt and
+re-measured. The first convolutional engine of version 3 (with a learned int8 first layer) has been replaced by the fully
+binary engine above.
 
 ## Citation
 
 A preprint describing SYMBEX-1 is in preparation; the reference will be added here.
 
-## Author
+## Contributors
 
 Carlos Duarte (Edén) -- Panama -- GitHub: [Eden-sudo](https://github.com/Eden-sudo)
+Obed -- GitHub: [Obed0101](https://github.com/Obed0101) -- test suite, low-bit baselines, validation split review
 
 Spanish version: [README.es.md](README.es.md) -- License: see [LICENSE](LICENSE).
