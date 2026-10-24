@@ -146,13 +146,7 @@ def test_bitslice_planes_reconstruct_the_pytorch_quantized_weights(k_bits, in_f)
     np.testing.assert_array_equal(rebuilt, want)
 
 
-@pytest.mark.parametrize("k_bits", [
-    *range(1, 5),
-    *[pytest.param(k, marks=pytest.mark.xfail(strict=True, reason=(
-        "validate_hardware_limits accepts k_bits 1..8, but export/bitslice._write_header_v1 has MAX_K_BITS = 4 "
-        "plane slots per SymbexSubLayer: for k > 4 it writes k plane names into the 4-slot initializer")))
-      for k in range(5, 9)],
-])
+@pytest.mark.parametrize("k_bits", range(1, 5))
 def test_bitslice_header_has_a_plane_slot_for_every_k_the_validator_accepts(tmp_path, k_bits):
     student = torch.nn.Sequential(_trained_pool(12, 4, k_bits))
     validate_hardware_limits(student, "bitslice")        # accepted
@@ -163,13 +157,15 @@ def test_bitslice_header_has_a_plane_slot_for_every_k_the_validator_accepts(tmp_
     assert sum(p.strip() != "NULL" for p in planes) == k_bits
 
 
-@pytest.mark.parametrize("k_bits", [
-    *range(1, 6),
-    *[pytest.param(k, marks=pytest.mark.xfail(strict=True, reason=(
-        "export/bitslice writes outlier magnitudes into an int8_t array, but they are clipped to levels * 3 = "
-        "3 * (2^k - 1), which exceeds 127 for k >= 6 (accepted by validate_hardware_limits): the C value wraps")))
-      for k in range(6, 9)],
-])
+@pytest.mark.parametrize("k_bits", range(5, 9))
+def test_bitslice_validator_rejects_k_beyond_the_header_plane_slots(k_bits):
+    """k > 4 has no plane slot in SymbexSubLayer (MAX_K_BITS = 4), and for k >= 6 the outlier magnitudes
+    3 * (2^k - 1) would wrap the int8_t array: the validator must stop the export."""
+    with pytest.raises(AssertionError, match="MAX_K_BITS"):
+        validate_hardware_limits(torch.nn.Sequential(_trained_pool(12, 4, k_bits)), "bitslice")
+
+
+@pytest.mark.parametrize("k_bits", range(1, 5))
 def test_bitslice_outlier_magnitudes_fit_the_int8_header_array(k_bits):
     pool = _trained_pool(64, 4, k_bits, outlier_scale=50.0)     # 64 inputs: the outlier barely moves the std
     validate_hardware_limits(torch.nn.Sequential(pool), "bitslice")

@@ -198,6 +198,13 @@ def export_resnet_dsp(model, out_path, q_act=16, q_mult=20, input_size=32, detai
     rows = []
     res = input_size
 
+    res_final = input_size // 2 ** (len(model._nombres_capas) - 1)    # the stem keeps the size, each later stage halves it
+    last_ch = getattr(model, model._nombres_capas[-1])[-1].conv2.weight.shape[0]
+    if model.linear.weight.shape[1] != last_ch * res_final * res_final:
+        raise ValueError(f"[EXPORT]: input_size={input_size} does not match the classifier: it expects "
+                         f"{model.linear.weight.shape[1]} features, the last stage gives "
+                         f"{last_ch * res_final * res_final}")
+
     with open(out_path, "w") as f:
         f.write(f"#ifndef {guard}\n#define {guard}\n\n#include <stdint.h>\n\n")
         f.write(f"#define SYMBEX_Q_ACT {q_act}\n#define SYMBEX_Q_MULT {q_mult}\n\n")
@@ -224,11 +231,6 @@ def export_resnet_dsp(model, out_path, q_act=16, q_mult=20, input_size=32, detai
 
         rows.append(_export_classifier(f, model, q_act, q_mult))
         f.write(f"#endif // {guard}\n")
-
-    last_ch = getattr(model, model._nombres_capas[-1])[-1].conv2.weight.shape[0]
-    if model.linear.weight.shape[1] != last_ch * res * res:
-        print(f"[!] input_size={input_size} does not match the classifier: it expects "
-              f"{model.linear.weight.shape[1]} features, the last stage gives {last_ch * res * res}")
 
     print_report(model, rows, out_path, detail=detail)
     return rows

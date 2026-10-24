@@ -33,9 +33,9 @@ def validate_hardware_limits(student, mode):
     elif mode == "bitslice":
         for layer in student:
             if type(layer).__name__ == "SymbexVotingPool":
-                # Ensure the bit-slicing depth aligns with C++ switch statements
-                assert 1 <= layer.k_bits <= 8, \
-                    f"[!] Hardware Error: k_bits ({layer.k_bits}) exceeds physical register limits (1-8)."
+                # SymbexSubLayer has MAX_K_BITS = 4 plane slots, and k >= 6 outlier magnitudes overflow int8_t
+                assert 1 <= layer.k_bits <= 4, \
+                    f"[!] Hardware Error: k_bits ({layer.k_bits}) exceeds the C header limit (1-4, MAX_K_BITS)."
                 
                 # Protect against excessive Flash usage from extreme expansion (M)
                 assert layer.M <= 16, \

@@ -122,6 +122,16 @@ def test_negative_gamma_rows_are_negated_and_threshold_flipped(rng):
     np.testing.assert_array_equal(capas[1]["signos"][~negative], original[~negative])
 
 
+def test_plegar_rejects_a_hidden_layer_that_does_not_binarize_its_input(rng):
+    gen = torch.Generator().manual_seed(4)
+    model = _build_mlp(relu=False, bias=False, gen=gen,
+                       calib_u8=rng.integers(0, 256, size=(64, C * H * W), dtype=np.uint8))
+    grupos = dense.analizar(model, torch.zeros(2, C, H, W))
+    grupos[1][0].rsign = nn.Identity()
+    with pytest.raises(ValueError, match="does not binarize its input"):
+        dense.plegar(grupos, mean=MEAN, std=STD)
+
+
 def test_umbral_edge_cases():
     imin, imax = dense.INT32_MIN, dense.INT32_MAX
     assert dense._umbral(2.0, 1.0, -0.5, relu=True) == (False, imin)     # ReLU(z) >= 0 >= beta: always 1

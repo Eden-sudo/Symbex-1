@@ -152,6 +152,9 @@ def plegar(grupos, mean=(), std=()):
         d = dict(signos=signos, A=A, B=B, entrada_u8=(i == 0), ultima=(i == len(grupos) - 1))
         if not d["ultima"]:
             siguiente = grupos[i + 1][0]
+            if not hasattr(siguiente.rsign, "beta"):
+                raise ValueError(f"dense export: layer {i + 1} does not binarize its input (binarize_input=False); "
+                                 "only the first layer may take real inputs")
             betas = siguiente.rsign.beta.detach().double().cpu().numpy().ravel()
             T = np.zeros(len(A), dtype=np.int64)
             for j in range(len(A)):
@@ -606,6 +609,8 @@ def medir_en_chip(ruta_header, x, y, esperado, dir_proyecto, lib_path, placa="es
                 avisado = True
             if time.time() - t0 > 60:
                 raise RuntimeError("chip: the board did not start (no 'SYMBEX listo')")
+        if ram is None:
+            raise RuntimeError("chip: the board sent 'INT8:' without its 'RAM:' line (garbled serial?): retry")
         if verbose:
             print(f"    board ready | popcount: {hal}")
         for i in range(n):
