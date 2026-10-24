@@ -1,18 +1,39 @@
 /*
- * symbex.h -- ARCHIVO PUENTE, tu API publica.
- * #include "symbex.h" -- eso es todo lo que hace falta.
+ * symbex.h -- the public API of SYMBEX-1 in one include.
+ * #include "symbex.h" is all an application needs.
+ *
+ * Layout of the library:
+ *   core/     types, shared constants and the network runners (dense and convolutional)
+ *   hal/      the hardware interface (generic C, ESP32-S3 PIE): popcount, XNOR and AND counts
+ *   ops/      bit operations, bit packing, 1-bit multiply-accumulate and the AND arithmetic
+ *   layers/   dense (fully connected) and conv (convolution, BPR input encoding, binary pooling) layers
  */
 
 #ifndef SYMBEX_H
 #define SYMBEX_H
 
-#include "hal/symbex_hal.h"
-#include "ops/symbex_mac_1bit.h"
-#include "layers/spatial/symbex_conv2d.h"
-#include "layers/vector/symbex_dense.h"
-#include "layers/vector/symbex_gated.h"
-#include "layers/vector/symbex_ternary.h"
-// #include "layers/spatial/symbex_conv1d.h"  -- pendiente
-// #include "layers/spatial/symbex_pool.h"    -- pendiente
+/* core */
+#include "core/symbex_types.h"
+#include "core/symbex_core.h"
+#include "core/network/symbex_network_dense.h"
+#include "core/network/symbex_network_conv.h"
 
-#endif // SYMBEX_H
+/* hardware interface */
+#include "hal/symbex_hal.h"
+
+/* operations */
+#include "ops/symbex_bitops.h"
+#include "ops/symbex_bitpack.h"
+#include "ops/symbex_mac_1bit.h"
+#include "ops/symbex_and.h"
+
+/* layers */
+#include "layers/dense/symbex_dense.h"
+#include "layers/dense/symbex_gated.h"
+#include "layers/dense/symbex_ternary.h"
+#include "layers/conv/symbex_conv2d.h"
+#include "layers/conv/symbex_bpr.h"
+#include "layers/conv/symbex_binary_pool.h"
+/* pending: layers/conv/symbex_conv1d.h */
+
+#endif /* SYMBEX_H */

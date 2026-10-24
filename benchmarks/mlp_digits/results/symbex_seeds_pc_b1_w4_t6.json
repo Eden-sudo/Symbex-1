@@ -1,0 +1,30 @@
+{
+ "board": "",
+ "weights": "flash",
+ "popcount": "swar",
+ "input_bits": 1,
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 4.0,
+   "val_accuracy": 89.72222222222223,
+   "flash_kb": 10.78125,
+   "arithmetic": "and"
+  },
+  {
+   "seed": 43,
+   "width": 4.0,
+   "val_accuracy": 88.88888888888889,
+   "flash_kb": 10.78125,
+   "arithmetic": "and"
+  },
+  {
+   "seed": 44,
+   "width": 4.0,
+   "val_accuracy": 90.83333333333333,
+   "flash_kb": 10.78125,
+   "arithmetic": "and"
+  }
+ ],
+ "val_accuracy": "89.81 +- 0.98"
+}

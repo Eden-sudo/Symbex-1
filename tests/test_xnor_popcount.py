@@ -2,14 +2,14 @@
 for a, b in {-1, +1}^n packed as bits (+1 -> 1), including lengths that are not a multiple of 32,
 where the padding bits of the last word must be masked out.
 
-Checked on (1) the words produced by the exporters' packers and (2) the C engine (hal/generico,
+Checked on (1) the words produced by the exporters' packers and (2) the C engine (hal/generic,
 every popcount path) compiled for this host."""
 import ctypes
 
 import numpy as np
 import pytest
 
-from compiler_core.export.dense import _empaquetar
+from compiler_core.export.dense import _pack
 from compiler_core.export.plain import _pack_rows
 from helpers import SymbexLayerData, as_ptr, pack_lsb_words, popcount, unpack_lsb_words
 
@@ -31,8 +31,8 @@ def _tail_mask(n, n_words):
 @pytest.mark.parametrize("n", LENGTHS)
 def test_identity_holds_on_words_packed_by_the_dense_exporter(rng, n):
     a, b = _bipolar(rng, (1, n)), _bipolar(rng, (1, n))
-    pa, words = _empaquetar(a)
-    pb, _ = _empaquetar(b)
+    pa, words = _pack(a)
+    pb, _ = _pack(b)
     diff = (pa[0] ^ pb[0]) & _tail_mask(n, words)
     assert n - 2 * popcount(diff) == int((a * b).sum())
 
@@ -51,15 +51,15 @@ def test_identity_holds_on_words_packed_by_the_conv_exporter(rng, n, multiplo):
 def test_unmasked_xnor_over_zero_padding_overcounts_by_the_padding_width(rng, n):
     """Why the mask exists: with both paddings 0, XNOR counts every padding bit as a match."""
     a, b = _bipolar(rng, (1, n)), _bipolar(rng, (1, n))
-    pa, words = _empaquetar(a)
-    pb, _ = _empaquetar(b)
+    pa, words = _pack(a)
+    pb, _ = _pack(b)
     total = words * 32
     unmasked = 2 * (total - popcount(pa[0] ^ pb[0])) - n
     assert unmasked - int((a * b).sum()) == 2 * (total - n)
 
 
 # ---------------------------------------------------------------------------------------------------
-# C engine: symbex_xnor_popcount (hal/generico) -- native, SWAR and lut16 paths
+# C engine: symbex_xnor_popcount (hal/generic) -- native, SWAR and lut16 paths
 # ---------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize("n", LENGTHS)
 def test_c_xnor_popcount_matches_dot_product_with_dirty_padding(c_lib, rng, n):
@@ -93,10 +93,10 @@ def test_c_popcount32_matches_python_on_random_words(c_lib, rng):
 
 @pytest.mark.parametrize("n_in,n_out", [(1, 3), (33, 7), (100, 5), (64, 2)])
 def test_c_dense_forward_1bit_equals_signed_matmul_on_exported_weights(c_lib, rng, n_in, n_out):
-    """symbex_dense_forward (k_bits = 1) on weights packed by export/dense._empaquetar."""
+    """symbex_dense_forward (k_bits = 1) on weights packed by export/dense._pack."""
     w = _bipolar(rng, (n_out, n_in))
     x = _bipolar(rng, (1, n_in))
-    packed, _ = _empaquetar(w)
+    packed, _ = _pack(w)
     packed = np.ascontiguousarray(packed.astype(np.uint32))
     xin = pack_lsb_words((x > 0).astype(np.int64))[0]
     out = np.zeros(n_out, dtype=np.int32)
@@ -105,20 +105,20 @@ def test_c_dense_forward_1bit_equals_signed_matmul_on_exported_weights(c_lib, rn
     np.testing.assert_array_equal(out, (w @ x[0]).astype(np.int32))
 
 
-@pytest.mark.parametrize("fn", ["symbex_dense_entrada_u8", "symbex_dense_entrada_u8_mascara",
-                                "symbex_dense_entrada_u8_planos"])
+@pytest.mark.parametrize("fn", ["symbex_dense_input_u8", "symbex_dense_input_u8_mask",
+                                "symbex_dense_input_u8_planes"])
 @pytest.mark.parametrize("n_in", [1, 31, 33, 100, 784])
 def test_c_uint8_first_layer_variants_equal_integer_matmul(c_lib, rng, fn, n_in):
     n_out = 6
     w = _bipolar(rng, (n_out, n_in))
     x = rng.integers(0, 256, size=n_in, dtype=np.uint8)
     x[:3] = 255                                           # the extremes, on purpose
-    packed = np.ascontiguousarray(_empaquetar(w)[0].astype(np.uint32))
+    packed = np.ascontiguousarray(_pack(w)[0].astype(np.uint32))
     out = np.zeros(n_out, dtype=np.int32)
     layer = SymbexLayerData(n_in, n_out, 1, as_ptr(packed, ctypes.c_uint32))
-    if fn == "symbex_dense_entrada_u8_planos":
+    if fn == "symbex_dense_input_u8_planes":
         planos = np.zeros(8 * ((n_in + 31) // 32), dtype=np.uint32)
-        c_lib.symbex_dense_entrada_u8_planos(as_ptr(x, ctypes.c_uint8), as_ptr(planos, ctypes.c_uint32),
+        c_lib.symbex_dense_input_u8_planes(as_ptr(x, ctypes.c_uint8), as_ptr(planos, ctypes.c_uint32),
                                              as_ptr(out, ctypes.c_int32), ctypes.byref(layer))
     else:
         getattr(c_lib, fn)(as_ptr(x, ctypes.c_uint8), as_ptr(out, ctypes.c_int32), ctypes.byref(layer))
@@ -134,7 +134,7 @@ def test_c_umbral_and_bitpack_set_exact_bits_and_zero_padding(c_lib, rng, n):
         umbral[1] = np.iinfo(np.int32).max                 # always 0
     words = (n + 31) // 32
     bits = np.full(words, 0xFFFFFFFF, dtype=np.uint32)     # dirty buffer: the function must clear it
-    c_lib.symbex_dense_umbral(as_ptr(raw, ctypes.c_int32), as_ptr(umbral, ctypes.c_int32),
+    c_lib.symbex_dense_threshold(as_ptr(raw, ctypes.c_int32), as_ptr(umbral, ctypes.c_int32),
                               as_ptr(bits, ctypes.c_uint32), n)
     got, pad = unpack_lsb_words(bits[None, :], n)
     np.testing.assert_array_equal(got[0], (raw >= umbral).astype(np.int64))

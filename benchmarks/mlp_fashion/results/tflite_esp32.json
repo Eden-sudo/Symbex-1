@@ -1,10 +1,11 @@
 {
- "placa": "esp32",
+ "board": "esp32",
+ "model_ram": false,
  "n": 1000,
- "precision": 87.2,
- "igual_pc": 100.0,
- "mediana_ms": 41.966,
- "min_ms": 41.958,
+ "accuracy": 87.2,
+ "equal_pc": 100.0,
+ "median_ms": 41.966,
+ "min_ms": 41.957,
  "arena_kb": 4.77734375,
  "flash_kb": 242.2265625
 }

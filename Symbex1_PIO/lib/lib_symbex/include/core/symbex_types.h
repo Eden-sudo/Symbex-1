@@ -1,12 +1,12 @@
 /*
- * symbex_types.h -- structs de topologia compartidas por las capas
- * vectoriales (densa, gated).
+ * symbex_types.h -- topology structs shared by dense (vector) layers
+ * (dense, gated).
  *
- * NOTA DE MIGRACION: la struct SymbexConvLayerData del archivo
- * original fue RETIRADA aqui -- esta completamente superada por
- * SymbexConv2DLayer (layers/spatial/symbex_conv2d.h), que usa
- * umbrales enteros plegados en vez de scale_factors/bias_factors
- * flotantes.
+ * MIGRATION NOTE: the SymbexConvLayerData struct from the original
+ * file has been REMOVED here -- it is completely superseded by
+ * SymbexConv2DLayer (layers/conv/symbex_conv2d.h), which uses
+ * folded integer thresholds instead of floating-point
+ * scale_factors/bias_factors.
  */
 
 #ifndef SYMBEX_TYPES_H
@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-// Capa densa (vectorial), cuantizacion multi-bit (k_bits: 1, 4, 8, u otro)
+// Dense (vector) layer, multi-bit quantization (k_bits: 1, 4, 8, or other)
 struct SymbexLayerData {
     uint16_t in_features;
     uint16_t out_features;
@@ -26,9 +26,9 @@ struct SymbexLayerData {
     const uint32_t* weights;
 };
 
-// Capa densa con activacion condicional por bloques (tipo "mixture
-// of experts" -- un "director" puntua bloques, se activan solo los
-// K mejores)
+// Dense layer with block-conditional activation ("mixture
+// of experts" style -- a "director" scores blocks, only the
+// K best ones are activated)
 struct SymbexGatedLayerData {
     uint16_t in_features;
     uint16_t out_features;

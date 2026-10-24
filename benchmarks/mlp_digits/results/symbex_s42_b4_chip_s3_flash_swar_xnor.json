@@ -1,0 +1,32 @@
+{
+ "board": "s3",
+ "hal": "esp32s3: PIE ee.xorq + SWAR",
+ "popcount": "swar",
+ "weights": "flash",
+ "first_layer": "mask",
+ "n": 360,
+ "equal_simulation": 100.0,
+ "accuracy": 98.88888888888889,
+ "median_ms": 0.377,
+ "min_ms": 0.375,
+ "layers": [
+  {
+   "step": "layer 0: 64 -> 256 (4-bit input x 1 bit) + thresholds",
+   "median_ms": 0.363
+  },
+  {
+   "step": "layer 1: 256 -> 10 (1 bit x 1 bit) + argmax",
+   "median_ms": 0.015
+  }
+ ],
+ "ram": {
+  "buffers": 136,
+  "input_bytes": 64,
+  "popcount_table": 0,
+  "stack_used": 696,
+  "weights_in_ram": 0,
+  "total": 896
+ },
+ "model_flash": 3512,
+ "arithmetic": "xnor"
+}

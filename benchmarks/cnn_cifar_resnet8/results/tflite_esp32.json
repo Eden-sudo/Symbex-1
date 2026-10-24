@@ -1,0 +1,11 @@
+{
+ "board": "esp32",
+ "images": 1000,
+ "equal_to_pc": 98.1,
+ "accuracy": 88.0,
+ "latency_ms": 717.756,
+ "latency_min_ms": 717.512,
+ "model_kb": 96.1875,
+ "arena_kb": 53.08984375,
+ "model_in_ram": false
+}

@@ -1,0 +1,42 @@
+{
+ "width": 1,
+ "spec": "16-32-128/1-1-2",
+ "board": "esp32",
+ "weights": "flash",
+ "popcount": "lut16",
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 1,
+   "val_accuracy": 73.35,
+   "flash_kb": 46.4296875,
+   "exactness": 100.0,
+   "chip_accuracy": 74.6,
+   "latency_ms": 88.197,
+   "equal": 100.0,
+   "ram_kb": 79.13671875
+  },
+  {
+   "seed": 43,
+   "width": 1,
+   "val_accuracy": 72.89,
+   "flash_kb": 46.4296875,
+   "exactness": 100.0,
+   "chip_accuracy": 72.7,
+   "latency_ms": 88.196,
+   "equal": 100.0,
+   "ram_kb": 79.13671875
+  },
+  {
+   "seed": 44,
+   "width": 1,
+   "val_accuracy": 73.05,
+   "flash_kb": 46.4296875,
+   "exactness": 100.0,
+   "chip_accuracy": 72.8,
+   "latency_ms": 88.192,
+   "equal": 100.0,
+   "ram_kb": 79.13671875
+  }
+ ]
+}

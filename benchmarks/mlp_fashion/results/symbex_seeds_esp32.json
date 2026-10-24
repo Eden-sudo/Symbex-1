@@ -1,0 +1,23 @@
+{
+ "board": "esp32",
+ "weights": "ram",
+ "popcount": "swar",
+ "input_bits": 8,
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 1.5,
+   "val_accuracy": 87.01,
+   "flash_kb": 54.46875,
+   "arithmetic": "and",
+   "chip_accuracy": 86.8,
+   "latency_ms": 5.805,
+   "equal": 100.0,
+   "ram_kb": 58.30859375,
+   "other_latency_ms": null
+  }
+ ],
+ "val_accuracy": "87.01",
+ "latency_ms": "5.80",
+ "chip_accuracy": "86.80"
+}

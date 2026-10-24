@@ -19,7 +19,7 @@ Quantization scheme (the usual integer-only scheme of TFLite / CMSIS-NN, with fe
   - evaluation in INTEGER arithmetic (numpy, int64 accumulators, float64 requantization multiplier), not
     with fake-quant floats; the agreement with the fake-quant model is reported as a check
 
-Methods, all from the SAME original FP32 model (models/fashion_mlp.pth, modelo.obtener_fp32):
+Methods, all from the SAME original FP32 model (models/fashion_mlp.pth, model.get_fp32):
   ptq_maxabs  post-training, channel scale = max|w| / qmax, activations calibrated on 1000 training images
   ptq_mse     post-training, channel scale = the clipping that minimizes the weight MSE (grid search)
   qat         quantization-aware fine-tuning from ptq_mse: fake-quant with the straight-through estimator,
@@ -271,15 +271,15 @@ def main():
     os.chdir(AQUI)
     sys.path.insert(0, AQUI)
     import torch
-    from modelo import obtener_fp32, validacion_u8, calibracion_u8, _fashion
+    from model import calibration_u8, get_fp32, validation_u8, _fashion
     torch.set_num_threads(max(1, os.cpu_count() or 1))
-    ruta_fp32 = obtener_fp32()
-    x_val, y_val = validacion_u8(args.validacion)
-    x_te, y_te = validacion_u8(10000)
+    ruta_fp32 = get_fp32()
+    x_val, y_val = validation_u8(args.validacion)
+    x_te, y_te = validation_u8(10000)
     tr = _fashion(True)
     x_tr = tr.data.numpy().reshape(-1, 784).astype(np.float32) / 255.0
     y_tr = tr.targets.numpy().astype(np.int64)
-    x_calib = torch.as_tensor(calibracion_u8(N_CALIBRACION).astype(np.float32) / 255.0)
+    x_calib = torch.as_tensor(calibration_u8(N_CALIBRACION).astype(np.float32) / 255.0)
 
     capas = pesos_plegados(ruta_fp32)
     maestro = maestro_fp32(capas)

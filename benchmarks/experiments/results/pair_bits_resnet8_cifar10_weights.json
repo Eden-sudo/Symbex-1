@@ -1,0 +1,61 @@
+{
+ "args": {
+  "arch": "resnet8",
+  "dataset": "cifar10",
+  "width": 0,
+  "epochs": 20,
+  "seeds": 3,
+  "pair_on": "weights",
+  "batch": 256
+ },
+ "results": [
+  {
+   "config": "flat, channels c",
+   "width": 16,
+   "weight_bits": 1,
+   "activation_bits": 1,
+   "accuracy_last": 49.31,
+   "accuracy_last_std": 0.4257933771208771,
+   "accuracy_last5": 48.478,
+   "weight_kb": 9.5,
+   "binary_ops": 15336064,
+   "seconds": 131.01262068748474
+  },
+  {
+   "config": "flat, channels 23 (~same memory as pair)",
+   "width": 23,
+   "weight_bits": 1,
+   "activation_bits": 1,
+   "accuracy_last": 52.54,
+   "accuracy_last_std": 0.6383572667401853,
+   "accuracy_last5": 51.53133333333333,
+   "weight_kb": 19.31640625,
+   "binary_ops": 29464472,
+   "seconds": 238.02059841156006
+  },
+  {
+   "config": "pair (weights), channels c",
+   "width": 16,
+   "weight_bits": 2,
+   "activation_bits": 1,
+   "accuracy_last": 52.38333333333333,
+   "accuracy_last_std": 1.1374239901344319,
+   "accuracy_last5": 51.514,
+   "weight_kb": 19.0,
+   "binary_ops": 30672128,
+   "seconds": 217.16624331474304
+  },
+  {
+   "config": "flat, channels 24 (~same binary ops as pair)",
+   "width": 24,
+   "weight_bits": 1,
+   "activation_bits": 1,
+   "accuracy_last": 52.879999999999995,
+   "accuracy_last_std": 0.22605309110914865,
+   "accuracy_last5": 52.44133333333334,
+   "weight_kb": 21.0,
+   "binary_ops": 31851456,
+   "seconds": 221.8690848350525
+  }
+ ]
+}

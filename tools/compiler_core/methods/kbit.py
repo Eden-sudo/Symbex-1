@@ -17,44 +17,55 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def _redondear_ste(x):
+def _round_ste(x):
     """round() in the forward pass, identity gradient (straight-through)."""
     return x + (torch.round(x) - x).detach()
 
 
-def cuantizar_peso(w, k):
+def quantize_weight(w, k):
     """Symmetric per-output-channel k-bit fake quantization."""
     L = 2 ** (k - 1) - 1
     s = w.detach().abs().amax(dim=tuple(range(1, w.dim())), keepdim=True).clamp(min=1e-8) / L
-    return torch.clamp(_redondear_ste(w / s), -L, L) * s
+    return torch.clamp(_round_ste(w / s), -L, L) * s
 
 
-class CuantizadorActivacion(nn.Module):
+class ActivationQuantizer(nn.Module):
     """Asymmetric per-tensor k-bit fake quantization with running min / max."""
     def __init__(self, k, momentum=0.1):
         super().__init__()
         self.k, self.momentum = k, momentum
         self.register_buffer("lo", torch.tensor(0.0))
         self.register_buffer("hi", torch.tensor(1.0))
-        self.register_buffer("iniciado", torch.tensor(False))
+        self.register_buffer("initialized", torch.tensor(False))
+
+    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
+        if prefix + "iniciado" in state_dict:                 # checkpoints saved before the translation
+            state_dict[prefix + "initialized"] = state_dict.pop(prefix + "iniciado")
+        super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
 
     def forward(self, x):
         if self.training:
             with torch.no_grad():
                 lo, hi = x.min(), x.max()
-                if not self.iniciado:
+                if not self.initialized:
                     self.lo.copy_(lo)
                     self.hi.copy_(hi)
-                    self.iniciado.fill_(True)
+                    self.initialized.fill_(True)
                 else:
                     self.lo.mul_(1 - self.momentum).add_(self.momentum * lo)
                     self.hi.mul_(1 - self.momentum).add_(self.momentum * hi)
-        niveles = 2 ** self.k - 1
-        s = (self.hi - self.lo).clamp(min=1e-8) / niveles
-        return torch.clamp(_redondear_ste((x - self.lo) / s), 0, niveles) * s + self.lo
+        levels = 2 ** self.k - 1
+        s = (self.hi - self.lo).clamp(min=1e-8) / levels
+        return torch.clamp(_round_ste((x - self.lo) / s), 0, levels) * s + self.lo
 
 
-class LinearKBit(nn.Module):
+def _old_input_keys(state_dict, prefix):
+    """Checkpoints saved before the translation call the input quantizer 'cuant_entrada'."""
+    for k in [k for k in state_dict if k.startswith(prefix + "cuant_entrada.")]:
+        state_dict[prefix + "input_quant." + k[len(prefix + "cuant_entrada."):]] = state_dict.pop(k)
+
+
+class DenseKBit(nn.Module):
     def __init__(self, in_features, out_features, k, bias=True, quantize_input=True):
         super().__init__()
         if not (2 <= k <= 16):
@@ -63,10 +74,14 @@ class LinearKBit(nn.Module):
         self.weight = nn.Parameter(torch.empty(out_features, in_features))
         nn.init.kaiming_uniform_(self.weight, a=5 ** 0.5)
         self.bias = nn.Parameter(torch.zeros(out_features)) if bias else None
-        self.cuant_entrada = CuantizadorActivacion(k) if quantize_input else nn.Identity()
+        self.input_quant = ActivationQuantizer(k) if quantize_input else nn.Identity()
+
+    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
+        _old_input_keys(state_dict, prefix)
+        super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
 
     def forward(self, x):
-        return F.linear(self.cuant_entrada(x), cuantizar_peso(self.weight, self.k), self.bias)
+        return F.linear(self.input_quant(x), quantize_weight(self.weight, self.k), self.bias)
 
     @classmethod
     def from_float(cls, layer, k, quantize_input=True):
@@ -89,10 +104,14 @@ class ConvKBit(nn.Module):
         self.weight = nn.Parameter(torch.empty(out_channels, in_channels, kernel_size, kernel_size))
         nn.init.kaiming_normal_(self.weight)
         self.bias = nn.Parameter(torch.zeros(out_channels)) if bias else None
-        self.cuant_entrada = CuantizadorActivacion(k) if quantize_input else nn.Identity()
+        self.input_quant = ActivationQuantizer(k) if quantize_input else nn.Identity()
+
+    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
+        _old_input_keys(state_dict, prefix)
+        super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
 
     def forward(self, x):
-        return F.conv2d(self.cuant_entrada(x), cuantizar_peso(self.weight, self.k), self.bias,
+        return F.conv2d(self.input_quant(x), quantize_weight(self.weight, self.k), self.bias,
                         self.stride, self.padding)
 
     @classmethod
@@ -110,3 +129,4 @@ class ConvKBit(nn.Module):
         if layer.bias is not None:
             new.bias.data.copy_(layer.bias.data)
         return new
+

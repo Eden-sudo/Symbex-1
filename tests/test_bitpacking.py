@@ -1,6 +1,6 @@
 """Bit-packing / unpacking roundtrip of every export path:
     export/plain._pack_rows (+ _filas layouts)   LSB-first 32-bit words, rows padded to `multiplo` words
-    export/dense._empaquetar                     LSB-first 32-bit words, ceil(n / 32) per row
+    export/dense._pack                           LSB-first 32-bit words, ceil(n / 32) per row
     export/gated (header)                        MSB-first bytes, weight > 0 -> 1
     export/bitslice._export_layer_to_arrays_v1   k MSB-first bit planes + outlier mask + magnitudes
 """
@@ -11,13 +11,12 @@ import pytest
 import torch
 
 from compiler_core.export.bitslice import _export_layer_to_arrays_v1, _write_header_v1
-from compiler_core.export.dense import _empaquetar
+from compiler_core.export.dense import _pack
 from compiler_core.export.gated import export_model_v2_to_h
 from compiler_core.export.plain import _filas, _pack_rows, _padding
-from compiler_core.methods.linear.bitslice import SymbexVotingPool
-from compiler_core.methods.linear.core import BipolarStepSTE
-from compiler_core.methods.linear.gated import SymbexBlockGatedPool
-from compiler_core.validator import validate_hardware_limits
+from compiler_core.methods.dense.bitslice import SymbexVotingPool
+from compiler_core.methods.dense.core import BipolarStepSTE
+from compiler_core.methods.dense.gated import SymbexBlockGatedPool
 from helpers import unpack_lsb_words
 
 LENGTHS = [1, 7, 31, 32, 33, 64, 100, 129, 300]
@@ -43,9 +42,9 @@ def test_pack_rows_roundtrip_padding_and_word_count(rng, n, multiplo):
 
 
 @pytest.mark.parametrize("n", LENGTHS)
-def test_empaquetar_roundtrip_and_agrees_with_pack_rows(rng, n):
+def test_pack_roundtrip_and_agrees_with_pack_rows(rng, n):
     signos = np.where(_weights_with_zeros(rng, (4, n)) >= 0, 1, -1)
-    packed, words = _empaquetar(signos)
+    packed, words = _pack(signos)
     assert words == (n + 31) // 32
     assert packed.max() < 2 ** 32
     bits, pad = unpack_lsb_words(packed, n)
@@ -147,9 +146,8 @@ def test_bitslice_planes_reconstruct_the_pytorch_quantized_weights(k_bits, in_f)
 
 
 @pytest.mark.parametrize("k_bits", range(1, 5))
-def test_bitslice_header_has_a_plane_slot_for_every_k_the_validator_accepts(tmp_path, k_bits):
+def test_bitslice_header_has_a_plane_slot_for_every_k_the_exporter_accepts(tmp_path, k_bits):
     student = torch.nn.Sequential(_trained_pool(12, 4, k_bits))
-    validate_hardware_limits(student, "bitslice")        # accepted
     path = tmp_path / "bitslice.h"
     _write_header_v1(student, str(path), k_bits=k_bits)
     planes = re.search(r"\{ \{([^}]*)\}, layer0_m0_outliers", path.read_text()).group(1).split(",")
@@ -158,17 +156,19 @@ def test_bitslice_header_has_a_plane_slot_for_every_k_the_validator_accepts(tmp_
 
 
 @pytest.mark.parametrize("k_bits", range(5, 9))
-def test_bitslice_validator_rejects_k_beyond_the_header_plane_slots(k_bits):
+def test_bitslice_exporter_rejects_k_beyond_the_header_plane_slots(tmp_path, k_bits):
     """k > 4 has no plane slot in SymbexSubLayer (MAX_K_BITS = 4), and for k >= 6 the outlier magnitudes
-    3 * (2^k - 1) would wrap the int8_t array: the validator must stop the export."""
-    with pytest.raises(AssertionError, match="MAX_K_BITS"):
-        validate_hardware_limits(torch.nn.Sequential(_trained_pool(12, 4, k_bits)), "bitslice")
+    3 * (2^k - 1) would wrap the int8_t array: the header writer must stop the export (upstream removed
+    validator.py, so the cap lives in export/bitslice.py)."""
+    with pytest.raises(ValueError, match="exceeds the C header limit"):
+        _write_header_v1(torch.nn.Sequential(_trained_pool(12, 4, k_bits)), str(tmp_path / "bitslice.h"),
+                         k_bits=k_bits)
+    assert not (tmp_path / "bitslice.h").exists()
 
 
 @pytest.mark.parametrize("k_bits", range(1, 5))
 def test_bitslice_outlier_magnitudes_fit_the_int8_header_array(k_bits):
     pool = _trained_pool(64, 4, k_bits, outlier_scale=50.0)     # 64 inputs: the outlier barely moves the std
-    validate_hardware_limits(torch.nn.Sequential(pool), "bitslice")
     exp = _export_layer_to_arrays_v1(pool.weight[0].detach().numpy(), pool.running_mean[0].item(),
                                      pool.running_std[0].item(), pool.running_W_max[0].item(), k_bits)
     assert max(exp["outlier_magnitudes"]) <= 127

@@ -1,0 +1,56 @@
+{
+ "args": {
+  "arch": "mlp",
+  "dataset": "fashion",
+  "width": 0,
+  "epochs": 20,
+  "seeds": 3,
+  "batch": 256
+ },
+ "results": [
+  {
+   "config": "flat, width H",
+   "width": 256,
+   "bits_per_element": 1,
+   "accuracy_last": 86.27333333333333,
+   "accuracy_last_std": 0.2081665999466094,
+   "accuracy_last5": 86.09066666666668,
+   "weight_kb": 28.65625,
+   "binary_ops": 234752,
+   "seconds": 21.153862237930298
+  },
+  {
+   "config": "flat, width 2H (same memory as pair)",
+   "width": 512,
+   "bits_per_element": 1,
+   "accuracy_last": 86.71666666666665,
+   "accuracy_last_std": 0.04041451884326987,
+   "accuracy_last5": 86.64533333333334,
+   "weight_kb": 65.3125,
+   "binary_ops": 535040,
+   "seconds": 20.91871166229248
+  },
+  {
+   "config": "pair, width H",
+   "width": 256,
+   "bits_per_element": 2,
+   "accuracy_last": 88.63,
+   "accuracy_last_std": 0.24269322199022875,
+   "accuracy_last5": 88.56133333333334,
+   "weight_kb": 57.3125,
+   "binary_ops": 939008,
+   "seconds": 35.47339725494385
+  },
+  {
+   "config": "flat, width 792 (~same binary ops as pair)",
+   "width": 792,
+   "bits_per_element": 1,
+   "accuracy_last": 87.15666666666665,
+   "accuracy_last_std": 0.09237604307033816,
+   "accuracy_last5": 87.05866666666667,
+   "weight_kb": 114.5654296875,
+   "binary_ops": 938520,
+   "seconds": 20.89035391807556
+  }
+ ]
+}

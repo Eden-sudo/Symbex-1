@@ -1,7 +1,8 @@
 """Every method in compiler_core/methods vs a straightforward numpy reference, on tiny random models:
-    linear/plain, conv/plain, kbit (linear + conv), linear/bitslice, linear/gated.
-For bitslice and gated the hardware simulators (simulator.py) and verify_fidelity are checked too, and
-linear/plain is also run through the C engine's XNOR-popcount (lib_symbex compiled for this host)."""
+    dense/plain, conv/plain, kbit (dense + conv), dense/bitslice, dense/gated.
+Bitslice and gated are compared with their numpy references (upstream removed simulator.py and validator.py,
+so the simulators and verify_fidelity are no longer tested), and dense/plain is also run through the C
+engine's XNOR-popcount (lib_symbex compiled for this host)."""
 import ctypes
 
 import numpy as np
@@ -9,17 +10,15 @@ import pytest
 import torch
 import torch.nn as nn
 
-from compiler_core.export.dense import _empaquetar
+from compiler_core.export.dense import _pack
 from compiler_core.methods import apply_method, apply_plan
 from compiler_core.methods.base import RSign
 from compiler_core.methods.conv.plain import ConvPlain
-from compiler_core.methods.kbit import ConvKBit, CuantizadorActivacion, LinearKBit
-from compiler_core.methods.linear.bitslice import SymbexVotingPool
-from compiler_core.methods.linear.core import BipolarStepSTE
-from compiler_core.methods.linear.gated import SymbexBlockGatedPool
-from compiler_core.methods.linear.plain import LinearPlain
-from compiler_core.simulator import simulate_bitslice_cpp, simulate_block_gated_cpp
-from compiler_core.validator import verify_fidelity
+from compiler_core.methods.dense.bitslice import SymbexVotingPool
+from compiler_core.methods.dense.core import BipolarStepSTE
+from compiler_core.methods.dense.gated import SymbexBlockGatedPool
+from compiler_core.methods.dense.plain import DensePlain
+from compiler_core.methods.kbit import ActivationQuantizer, ConvKBit, DenseKBit
 from helpers import SymbexLayerData, as_ptr, pack_lsb_words
 
 
@@ -45,7 +44,7 @@ def _set_betas(module, gen):
 @pytest.mark.parametrize("n_in,n_out,bias", [(33, 7, False), (100, 5, True), (8, 3, True)])
 def test_linear_plain_matches_numpy_sign_alpha_reference(n_in, n_out, bias):
     gen = torch.Generator().manual_seed(n_in)
-    layer = LinearPlain.from_float(nn.Linear(n_in, n_out, bias=bias), binarize_input=True)
+    layer = DensePlain.from_float(nn.Linear(n_in, n_out, bias=bias), binarize_input=True)
     _set_betas(layer, gen)
     with torch.no_grad():
         layer.weight[0, :3] = 0.0
@@ -64,13 +63,13 @@ def test_linear_plain_matches_numpy_sign_alpha_reference(n_in, n_out, bias):
 def test_linear_plain_equals_c_engine_xnor_popcount_times_alpha(c_libs, n_in):
     n_out = 5
     gen = torch.Generator().manual_seed(1)
-    layer = LinearPlain(n_in, n_out, binarize_input=True)
+    layer = DensePlain(n_in, n_out, binarize_input=True)
     _set_betas(layer, gen)
     x = torch.randn(8, n_in, generator=gen)
     with torch.no_grad():
         want = layer(x).double().numpy()
     w = _np(layer.weight)
-    packed = np.ascontiguousarray(_empaquetar(_sign(w).astype(np.int64))[0].astype(np.uint32))
+    packed = np.ascontiguousarray(_pack(_sign(w).astype(np.int64))[0].astype(np.uint32))
     alpha = np.abs(w).mean(1)
     lib = c_libs["native"]
     c_layer = SymbexLayerData(n_in, n_out, 1, as_ptr(packed, ctypes.c_uint32))
@@ -129,13 +128,13 @@ def test_apply_method_and_apply_plan_wire_first_layer_and_options():
     model = nn.Sequential(nn.Conv2d(1, 4, 3, padding=1), nn.Flatten(), nn.Linear(4 * 4 * 4, 8), nn.Linear(8, 3))
     apply_method(model, "plain")
     assert isinstance(model[0], ConvPlain) and isinstance(model[0].rsign, nn.Identity)
-    assert isinstance(model[2], LinearPlain) and isinstance(model[2].rsign, RSign)
+    assert isinstance(model[2], DensePlain) and isinstance(model[2].rsign, RSign)
     assert isinstance(model[3].rsign, RSign)
 
     model = nn.Sequential(nn.Linear(10, 8), nn.ReLU(), nn.Linear(8, 6), nn.Linear(6, 2))
     apply_plan(model, {"0": 4, "2": "bin"})
-    assert isinstance(model[0], LinearKBit) and isinstance(model[0].cuant_entrada, nn.Identity)
-    assert isinstance(model[2], LinearPlain) and isinstance(model[2].rsign, RSign)
+    assert isinstance(model[0], DenseKBit) and isinstance(model[0].input_quant, nn.Identity)
+    assert isinstance(model[2], DensePlain) and isinstance(model[2].rsign, RSign)
     assert isinstance(model[3], nn.Linear)                     # not in the plan: stays FP32
     with pytest.raises(ValueError):
         apply_plan(nn.Sequential(nn.Linear(2, 2)), {"0": 1})
@@ -168,10 +167,10 @@ def _calibrated(layer, x):
 @pytest.mark.parametrize("k", [2, 4, 8])
 def test_linear_kbit_matches_numpy_fake_quantization(k):
     gen = torch.Generator().manual_seed(k)
-    layer = LinearKBit.from_float(nn.Linear(20, 6), k, quantize_input=True)
+    layer = DenseKBit.from_float(nn.Linear(20, 6), k, quantize_input=True)
     x = torch.randn(32, 20, generator=gen)
     _calibrated(layer, x)
-    q = layer.cuant_entrada
+    q = layer.input_quant
     assert float(q.lo) == float(x.min()) and float(q.hi) == float(x.max())
     with torch.no_grad():
         got = layer(x).double().numpy()
@@ -191,7 +190,7 @@ def test_conv_kbit_matches_numpy_fake_quantization(k, stride, padding):
     layer = ConvKBit.from_float(nn.Conv2d(3, 4, 3, stride=stride, padding=padding), k, quantize_input=True)
     x = torch.randn(2, 3, 6, 6, generator=gen)
     _calibrated(layer, x)
-    q = layer.cuant_entrada
+    q = layer.input_quant
     with torch.no_grad():
         got = layer(x).double().numpy()
     xq = _np_quant_act(_np(x), k, float(q.lo), float(q.hi))
@@ -200,7 +199,7 @@ def test_conv_kbit_matches_numpy_fake_quantization(k, stride, padding):
 
 
 def test_activation_quantizer_running_minmax_is_an_ema_after_the_first_batch():
-    q = CuantizadorActivacion(4, momentum=0.1).train()
+    q = ActivationQuantizer(4, momentum=0.1).train()
     a, b = torch.tensor([-1.0, 3.0]), torch.tensor([-3.0, 1.0])
     q(a)
     q(b)
@@ -209,7 +208,7 @@ def test_activation_quantizer_running_minmax_is_an_ema_after_the_first_batch():
 
 
 # ---------------------------------------------------------------------------------------------------
-# bitslice (SymbexVotingPool): PyTorch vs simulate_bitslice_cpp vs numpy reference
+# bitslice (SymbexVotingPool): PyTorch vs numpy reference
 # ---------------------------------------------------------------------------------------------------
 def _np_bitslice_weights(w, mean, std, w_max, k_bits):
     levels = 2 ** k_bits - 1
@@ -243,7 +242,6 @@ def test_bitslice_simulator_and_numpy_reference_match_pytorch(rng, k_bits, M):
     xt = torch.from_numpy(x)
     with torch.no_grad():
         torch_out = (student(xt) / torch.clamp(student[2].output_scale, min=1e-4)).double().numpy()
-    sim_out = simulate_bitslice_cpp(student, xt, k_bits=k_bits)
 
     cur = x.astype(np.float64)
     for layer in (student[0], student[2]):
@@ -254,13 +252,11 @@ def test_bitslice_simulator_and_numpy_reference_match_pytorch(rng, k_bits, M):
                                                        layer.running_W_max[m].item(), k_bits).T
         cur = np.where(votes > 0, 1.0, -1.0) if layer is student[0] else votes
 
-    np.testing.assert_array_equal(sim_out, cur)
     np.testing.assert_allclose(torch_out, cur, rtol=1e-5, atol=1e-3)
-    assert verify_fidelity(student, xt, x, "bitslice", k_bits=k_bits) == 100.0
 
 
 # ---------------------------------------------------------------------------------------------------
-# gated (SymbexBlockGatedPool): PyTorch vs simulate_block_gated_cpp vs numpy reference
+# gated (SymbexBlockGatedPool): PyTorch vs numpy reference
 # ---------------------------------------------------------------------------------------------------
 def _np_gated_predict(student, x):
     l0, l1 = student[0], student[2]
@@ -284,8 +280,5 @@ def test_gated_simulator_and_numpy_reference_match_pytorch(rng, in_f, hid, block
     x = np.where(rng.random((128, in_f)) < 0.5, -1.0, 1.0).astype(np.float32)
     with torch.no_grad():
         torch_pred = student(torch.from_numpy(x)).argmax(1).numpy()
-    sim_pred = simulate_block_gated_cpp(student, x)
     ref_pred = _np_gated_predict(student, x.astype(np.float64))
-    np.testing.assert_array_equal(sim_pred, ref_pred)
     np.testing.assert_array_equal(torch_pred, ref_pred)
-    assert verify_fidelity(student, torch.from_numpy(x), x, "gated") == 100.0

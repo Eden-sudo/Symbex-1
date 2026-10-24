@@ -1,0 +1,8 @@
+{
+ "board": "s3",
+ "images": 100,
+ "equal_to_pc": 90.0,
+ "latency_ms": 379.13,
+ "model_kb": 315.703125,
+ "arena_kb": 223.30859375
+}

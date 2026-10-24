@@ -16,7 +16,7 @@ Columns:
   acc 2000   accuracy on the first 2000 Fashion-MNIST test images (the images every side exports / validates)
   acc 10k    accuracy on the 10,000 test images, when the result has it (SYMBEX: acc_last of the CDT)
   FP32 10k   the 10k accuracy of the FP32 model that row was quantized from. models/fashion_mlp.pth is
-             re-created by modelo.py when missing and is not bit-identical across machines / PyTorch
+             re-created by model.py when missing and is not bit-identical across machines / PyTorch
              versions: compare rows with the same FP32 value first.
   weights B  packed weight bytes only: ceil(n_weights * bits / 8)
   total B    what the result file reports as the model size (SYMBEX: header flash_bytes; TFLite: .tflite bytes;
@@ -31,7 +31,7 @@ import os
 import re
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
-FORMA_ORIGINAL = [784, 256, 128, 10]                 # FashionMLP (modelo.py)
+FORMA_ORIGINAL = [784, 256, 128, 10]                 # FashionMLP (model.py)
 
 
 def bytes_pesos(forma, bits):

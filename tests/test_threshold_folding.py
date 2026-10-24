@@ -1,5 +1,5 @@
 """Threshold folding: BatchNorm (incl. negative and zero gamma), bias, input normalization, ReLU and the next
-layer's sign activation folded into ONE integer threshold per neuron (export/dense.plegar), checked
+layer's sign activation folded into ONE integer threshold per neuron (export/dense.fold), checked
 bit-for-bit against the float PyTorch model; plus the fixed-point BN folding of the conv path
 (export/plain._fold_bn, validate/plain._aplicar_rprelu)."""
 import os
@@ -12,7 +12,7 @@ import torch.nn as nn
 
 from compiler_core.export import dense
 from compiler_core.export.plain import _fold_bn
-from compiler_core.methods.linear.plain import LinearPlain
+from compiler_core.methods.dense.plain import DensePlain
 from compiler_core.validate.plain import _aplicar_rprelu
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -48,7 +48,7 @@ def _build_mlp(relu, bias, gen, calib_u8, hidden=(37, 20), classes=6):
     layers = [nn.Flatten()]
     for i in range(len(sizes) - 1):
         fl = nn.Linear(sizes[i], sizes[i + 1], bias=bias)
-        layers.append(LinearPlain.from_float(fl, binarize_input=(i > 0)))
+        layers.append(DensePlain.from_float(fl, binarize_input=(i > 0)))
         bn = nn.BatchNorm1d(sizes[i + 1], momentum=None)    # cumulative average: one batch = its statistics
         _randomize_bn(bn, gen, zero_gamma_index=0 if i == 0 else None, stats=False)
         layers.append(bn)
@@ -57,7 +57,7 @@ def _build_mlp(relu, bias, gen, calib_u8, hidden=(37, 20), classes=6):
     model = nn.Sequential(*layers)
     with torch.no_grad():
         for m in model.modules():
-            if isinstance(m, LinearPlain) and not isinstance(m.rsign, nn.Identity):
+            if isinstance(m, DensePlain) and not isinstance(m.rsign, nn.Identity):
                 # beta > 0 except a few: after a ReLU any beta <= 0 is a constant 1 bit
                 m.rsign.beta.copy_(torch.randn(m.rsign.beta.shape, generator=gen).abs() * 0.5 + 0.05)
                 m.rsign.beta[0, :3] = -m.rsign.beta[0, :3].abs() - 0.05   # beta <= 0 (always-1 path with ReLU)
@@ -73,7 +73,7 @@ def _float_reference(model, x_u8):
     x = _normalized(x_u8, torch.float64)
     bits, hooks = [], []
     for m in model.modules():
-        if isinstance(m, LinearPlain) and not isinstance(m.rsign, nn.Identity):
+        if isinstance(m, DensePlain) and not isinstance(m.rsign, nn.Identity):
             hooks.append(m.rsign.register_forward_hook(lambda mod, e, s: bits.append(s.numpy().astype(np.int64))))
     with torch.no_grad():
         logits = model(x).numpy()
@@ -89,10 +89,10 @@ def test_folded_integer_thresholds_reproduce_float_hidden_bits_exactly(rng, relu
     model = _build_mlp(relu, bias, gen, rng.integers(0, 256, size=(256, C * H * W), dtype=np.uint8))
     x_u8 = rng.integers(0, 256, size=(1000, C * H * W), dtype=np.uint8)
     example = torch.zeros(2, C, H, W)
-    capas = dense.plegar(dense.analizar(model, example), mean=MEAN, std=STD)
+    capas = dense.fold(dense.analyze(model, example), mean=MEAN, std=STD)
 
     ref_bits, ref_logits = _float_reference(model, x_u8)
-    pred, sim_bits = dense.simular(capas, x_u8, devolver_bits=True)
+    pred, sim_bits = dense.simulate(capas, x_u8, return_bits=True)
 
     assert len(sim_bits) == len(ref_bits) == 2
     for layer, (got, want) in enumerate(zip(sim_bits, ref_bits)):
@@ -112,34 +112,34 @@ def test_negative_gamma_rows_are_negated_and_threshold_flipped(rng):
     gen = torch.Generator().manual_seed(3)
     model = _build_mlp(relu=False, bias=False, gen=gen,
                        calib_u8=rng.integers(0, 256, size=(64, C * H * W), dtype=np.uint8))
-    grupos = dense.analizar(model, torch.zeros(2, C, H, W))
-    capas = dense.plegar(grupos, mean=MEAN, std=STD)
+    grupos = dense.analyze(model, torch.zeros(2, C, H, W))
+    capas = dense.fold(grupos, mean=MEAN, std=STD)
     capa1, bn1 = grupos[1][0], grupos[1][1]
     original = np.where(capa1.weight.detach().numpy() >= 0, 1, -1)
     negative = (bn1.weight.detach().numpy() < 0)
     assert negative.any() and (~negative).any()
-    np.testing.assert_array_equal(capas[1]["signos"][negative], -original[negative])
-    np.testing.assert_array_equal(capas[1]["signos"][~negative], original[~negative])
+    np.testing.assert_array_equal(capas[1]["signs"][negative], -original[negative])
+    np.testing.assert_array_equal(capas[1]["signs"][~negative], original[~negative])
 
 
-def test_plegar_rejects_a_hidden_layer_that_does_not_binarize_its_input(rng):
+def test_fold_rejects_a_hidden_layer_that_does_not_binarize_its_input(rng):
     gen = torch.Generator().manual_seed(4)
     model = _build_mlp(relu=False, bias=False, gen=gen,
                        calib_u8=rng.integers(0, 256, size=(64, C * H * W), dtype=np.uint8))
-    grupos = dense.analizar(model, torch.zeros(2, C, H, W))
+    grupos = dense.analyze(model, torch.zeros(2, C, H, W))
     grupos[1][0].rsign = nn.Identity()
     with pytest.raises(ValueError, match="does not binarize its input"):
-        dense.plegar(grupos, mean=MEAN, std=STD)
+        dense.fold(grupos, mean=MEAN, std=STD)
 
 
 def test_umbral_edge_cases():
     imin, imax = dense.INT32_MIN, dense.INT32_MAX
-    assert dense._umbral(2.0, 1.0, -0.5, relu=True) == (False, imin)     # ReLU(z) >= 0 >= beta: always 1
-    assert dense._umbral(0.0, 1.0, 0.5, relu=False) == (False, imin)      # constant z = 1 >= 0.5
-    assert dense._umbral(0.0, 0.0, 0.5, relu=False) == (False, imax)      # constant z = 0 < 0.5
-    assert dense._umbral(2.0, 1.0, 4.0, relu=False) == (False, 2)         # 2 raw + 1 >= 4  <=> raw >= 1.5
-    assert dense._umbral(-2.0, 1.0, 4.0, relu=False) == (True, 2)         # raw <= -1.5  <=>  -raw >= 2
-    assert dense._umbral(1e-30, 0.0, 1.0, relu=False) == (False, imax)    # clamped to int32
+    assert dense._threshold(2.0, 1.0, -0.5, relu=True) == (False, imin)     # ReLU(z) >= 0 >= beta: always 1
+    assert dense._threshold(0.0, 1.0, 0.5, relu=False) == (False, imin)      # constant z = 1 >= 0.5
+    assert dense._threshold(0.0, 0.0, 0.5, relu=False) == (False, imax)      # constant z = 0 < 0.5
+    assert dense._threshold(2.0, 1.0, 4.0, relu=False) == (False, 2)         # 2 raw + 1 >= 4  <=> raw >= 1.5
+    assert dense._threshold(-2.0, 1.0, 4.0, relu=False) == (True, 2)         # raw <= -1.5  <=>  -raw >= 2
+    assert dense._threshold(1e-30, 0.0, 1.0, relu=False) == (False, imax)    # clamped to int32
 
 
 @pytest.mark.skipif(shutil.which("gcc") is None, reason="gcc not found")
@@ -147,11 +147,11 @@ def test_exported_header_compiled_with_lib_symbex_matches_integer_simulation(rng
     gen = torch.Generator().manual_seed(11)
     model = _build_mlp(relu=True, bias=True, gen=gen,
                        calib_u8=rng.integers(0, 256, size=(64, C * H * W), dtype=np.uint8))
-    capas = dense.plegar(dense.analizar(model, torch.zeros(2, C, H, W)), mean=MEAN, std=STD)
+    capas = dense.fold(dense.analyze(model, torch.zeros(2, C, H, W)), mean=MEAN, std=STD)
     x_u8 = rng.integers(0, 256, size=(300, C * H * W), dtype=np.uint8)
     ruta = str(tmp_path / "modelo_symbex.h")
-    dense.escribir_header(capas, ruta)
-    iguales, total, msg = dense.validar_c(ruta, LIB_SYMBEX, x_u8, dense.simular(capas, x_u8))
+    dense.write_header(capas, ruta)
+    iguales, total, msg = dense.validate_c(ruta, LIB_SYMBEX, x_u8, dense.simulate(capas, x_u8))
     assert msg == ""
     assert iguales == total == 300
 

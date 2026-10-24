@@ -66,6 +66,11 @@ std  = []
 # Never random noise: with random data the activations mean nothing.
 calibration_samples = 32
 
+# Bits of every input value the model uses (1-8). 8 = the data as it is. Fewer bits keep only the most
+# significant ones (pixel >> (8 - k) << (8 - k)), in training, export and validation alike: the first layer
+# then needs only k bit planes on the chip. The original model is evaluated on the same reduced input.
+input_bits = 8
+
 [hardware]
 # Target microcontroller resources, in KB. Use 0 for anything the board does not have.
 ram_kb   = 320        # internal SRAM
@@ -135,6 +140,18 @@ lib_path = "../Symbex1_PIO/lib/lib_symbex"
 # Validation samples used by the export / validate stage.
 validation_samples = 2000
 
+# Arithmetic of the exported C (same results, bit for bit; only the speed changes):
+#   "auto" (default)  the fastest one on [chip] board: measured once with the kernel benchmark and kept as a
+#                     chip profile (tools/chip_profiles/); without a board, "and"
+#   "and"             AND products counted by the HAL (the SIMD multiplier on the ESP32-S3)
+#   "xnor"            XNOR + popcount
+arithmetic = "auto"
+
+# Compare against an INT8 reference of the original model too (default false): its accuracy in the train stage,
+# its header in the export (model_int8.h, ESP-NN), and on the board, on the same images. The official
+# comparison against TensorFlow Lite Micro lives in benchmarks/.
+int8_reference = false
+
 [chip]
 # Measure the exported model on a real board (needs PlatformIO and the board connected).
 # "" = skip, "esp32" = classic ESP32, "s3" = ESP32-S3.
@@ -144,3 +161,12 @@ baud = 921600
 samples = 1000        # validation images sent to the board
 upload = true         # false = the firmware is already on the board
 popcount = "lut16"    # "lut16" (64 KB table, fastest) or "swar" (no table, minimum RAM)
+weights = "flash"     # where the weights live on the board: "flash" or "ram" (faster when the model fits)
+compare_arithmetic = false   # true: also export the model with the other arithmetic and measure both on the board
+
+[run]
+# Which stages to run, in order: inspect, estimate, train, export (export + validate), chip.
+# Starting after a stage reuses what it left in [output] directory: e.g. from = "export" exports the model
+# trained before, without training again; from = "chip" only tests the existing export on the board.
+from = "inspect"
+to   = "chip"

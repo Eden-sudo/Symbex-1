@@ -49,7 +49,7 @@ sys.path.insert(0, os.path.join(AQUI, "..", "..", "tools"))
 sys.path.insert(0, AQUI)
 
 from compiler_core.methods import apply_plan, widen  # noqa: E402
-from modelo import DESV, MEDIA, RUTA_DATOS, FashionMLP  # noqa: E402
+from model import DATA_DIR, MEAN, STD, FashionMLP  # noqa: E402
 
 PLAN = {"red.1": "bin", "red.4": "bin", "red.7": "bin"}
 COMPRIMIDAS = ("red.1", "red.4")
@@ -62,7 +62,7 @@ PERDIDA_MAXIMA = 1.0                 # kill criterion, accuracy points at K = 25
 def construir(ruta_modelo):
     base = FashionMLP()
     widen(base, ANCHO, torch.zeros(2, 1, 28, 28), seed=42)
-    modelo = apply_plan(base, PLAN, primera="red.1", metodo_bin="plain")
+    modelo = apply_plan(base, PLAN, first="red.1", bin_method="plain")
     modelo.load_state_dict(torch.load(ruta_modelo, map_location="cpu", weights_only=True))
     return modelo.eval()
 
@@ -70,9 +70,9 @@ def construir(ruta_modelo):
 def datos():
     import torchvision
     import torchvision.transforms as T
-    tf = T.Compose([T.ToTensor(), T.Normalize([MEDIA], [DESV])])
-    tr = torchvision.datasets.FashionMNIST(os.path.join(AQUI, RUTA_DATOS), train=True, download=True, transform=tf)
-    te = torchvision.datasets.FashionMNIST(os.path.join(AQUI, RUTA_DATOS), train=False, download=True, transform=tf)
+    tf = T.Compose([T.ToTensor(), T.Normalize([MEAN], [STD])])
+    tr = torchvision.datasets.FashionMNIST(os.path.join(AQUI, DATA_DIR), train=True, download=True, transform=tf)
+    te = torchvision.datasets.FashionMNIST(os.path.join(AQUI, DATA_DIR), train=False, download=True, transform=tf)
     return tr, te
 
 

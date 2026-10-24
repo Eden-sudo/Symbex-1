@@ -1,21 +1,15 @@
 {
  "n": 2000,
- "acc_pytorch": 88.1,
- "acc_entero": 88.1,
- "fidelidad": 100.0,
- "acuerdo_bits": [
+ "arithmetic": "and",
+ "acc_pytorch": 87.2,
+ "acc_integer": 87.2,
+ "fidelity": 100.0,
+ "bit_agreement": [
   100.0,
   100.0
  ],
- "flash_bytes": 71096,
- "header": "runs/symbex_s42/modelo_symbex.h",
- "exactitud_c": 100.0,
- "nota_c": "",
- "int8": {
-  "acc_int8": 88.44999999999999,
-  "acuerdo_fp32": 99.8,
-  "flash_bytes": 236328,
-  "exactitud_c": 100.0,
-  "header": "runs/symbex_s42/modelo_int8.h"
- }
+ "flash_bytes": 55776,
+ "header": "runs/symbex_s42/model_symbex.h",
+ "c_exactness": 100.0,
+ "c_note": ""
 }

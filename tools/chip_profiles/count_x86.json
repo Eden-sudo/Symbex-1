@@ -1,0 +1,778 @@
+{
+ "platform": "x86",
+ "name": "13th Gen Intel(R) Core(TM) i9-13950HX",
+ "features": "popcnt avx2",
+ "unit": "ns",
+ "positions": 64,
+ "outputs": 64,
+ "checksums_ok": true,
+ "measurements": [
+  {
+   "method": "builtin",
+   "form": "xnor",
+   "words": 5,
+   "per_output": 3.74,
+   "checksum": 3434042132
+  },
+  {
+   "method": "builtin",
+   "form": "and",
+   "words": 5,
+   "per_output": 4.206,
+   "checksum": 3434042132
+  },
+  {
+   "method": "builtin64",
+   "form": "xnor",
+   "words": 5,
+   "per_output": 3.552,
+   "checksum": 3434042132
+  },
+  {
+   "method": "builtin64",
+   "form": "and",
+   "words": 5,
+   "per_output": 3.815,
+   "checksum": 3434042132
+  },
+  {
+   "method": "swar",
+   "form": "xnor",
+   "words": 5,
+   "per_output": 3.62,
+   "checksum": 3434042132
+  },
+  {
+   "method": "swar",
+   "form": "and",
+   "words": 5,
+   "per_output": 4.214,
+   "checksum": 3434042132
+  },
+  {
+   "method": "lut8",
+   "form": "xnor",
+   "words": 5,
+   "per_output": 8.147,
+   "checksum": 3434042132
+  },
+  {
+   "method": "lut8",
+   "form": "and",
+   "words": 5,
+   "per_output": 8.671,
+   "checksum": 3434042132
+  },
+  {
+   "method": "lut16",
+   "form": "xnor",
+   "words": 5,
+   "per_output": 5.322,
+   "checksum": 3434042132
+  },
+  {
+   "method": "lut16",
+   "form": "and",
+   "words": 5,
+   "per_output": 5.558,
+   "checksum": 3434042132
+  },
+  {
+   "method": "hs",
+   "form": "xnor",
+   "words": 5,
+   "per_output": 4.644,
+   "checksum": 3434042132
+  },
+  {
+   "method": "hs",
+   "form": "and",
+   "words": 5,
+   "per_output": 5.013,
+   "checksum": 3434042132
+  },
+  {
+   "method": "avx2",
+   "form": "xnor",
+   "words": 5,
+   "per_output": 3.769,
+   "checksum": 3434042132
+  },
+  {
+   "method": "avx2",
+   "form": "and",
+   "words": 5,
+   "per_output": 4.267,
+   "checksum": 3434042132
+  },
+  {
+   "method": "builtin",
+   "form": "xnor",
+   "words": 9,
+   "per_output": 5.341,
+   "checksum": 1090075056
+  },
+  {
+   "method": "builtin",
+   "form": "and",
+   "words": 9,
+   "per_output": 5.883,
+   "checksum": 1090075056
+  },
+  {
+   "method": "builtin64",
+   "form": "xnor",
+   "words": 9,
+   "per_output": 4.513,
+   "checksum": 1090075056
+  },
+  {
+   "method": "builtin64",
+   "form": "and",
+   "words": 9,
+   "per_output": 4.896,
+   "checksum": 1090075056
+  },
+  {
+   "method": "swar",
+   "form": "xnor",
+   "words": 9,
+   "per_output": 5.295,
+   "checksum": 1090075056
+  },
+  {
+   "method": "swar",
+   "form": "and",
+   "words": 9,
+   "per_output": 5.934,
+   "checksum": 1090075056
+  },
+  {
+   "method": "lut8",
+   "form": "xnor",
+   "words": 9,
+   "per_output": 12.951,
+   "checksum": 1090075056
+  },
+  {
+   "method": "lut8",
+   "form": "and",
+   "words": 9,
+   "per_output": 13.499,
+   "checksum": 1090075056
+  },
+  {
+   "method": "lut16",
+   "form": "xnor",
+   "words": 9,
+   "per_output": 8.507,
+   "checksum": 1090075056
+  },
+  {
+   "method": "lut16",
+   "form": "and",
+   "words": 9,
+   "per_output": 8.625,
+   "checksum": 1090075056
+  },
+  {
+   "method": "hs",
+   "form": "xnor",
+   "words": 9,
+   "per_output": 6.632,
+   "checksum": 1090075056
+  },
+  {
+   "method": "hs",
+   "form": "and",
+   "words": 9,
+   "per_output": 7.162,
+   "checksum": 1090075056
+  },
+  {
+   "method": "avx2",
+   "form": "xnor",
+   "words": 9,
+   "per_output": 4.915,
+   "checksum": 1090075056
+  },
+  {
+   "method": "avx2",
+   "form": "and",
+   "words": 9,
+   "per_output": 5.506,
+   "checksum": 1090075056
+  },
+  {
+   "method": "builtin",
+   "form": "xnor",
+   "words": 18,
+   "per_output": 9.58,
+   "checksum": 679511732
+  },
+  {
+   "method": "builtin",
+   "form": "and",
+   "words": 18,
+   "per_output": 9.956,
+   "checksum": 679511732
+  },
+  {
+   "method": "builtin64",
+   "form": "xnor",
+   "words": 18,
+   "per_output": 6.591,
+   "checksum": 679511732
+  },
+  {
+   "method": "builtin64",
+   "form": "and",
+   "words": 18,
+   "per_output": 7.086,
+   "checksum": 679511732
+  },
+  {
+   "method": "swar",
+   "form": "xnor",
+   "words": 18,
+   "per_output": 9.355,
+   "checksum": 679511732
+  },
+  {
+   "method": "swar",
+   "form": "and",
+   "words": 18,
+   "per_output": 10.027,
+   "checksum": 679511732
+  },
+  {
+   "method": "lut8",
+   "form": "xnor",
+   "words": 18,
+   "per_output": 24.278,
+   "checksum": 679511732
+  },
+  {
+   "method": "lut8",
+   "form": "and",
+   "words": 18,
+   "per_output": 24.967,
+   "checksum": 679511732
+  },
+  {
+   "method": "lut16",
+   "form": "xnor",
+   "words": 18,
+   "per_output": 16.217,
+   "checksum": 679511732
+  },
+  {
+   "method": "lut16",
+   "form": "and",
+   "words": 18,
+   "per_output": 16.703,
+   "checksum": 679511732
+  },
+  {
+   "method": "hs",
+   "form": "xnor",
+   "words": 18,
+   "per_output": 20.152,
+   "checksum": 679511732
+  },
+  {
+   "method": "hs",
+   "form": "and",
+   "words": 18,
+   "per_output": 20.442,
+   "checksum": 679511732
+  },
+  {
+   "method": "avx2",
+   "form": "xnor",
+   "words": 18,
+   "per_output": 6.112,
+   "checksum": 679511732
+  },
+  {
+   "method": "avx2",
+   "form": "and",
+   "words": 18,
+   "per_output": 6.93,
+   "checksum": 679511732
+  },
+  {
+   "method": "builtin",
+   "form": "xnor",
+   "words": 36,
+   "per_output": 17.171,
+   "checksum": 3521260728
+  },
+  {
+   "method": "builtin",
+   "form": "and",
+   "words": 36,
+   "per_output": 19.592,
+   "checksum": 3521260728
+  },
+  {
+   "method": "builtin64",
+   "form": "xnor",
+   "words": 36,
+   "per_output": 10.785,
+   "checksum": 3521260728
+  },
+  {
+   "method": "builtin64",
+   "form": "and",
+   "words": 36,
+   "per_output": 11.472,
+   "checksum": 3521260728
+  },
+  {
+   "method": "swar",
+   "form": "xnor",
+   "words": 36,
+   "per_output": 18.984,
+   "checksum": 3521260728
+  },
+  {
+   "method": "swar",
+   "form": "and",
+   "words": 36,
+   "per_output": 19.766,
+   "checksum": 3521260728
+  },
+  {
+   "method": "lut8",
+   "form": "xnor",
+   "words": 36,
+   "per_output": 46.956,
+   "checksum": 3521260728
+  },
+  {
+   "method": "lut8",
+   "form": "and",
+   "words": 36,
+   "per_output": 47.901,
+   "checksum": 3521260728
+  },
+  {
+   "method": "lut16",
+   "form": "xnor",
+   "words": 36,
+   "per_output": 31.387,
+   "checksum": 3521260728
+  },
+  {
+   "method": "lut16",
+   "form": "and",
+   "words": 36,
+   "per_output": 31.908,
+   "checksum": 3521260728
+  },
+  {
+   "method": "hs",
+   "form": "xnor",
+   "words": 36,
+   "per_output": 35.988,
+   "checksum": 3521260728
+  },
+  {
+   "method": "hs",
+   "form": "and",
+   "words": 36,
+   "per_output": 36.737,
+   "checksum": 3521260728
+  },
+  {
+   "method": "avx2",
+   "form": "xnor",
+   "words": 36,
+   "per_output": 8.404,
+   "checksum": 3521260728
+  },
+  {
+   "method": "avx2",
+   "form": "and",
+   "words": 36,
+   "per_output": 9.568,
+   "checksum": 3521260728
+  },
+  {
+   "method": "builtin",
+   "form": "xnor",
+   "words": 72,
+   "per_output": 47.239,
+   "checksum": 915719316
+  },
+  {
+   "method": "builtin",
+   "form": "and",
+   "words": 72,
+   "per_output": 48.836,
+   "checksum": 915719316
+  },
+  {
+   "method": "builtin64",
+   "form": "xnor",
+   "words": 72,
+   "per_output": 21.498,
+   "checksum": 915719316
+  },
+  {
+   "method": "builtin64",
+   "form": "and",
+   "words": 72,
+   "per_output": 21.998,
+   "checksum": 915719316
+  },
+  {
+   "method": "swar",
+   "form": "xnor",
+   "words": 72,
+   "per_output": 47.387,
+   "checksum": 915719316
+  },
+  {
+   "method": "swar",
+   "form": "and",
+   "words": 72,
+   "per_output": 49.269,
+   "checksum": 915719316
+  },
+  {
+   "method": "lut8",
+   "form": "xnor",
+   "words": 72,
+   "per_output": 102.86,
+   "checksum": 915719316
+  },
+  {
+   "method": "lut8",
+   "form": "and",
+   "words": 72,
+   "per_output": 105.393,
+   "checksum": 915719316
+  },
+  {
+   "method": "lut16",
+   "form": "xnor",
+   "words": 72,
+   "per_output": 72.417,
+   "checksum": 915719316
+  },
+  {
+   "method": "lut16",
+   "form": "and",
+   "words": 72,
+   "per_output": 73.369,
+   "checksum": 915719316
+  },
+  {
+   "method": "hs",
+   "form": "xnor",
+   "words": 72,
+   "per_output": 67.675,
+   "checksum": 915719316
+  },
+  {
+   "method": "hs",
+   "form": "and",
+   "words": 72,
+   "per_output": 68.983,
+   "checksum": 915719316
+  },
+  {
+   "method": "avx2",
+   "form": "xnor",
+   "words": 72,
+   "per_output": 13.549,
+   "checksum": 915719316
+  },
+  {
+   "method": "avx2",
+   "form": "and",
+   "words": 72,
+   "per_output": 15.419,
+   "checksum": 915719316
+  },
+  {
+   "method": "builtin",
+   "form": "xnor",
+   "words": 144,
+   "per_output": 94.891,
+   "checksum": 58922504
+  },
+  {
+   "method": "builtin",
+   "form": "and",
+   "words": 144,
+   "per_output": 78.701,
+   "checksum": 58922504
+  },
+  {
+   "method": "builtin64",
+   "form": "xnor",
+   "words": 144,
+   "per_output": 53.197,
+   "checksum": 58922504
+  },
+  {
+   "method": "builtin64",
+   "form": "and",
+   "words": 144,
+   "per_output": 50.767,
+   "checksum": 58922504
+  },
+  {
+   "method": "swar",
+   "form": "xnor",
+   "words": 144,
+   "per_output": 95.122,
+   "checksum": 58922504
+  },
+  {
+   "method": "swar",
+   "form": "and",
+   "words": 144,
+   "per_output": 84.094,
+   "checksum": 58922504
+  },
+  {
+   "method": "lut8",
+   "form": "xnor",
+   "words": 144,
+   "per_output": 194.431,
+   "checksum": 58922504
+  },
+  {
+   "method": "lut8",
+   "form": "and",
+   "words": 144,
+   "per_output": 197.613,
+   "checksum": 58922504
+  },
+  {
+   "method": "lut16",
+   "form": "xnor",
+   "words": 144,
+   "per_output": 132.88,
+   "checksum": 58922504
+  },
+  {
+   "method": "lut16",
+   "form": "and",
+   "words": 144,
+   "per_output": 128.619,
+   "checksum": 58922504
+  },
+  {
+   "method": "hs",
+   "form": "xnor",
+   "words": 144,
+   "per_output": 137.523,
+   "checksum": 58922504
+  },
+  {
+   "method": "hs",
+   "form": "and",
+   "words": 144,
+   "per_output": 139.738,
+   "checksum": 58922504
+  },
+  {
+   "method": "avx2",
+   "form": "xnor",
+   "words": 144,
+   "per_output": 24.96,
+   "checksum": 58922504
+  },
+  {
+   "method": "avx2",
+   "form": "and",
+   "words": 144,
+   "per_output": 28.516,
+   "checksum": 58922504
+  }
+ ],
+ "fastest": {
+  "5": {
+   "method": "builtin64",
+   "form": "xnor",
+   "per_output": 3.552
+  },
+  "9": {
+   "method": "builtin64",
+   "form": "xnor",
+   "per_output": 4.513
+  },
+  "18": {
+   "method": "avx2",
+   "form": "xnor",
+   "per_output": 6.112
+  },
+  "36": {
+   "method": "avx2",
+   "form": "xnor",
+   "per_output": 8.404
+  },
+  "72": {
+   "method": "avx2",
+   "form": "xnor",
+   "per_output": 13.549
+  },
+  "144": {
+   "method": "avx2",
+   "form": "xnor",
+   "per_output": 24.96
+  }
+ },
+ "integer_checksums_ok": true,
+ "integer": [
+  {
+   "method": "int8",
+   "elements": 160,
+   "per_mac": 0.1357,
+   "checksum": 3776933512
+  },
+  {
+   "method": "avx2_int8",
+   "elements": 160,
+   "per_mac": 0.0357,
+   "checksum": 3776933512
+  },
+  {
+   "method": "vnni_int8",
+   "elements": 160,
+   "per_mac": 0.0325,
+   "checksum": 3776933512
+  },
+  {
+   "method": "int16",
+   "elements": 160,
+   "per_mac": 0.1178,
+   "checksum": 3776933512
+  },
+  {
+   "method": "int32",
+   "elements": 160,
+   "per_mac": 0.0739,
+   "checksum": 3776933512
+  },
+  {
+   "method": "float32",
+   "elements": 160,
+   "per_mac": 0.513,
+   "checksum": 3776933512
+  },
+  {
+   "method": "int8",
+   "elements": 288,
+   "per_mac": 0.0934,
+   "checksum": 4252233487
+  },
+  {
+   "method": "avx2_int8",
+   "elements": 288,
+   "per_mac": 0.0315,
+   "checksum": 4252233487
+  },
+  {
+   "method": "vnni_int8",
+   "elements": 288,
+   "per_mac": 0.0242,
+   "checksum": 4252233487
+  },
+  {
+   "method": "int16",
+   "elements": 288,
+   "per_mac": 0.0709,
+   "checksum": 4252233487
+  },
+  {
+   "method": "int32",
+   "elements": 288,
+   "per_mac": 0.0687,
+   "checksum": 4252233487
+  },
+  {
+   "method": "float32",
+   "elements": 288,
+   "per_mac": 0.6077,
+   "checksum": 4252233487
+  },
+  {
+   "method": "int8",
+   "elements": 576,
+   "per_mac": 0.079,
+   "checksum": 1352200758
+  },
+  {
+   "method": "avx2_int8",
+   "elements": 576,
+   "per_mac": 0.0286,
+   "checksum": 1352200758
+  },
+  {
+   "method": "vnni_int8",
+   "elements": 576,
+   "per_mac": 0.0231,
+   "checksum": 1352200758
+  },
+  {
+   "method": "int16",
+   "elements": 576,
+   "per_mac": 0.0209,
+   "checksum": 1352200758
+  },
+  {
+   "method": "int32",
+   "elements": 576,
+   "per_mac": 0.0882,
+   "checksum": 1352200758
+  },
+  {
+   "method": "float32",
+   "elements": 576,
+   "per_mac": 0.7217,
+   "checksum": 1352200758
+  },
+  {
+   "method": "int8",
+   "elements": 1152,
+   "per_mac": 0.0787,
+   "checksum": 432965776
+  },
+  {
+   "method": "avx2_int8",
+   "elements": 1152,
+   "per_mac": 0.0274,
+   "checksum": 432965776
+  },
+  {
+   "method": "vnni_int8",
+   "elements": 1152,
+   "per_mac": 0.0283,
+   "checksum": 432965776
+  },
+  {
+   "method": "int16",
+   "elements": 1152,
+   "per_mac": 0.0225,
+   "checksum": 432965776
+  },
+  {
+   "method": "int32",
+   "elements": 1152,
+   "per_mac": 0.0785,
+   "checksum": 432965776
+  },
+  {
+   "method": "float32",
+   "elements": 1152,
+   "per_mac": 0.7798,
+   "checksum": 432965776
+  }
+ ]
+}

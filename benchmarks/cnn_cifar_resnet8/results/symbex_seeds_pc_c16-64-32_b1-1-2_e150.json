@@ -1,0 +1,16 @@
+{
+ "width": 1,
+ "spec": "16-64-32/1-1-2",
+ "board": null,
+ "weights": "flash",
+ "popcount": "swar",
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 1,
+   "val_accuracy": 66.87,
+   "flash_kb": 15.1171875,
+   "exactness": 100.0
+  }
+ ]
+}

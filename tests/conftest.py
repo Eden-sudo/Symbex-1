@@ -13,14 +13,14 @@ from helpers import SymbexLayerData
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIB_SYMBEX = os.path.join(REPO, "Symbex1_PIO", "lib", "lib_symbex")
 C_SOURCES = [
-    os.path.join(LIB_SYMBEX, "src", "hal", "generico", "symbex_hal_impl.c"),
-    os.path.join(LIB_SYMBEX, "src", "layers", "vector", "symbex_dense.c"),
+    os.path.join(LIB_SYMBEX, "src", "hal", "generic", "symbex_hal_impl.c"),
+    os.path.join(LIB_SYMBEX, "src", "layers", "dense", "symbex_dense.c"),
     os.path.join(LIB_SYMBEX, "src", "ops", "symbex_bitpack.c"),
 ]
 
-# popcount paths of hal/generico, chosen at compile time
-POPCOUNT_VARIANTS = {"native": [], "swar": ["-DSYMBEX_POPCOUNT_FORZAR_SWAR"],
-                     "lut16": ["-DSYMBEX_POPCOUNT_FORZAR_LUT16"]}
+# popcount paths of hal/generic, chosen at compile time
+POPCOUNT_VARIANTS = {"native": [], "swar": ["-DSYMBEX_POPCOUNT_FORCE_SWAR"],
+                     "lut16": ["-DSYMBEX_POPCOUNT_FORCE_LUT16"]}
 
 
 @pytest.fixture
@@ -41,10 +41,10 @@ def _declare(lib):
         "symbex_xnor_popcount": ([u32p, u32p, ctypes.c_int, ctypes.c_int], ctypes.c_int32),
         "symbex_hal_popcount32": ([ctypes.c_uint32], ctypes.c_int32),
         "symbex_dense_forward": ([u32p, i32p, layer_p], None),
-        "symbex_dense_entrada_u8": ([u8p, i32p, layer_p], None),
-        "symbex_dense_entrada_u8_mascara": ([u8p, i32p, layer_p], None),
-        "symbex_dense_entrada_u8_planos": ([u8p, u32p, i32p, layer_p], None),
-        "symbex_dense_umbral": ([i32p, i32p, u32p, ctypes.c_uint16], None),
+        "symbex_dense_input_u8": ([u8p, i32p, layer_p], None),
+        "symbex_dense_input_u8_mask": ([u8p, i32p, layer_p], None),
+        "symbex_dense_input_u8_planes": ([u8p, u32p, i32p, layer_p], None),
+        "symbex_dense_threshold":([i32p, i32p, u32p, ctypes.c_uint16], None),
         "symbex_bitpack_from_scores": ([i32p, u32p, ctypes.c_uint16], None),
     }
     for name, (args, res) in signatures.items():
@@ -55,7 +55,7 @@ def _declare(lib):
 
 @pytest.fixture(scope="session")
 def c_libs(tmp_path_factory):
-    """{variant: ctypes library}, one per popcount path of hal/generico. Skipped without gcc."""
+    """{variant: ctypes library}, one per popcount path of hal/generic. Skipped without gcc."""
     if shutil.which("gcc") is None:
         pytest.skip("gcc not found: C engine tests skipped")
     d = tmp_path_factory.mktemp("lib_symbex")
