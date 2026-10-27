@@ -216,7 +216,8 @@ def niveles_usados(capas, qmax):
 # ---------------------------------------------------------------------------------------------------
 # 4. Quantization-aware fine-tuning
 # ---------------------------------------------------------------------------------------------------
-def entrenar_qat(modelo, maestro, x_tr, y_tr, x_te, y_te, epocas, semilla, lote=256, distill=True):
+def entrenar_qat(modelo, maestro, x_tr, y_tr, x_va, y_va, epocas, semilla, lote=256, distill=True):
+    """x_va, y_va: the validation split (training images the QAT does not train on), only for the per-epoch log"""
     import torch
     import torch.nn.functional as F
     torch.manual_seed(semilla)
@@ -242,9 +243,9 @@ def entrenar_qat(modelo, maestro, x_tr, y_tr, x_te, y_te, epocas, semilla, lote=
             opt.step()
             total += loss.item() * len(idx)
         sched.step()
-        acc = 100 * float((predecir_fq(modelo, x_te) == y_te).mean())
+        acc = 100 * float((predecir_fq(modelo, x_va) == y_va).mean())
         historia.append([ep, total / len(xt), acc])
-        print(f"      QAT epoch {ep + 1}/{epocas} | loss {total / len(xt):.4f} | test (fake-quant) {acc:.2f}%")
+        print(f"      QAT epoch {ep + 1}/{epocas} | loss {total / len(xt):.4f} | validation (fake-quant) {acc:.2f}%")
     return historia
 
 
@@ -334,7 +335,8 @@ def main():
             m = construir_modelo(capas, bits, [escala_mse(W, qmax) for W, _, _ in capas])
             calibrar(m, x_calib)
             keep = cdt_training_indices(len(x_tr))                 # the images the CDT trains on (every seed)
-            historia = entrenar_qat(m, maestro, x_tr[keep], y_tr[keep], x_te.astype(np.float32) / 255.0, y_te,
+            held = np.setdiff1d(np.arange(len(x_tr)), keep)        # the validation split: per-epoch log, not the test
+            historia = entrenar_qat(m, maestro, x_tr[keep], y_tr[keep], x_tr[held], y_tr[held],
                                     args.epocas, semilla, distill=not args.no_distill)
             r = evaluar(f"qat s{semilla}", m, bits, x_val, y_val, x_te, y_te)
             r.update(semilla=semilla, epocas=args.epocas, history=historia, train_images=len(keep),
