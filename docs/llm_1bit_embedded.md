@@ -18,8 +18,11 @@ the activations (4 to 8 bits), plus the KV cache.
 
 SYMBEX's XNOR/popcount path needs **1-bit activations** too. In an LLM they are not: the inputs of every linear layer
 are 4 to 8 bit. In today's SYMBEX the layer whose input is multi-bit (the first layer, input uint8 x weights 1-bit) takes
-a slower path than the binary-binary layers, and the repo owner reports that this first-layer path is about 96-98 % of
-the inference time in the current benchmarks (not reproduced in this change; reproduce with `tools/fine_profile.py`).
+a slower path than the binary-binary layers: measured on the ESP32-S3 in `benchmarks/mlp_fashion` (October 2026), it is
+59-90 % of the inference time (784-256-512-10 with the weights in flash: 2.07 of 3.53 ms). lib_symbex already has a PIE
+version of this path (`ee.vmulas.u8.accx`, 16 inputs per instruction, `src/hal/esp32s3/symbex_hal_impl.c`): a
+784 x 128 layer runs in 0.270 ms with its weights in RAM, about 0.65 cycles per weight (uint8 activations; an LLM needs
+signed int8, `ee.vmulas.s8`, not tried yet).
 In an LLM **every** layer would take that path.
 
 So the kernel that matters is **activation (4-8 bit) x weight (1 bit)**. `kernels/onebit_gemv.c` holds the candidates, all

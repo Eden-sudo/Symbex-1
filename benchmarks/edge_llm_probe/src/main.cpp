@@ -392,7 +392,12 @@ static void bw_read_buffer(const char* tier, const char* test, const uint32_t* b
     const uint32_t passes = passes_for(bytes);
     bw_report(tier, test, bytes * passes, PROBE_BW_REPS, [&]() {
         uint32_t s = 0;
-        for (uint32_t p = 0; p < passes; p++) s += read_sum(buf, bytes / 4);
+        for (uint32_t p = 0; p < passes; p++) {
+            s += read_sum(buf, bytes / 4);
+            /* without this barrier GCC sees read_sum as pure (same buffer, same result) and calls it ONCE for all
+               the passes: the small buffers reported 100+ GB/s and the 1 MB ones 4x their real bandwidth */
+            __asm__ __volatile__("" ::: "memory");
+        }
         g_sink = g_sink + s;
     });
 }

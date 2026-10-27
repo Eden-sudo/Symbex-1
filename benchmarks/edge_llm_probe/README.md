@@ -149,10 +149,45 @@ schematic. The Freenove ESP32-S3-WROOM CAM is documented as using the ESP32-S3-E
 
 | Board | Memory BW | Kernels (cycles/weight) | Power per phase | Camera |
 |---|---|---|---|---|
-| ESP32-S3 | pending: run on hardware | pending: run on hardware | pending: run on hardware | pending: run on hardware |
+| ESP32-S3 | measured, see below | measured, see below | pending: needs the USB meter | not on this board |
 | ESP32-CAM | pending: run on hardware | pending: run on hardware | pending: run on hardware | pending: run on hardware |
 
 Commit the JSON files produced by `parse_log.py` under `results/` once they exist.
+
+### ESP32-S3-DevKitC-1 N16R8 (October 2026)
+
+Env `esp32s3_devkit` (16 MB flash, 8 MB octal PSRAM, no SD slot, no camera, log on the native USB port), 240 MHz.
+Raw log: `results/capture_s3_devkit.log`; parsed: `results/esp32s3_20261027_010134.json`. Every kernel line is `OK`
+(identical integers to `gemv_ref` on the chip, 72 of 72).
+
+Sequential read bandwidth (MB = 10^6 bytes, best of 7):
+
+| Tier | read32_seq | memcpy to SRAM |
+|---|---|---|
+| SRAM 16 KB / 128 KB | 422 / 424 MB/s | 379 / 380 MB/s |
+| PSRAM 16 KB (fits the cache) | 422 MB/s | 379 MB/s |
+| PSRAM 1 MB / 4 MB | 61.8 / 61.9 MB/s | 60.4 / 60.4 MB/s |
+| flash, memory-mapped, 1 MB | 26.5 MB/s | 26.5 MB/s |
+
+Cycles per weight, 2048 x 2048 (256 x 1024 for SRAM; PSRAM and flash cache-cold, best of 3):
+
+| Kernel | SRAM | PSRAM | flash |
+|---|---|---|---|
+| `ref` | 16.12 | 16.43 | 16.56 |
+| `mask` | 10.44 | 10.74 | 10.87 |
+| `lut4` (build + lookup) | 1.89 | 1.94 | 2.07 |
+| `lut4_2core_lookup` (wall clock, both cores) | 0.81 | 0.96 | 1.11 |
+| `bitserial4` | 2.67 | 2.98 | 3.11 |
+| `xnor` (1-bit activations, lower bound) | 0.68 | 0.99 | 1.20 |
+
+Against the kill criteria of the design note (section 9: more than 8 cycles per weight, or less than ~7 MB/s, re-plan):
+the best kernel is 0.96-1.11 cycles per weight and PSRAM / flash read at 62 / 26 MB/s, so the 15M model is not ruled out.
+`parse_log.py` PROJECTS (arithmetic, not a measurement; no attention, KV cache or int8 head) 7-17 tok/s for 15M and
+3.6-8.4 tok/s for 30M. `mask` is the portable C of the multi-bit-input path; lib_symbex's PIE version of it is about
+0.65 cycles per weight from RAM (design note, section 2), not measured by this probe.
+
+The first run of `read32_seq` read each buffer once per call instead of once per pass (GCC treated the read as pure
+across passes): fixed with a memory barrier in `bw_read_buffer`; the numbers above are after the fix.
 
 ## Host tests
 
