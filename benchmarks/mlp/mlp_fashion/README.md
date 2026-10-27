@@ -262,7 +262,7 @@ criterion fixed before running (K = 256 losing more than 1 point discards it) wa
 PopLUT is **discarded** as a direct replacement.
 
 As a size point it is still of some interest: the binary x1 model (784-256-128-10, 15 epochs, validation held out of
-training) reached 82.85 % on test with about 29.3 KB of 1-bit weights (`results/symbex_x1_e15_train.json`); PopLUT
+training) reached 82.85 % on test with about 29.3 KB of 1-bit weights (`results/earlier/symbex_x1_e15_train.json`); PopLUT
 K = 256 on x2 is 1.19 points more accurate and about 27 % smaller. INT2 QAT still dominates in accuracy. Caveats: the
 x2 model was trained before the validation fix (last checkpoint, no selection); a single k-means seed; not tested on
 the chip; the C lookup kernel does not exist yet.
@@ -342,7 +342,10 @@ python earlier/fashion_int4.py --bits 4 2 --semillas 3 --epocas 15              
 python earlier/pareto.py                                                              # accuracy vs. weight bytes
 ```
 
-Results land in `results/`; everything generated goes to `runs/` (`../clean.py` frees the build folders without
+Results land in `results/`, one folder per script: `symbex/` (fashion_symbex.py), `tflite/` (fashion_tflite.py),
+`lowbit/` (fashion_lowbit.py, lowbit_study.py and the earlier INT scripts), `sizing/` (fashion_sizing.py), and
+`earlier/`: the results from before the validation fix or the current library (the *Earlier results* above), kept
+for the record. Everything generated goes to `runs/` (`../clean.py` frees the build folders without
 touching any result). Measured in October 2026 on an ESP32-S3 (QFN56, rev v0.2), 240 MHz.
 
 ## Limitations

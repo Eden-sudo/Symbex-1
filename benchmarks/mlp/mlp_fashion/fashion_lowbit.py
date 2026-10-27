@@ -12,12 +12,13 @@ arithmetic).
 
 Run from benchmarks/mlp/mlp_fashion/ (environment env_bench). Data: the CDT's split (model.split_indices: the training
 images minus the fixed validation split), validation on that split, the 10,000 test images evaluated once per final
-model. Results: results/lowbit[_h<h1>_<h2>][_nodistill].json; integer models in runs/lowbit/.
+model. Results: results/lowbit/lowbit[_h<h1>_<h2>][_nodistill].json; integer models in runs/lowbit/.
 On the board (--board): the seed-42 QAT model of every bit width as C on ESP-NN (tools/lowbit/export_c.py), the first
 --images test images, measured with tools/chip_test.py and checked against the integer simulation (must be 100 %);
-results: results/lowbit_esp_nn_<board>_<weights>[tag].json.
+results: results/lowbit/lowbit_esp_nn_<board>_<weights>[tag].json.
 """
 import argparse
+import hashlib
 import os
 import sys
 
@@ -43,6 +44,11 @@ def load_data():
                 norm(te.data.numpy()), torch.as_tensor(te.targets.numpy().astype(np.int64)))
 
 
+def sha256(path):
+    """the FP32 model is retrained per machine and not bit-identical: every result records which one it started from"""
+    return hashlib.sha256(open(path, "rb").read()).hexdigest()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bits", type=int, nargs="+", default=[8, 4, 2], choices=[2, 3, 4, 8])
@@ -51,10 +57,12 @@ def main():
     ap.add_argument("--no-distill", action="store_true", help="QAT on the labels only")
     ap.add_argument("--no-ptq", action="store_true", help="QAT only (skip the post-training methods)")
     ap.add_argument("--shape", default="256-128", help="hidden widths h1-h2 of the FP32 model (as fashion_sizing.py)")
+    ap.add_argument("--fp32-epochs", type=int, default=None,
+                    help="epochs of the FP32 model (default model.EPOCHS); others: results and models get _f<N>")
     ap.add_argument("--chip-only", action="store_true", help="no training: export and measure the saved models")
     ap.add_argument("--ablation", action="store_true",
                     help="binary weights or binary activations? weights 1/2/4/8 bits x activations binary/int8, "
-                         "fake-quant on the PC; results/lowbit_ablation[tag].json")
+                         "fake-quant on the PC; results/lowbit/lowbit_ablation[tag].json")
     ap.add_argument("--board", choices=["esp32", "s3"], help="measure the seed-42 models on this board")
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--usb", action="store_true", help="the S3's native USB port (chip_test.py --usb)")
@@ -67,31 +75,34 @@ def main():
     from model import FashionMLP, get_fp32
     h1, h2 = (int(v) for v in args.shape.split("-"))
     shape_tag = "" if (h1, h2) == (256, 128) else f"_h{h1}_{h2}"
+    from model import EPOCHS
+    fp32_epochs = args.fp32_epochs or EPOCHS
+    shape_tag += "" if fp32_epochs == EPOCHS else f"_f{fp32_epochs}"
     tag = shape_tag + ("_nodistill" if args.no_distill else "")
     model_dir = os.path.join("runs", "lowbit" + tag)
     data = load_data()
     if args.ablation:
         model = FashionMLP(h1, h2)
-        model.load_state_dict(torch.load(get_fp32(h1, h2), map_location="cpu"))
+        model.load_state_dict(torch.load(get_fp32(h1, h2, fp32_epochs), map_location="cpu"))
         res = ablation("mlp_fashion", model, data, seeds=[42 + k for k in range(args.seeds)], epochs=args.epochs,
                        distill=not args.no_distill)
-        res["shape"] = f"784-{h1}-{h2}-10"
-        save(res, os.path.join("results", f"lowbit_ablation{tag}.json"))
+        res.update(shape=f"784-{h1}-{h2}-10", fp32_sha256=sha256(get_fp32(h1, h2, fp32_epochs)))
+        save(res, os.path.join("results", "lowbit", f"lowbit_ablation{tag}.json"))
         return
     if not args.chip_only:
         model = FashionMLP(h1, h2)
-        model.load_state_dict(torch.load(get_fp32(h1, h2), map_location="cpu"))
+        model.load_state_dict(torch.load(get_fp32(h1, h2, fp32_epochs), map_location="cpu"))
         res = run("mlp_fashion", model, data, bits=args.bits, seeds=[42 + k for k in range(args.seeds)],
                   epochs=args.epochs, distill=not args.no_distill, out_dir=model_dir, ptq=not args.no_ptq)
-        res["shape"] = f"784-{h1}-{h2}-10"
+        res.update(shape=f"784-{h1}-{h2}-10", fp32_sha256=sha256(get_fp32(h1, h2, fp32_epochs)))
         table(res)
-        save(res, os.path.join("results", f"lowbit{tag}.json"))
+        save(res, os.path.join("results", "lowbit", f"lowbit{tag}.json"))
     if args.board or args.chip_only:
         rows = chip_study(model_dir, data.x_test[:args.images].numpy(), data.y_test[:args.images].numpy(), args.bits,
                           "_nodistill" if args.no_distill else "", os.path.join("runs", "lowbit_chip" + shape_tag),
                           args.board, args.port, args.usb, args.weights)
         if args.board:
-            save(rows, os.path.join("results", f"lowbit_esp_nn_{args.board}_{args.weights}{tag}.json"))
+            save(rows, os.path.join("results", "lowbit", f"lowbit_esp_nn_{args.board}_{args.weights}{tag}.json"))
 
 
 if __name__ == "__main__":

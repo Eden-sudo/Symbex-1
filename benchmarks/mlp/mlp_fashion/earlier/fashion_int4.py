@@ -25,12 +25,12 @@ Methods, all from the SAME original FP32 model (models/fashion_mlp.pth, model.ge
   qat         quantization-aware fine-tuning from ptq_mse: fake-quant with the straight-through estimator,
               learnable channel scales, activation ranges by moving average; same loss and optimizer as the
               CDT (Adam lr 1e-3, cosine, distillation from the FP32 model, T = 4, alpha = 0.85)
-An INT8 reference (--bits 8) uses the same code, as a sanity check against results/tflite_pc.json.
+An INT8 reference (--bits 8) uses the same code, as a sanity check against results/tflite/tflite_pc.json.
 
 Accuracy on the first 2000 Fashion-MNIST test images (the same images as tflite_pc.json and
 symbex_*_export.json) and on the whole 10,000-image test set (the same set as acc_last in symbex_*_train.json).
 Bytes: packed weights (ceil(n * bits / 8), nibbles for INT4) and the total with scales and int32 biases.
-Results: results/int<bits>_pc.json (int4_pc.json, int2_pc.json, int8_pc.json); with --epocas other than 5,
+Results: results/lowbit/int<bits>_pc.json (int4_pc.json, int2_pc.json, int8_pc.json); with --epocas other than 5,
 results/int<bits>_e<epochs>_pc.json. --shape 128-512: the same for another FP32 shape (results/..._h128_512_...).
 """
 import argparse
@@ -318,7 +318,7 @@ def main():
     acc_fp32_10k = 100 * float((pred_fp32 == y_te).mean())
     acc_fp32 = 100 * float((pred_fp32[:len(y_val)] == y_val).mean())
     print(f"[*] FP32 folded: {acc_fp32:.2f}% ({len(y_val)} images) | {acc_fp32_10k:.2f}% (10k) | {ruta_fp32}")
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join("results", "lowbit"), exist_ok=True)
 
     for bits in args.bits:
         qmax = 2 ** (bits - 1) - 1
@@ -353,7 +353,7 @@ def main():
             precision_10k=float(np.mean([q["precision_10k"] for q in qat])),
             precision_10k_std=float(np.std([q["precision_10k"] for q in qat], ddof=1)), n=len(y_val), epocas=args.epocas)
         res["segundos"] = round(time.time() - t0, 1)
-        ruta = (f"results/int{bits}{'' if args.epocas == EPOCAS_QAT else f'_e{args.epocas}'}{shape_tag}"
+        ruta = (f"results/lowbit/int{bits}{'' if args.epocas == EPOCAS_QAT else f'_e{args.epocas}'}{shape_tag}"
                 f"{'_nodistill' if args.no_distill else ''}_pc.json")
         res["distill"] = not args.no_distill
         res["shape"] = f"784-{h1}-{h2}-10"

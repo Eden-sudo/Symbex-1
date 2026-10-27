@@ -65,9 +65,9 @@ def filas_cdt(nombre_base, ruta_export, ruta_train, fuente):
 
 def filas_symbex():
     filas, semillas = [], []
-    for exp in sorted(glob.glob(os.path.join("results", "symbex_s*_export.json"))):
+    for exp in sorted(glob.glob(os.path.join("results", "earlier", "symbex_s*_export.json"))):
         semilla = re.search(r"symbex_s(\d+)_export", exp).group(1)
-        s, *r8 = filas_cdt(f"SYMBEX 1-bit s{semilla}", exp, os.path.join("results", f"symbex_s{semilla}_train.json"),
+        s, *r8 = filas_cdt(f"SYMBEX 1-bit s{semilla}", exp, os.path.join("results", "earlier", f"symbex_s{semilla}_train.json"),
                            os.path.basename(exp))
         filas.append(s)
         semillas.append(s)
@@ -89,7 +89,7 @@ def filas_symbex_dir(carpeta):
 
 
 def filas_tflite(fp32_publicado):
-    ruta = os.path.join("results", "tflite_pc.json")
+    ruta = os.path.join("results", "tflite", "tflite_pc.json")
     if not os.path.exists(ruta):
         return []
     d = json.load(open(ruta))
@@ -99,7 +99,7 @@ def filas_tflite(fp32_publicado):
 
 def filas_int():
     filas = []
-    for ruta in sorted(glob.glob(os.path.join("results", "int*_pc.json"))):
+    for ruta in sorted(glob.glob(os.path.join("results", "earlier", "int*_pc.json")) + glob.glob(os.path.join("results", "lowbit", "int*_pc.json"))):
         d = json.load(open(ruta))
         b = d["bits"]
         for metodo, r in d["metodos"].items():
@@ -184,10 +184,10 @@ def main():
               f"  {'*' if f['pareto'] else ' '}  {f['fuente']}")
     print(f"    (* = on the Pareto front by {'packed weight' if clave == 'pesos_bytes' else 'total'} bytes vs acc 2000)")
     sufijo = "" if clave == "pesos_bytes" else "_total"
-    json.dump(dict(por=clave, filas=filas), open(os.path.join("results", f"pareto{sufijo}.json"), "w"), indent=1)
-    print(f"    -> results/pareto{sufijo}.json")
-    if grafico(filas, clave, os.path.join("results", f"pareto{sufijo}.png")):
-        print(f"    -> results/pareto{sufijo}.png")
+    json.dump(dict(por=clave, filas=filas), open(os.path.join("results", "earlier", f"pareto{sufijo}.json"), "w"), indent=1)
+    print(f"    -> results/earlier/pareto{sufijo}.json")
+    if grafico(filas, clave, os.path.join("results", "earlier", f"pareto{sufijo}.png")):
+        print(f"    -> results/earlier/pareto{sufijo}.png")
 
 
 if __name__ == "__main__":

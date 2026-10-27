@@ -31,7 +31,7 @@ Also: Hamming error (fraction of weight bits that changed), entropy of the (inde
 word an entropy coder could reach), and the packed weight bytes.
 
 Kill criterion (fixed before running): if K = 256 after the fine-tune loses more than 1 point against base,
-PopLUT post hoc is discarded for this model. Results: results/poplut_probe.json.
+PopLUT post hoc is discarded for this model. Results: mlp_fashion/results/earlier/poplut_probe.json.
 """
 import argparse
 import json
@@ -184,7 +184,7 @@ def main():
     ap.add_argument("--k", type=int, nargs="+", default=[16, 64, 256])
     ap.add_argument("--epocas-ft", type=int, default=3)
     ap.add_argument("--semilla", type=int, default=0)
-    ap.add_argument("--salida", default=os.path.join(AQUI, "results", "poplut_probe.json"))
+    ap.add_argument("--salida", default=os.path.join(AQUI, "results", "earlier", "poplut_probe.json"))
     args = ap.parse_args()
 
     tr, te = datos()

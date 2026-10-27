@@ -24,7 +24,7 @@ predicted 1.71 ms, measured 0.42 ms on the S3). So the table shows the MEASURED 
 on the board (runs/sizing/h<h1>_<h2>_s42*/chip_*.json; the latency depends on the shape, not on the weight values),
 and the prediction, marked "~", only where it has not. Measure the shapes on the board (weights in flash, then RAM):
     python fashion_sizing.py --shapes 128-512 256-512 384-512 512-256 --seeds 3 --measure --board s3 --port /dev/ttyUSB0
-Results: results/fashion_sizing.json.
+Results: results/sizing/fashion_sizing.json.
 """
 import argparse
 import glob
@@ -215,11 +215,11 @@ def main():
     for k, (c1, c2) in sorted(costs.items()):
         print(f"\n    chip cost per weight, {k[0]} {k[1]}: first layer (uint8 x 1 bit) {c1:.2f} ns, binary layers {c2:.2f} ns", end="")
     print("\n\n    * Pareto: no other shape is more accurate on validation AND faster (first setting)")
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join("results", "sizing"), exist_ok=True)
     json.dump(dict(seed=args.seed, seeds=args.seeds, epochs=EPOCHS, distill=not SUFFIX,
                    costs={f"{b} {w}": c for (b, w), c in costs.items()}, rows=rows),
-              open(os.path.join("results", f"fashion_sizing{SUFFIX}.json"), "w"), indent=1)
-    print(f"    -> results/fashion_sizing{SUFFIX}.json")
+              open(os.path.join("results", "sizing", f"fashion_sizing{SUFFIX}.json"), "w"), indent=1)
+    print(f"    -> results/sizing/fashion_sizing{SUFFIX}.json")
 
 
 if __name__ == "__main__":

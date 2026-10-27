@@ -51,6 +51,13 @@ INT8 on ESP-NN 30.35 / 34.61 / 41.38 ms in flash; none of them runs with the wei
 moved to `benchmarks/experiments/`. `earlier/pareto.py` already failed before the move (a file-name pattern): to
 fix when the Pareto plot moves into `tools/lowbit`.
 
+**mlp_fashion results sorted by script:** `results/symbex/`, `tflite/`, `lowbit/`, `sizing/`, and `earlier/` (83
+files from before the validation fix or the current library, kept for the README's *Earlier results*). Five files
+with no marker turned out old (their FP32 scored 88.17 %): regenerated with the current model (TFLite PC 89.70 %,
+S3 15.90 / 0.884 ms, ESP32 41.97 ms: the README's numbers; SYMBEX x1, 3 seeds). The lowbit results record the FP32
+sha256. `--fp32-epochs N` works again (`fashion_symbex.py`; new in `fashion_tflite.py`, `fashion_lowbit.py`):
+`model.get_fp32(h1, h2, epochs)` trains `models/fashion_mlp[_h1_h2]_e<N>.pth`, results get `_f<N>`.
+
 **Benchmarks grouped by network type:** `benchmarks/mlp/`, `conv1d/`, `conv2d/`; every relative path updated and
 checked; the benchmark `.gitignore` matches `runs/` and `models/` at any depth.
 

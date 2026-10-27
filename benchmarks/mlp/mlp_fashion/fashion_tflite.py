@@ -3,7 +3,7 @@ fashion_tflite.py -- mlp_fashion benchmark, official INT8 side (TensorFlow Lite)
 
     python fashion_tflite.py                    # convert to INT8 with TFLite and evaluate it on the PC
     python fashion_tflite.py --board esp32      # ... and measure it on the board with TensorFlow Lite Micro
-    python fashion_tflite.py --table-only       # only the comparison table, from results/ (no board)
+    python fashion_tflite.py --table-only       # only the comparison table, from results/tflite/ (no board)
     python fashion_tflite.py --shape 128-512 --board s3 --port /dev/ttyACM0 --usb   # INT8 of the binary-sized MLP
 --no-upload assumes the TFLite firmware is still on the board: after running the SYMBEX side (which flashes
 its own firmware), measure without --no-upload, or just print the table with --table-only.
@@ -24,7 +24,7 @@ It does not need the SYMBEX side to have run: the FP32 model is trained here (mo
   4. with --board: ESP-IDF project with TFLite Micro, flashed with PlatformIO; the images are streamed over
      serial and the chip reports the class and the latency it measured; the predictions must equal the
      PC interpreter's
-Results: results/tflite_pc.json and results/tflite_<board>.json; with both sides done, a comparison table.
+Results: results/tflite/tflite_pc.json and results/tflite/tflite_<board>.json; with both sides done, a comparison table.
 """
 import argparse
 import json
@@ -298,11 +298,11 @@ def final_table(r_tfl, board):
     import glob
     tflite = {}
     for suffix, place in (("", "flash"), ("_ram", "ram")):
-        path = os.path.join("results", f"tflite_{board}{suffix}.json")
+        path = os.path.join("results", "tflite", f"tflite_{board}{suffix}.json")
         if os.path.exists(path):
             tflite[place] = json.load(open(path))
     symbex = {"flash": [], "ram": []}
-    for f in sorted(glob.glob(os.path.join("results", f"symbex_s*_chip_{board}_*.json"))):
+    for f in sorted(glob.glob(os.path.join("results", "earlier", f"symbex_s*_chip_{board}_*.json"))):
         d = json.load(open(f))
         if d.get("weights") in symbex and "accuracy" in d:
             seed = os.path.basename(f).split("_")[1]
@@ -347,11 +347,14 @@ def main():
                     help="copy the .tflite to internal RAM at boot (fair against SYMBEX --weights ram; the ESP32-S3 "
                          "has room for it, the classic ESP32 usually does not)")
     ap.add_argument("--table-only", action="store_true",
-                    help="only print the comparison table from results/ (no conversion, no board needed)")
+                    help="only print the comparison table from results/tflite/ (no conversion, no board needed)")
     ap.add_argument("--shape", default="256-128",
                     help="hidden widths h1-h2 of the FP32 model (models/fashion_mlp_<h1>_<h2>.pth, as in "
                          "fashion_sizing.py): INT8 of a network sized for binary; other than 256-128, results get "
                          "_h<h1>_<h2>")
+    ap.add_argument("--fp32-epochs", type=int, default=None,
+                    help="epochs of the FP32 model (default model.EPOCHS); others: models/fashion_mlp[...]_e<N>.pth, "
+                         "results get _f<N>")
     ap.add_argument("--usb", action="store_true", help="the ESP32-S3's native USB port (/dev/ttyACM0), not its UART")
     args = ap.parse_args()
     if args.port and not args.port.startswith("/") and not args.port.upper().startswith("COM"):
@@ -360,17 +363,21 @@ def main():
         sys.exit("[X] --usb: only the ESP32-S3 (--board s3) has a native USB-Serial-JTAG port")
     h1, h2 = (int(v) for v in args.shape.split("-"))
     tag = "" if (h1, h2) == (256, 128) else f"_h{h1}_{h2}"
+    sys.path.insert(0, HERE)
+    from model import EPOCHS
+    fp32_epochs = args.fp32_epochs or EPOCHS
+    tag += "" if fp32_epochs == EPOCHS else f"_f{fp32_epochs}"
     os.chdir(HERE)
     if args.table_only:
         board = args.board or "esp32"
-        path = os.path.join("results", f"tflite_{board}{tag}{'_ram' if args.model_ram else ''}.json")
+        path = os.path.join("results", "tflite", f"tflite_{board}{tag}{'_ram' if args.model_ram else ''}.json")
         if not os.path.exists(path):
             sys.exit(f"[X] {path} not found: measure the TFLite model on the board first (--board {board})")
         final_table(json.load(open(path)), board)
         return
     sys.path.insert(0, HERE)
     from model import get_fp32, validation_u8, calibration_u8
-    fp32_path = get_fp32(h1, h2)                     # trained here if missing (models/)
+    fp32_path = get_fp32(h1, h2, fp32_epochs)        # trained here if missing (models/)
     x_val, y_val = validation_u8(args.validation)        # the same images the SYMBEX side validates
 
     print("[*] 1-2. Keras rebuild of the original FP32 model and official INT8 conversion (TFLiteConverter)")
@@ -391,8 +398,8 @@ def main():
                 shape=f"784-{h1}-{h2}-10")
     print(f"    accuracy {r_pc['accuracy']:.2f}% | same class as FP32 {r_pc['acuerdo_fp32']:.2f}% | "
           f".tflite {len(tflite) / 1024:.1f} KB | input scale {in_scale:.6f}, zero point {zero_point}")
-    os.makedirs("results", exist_ok=True)
-    json.dump(r_pc, open(f"results/tflite_pc{tag}.json", "w"), indent=1)
+    os.makedirs(os.path.join("results", "tflite"), exist_ok=True)
+    json.dump(r_pc, open(f"results/tflite/tflite_pc{tag}.json", "w"), indent=1)
 
     if args.board:
         print(f"[*] 4. INT8 on the chip ({args.board}, TensorFlow Lite Micro)")
@@ -410,11 +417,11 @@ def main():
         print(f"\n    ON THE CHIP: equal to the PC interpreter {r['equal_pc']:.2f}% {status} | accuracy {r['accuracy']:.2f}%"
               f" | latency median {r['median_ms']:.3f} ms | arena {r['arena_kb']:.1f} KB | model {r['flash_kb']:.1f} KB")
         suffix = tag + ("_ram" if args.model_ram else "")
-        json.dump(r, open(f"results/tflite_{args.board}{suffix}.json", "w"), indent=1)
+        json.dump(r, open(f"results/tflite/tflite_{args.board}{suffix}.json", "w"), indent=1)
         if not tag:                                      # the table compares with the SYMBEX side of 256-128
             final_table(r, args.board)
         else:
-            print(f"    -> results/tflite_{args.board}{suffix}.json")
+            print(f"    -> results/tflite/tflite_{args.board}{suffix}.json")
 
 
 if __name__ == "__main__":

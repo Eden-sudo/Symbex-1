@@ -15,13 +15,13 @@ of the training data (every choice is made on it) and the 10,000 test images eva
     ternary        the CDT, method ternary (weights -1, 0, +1: two bit planes), x1, x1.5
     INT4, INT2     fashion_int4.py: quantization-aware training of the same FP32 model, per-channel weights, int8
                    activations, integer evaluation (the original width only: it quantizes the model as it is)
-    INT8           the official TensorFlow Lite model (results/tflite_pc.json), as measured before
+    INT8           the official TensorFlow Lite model (results/tflite/tflite_pc.json), as measured before
 
 Each CDT run has its own folder, runs/lowbit/<method>_w<width>_s<seed>/, and is skipped when its export.json exists.
 Table: test accuracy (10,000 images; mean +- standard deviation over the seeds), the accuracy of the INTEGER model on the
 2,000 exported test images (the model that runs on the chip; the one measure every row has, the official INT8 included),
 packed weight bytes and the total model bytes. Pareto (*), on that integer accuracy: no other row is smaller in weight
-bytes and at least as accurate. Results: results/lowbit_study.json. Speed on the chip: a separate step (INT4 / INT2 have
+bytes and at least as accurate. Results: results/lowbit/lowbit_study.json. Speed on the chip: a separate step (INT4 / INT2 have
 no kernels on the ESP32 to measure).
 """
 import argparse
@@ -99,7 +99,7 @@ def local_fp32():
 
 
 def run_int(bits, seeds):
-    path = os.path.join(HERE, "results", f"int{bits}_e{EPOCHS}{SUFFIX}_pc.json")
+    path = os.path.join(HERE, "results", "lowbit", f"int{bits}_e{EPOCHS}{SUFFIX}_pc.json")
     if os.path.exists(path):
         d = json.load(open(path))
         done = qat_seeds(d)
@@ -161,7 +161,7 @@ def collect(seeds):
                              seeds=n, test=stats(test), int2000=stats(int2000)[0],
                              weight_bytes=packed_weight_bytes(shape, WEIGHT_BITS[method]), total_bytes=max(total)))
     for bits in INT_BITS:
-        path = os.path.join(HERE, "results", f"int{bits}_e{EPOCHS}{SUFFIX}_pc.json")
+        path = os.path.join(HERE, "results", "lowbit", f"int{bits}_e{EPOCHS}{SUFFIX}_pc.json")
         if not os.path.exists(path):
             continue
         d = json.load(open(path))
@@ -174,7 +174,7 @@ def collect(seeds):
                          test=stats([s.get("precision_10k") for s in sem]),
                          int2000=stats([s.get("precision") for s in sem])[0],
                          weight_bytes=sem[0]["pesos_bytes"], total_bytes=sem[0]["total_bytes"]))
-    tfl = os.path.join(HERE, "results", "tflite_pc.json")
+    tfl = os.path.join(HERE, "results", "tflite", "tflite_pc.json")
     if os.path.exists(tfl):
         d = json.load(open(tfl))
         rows.append(dict(model=f"INT8 TFLite x1 ({'-'.join(map(str, SHAPE))})", bits=8, seeds=0, test=(None, None),
@@ -224,10 +224,10 @@ def main():
           " least the same accuracy")
     if len(fp32) > 1:
         print(f"    [!] the FP32 references differ ({sorted(fp32)}): the rows did not all start from the same FP32 file")
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join("results", "lowbit"), exist_ok=True)
     json.dump(dict(epochs=EPOCHS, seeds=args.seeds, distill=not SUFFIX, fp32_sha256=sha, fp32_test=sorted(fp32),
-                   rows=rows), open(os.path.join("results", f"lowbit_study{SUFFIX}.json"), "w"), indent=1)
-    print(f"    -> results/lowbit_study{SUFFIX}.json")
+                   rows=rows), open(os.path.join("results", "lowbit", f"lowbit_study{SUFFIX}.json"), "w"), indent=1)
+    print(f"    -> results/lowbit/lowbit_study{SUFFIX}.json")
 
 
 if __name__ == "__main__":

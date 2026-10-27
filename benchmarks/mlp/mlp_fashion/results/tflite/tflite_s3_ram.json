@@ -2,10 +2,11 @@
  "board": "s3",
  "model_ram": true,
  "n": 1000,
- "accuracy": 87.2,
+ "shape": "784-256-128-10",
+ "accuracy": 89.8,
  "equal_pc": 100.0,
- "median_ms": 0.876,
- "min_ms": 0.875,
+ "median_ms": 0.8835,
+ "min_ms": 0.868,
  "arena_kb": 4.77734375,
  "flash_kb": 242.2265625
 }

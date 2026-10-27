@@ -12,10 +12,10 @@ default, as a model is usually deployed; ram as the faster variant), and the boa
     INT4, INT2                                        int_export.py (bit planes summed by the HAL, no multiplication),
                                                       seed 42; their models are saved by fashion_int4.py
     INT8                                              the official TensorFlow Lite Micro model, as measured by
-                                                      fashion_tflite.py (results/tflite_<board>.json in flash,
-                                                      results/tflite_<board>_ram.json with --model-ram)
-Accuracy columns come from results/lowbit_study.json (3 seeds); latency from the seed-42 export of each method.
-Results: results/lowbit_chip_<board>_<weights>.json.
+                                                      fashion_tflite.py (results/tflite/tflite_<board>.json in flash,
+                                                      results/tflite/tflite_<board>_ram.json with --model-ram)
+Accuracy columns come from results/lowbit/lowbit_study.json (3 seeds); latency from the seed-42 export of each method.
+Results: results/lowbit/lowbit_chip_<board>_<weights>.json.
 """
 import argparse
 import glob
@@ -85,7 +85,7 @@ def main():
     ap.add_argument("--usb", action="store_true", help="the S3's native USB port (chip_test.py --usb)")
     args = ap.parse_args()
     os.chdir(HERE)
-    study = {r["model"].split(" (")[0]: r for r in json.load(open("results/lowbit_study.json"))["rows"]}
+    study = {r["model"].split(" (")[0]: r for r in json.load(open("results/lowbit/lowbit_study.json"))["rows"]}
     rows = [(name, folder) for name, folder in CDT_ROWS] + [(name, ensure_int(b) if not args.show else
                                                              f"runs/lowbit_chip/int{b}_s42") for name, b in INT_ROWS]
     table = []
@@ -101,7 +101,7 @@ def main():
         table.append(dict(model=name, weight_kb=s.get("weight_bytes", 0) / 1024, test=s.get("test", [None, None]),
                           int2000=s.get("int2000"), latency_ms=c.get("latency_ms"), equal=c.get("equal"), file=c.get("file")))
     # fashion_tflite.py: tflite_<board>.json with the model in flash, tflite_<board>_ram.json with --model-ram
-    tfl = os.path.join("results", f"tflite_{args.board}{'_ram' if args.weights == 'ram' else ''}.json")
+    tfl = os.path.join("results", "tflite", f"tflite_{args.board}{'_ram' if args.weights == 'ram' else ''}.json")
     if os.path.exists(tfl):
         d = json.load(open(tfl))
         s = study.get("INT8 TFLite x1", {})
@@ -129,8 +129,8 @@ def main():
         print(f"    {r['model']:<20}{r['weight_kb']:>11.1f}{tt:>16}{i2:>10}{lat:>12}{vs:>9}{eq:>8}")
     print("\n    vs INT8: how many times faster than the official TFLite Micro INT8 model | equal: the board against the "
           "method's integer simulation")
-    json.dump(table, open(os.path.join("results", f"lowbit_chip_{args.board}_{args.weights}.json"), "w"), indent=1)
-    print(f"    -> results/lowbit_chip_{args.board}_{args.weights}.json")
+    json.dump(table, open(os.path.join("results", "lowbit", f"lowbit_chip_{args.board}_{args.weights}.json"), "w"), indent=1)
+    print(f"    -> results/lowbit/lowbit_chip_{args.board}_{args.weights}.json")
 
 
 if __name__ == "__main__":

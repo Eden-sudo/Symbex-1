@@ -892,5 +892,6 @@
    "seconds": 54.0
   }
  },
- "shape": "784-256-128-10"
+ "shape": "784-256-128-10",
+ "fp32_sha256": "d74f32d30cbf661e2937e46acbe15cd2a1ecbb2a2f57117b8c8bff53abb560d1"
 }

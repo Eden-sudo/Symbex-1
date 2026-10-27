@@ -15,7 +15,7 @@ Run from benchmarks/mlp/mlp_fashion/.
      popcount mode (--popcount) and, with --compare-arithmetic, both arithmetics
   4. --sweep: on the first seed's export, every combination of weights (flash, ram) and popcount (swar, lut16),
      each with both arithmetics, sorted by latency
-Summary tables at the end; every result .json is copied to results/ (the only outputs that are published).
+Summary tables at the end; every result .json is copied to results/symbex/ (the only outputs that are published).
 """
 import argparse
 import glob
@@ -77,9 +77,9 @@ def main():
     ap.add_argument("--redo", action="store_true", help="run the CDT again even if a seed is already exported")
     ap.add_argument("--widths", default="", help="override [target] widths (e.g. 1 or 1,1.5,2)")
     ap.add_argument("--input-bits", type=int, default=8, help="bits per pixel the model uses (1-8)")
-    ap.add_argument("--fp32-epochs", type=int, default=5,
-                    help="epochs of the original FP32 model (default 5: models/fashion_mlp.pth); other values train and "
-                         "use models/fashion_mlp_e<N>.pth, e.g. a stronger teacher for the distillation")
+    ap.add_argument("--fp32-epochs", type=int, default=None,
+                    help="epochs of the original FP32 model (default model.EPOCHS: models/fashion_mlp.pth); other values "
+                         "train and use models/fashion_mlp_e<N>.pth (quick iterations, or a stronger teacher)")
     ap.add_argument("--no-distill", action="store_true",
                     help="train without distillation from the FP32 model (plain cross-entropy)")
     args = ap.parse_args()
@@ -91,13 +91,14 @@ def main():
     sys.path.insert(0, HERE)
     from model import get_fp32
     print("[*] original FP32 model (trained if missing)")
-    # the 5-epoch original is the default; only --fp32-epochs N (N != 5) needs the model.py that accepts epochs
-    fp32_path = get_fp32() if args.fp32_epochs == 5 else get_fp32(args.fp32_epochs)
-    model_flags = [] if args.fp32_epochs == 5 else ["--file", fp32_path]
-    os.makedirs("results", exist_ok=True)
+    from model import EPOCHS
+    other = args.fp32_epochs not in (None, EPOCHS)            # another FP32 than the published one
+    fp32_path = get_fp32(epochs=args.fp32_epochs) if other else get_fp32()
+    model_flags = ["--file", fp32_path] if other else []
+    os.makedirs(os.path.join("results", "symbex"), exist_ok=True)
     seeds = [42 + i for i in range(args.seeds)]
     suffix = ("" if args.input_bits == 8 else f"_b{args.input_bits}") + (f"_w{args.widths.replace(',', '-')}" if args.widths else "") \
-        + ("_nd" if args.no_distill else "") + ("" if args.fp32_epochs == 5 else f"_f{args.fp32_epochs}")
+        + ("_nd" if args.no_distill else "") + (f"_f{args.fp32_epochs}" if other else "")
 
     rows = []
     for seed in seeds:
@@ -128,7 +129,7 @@ def main():
             name = os.path.basename(f)
             if name.startswith("chip"):
                 name = name.replace("chip", f"chip_{args.board}_{args.weights}_{args.popcount}", 1)
-            shutil.copy(f, os.path.join("results", f"symbex{tag}_{name}"))
+            shutil.copy(f, os.path.join("results", "symbex", f"symbex{tag}_{name}"))
 
     on_chip = args.board and not args.sweep
     print(f"\n    SEEDS  (same FP32 original; validation accuracy on the 10,000 Fashion-MNIST test images, last epoch)")
@@ -145,7 +146,7 @@ def main():
         summary["latency_ms"] = mean_std([r["latency_ms"] for r in rows])
         summary["chip_accuracy"] = mean_std([r["chip_accuracy"] for r in rows])
         print(f"    on the board: latency {summary['latency_ms']} ms | accuracy {summary['chip_accuracy']} %")
-    path = f"results/symbex_seeds_{args.board or 'pc'}{suffix}.json"
+    path = f"results/symbex/symbex_seeds_{args.board or 'pc'}{suffix}.json"
     json.dump(summary, open(path, "w"), indent=1)
     print(f"    -> {path}")
 
@@ -166,7 +167,7 @@ def main():
         for r in results:
             print(f"    {str(r['arithmetic']).upper():<12}{r['weights']:<9}{r['popcount']:<10}{r['ms']:>10.3f}"
                   f"{r['layer0_ms']:>12.3f}{r['ram_kb']:>9.2f}{r['equal']:>7.0f}%")
-        path = f"results/symbex_sweep_{args.board}{suffix}.json"
+        path = f"results/symbex/symbex_sweep_{args.board}{suffix}.json"
         json.dump(results, open(path, "w"), indent=1)
         print(f"    -> {path}")
 

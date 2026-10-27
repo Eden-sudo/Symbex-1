@@ -60,8 +60,10 @@ def __getattr__(name):
     raise AttributeError(f"module 'model' has no attribute {name!r}")
 
 
-def fp32_path(h1=256, h2=128):
-    return FP32_PATH if (h1, h2) == (256, 128) else os.path.join(MODELS_DIR, f"fashion_mlp_{h1}_{h2}.pth")
+def fp32_path(h1=256, h2=128, epochs=EPOCHS):
+    """models/fashion_mlp[_<h1>_<h2>][_e<epochs>].pth: the default widths and EPOCHS keep the published names"""
+    base = "fashion_mlp" if (h1, h2) == (256, 128) else f"fashion_mlp_{h1}_{h2}"
+    return os.path.join(MODELS_DIR, base + ("" if epochs == EPOCHS else f"_e{epochs}") + ".pth")
 
 
 def split_indices(n=60000):
@@ -117,14 +119,15 @@ def train_fp32(path, data_dir, epochs=EPOCHS, h1=256, h2=128):
     return acc_val, acc_test
 
 
-def get_fp32(h1=256, h2=128):
-    """Path of the FP32 model of these widths (no arguments: the original); trains it (about a minute) and saves it
-    in models/ if missing."""
+def get_fp32(h1=256, h2=128, epochs=EPOCHS):
+    """Path of the FP32 model of these widths and epochs (no arguments: the original); trains it and saves it in
+    models/ if missing. Other epochs than EPOCHS are for quick iterations or a stronger teacher: choose them on the
+    validation split, never on the test set."""
     os.makedirs(MODELS_DIR, exist_ok=True)
-    path = fp32_path(h1, h2)
+    path = fp32_path(h1, h2, epochs)
     if not os.path.exists(path):
-        print(f"[*] {path} not found: training the FP32 model 784-{h1}-{h2}-10 ({EPOCHS} epochs, seed {SEED})")
-        acc_val, acc_test = train_fp32(path, DATA_DIR, h1=h1, h2=h2)
+        print(f"[*] {path} not found: training the FP32 model 784-{h1}-{h2}-10 ({epochs} epochs, seed {SEED})")
+        acc_val, acc_test = train_fp32(path, DATA_DIR, epochs=epochs, h1=h1, h2=h2)
         print(f"[*] saved {path} (FP32 validation {acc_val:.2f}%, test {acc_test:.2f}%)")
     return path
 
