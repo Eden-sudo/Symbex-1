@@ -5,6 +5,8 @@ count_bench.py -- which way of COUNTING BITS is fastest on this machine: the raw
     python count_bench.py --reps 200                       # more repetitions (steadier numbers)
     python count_bench.py --board esp32 --port /dev/ttyUSB0
     python count_bench.py --board s3 --port /dev/ttyUSB0
+    python count_bench.py --board pico2_arm --port /dev/ttyACM1      # Raspberry Pi Pico 2: Cortex-M33 core
+    python count_bench.py --board pico2_riscv --port /dev/ttyACM1    # Raspberry Pi Pico 2: Hazard3 RISC-V core
 
 A binary layer is "logical operation, then count the 1 bits": the count is what costs, and every chip has a different
 best way to do it. This measures them all on the same pattern as a convolution (P positions x O output channels, each
@@ -19,6 +21,8 @@ one a window of W 32-bit words against a weight row), with the window sizes of t
     avx2        x86: vectorial, 256 bits at a time, nibble table inside the registers (pshufb, Mula's method)
     pie         ESP32-S3: 128 bits per logical op, counted with the SIMD multiplier (ee.vmulas.u8.accx: bit k of each
                 of the 16 bytes times 1, summed), 8 steps per 128 bits -- the S3 has no popcount instruction
+    dsp         Arm cores with the DSP extension (Cortex-M33 of the Pico 2): SWAR down to byte counts, then usada8 adds
+                the 4 bytes into the running count in one instruction (replaces the multiply, shift and add)
 each in two forms:
     xnor        differences = count(x XOR w)
     and         differences = count(x) + count(w) - 2 * count(x AND w)   (count(x) once per position; count(w) stored)
@@ -27,9 +31,12 @@ to compare against: how many binary operations per cycle against how many 8-bit 
     int8 / int16 / int32 / float32   dot products in C (whatever the compiler makes of them on this chip)
     pie_int8                         ESP32-S3: 16 int8 multiply-accumulates per instruction (ee.vmulas.s8.accx, as ESP-NN)
     avx2_int8 / vnni_int8            x86: 8-bit SIMD (maddubs + madd / AVX-VNNI dpbusd)
+    dsp_int8                         Arm DSP (Cortex-M33): sxtb16 + smlad, two 8-bit multiply-accumulates per
+                                     instruction, as CMSIS-NN does
 Every method must give the same raw values (checksums), otherwise its time is not trusted. On the PC the unit is the
-nanosecond; on the boards, CPU cycles (esp_cpu_get_cycle_count, 240 MHz). Results: one block per method, and
-tools/chip_profiles/count_<x86|esp32|s3>.json (the fastest per window size, for the HAL to use).
+nanosecond; on the boards, CPU cycles (ESP32s: esp_cpu_get_cycle_count, 240 MHz; Pico 2: the core's own counter, DWT
+CYCCNT on the M33 and mcycle on Hazard3, 150 MHz, checked against micros() at start). Results: one block per method,
+and tools/chip_profiles/count_<x86|esp32|s3|pico2_arm|pico2_riscv>.json (the fastest per window size, for the HAL).
 """
 import argparse
 import json
@@ -55,11 +62,19 @@ C_SOURCE = r"""
 #include "esp_cpu.h"
 #include "esp_heap_caps.h"
 #include "sdkconfig.h"
+#elif defined(ARDUINO_ARCH_RP2040)
+#define ON_PICO 1                         /* Arduino-Pico core (RP2040 / RP2350): output through main.cpp's Serial */
+int bench_printf(const char* fmt, ...);
+#define printf bench_printf
+#define fflush(f) ((void)0)
 #else
 #include <time.h>
 #endif
 #ifdef __AVX2__
 #include <immintrin.h>
+#endif
+#if defined(__ARM_FEATURE_DSP)
+#include <arm_acle.h>
 #endif
 
 #define P POSITIONS
@@ -122,6 +137,19 @@ static inline int cnt_hs(const uint32_t* a, const uint32_t* b, int n, int op) {
     return total;
 }
 
+#if defined(__ARM_FEATURE_DSP)
+/* SWAR down to 4 byte counts (0..8 each), then usada8: |x - 0| summed over the 4 bytes, added to the count */
+static inline int cnt_dsp(const uint32_t* a, const uint32_t* b, int n, int op) {
+    uint32_t c = 0;
+#define DSP_WORD(EXPR) { uint32_t x = (EXPR); __asm__ volatile("" : "+r"(x)); \
+        x = x - ((x >> 1) & 0x55555555u); x = (x & 0x33333333u) + ((x >> 2) & 0x33333333u); \
+        x = (x + (x >> 4)) & 0x0F0F0F0Fu; c = __usada8(x, 0, c); }
+    if (op) { for (int i = 0; i < n; i++) DSP_WORD(a[i] & b[i]) } else { for (int i = 0; i < n; i++) DSP_WORD(a[i] ^ b[i]) }
+#undef DSP_WORD
+    return (int)c;
+}
+#endif
+
 #ifdef __AVX2__
 /* Mula: popcount of 256 bits with a 16-entry nibble table held in a register (pshufb), summed with sad_epu8 */
 static inline int cnt_avx2(const uint32_t* a, const uint32_t* b, int st_words, int op) {
@@ -177,6 +205,24 @@ typedef uint32_t stamp_t;
 static inline stamp_t now_t(void) { return (stamp_t)esp_cpu_get_cycle_count(); }
 static inline double elapsed(stamp_t t0) { return (double)(uint32_t)(now_t() - t0); }
 #define UNIT "cycles"
+#elif defined(ON_PICO)
+/* the core's own 32-bit cycle counter (Arduino-Pico's getCycleCount is a 24-bit SysTick on Arm and a PIO counter on
+   RISC-V): DWT CYCCNT on the Cortex-M33, mcycle on Hazard3 (enabled by pico_counter_start). Unsigned differences, as
+   on the ESP32s (a wrap every ~28.6 s at 150 MHz) */
+typedef uint32_t stamp_t;
+#if defined(__riscv)
+static inline stamp_t now_t(void) { uint32_t c; __asm__ volatile("csrr %0, mcycle" : "=r"(c)); return c; }
+void pico_counter_start(void) { __asm__ volatile("csrw mcountinhibit, zero"); }
+#else
+#define DEMCR_REG (*(volatile uint32_t*)0xE000EDFCu)
+#define DWT_CTRL_REG (*(volatile uint32_t*)0xE0001000u)
+#define DWT_CYCCNT_REG (*(volatile uint32_t*)0xE0001004u)
+static inline stamp_t now_t(void) { return DWT_CYCCNT_REG; }
+void pico_counter_start(void) { DEMCR_REG |= 1u << 24; DWT_CYCCNT_REG = 0; DWT_CTRL_REG |= 1u; }
+#endif
+uint32_t pico_cycles(void) { return now_t(); }
+static inline double elapsed(stamp_t t0) { return (double)(uint32_t)(now_t() - t0); }
+#define UNIT "cycles"
 #else
 typedef double stamp_t;
 static inline stamp_t now_t(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC_RAW, &t); return t.tv_sec * 1e9 + t.tv_nsec; }
@@ -204,6 +250,9 @@ LAYER(cnt_swar, nw)
 LAYER(cnt_lut8, nw)
 LAYER(cnt_lut16, nw)
 LAYER(cnt_hs, nw)
+#if defined(__ARM_FEATURE_DSP)
+LAYER(cnt_dsp, nw)
+#endif
 #ifdef __AVX2__
 LAYER(cnt_avx2, st)
 #endif
@@ -249,6 +298,20 @@ static int32_t dot_pie_int8(const int8_t* a, const int8_t* b, int n) {    /* n m
     return (int32_t)v;
 }
 #endif
+#if defined(__ARM_FEATURE_DSP)
+/* CMSIS-NN's inner step: sxtb16 widens bytes 0 and 2 (and, rotated, 1 and 3) to two int16, smlad multiplies both pairs
+   and adds them to the sum. n multiple of 4 (memcpy: the compiler makes it a single word load) */
+static int32_t dot_dsp_int8(const int8_t* a, const int8_t* b, int n) {
+    int32_t s = 0;
+    for (int i = 0; i < n; i += 4) {
+        uint32_t x, y;
+        memcpy(&x, a + i, 4); memcpy(&y, b + i, 4);
+        s = __smlad(__sxtb16(x), __sxtb16(y), s);
+        s = __smlad(__sxtb16(__ror(x, 8)), __sxtb16(__ror(y, 8)), s);
+    }
+    return s;
+}
+#endif
 #ifdef __AVX2__
 static int32_t hsum_epi32(__m256i v) {
     __m128i s = _mm_add_epi32(_mm256_castsi256_si128(v), _mm256_extracti128_si256(v, 1));
@@ -288,6 +351,9 @@ INT_LAYER(float32, float, dot_float32)
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 INT_LAYER(pie_int8, int8_t, dot_pie_int8)
 #endif
+#if defined(__ARM_FEATURE_DSP)
+INT_LAYER(dsp_int8, int8_t, dot_dsp_int8)
+#endif
 #ifdef __AVX2__
 INT_LAYER(avx2_int8, int8_t, dot_avx2_int8)
 #endif
@@ -324,6 +390,9 @@ static int run_int(int reps) {
         MEASURE_INT(int8, int8_t, xa, wa)
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
         MEASURE_INT(pie_int8, int8_t, xa, wa)
+#endif
+#if defined(__ARM_FEATURE_DSP)
+        MEASURE_INT(dsp_int8, int8_t, xa, wa)
 #endif
 #ifdef __AVX2__
         MEASURE_INT(avx2_int8, int8_t, xa, wa)
@@ -367,6 +436,10 @@ static int run(int reps) {
            "popcnt ",
 #elif defined(ESP_PLATFORM)
            "no popcount instruction (builtin = libgcc software) ",
+#elif defined(__riscv_zbb)
+           "RISC-V Zbb (cpop: popcount instruction) ",
+#elif defined(__ARM_FEATURE_DSP)
+           "Arm DSP extension (usada8, smlad), no popcount instruction ",
 #else
            "no-popcnt ",
 #endif
@@ -397,6 +470,9 @@ static int run(int reps) {
         measure("lut8", layer_cnt_lut8, scaled);
         measure("lut16", layer_cnt_lut16, scaled);
         measure("hs", layer_cnt_hs, scaled);
+#if defined(__ARM_FEATURE_DSP)
+        measure("dsp", layer_cnt_dsp, scaled);
+#endif
 #ifdef __AVX2__
         measure("avx2", layer_cnt_avx2, scaled);
 #endif
@@ -420,13 +496,51 @@ void app_main(void) {
     run(REPS_BOARD);
     while (1) vTaskDelay(portMAX_DELAY);
 }
+#elif defined(ON_PICO)
+int bench_run(int reps) { return run(reps); }
 #else
 int main(int argc, char** argv) { return run(argc > 1 ? atoi(argv[1]) : 100); }
 #endif
 """
 
 
-BOARDS = {"esp32": ("esp32dev", "ESP32 (Xtensa LX6, 240 MHz)"), "s3": ("esp32-s3-devkitc-1", "ESP32-S3 (Xtensa LX7 + PIE, 240 MHz)")}
+BOARDS = {"esp32": ("esp32dev", "ESP32 (Xtensa LX6, 240 MHz)"), "s3": ("esp32-s3-devkitc-1", "ESP32-S3 (Xtensa LX7 + PIE, 240 MHz)"),
+          "pico2_arm": ("rpipico2", "Raspberry Pi Pico 2, RP2350 Arm Cortex-M33 (DSP, 150 MHz)"),
+          "pico2_riscv": ("rpipico2", "Raspberry Pi Pico 2, RP2350 Hazard3 RISC-V (Zbb, 150 MHz)")}
+
+# Pico 2: an Arduino-Pico sketch around the same C code. It waits for a 'g' from the PC (USB serial: no reset line),
+# checks the cycle counter against micros(), then runs.
+PICO_MAIN = r"""
+#include <Arduino.h>
+#include <stdarg.h>
+extern "C" {
+int bench_run(int reps);
+void pico_counter_start(void);
+uint32_t pico_cycles(void);
+int bench_printf(const char* fmt, ...) {
+    char buf[256];
+    va_list ap; va_start(ap, fmt);
+    int n = vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+    Serial.write(buf, n < (int)sizeof buf ? n : (int)sizeof buf - 1);
+    return n;
+}
+}
+void setup() {
+    Serial.begin(115200);
+    pico_counter_start();
+}
+void loop() {
+    if (Serial.available() && Serial.read() == 'g') {
+        Serial.printf("\nCOUNT BENCH ready\n");
+        uint32_t c0 = pico_cycles(), t0 = micros();
+        while (micros() - t0 < 200000) {}
+        uint32_t c1 = pico_cycles(), t1 = micros();
+        Serial.printf("CLOCK:%lu|%lu\n", (unsigned long)((c1 - c0) / (t1 - t0)), (unsigned long)(rp2040.f_cpu() / 1000000));
+        bench_run(REPS_BOARD);
+    }
+}
+"""
 
 
 def cpu_name():
@@ -459,34 +573,66 @@ def run_pc(args):
         return subprocess.run(cmd, capture_output=True, text=True).stdout.splitlines(), cpu_name()
 
 
+def open_pico(port, timeout=30):
+    """the Pico 2 re-enumerates its USB serial after flashing: wait for the port, then send the start byte"""
+    import time
+    import serial
+    t0 = time.time()
+    while True:
+        try:
+            s = serial.Serial(port, 115200, timeout=1)
+            break
+        except (serial.SerialException, OSError):
+            if time.time() - t0 > timeout:
+                sys.exit(f"[X] {port} did not come back after flashing")
+            time.sleep(0.5)
+    time.sleep(1.0)
+    s.reset_input_buffer()
+    s.write(b"g")
+    return s
+
+
 def run_board(args):
-    """an ESP-IDF project with the same C code, flashed to the board; the results come back over serial (115200)"""
+    """an ESP-IDF project (ESP32s) or an Arduino-Pico sketch (Pico 2) with the same C code, flashed to the board; the
+    results come back over serial (115200)"""
     import time
     import serial
     board, title = BOARDS[args.board]
+    pico = args.board.startswith("pico2")
     proj = os.path.join(HERE, "runs", f"count_bench_{args.board}")
     os.makedirs(os.path.join(proj, "src"), exist_ok=True)
     w = lambda name, text: open(os.path.join(proj, name), "w").write(text)
-    w("platformio.ini", f"[env:{args.board}]\nplatform = espressif32\nboard = {board}\nframework = espidf\n"
-                        f"monitor_speed = 115200\nupload_port = {args.port}\n")
-    w("sdkconfig.defaults", "CONFIG_COMPILER_OPTIMIZATION_PERF=y\nCONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y\n"
-                            "CONFIG_ESP32_DEFAULT_CPU_FREQ_240=y\nCONFIG_ESP_MAIN_TASK_STACK_SIZE=16384\nCONFIG_ESP_TASK_WDT_EN=n\n")
-    w("CMakeLists.txt", "cmake_minimum_required(VERSION 3.16.0)\ninclude($ENV{IDF_PATH}/tools/cmake/project.cmake)\n"
-                        "project(count_bench)\n")
-    w("src/CMakeLists.txt", 'idf_component_register(SRCS "main.c" INCLUDE_DIRS ".")\n')
-    w("src/main.c", c_code(args.board_reps))
+    if pico:
+        w("platformio.ini", f"[env:{args.board}]\nplatform = raspberrypi\nboard = {board}\nframework = arduino\n"
+                            f"board_build.core = earlephilhower\nupload_protocol = picotool\nupload_port = {args.port}\n"
+                            + ("board_build.mcu = rp2350-riscv\n" if args.board == "pico2_riscv" else "")
+                            + "build_flags = -O2 -Wl,-u,_printf_float\nbuild_unflags = -Os\n")   # floats in printf (newlib-nano)
+        w("src/bench.c", c_code(args.board_reps))
+        w("src/main.cpp", PICO_MAIN.replace("REPS_BOARD", str(args.board_reps)))
+    else:
+        w("platformio.ini", f"[env:{args.board}]\nplatform = espressif32\nboard = {board}\nframework = espidf\n"
+                            f"monitor_speed = 115200\nupload_port = {args.port}\n")
+        w("sdkconfig.defaults", "CONFIG_COMPILER_OPTIMIZATION_PERF=y\nCONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y\n"
+                                "CONFIG_ESP32_DEFAULT_CPU_FREQ_240=y\nCONFIG_ESP_MAIN_TASK_STACK_SIZE=16384\nCONFIG_ESP_TASK_WDT_EN=n\n")
+        w("CMakeLists.txt", "cmake_minimum_required(VERSION 3.16.0)\ninclude($ENV{IDF_PATH}/tools/cmake/project.cmake)\n"
+                            "project(count_bench)\n")
+        w("src/CMakeLists.txt", 'idf_component_register(SRCS "main.c" INCLUDE_DIRS ".")\n')
+        w("src/main.c", c_code(args.board_reps))
     if not args.no_upload:
         print(f"[*] building and flashing {title} ...")
         if subprocess.run(["pio", "run", "-d", proj, "-t", "upload"]).returncode != 0:
             sys.exit(f"[X] build or upload failed (pio run -d {proj} -t upload)")
-    s = serial.Serial()
-    s.port, s.baudrate, s.timeout = args.port, 115200, 1
-    s.dtr = s.rts = False
-    s.open()
-    s.reset_input_buffer()
-    s.rts = True
-    time.sleep(0.15)
-    s.rts = False
+    if pico:
+        s = open_pico(args.port)
+    else:
+        s = serial.Serial()
+        s.port, s.baudrate, s.timeout = args.port, 115200, 1
+        s.dtr = s.rts = False
+        s.open()
+        s.reset_input_buffer()
+        s.rts = True
+        time.sleep(0.15)
+        s.rts = False
     lines, ready, t0 = [], False, time.time()
     while True:
         line = s.readline().decode(errors="replace").strip()
@@ -495,6 +641,11 @@ def run_board(args):
         elif ready and line:
             if line.startswith("ERROR"):
                 sys.exit(f"[X] {line}")
+            if line.startswith("CLOCK:"):
+                counted, nominal = map(int, line[6:].split("|"))
+                print(f"      cycle counter: {counted} cycles per microsecond, clock {nominal} MHz")
+                if abs(counted - nominal) > 1:
+                    sys.exit("[X] the cycle counter does not run at the CPU clock: times not trusted")
             if line.startswith("W:"):
                 print(f"      binary: windows of {line[2:]} words ...")
             if line.startswith("WI:"):
@@ -503,6 +654,8 @@ def run_board(args):
             if line == "DONE":
                 return lines, title
         if not ready and time.time() - t0 > 10:
+            if pico:
+                sys.exit("[X] the Pico 2 did not answer the start byte")
             print("  >>> no answer to the software reset: press EN/RST once")
             t0 = time.time() + 1e9
         if ready and time.time() - t0 > 1800:

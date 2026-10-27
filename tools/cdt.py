@@ -34,7 +34,7 @@ Stages
                   layer the full training would not need.
     4. export     (MLP, every layer at 1 bit) folds the trained model into integers and writes
                   model_symbex.h for lib_symbex (symbex_mlp_infer(const uint8_t* x))
-    6. chip       ([chip] board = "esp32" / "s3") builds and flashes an ESP-IDF project with the header and
+    6. chip       ([chip] board = "esp32" / "s3" / "pico2_arm" / "pico2_riscv") builds and flashes a project with the header and
                   lib_symbex, streams validation images and reports: equal to the integer simulation (must be
                   100%), accuracy and latency measured on the chip. Needs PlatformIO + a connected board.
     5. validate   (runs together with export) FIDELITY: PyTorch vs. the integer simulation (what folding
@@ -227,8 +227,8 @@ def validate_config(cfg):
         errors.append("[chip] weights must be \"flash\" or \"ram\"")
     if cfg["chip"]["popcount"] not in ("lut16", "swar"):
         errors.append("[chip] popcount must be \"lut16\" (64 KB table, fastest) or \"swar\" (no table, minimum RAM)")
-    if cfg["chip"]["board"] not in ("", "esp32", "s3", "uno"):
-        errors.append("[chip] board must be \"\" (no chip), \"esp32\", \"s3\" or \"uno\"")
+    if cfg["chip"]["board"] not in ("", "esp32", "s3", "uno", "pico2_arm", "pico2_riscv"):
+        errors.append("[chip] board must be \"\" (no chip), \"esp32\", \"s3\", \"uno\", \"pico2_arm\" or \"pico2_riscv\"")
     if tr["checkpoint"] not in ("last", "best"):
         errors.append("[training] checkpoint must be 'last' or 'best'")
     if tr["epochs"] < 1 or tr["batch_size"] < 1:
@@ -788,6 +788,9 @@ def choose_arithmetic(cfg, out_dir, shapes=None):
     if ch["board"] == "uno":
         print("    arithmetic  : auto -> XNOR (AVR: no SIMD; its self-contained kernels use XNOR and the smaller rows)")
         return "xnor"
+    if ch["board"].startswith("pico2"):
+        print("    arithmetic  : auto -> AND (Pico 2: no kernel benchmark yet; --compare-arithmetic measures XNOR too)")
+        return "and"
     profile = load_profile(ch["board"], ch["popcount"])
     if profile is None:
         print(f"    arithmetic  : auto -> no profile for {ch['board']} (popcount {ch['popcount']}): measuring the kernels")

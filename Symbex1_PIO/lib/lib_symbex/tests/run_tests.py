@@ -15,7 +15,8 @@ or more, any signed overflow stops the test), sizes up to 4x larger, every bound
 
 Every test runs three times: with hal/generic, with hal/esp32s3 in its C mode (SYMBEX_HAL_TEST_NO_PIE: the same
 code as on the chip, with the PIE instructions replaced by C), and with the 8-bit code paths the library uses on
-AVR (SYMBEX_U8_BYTEWISE, SYMBEX_POPCOUNT_FORCE_LUT8, SYMBEX_PLANES_PLANE_OUTER, SYMBEX_PLANES_PER_NEURON). The PIE
+AVR (SYMBEX_U8_BYTEWISE, SYMBEX_POPCOUNT_FORCE_LUT8, SYMBEX_PLANES_PLANE_OUTER, SYMBEX_PLANES_PER_NEURON), and
+with the RP2350's first-layer kernels (hal/rp2350: bit planes, and usada8 with a C stand-in). The PIE and usada8
 instructions and AVR itself
 can only be checked on the
 chip (chip_test.py, and the checksums of chip_test.py --kernels).
@@ -57,7 +58,13 @@ HALS = {"generic": (["src/hal/generic/symbex_hal_impl.c"], []),
         "generic, native count forced": (["src/hal/generic/symbex_hal_impl.c"], ["-DSYMBEX_POPCOUNT_FORCE_NATIVE"]),
         "generic, 8-bit paths (as on AVR)": (["src/hal/generic/symbex_hal_impl.c"],
                                              ["-DSYMBEX_U8_BYTEWISE", "-DSYMBEX_POPCOUNT_FORCE_LUT8", "-DSYMBEX_PLANES_PLANE_OUTER",
-                                              "-DSYMBEX_PLANES_PER_NEURON"])}
+                                              "-DSYMBEX_PLANES_PER_NEURON"]),
+        # the Pico 2's first-layer kernels (hal/rp2350) on top of hal/generic: bit planes (Hazard3) and usada8 (the
+        # M33's DSP instruction, a C stand-in on the PC)
+        "rp2350, bit planes": (["src/hal/generic/symbex_hal_impl.c", "src/hal/rp2350/symbex_hal_impl.c"],
+                               ["-DSYMBEX_HAL_TEST_RP2350"]),
+        "rp2350, usada8 (C stand-in)": (["src/hal/generic/symbex_hal_impl.c", "src/hal/rp2350/symbex_hal_impl.c"],
+                                        ["-DSYMBEX_HAL_TEST_RP2350", "-DSYMBEX_RP2350_U8_USADA8"])}
 RNG = np.random.default_rng(1234)
 STRESS = False                             # set by --stress
 SANITIZE = ["-fsanitize=address,undefined", "-fno-sanitize-recover=all", "-fno-omit-frame-pointer", "-g"]

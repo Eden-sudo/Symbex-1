@@ -64,6 +64,45 @@ sha256. `--fp32-epochs N` works again (`fashion_symbex.py`; new in `fashion_tfli
 - ESP32: SYMBEX x1 / x1.5 / x2 6.754 / 12.949 / 17.788 ms in flash, 3.840 / 5.805 / 7.809 ms in RAM; ternary x1 /
   x1.5 20.0 / 31.0 ms; 784-128-512 3.635 ms in flash (TFLite INT8 of the same shape: 31.108 ms, 8.6x), 2.186 ms in RAM.
 
+**Raspberry Pi Pico 2 (RP2350): bit counting measured on both cores, HAL chosen from it** (new)
+- `tools/dev/count_bench.py --board pico2_arm | pico2_riscv`: the same layer pattern on each core, timed with the
+  core's own cycle counter (DWT CYCCNT on the Cortex-M33, mcycle on Hazard3), checked against `micros()` (150 cycles
+  per µs = the clock). New methods for the M33: `dsp` (SWAR + `usada8`) and `dsp_int8` (`sxtb16` + `smlad`).
+  Profiles in `tools/chip_profiles/count_pico2_arm.json` and `count_pico2_riscv.json`; every method gives the same
+  checksums.
+- Measured (150 MHz, 64 x 64 outputs, best of 7):
+
+  | core | fastest | bit-ops per cycle | vs `__builtin_popcount` |
+  |---|---|---|---|
+  | Cortex-M33 | `lut16` (XOR) | 2.1-2.6 | 2.4-2.8x (1.8x vs SWAR; `usada8` only 1.1x vs SWAR) |
+  | Hazard3 RISC-V | `cpop` (Zbb) | 2.8-3.9 | 1.0x (it is the instruction) |
+
+- lib_symbex generic HAL: `lut16` on the RP2350's M33 (it fell to SWAR before) with the XOR form (1.05-1.14x faster
+  than AND there; the classic ESP32 keeps AND); Hazard3 keeps the native `cpop`; `symbex_hal_name()` no longer says
+  "64-bit words" on 32-bit cores. `-DSYMBEX_POPCOUNT_NO_LUT16` gives the 64 KB back.
+- The Pico 2 in the chip tools: `tools/chip_test.py --board pico2_arm | pico2_riscv` and the CDT (`[chip] board`):
+  Arduino-Pico project, firmware `model_test_pico.cpp` (the protocol of `model_test.c`; it waits for the host's 0x55,
+  stack painted from `__StackBottom`). `arithmetic = "auto"` gives AND there until the Pico has a kernel benchmark.
+- `hal/rp2350/`: the first layer (uint8 x 1 bit) of the Pico 2, 80-90 % of the time with the generic SWAR. Cortex-M33:
+  `usada8` (the DSP sums the 4 masked bytes in one instruction). Hazard3: the inputs split into 8 bit planes, the 8
+  plane words of 32 inputs side by side, one `cpop` each, counts in registers. The bit counts stay in hal/generic.
+  `run_tests.py` checks both (usada8 with a C stand-in on the PC). Fashion-MNIST 784-128-512-10, seed 42, 1000
+  validation images, 100 % equal to the integer simulation on both cores:
+
+  | chip | weights in RAM | weights in flash |
+  |---|---|---|
+  | Pico 2 M33, generic SWAR | 3.131 ms | 6.138 ms |
+  | Pico 2 M33, `usada8` | **1.529 ms** (2.05x) | **4.567 ms** (1.34x) |
+  | Pico 2 Hazard3, generic SWAR | 2.929 ms | 5.962 ms |
+  | Pico 2 Hazard3, bit planes + `cpop` | **1.405 ms** (2.08x) | **4.413 ms** (1.35x) |
+  | ESP32 (240 MHz, for reference) | 2.186 ms | 3.635 ms |
+  | ESP32-S3 (240 MHz, PIE) | 0.414 ms | 0.421 ms |
+
+  Rejected (measured): the bit planes through hal/generic's `symbex_and_planes_rows` on Hazard3 (1.13x: planes far
+  apart, counts in an array); the bit planes on the M33 (no popcount instruction: 5.9 ms). With the weights in flash
+  the Pico 2 waits on its flash cache (XIP, 16 KB, smaller than the 27 KB model): the binary layer 128 -> 512 takes
+  1.34 ms from flash and 0.28 ms from RAM.
+
 **Benchmarks grouped by network type:** `benchmarks/mlp/`, `conv1d/`, `conv2d/`; every relative path updated and
 checked; the benchmark `.gitignore` matches `runs/` and `models/` at any depth.
 
@@ -76,6 +115,9 @@ plan).
 - `har_lowbit.py` once the har networks run whole (UniMiB-SHAR, the architectures of Daghero et al.), then
   `resnet8_lowbit.py` and `fomo_lowbit.py` (ResNet-8 needs skip connections in `fold()`).
 - A faster INT2 / INT4 unpacking in flash; the combined table (SYMBEX + INT + Pareto) per benchmark.
+- Pico 2, in order: (1) the other mlp_fashion models (x1 / x1.5 / x2, ternary) on both cores; (2) a kernel
+  benchmark for `arithmetic = "auto"`; (3) TFLite INT8 with CMSIS-NN on the M33. `dsp_int8` is not
+  CMSIS-NN (3.8 cycles per MAC): until (3), no binary vs INT8 claim on this chip.
 
 ## PR: mlp_fashion validation split + v3 work in progress (October 2026)
 
