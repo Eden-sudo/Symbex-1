@@ -40,7 +40,7 @@ definition = ""
 #                See configs/ternary_fashion.toml.
 #   "boolean" -> fully binary convolutional networks (lib_symbex layers/conv/symbex_bool): the network is trained
 #                as defined (no plan search), folded into integers, exported and checked bit by bit.
-#                See benchmarks/cnn_cifar_resnet8/symbex.toml.
+#                See benchmarks/conv2d/cnn_cifar_resnet8/symbex.toml.
 method = "plain"
 
 [data]

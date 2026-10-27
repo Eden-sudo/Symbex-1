@@ -45,8 +45,8 @@ defaults has to be written. The main ones:
 | `[output]` | `directory`, `lib_path` | where the results go; where lib_symbex is |
 | `[chip]` | `board`, `port`, `popcount`, `weights` | the board (`"esp32"`, `"s3"`), how it counts bits, where the weights live (`"flash"` or `"ram"`) |
 
-Examples that work as they are: `benchmarks/cnn_cifar_resnet8/symbex.toml` (boolean),
-`benchmarks/mlp_fashion/symbex.toml` (plain), `configs/ternary_fashion.toml` (ternary).
+Examples that work as they are: `benchmarks/conv2d/cnn_cifar_resnet8/symbex.toml` (boolean),
+`benchmarks/mlp/mlp_fashion/symbex.toml` (plain), `configs/ternary_fashion.toml` (ternary).
 
 ## Command-line options
 

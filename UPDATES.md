@@ -8,7 +8,7 @@ pull request, newest first. The plan as a whole lives in CLAUDE.md ("Next, in or
 ### Done
 
 **mlp_fashion: one fixed validation split for every seed and method**
-- `benchmarks/mlp_fashion/symbex.toml`: `[data] split_seed = 0`. The CDT, the FP32 model (`model.split_indices`)
+- `benchmarks/mlp/mlp_fashion/symbex.toml`: `[data] split_seed = 0`. The CDT, the FP32 model (`model.split_indices`)
   and the INT QAT (`fashion_int4.py`) now share the same 54,000 training / 6,000 validation images, checked index
   by index for seeds 42, 43, 44. Before, the split followed the training seed and the FP32 model was trained on all
   60,000 images, so validation was inflated (90-92 % against 87.7-88.6 % on test).
@@ -35,6 +35,6 @@ pull request, newest first. The plan as a whole lives in CLAUDE.md ("Next, in or
 ### Next
 
 - Update the `results/*.json` of mlp_fashion with the new runs and record the FP32 sha256.
-- Rewrite `benchmarks/mlp_fashion/README.md`: INT vs SYMBEX, both recipes, the sizing theory with its tables, and how
+- Rewrite `benchmarks/mlp/mlp_fashion/README.md`: INT vs SYMBEX, both recipes, the sizing theory with its tables, and how
   to reproduce it (the published FP32 models + sha256, or everything from scratch within seed noise).
 - If the new validation ranking picks other shapes than the four above, confirm those with 3 seeds too.

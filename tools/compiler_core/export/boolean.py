@@ -2,7 +2,7 @@
 boolean.py -- the CDT's "boolean" method: fully binary convolutional networks (lib_symbex layers/conv/symbex_bool).
 
 The network is trained AS DEFINED (it is already binary: no plan search, no widening), then folded into integers and
-exported to the library. The model (e.g. benchmarks/cnn_cifar_resnet8/model.py, BoolResNet8) must expose:
+exported to the library. The model (e.g. benchmarks/conv2d/cnn_cifar_resnet8/model.py, BoolResNet8) must expose:
     levels                    thermometer levels per color of its input encoding
     stem, stem_bn             binary 3x3 conv + BatchNorm (then sign)
     blocks                    Blocks: conv + bn (stride 1 or 2), and, where the shape changes, ds_conv (1x1) + ds_bn

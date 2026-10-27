@@ -34,7 +34,7 @@ call; the counters' own cost is subtracted.
 
 ## train_bench.py — how fast the CDT trains, and what it uses
 
-Trains the binary ResNet-8 of `benchmarks/cnn_cifar_resnet8` with the training step of the CDT's boolean method for a
+Trains the binary ResNet-8 of `benchmarks/conv2d/cnn_cifar_resnet8` with the training step of the CDT's boolean method for a
 few hundred steps, in several configurations, and measures images per second, GPU utilization and memory, CPU (the whole
 process tree, data loader workers included), threads, processes, RAM, start-up time and total time.
 

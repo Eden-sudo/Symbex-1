@@ -6,7 +6,7 @@ train_bench.py -- how fast does the CDT train, and what does it use? A developme
     python train_bench.py --configs cpu gpu --steps 300
     python train_bench.py --try-compile                # also torch.compile (slow to start: compiles first)
 
-Run from tools/dev/ (environment env_bench). It trains the binary ResNet-8 of benchmarks/cnn_cifar_resnet8 (model.py,
+Run from tools/dev/ (environment env_bench). It trains the binary ResNet-8 of benchmarks/conv2d/cnn_cifar_resnet8 (model.py,
 BoolResNet8x1) on CIFAR-10 with the training step of the CDT's boolean method (compiler_core/export/boolean.py: crop +
 flip on the GPU, cross-entropy, Adam) for --steps batches after --warmup batches, and measures:
     speed      images per second and ms per step (warm-up excluded)
@@ -221,7 +221,7 @@ def main():
     ap.add_argument("--warmup", type=int, default=30)
     ap.add_argument("--batch-size", type=int, default=128, help="the benchmark's batch size (symbex.toml): 128")
     ap.add_argument("--data-dir", default=os.path.join(HERE, "..", "..", "benchmarks", "data", "cifar10"))
-    ap.add_argument("--model-dir", default=os.path.join(HERE, "..", "..", "benchmarks", "cnn_cifar_resnet8"))
+    ap.add_argument("--model-dir", default=os.path.join(HERE, "..", "..", "benchmarks", "conv2d", "cnn_cifar_resnet8"))
     ap.add_argument("--model-class", default="BoolResNet8x1")
     ap.add_argument("--child", default="", help=argparse.SUPPRESS)
     args = ap.parse_args()

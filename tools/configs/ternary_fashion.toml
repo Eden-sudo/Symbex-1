@@ -3,10 +3,10 @@
 #
 #   cd tools
 #   python cdt.py configs/ternary_fashion.toml
-#   python cdt.py configs/ternary_fashion.toml --method plain --output-directory ../benchmarks/mlp_fashion/runs/plain
+#   python cdt.py configs/ternary_fashion.toml --method plain --output-directory ../benchmarks/mlp/mlp_fashion/runs/plain
 #
-# Paths are relative to tools/. The FP32 model is the one of benchmarks/mlp_fashion (784 -> 256 -> 128 -> 10);
-# create it first with:   cd benchmarks/mlp_fashion && python -c "from model import get_fp32; get_fp32()"
+# Paths are relative to tools/. The FP32 model is the one of benchmarks/mlp/mlp_fashion (784 -> 256 -> 128 -> 10);
+# create it first with:   cd benchmarks/mlp/mlp_fashion && python -c "from model import get_fp32; get_fp32()"
 #
 # Ternary weights take 2 bits each in flash (sign plane + nonzero mask) and stay multiplier-free:
 #     dot = popcount(mask & ~(a ^ sign)) - popcount(mask & (a ^ sign))
@@ -14,8 +14,8 @@
 # =============================================================================
 
 [model]
-file       = "../benchmarks/mlp_fashion/models/fashion_mlp.pth"
-definition = "../benchmarks/mlp_fashion/model.py:FashionMLP"
+file       = "../benchmarks/mlp/mlp_fashion/models/fashion_mlp.pth"
+definition = "../benchmarks/mlp/mlp_fashion/model.py:FashionMLP"
 method     = "ternary"
 
 [data]
@@ -47,7 +47,7 @@ checkpoint = "last"
 seed       = 42
 
 [output]
-directory          = "../benchmarks/mlp_fashion/runs/ternary"   # benchmarks/**/runs/ is git-ignored
+directory          = "../benchmarks/mlp/mlp_fashion/runs/ternary"   # benchmarks/**/runs/ is git-ignored
 verbose            = false
 lib_path           = "../Symbex1_PIO/lib/lib_symbex"
 validation_samples = 2000

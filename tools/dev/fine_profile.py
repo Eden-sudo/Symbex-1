@@ -1,7 +1,7 @@
 """
 fine_profile.py -- where the time goes on the chip, step by step AND function by function of lib_symbex.
 
-    python fine_profile.py ../benchmarks/cnn_cifar_resnet8/runs/w1_s44 --board s3 --port /dev/ttyUSB0
+    python fine_profile.py ../benchmarks/conv2d/cnn_cifar_resnet8/runs/w1_s44 --board s3 --port /dev/ttyUSB0
     python fine_profile.py <export folder> --board esp32 --popcount lut16 --weights ram
     python fine_profile.py <export folder> --board s3 --plain      # no counters: the latency to report, per step
 
