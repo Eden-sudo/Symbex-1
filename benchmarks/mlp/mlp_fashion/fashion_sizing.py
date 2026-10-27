@@ -18,7 +18,7 @@ reported apart, measured once.
 
 Latency is PREDICTED from the chip: the cost per weight of a uint8 x 1-bit layer and of a 1-bit x 1-bit layer, taken
 from the layer times of the lowbit_study exports already measured on a board (runs/lowbit/plain_w*_s42/chip_*.json,
-lowbit_chip.py), for every board and weight placement measured. The prediction is only a guide: with the weights in
+earlier/lowbit_chip.py), for every board and weight placement measured. The prediction is only a guide: with the weights in
 flash the cost per weight is not linear (a small first layer fits the flash cache, a wide one does not: 784-128-512
 predicted 1.71 ms, measured 0.42 ms on the S3). So the table shows the MEASURED latency wherever a shape has been run
 on the board (runs/sizing/h<h1>_<h2>_s42*/chip_*.json; the latency depends on the shape, not on the weight values),
@@ -197,7 +197,7 @@ def main():
           f"{args.seeds} seed(s) from {args.seed};"
           f" ranked on VALIDATION, test measured once;\n    latency MEASURED on the board (seed-42 export, median over the "
           f"test images, 100 % equal to the simulation); ~ = PREDICTED from per-weight costs, not measured yet"
-          + (f": {', '.join(f'{b} {w}' for b, w in settings)})" if settings else ": none measured yet, run lowbit_chip.py)"))
+          + (f": {', '.join(f'{b} {w}' for b, w in settings)})" if settings else ": none measured yet, run earlier/lowbit_chip.py)"))
     print()
     head = f"    {'shape':<18}{'weights KB':>11}{'val acc':>16}{'test acc':>16}" + "".join(f"{'ms ' + b + ' ' + w:>15}" for b, w in settings)
     print(head + "  Pareto")

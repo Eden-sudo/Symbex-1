@@ -30,7 +30,7 @@ import math
 import os
 import re
 
-AQUI = os.path.dirname(os.path.abspath(__file__))
+AQUI = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # mlp_fashion/ (this script lives in earlier/)
 FORMA_ORIGINAL = [784, 256, 128, 10]                 # FashionMLP (model.py)
 
 

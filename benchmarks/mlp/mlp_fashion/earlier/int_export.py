@@ -28,7 +28,7 @@ import tempfile
 
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # mlp_fashion/ (this script lives in earlier/)
 TOOLS = os.path.normpath(os.path.join(HERE, "..", "..", "..", "tools"))
 LIB = os.path.normpath(os.path.join(HERE, "..", "..", "..", "Symbex1_PIO", "lib", "lib_symbex"))
 COEF = {2: (1, -1), 4: (1, 2, 4, -8)}

@@ -32,14 +32,14 @@ only):
 |---|---|---|---|
 | SYMBEX 1 bit | 1 bit | 1 bit (the first layer takes the 8-bit pixels) | the CDT, method `plain` |
 | ternary | -1 / 0 / +1 | 1 bit | the CDT, method `ternary` |
-| INT8, INT4, INT2 QAT | 8 / 4 / 2 bits, per channel, symmetric (INT2: levels -1, 0, +1) | 8 bits | `fashion_int4.py`; `fashion_lowbit.py` (Brevitas, `tools/lowbit`) |
+| INT8, INT4, INT2 QAT | 8 / 4 / 2 bits, per channel, symmetric (INT2: levels -1, 0, +1) | 8 bits | `earlier/fashion_int4.py`; `fashion_lowbit.py` (Brevitas, `tools/lowbit`) |
 | INT8 TFLite | 8 bits, full-integer post-training quantization | 8 bits | `fashion_tflite.py` (official converter, no retraining) |
 
 **On the chip** (ESP32-S3, 240 MHz, one core): every SYMBEX, ternary, INT4 and INT2 model runs through the same tool,
 `tools/chip_test.py`: the same firmware, the same 1,000 test images, the median latency, and the result checked
 against the method's integer simulation (**100 % on every run**). The integer models of `fashion_lowbit.py` (INT8, INT4,
 INT2) run with ordinary multiply-accumulate on Espressif's ESP-NN kernels (`tools/lowbit`); the earlier INT4 / INT2
-rows ran as bit planes summed by the library's HAL (`int_export.py`), SYMBEX arithmetic, kept for the record. INT8 TFLite runs on TensorFlow Lite Micro with Espressif's ESP-NN kernels, checked against
+rows ran as bit planes summed by the library's HAL (`earlier/int_export.py`), SYMBEX arithmetic, kept for the record. INT8 TFLite runs on TensorFlow Lite Micro with Espressif's ESP-NN kernels, checked against
 the TFLite interpreter (100 %). Latency depends on the shape, not on the weight values: it is measured on the seed-42
 export of each model.
 
@@ -91,7 +91,7 @@ sd over 3 seeds:
 
 ## 2. Speed on the ESP32-S3
 
-`lowbit_chip.py`. Accuracy: the distillation recipe of the table above (the network and its speed are the same with
+`earlier/lowbit_chip.py`. Accuracy: the distillation recipe of the table above (the network and its speed are the same with
 either recipe). RAM: model buffers, input, stack (and the weights, when they are in RAM), measured on the chip.
 SYMBEX runs in the counting mode `swar` (`--popcount swar`): the AND layers count with PIE and need no lookup table;
 the 64 KB table of the default `lut16` mode gives the same speed here (measured, within 1 %) and is not counted.
@@ -133,7 +133,7 @@ the 64 KB table of the default `lut16` mode gives the same speed here (measured,
   less RAM; x1.5 and x2 are slower. INT4 and INT2 unpacked to int8 run exactly as INT8: the bits only save flash.
 - **In flash, fewer weight bits help INT less than expected:** INT4 / INT2 codes are unpacked to int8 before each
   kernel call (10.3 / 13.4 ms against 15.6 ms for INT8); SYMBEX x1 stays 8.3x faster than the best of them.
-- The earlier INT4 / INT2 rows (bit planes, `int_export.py`) used the library's own counting, not integer
+- The earlier INT4 / INT2 rows (bit planes, `earlier/int_export.py`) used the library's own counting, not integer
   arithmetic: they are kept for the record, the ESP-NN rows are the integer baseline.
 - **The ternary kernel is slow** (12-15 ms): it is the next kernel to rewrite (see *Future work*).
 
@@ -245,7 +245,7 @@ On the chip (x1.5, 1,000 images, 100 % equal to the simulation; counting mode `s
 
 ### PopLUT probe: codebook-compressed binary weights (PC only)
 
-`poplut_probe.py` tests whether the 1-bit weights of a trained SYMBEX x2 model can be stored as indices into a small
+`../../experiments/poplut_probe.py` tests whether the 1-bit weights of a trained SYMBEX x2 model can be stored as indices into a small
 codebook of 32-bit words (each word: a codebook index plus a complement bit). The codebook is learned by binary
 k-means in Hamming distance, then the rest of the model is fine-tuned for 3 epochs. Base: SYMBEX x2, seed 42, 86.34 %,
 66,880 B of 1-bit weights.
@@ -268,10 +268,19 @@ x2 model was trained before the validation fix (last checkpoint, no selection); 
 the chip; the C lookup kernel does not exist yet.
 
 ```
-python poplut_probe.py --modelo runs/symbex_local_s42/model_binarized.pth
+python ../../experiments/poplut_probe.py --modelo runs/symbex_local_s42/model_binarized.pth
 ```
 
 ## How to reproduce
+
+| Script | What it does |
+|---|---|
+| `model.py` | the FP32 model and the data both sides share |
+| `fashion_symbex.py` / `fashion_tflite.py` | the SYMBEX side (CDT) / the official INT8 side (TFLite) |
+| `fashion_sizing.py` | the sizing study: which shape for a binary network |
+| `fashion_lowbit.py` | INT8 / INT4 / INT2 with `tools/lowbit` (Brevitas, ESP-NN), the weights-vs-activations ablation |
+| `lowbit_study.py` | the SYMBEX x1 / x1.5 / x2 and ternary runs of the low-bit study (and its earlier INT rows) |
+| `earlier/` | the earlier INT baselines (`fashion_int4.py`, `int_export.py`: bit planes), their chip table (`lowbit_chip.py`) and the Pareto plot (`pareto.py`): kept so the earlier rows can be reproduced |
 
 From `benchmarks/mlp/mlp_fashion/`, environment `env_bench`.
 
@@ -304,21 +313,21 @@ python fashion_sizing.py --shapes 128-512 256-512 384-512 512-256 --seeds 3
 python fashion_sizing.py --shapes 128-512 256-512 384-512 512-256 --seeds 3 --no-distill
 
 # ESP32-S3: on its native USB port (/dev/ttyACM0, --usb) or on its UART (/dev/ttyUSB0, without --usb)
-python lowbit_chip.py --board s3 --port /dev/ttyACM0 --usb                     # weights in flash
-python lowbit_chip.py --board s3 --port /dev/ttyACM0 --usb --weights ram
+python earlier/lowbit_chip.py --board s3 --port /dev/ttyACM0 --usb                     # weights in flash
+python earlier/lowbit_chip.py --board s3 --port /dev/ttyACM0 --usb --weights ram
 python fashion_lowbit.py --chip-only --board s3 --port /dev/ttyACM0 --usb    # INT8 / INT4 / INT2 on ESP-NN, flash
 python fashion_lowbit.py --chip-only --board s3 --port /dev/ttyACM0 --usb --weights ram
 python fashion_sizing.py --shapes 128-512 256-512 384-512 512-256 --seeds 3 --measure --board s3 --port /dev/ttyACM0 --usb
 python fashion_tflite.py --board s3                                            # INT8 in flash
 python fashion_tflite.py --board s3 --model-ram                                # INT8 in RAM
-python fashion_int4.py --bits 8 --epocas 15 --semillas 3 --shape 128-512       # INT8 QAT of the binary-sized MLP
-python fashion_int4.py --bits 8 --epocas 15 --semillas 3 --shape 128-512 --no-distill
+python earlier/fashion_int4.py --bits 8 --epocas 15 --semillas 3 --shape 128-512       # INT8 QAT of the binary-sized MLP
+python earlier/fashion_int4.py --bits 8 --epocas 15 --semillas 3 --shape 128-512 --no-distill
 python fashion_tflite.py --shape 128-512 --board s3 --port /dev/ttyACM0 --usb  # its TFLite INT8, flash
 python fashion_tflite.py --shape 128-512 --board s3 --port /dev/ttyACM0 --usb --model-ram
 python ../../../tools/chip_test.py runs/sizing/h128_512_s42 --board s3 --port /dev/ttyACM0 --usb --popcount swar  # minimum RAM
 ```
 
-The earlier results (1-bit input, the classic ESP32, the INT baselines of `fashion_int4.py`, the Pareto plot):
+The earlier results (1-bit input, the classic ESP32, the INT baselines of `earlier/fashion_int4.py`, the Pareto plot):
 
 ```
 python ../../../tools/chip_test.py --kernels --board s3 --popcount swar          # chip profile (once per chip)
@@ -329,8 +338,8 @@ python fashion_symbex.py --seeds 3 --board s3 --weights flash --compare-arithmet
 python fashion_symbex.py --seeds 3 --board s3 --weights ram --compare-arithmetic
 python fashion_tflite.py --board esp32                                        # TFLite: flash only on the ESP32
 python fashion_tflite.py --board s3 --table-only                              # both TFLite tables
-python fashion_int4.py --bits 4 2 --semillas 3 --epocas 15                    # INT PTQ + QAT (PC)
-python pareto.py                                                              # accuracy vs. weight bytes
+python earlier/fashion_int4.py --bits 4 2 --semillas 3 --epocas 15                    # INT PTQ + QAT (PC)
+python earlier/pareto.py                                                              # accuracy vs. weight bytes
 ```
 
 Results land in `results/`; everything generated goes to `runs/` (`../clean.py` frees the build folders without
@@ -340,13 +349,13 @@ touching any result). Measured in October 2026 on an ESP32-S3 (QFN56, rev v0.2),
 
 - One task; one FP32 model per shape. SYMBEX and the QAT methods with 3 seeds; INT8 TFLite has no training, so no
   seeds.
-- The integer models run their requantization with a float multiplier in the simulation (`fashion_int4.py`); on the
+- The integer models run their requantization with a float multiplier in the simulation (`earlier/fashion_int4.py`); on the
   chip, INT4 / INT2 are checked against their own integer simulation (100 %).
 - One board for the current results (ESP32-S3). Energy has not been measured; latency and memory have.
 
 ## Future work
 
-- **INT4 / INT2 at the binary-sized shape** (`fashion_int4.py --shape 128-512 --bits 4 2`), and on the chip.
+- **INT4 / INT2 at the binary-sized shape** (`fashion_lowbit.py --shape 128-512 --bits 4 2`), and on the chip.
 - **The classic ESP32 and the 1-bit input** again, with the current library and the fixed validation split.
 - **The ternary kernel**: one count per word with HAL row functions (today 12-15 ms).
 - **Learned input thresholds** for the fully binary network (86.3 % in `experiments`).

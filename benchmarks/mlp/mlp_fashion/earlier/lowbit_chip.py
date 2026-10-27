@@ -24,7 +24,7 @@ import os
 import subprocess
 import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # mlp_fashion/ (this script lives in earlier/)
 CHIP_TEST = os.path.normpath(os.path.join(HERE, "..", "..", "..", "tools", "chip_test.py"))
 CDT_ROWS = [("SYMBEX 1 bit x1", "runs/lowbit/plain_w1_s42"), ("SYMBEX 1 bit x1.5", "runs/lowbit/plain_w1.5_s42"),
             ("SYMBEX 1 bit x2", "runs/lowbit/plain_w2_s42"), ("ternary x1", "runs/lowbit/ternary_w1_s42"),
@@ -66,11 +66,11 @@ def ensure_int(bits):
         return folder
     if not os.path.exists(os.path.join(HERE, "models", f"int{bits}_qat_s42.npz")):
         print(f"\n[*] INT{bits}: no saved model yet: fashion_int4.py again (3 seeds, the same results, now saved)")
-        r = subprocess.run([sys.executable, "fashion_int4.py", "--bits", str(bits), "--epocas", "15", "--semillas", "3"],
+        r = subprocess.run([sys.executable, os.path.join("earlier", "fashion_int4.py"), "--bits", str(bits), "--epocas", "15", "--semillas", "3"],
                            cwd=HERE)
         if r.returncode != 0 or not os.path.exists(os.path.join(HERE, "models", f"int{bits}_qat_s42.npz")):
             sys.exit(f"[X] models/int{bits}_qat_s42.npz was not saved: was patch_lowbit_chip.py applied?")
-    if subprocess.run([sys.executable, "int_export.py", "--bits", str(bits), "--seed", "42"], cwd=HERE).returncode != 0:
+    if subprocess.run([sys.executable, os.path.join("earlier", "int_export.py"), "--bits", str(bits), "--seed", "42"], cwd=HERE).returncode != 0:
         sys.exit(f"[X] int_export.py --bits {bits} failed")
     return folder
 

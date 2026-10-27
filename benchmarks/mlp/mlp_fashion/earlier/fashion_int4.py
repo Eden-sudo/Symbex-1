@@ -43,7 +43,7 @@ import time
 
 import numpy as np
 
-AQUI = os.path.dirname(os.path.abspath(__file__))
+AQUI = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # mlp_fashion/ (this script lives in earlier/)
 MEDIA, DESV = 0.2860, 0.3530
 TEMPERATURA, ALFA, LR, WEIGHT_DECAY = 4.0, 0.85, 1e-3, 1e-5     # the CDT defaults ([training] in cdt.py)
 MOMENTO_RANGO = 0.99

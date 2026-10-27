@@ -46,6 +46,11 @@ pull request, newest first.
 INT8 on ESP-NN 30.35 / 34.61 / 41.38 ms in flash; none of them runs with the weights in RAM (INT8: DRAM overflowed by
 74 KB; INT4 / INT2 do not start, likely no 235 KB block for the unpacked weights).
 
+**mlp_fashion folder simplified:** the superseded INT scripts (`fashion_int4.py`, `int_export.py`, `lowbit_chip.py`,
+`pareto.py`) moved to `mlp_fashion/earlier/` (they still run, so the earlier rows can be reproduced); `poplut_probe.py`
+moved to `benchmarks/experiments/`. `earlier/pareto.py` already failed before the move (a file-name pattern): to
+fix when the Pareto plot moves into `tools/lowbit`.
+
 **Benchmarks grouped by network type:** `benchmarks/mlp/`, `conv1d/`, `conv2d/`; every relative path updated and
 checked; the benchmark `.gitignore` matches `runs/` and `models/` at any depth.
 
