@@ -1,0 +1,9 @@
+{
+ "accuracy": 89.60000000000001,
+ "acuerdo_fp32": 99.5,
+ "tflite_bytes": 191464,
+ "input_scale": 0.003921568859368563,
+ "input_zero_point": -128,
+ "n": 2000,
+ "shape": "784-128-512-10"
+}

@@ -77,12 +77,12 @@ except ModuleNotFoundError:             # pragma: no cover
 DEFAULTS = {
     "model": {"file": "", "definition": "", "method": "plain"},
     "data": {"directory": "", "format": "npy", "validation_split": 0.1, "calibration_samples": 32,
-             "mean": [], "std": [], "input_bits": 8},
+             "split_seed": -1, "mean": [], "std": [], "input_bits": 8},
     "hardware": {"ram_kb": 320, "flash_kb": 4096, "psram_kb": 0, "cpu_bits": 32},
     "target": {"budget": 0.25, "tolerance": 0.99, "options": ["bin", 2, 4, 8], "max_accuracy_drop": 2.0,
                "search_epochs": 5, "widths": [1.0, 1.5, 2.0]},
     "training": {"epochs": 150, "distill": True, "temperature": 4.0, "alpha": 0.85, "learning_rate": 1e-3,
-                 "batch_size": 256, "checkpoint": "last", "seed": 42, "data_on_gpu": False},
+                 "batch_size": 256, "checkpoint": "last", "seed": 42, "data_on_gpu": False, "compile": ""},
     "output": {"directory": "", "verbose": True, "lib_path": "../Symbex1_PIO/lib/lib_symbex",
                "validation_samples": 2000, "arithmetic": "auto", "int8_reference": False},
     "chip": {"board": "", "port": "/dev/ttyUSB0", "baud": 921600, "samples": 1000, "upload": True,
@@ -195,6 +195,8 @@ def validate_config(cfg):
         errors.append("[data] validation_split must be between 0 and 1")
     if d["calibration_samples"] < 1:
         errors.append("[data] calibration_samples must be >= 1")
+    if d["split_seed"] < -1:
+        errors.append("[data] split_seed must be >= 0 (or -1: the training seed)")
     if len(d["mean"]) != len(d["std"]):
         errors.append("[data] mean and std must have the same length (or both be empty)")
     for k in ("ram_kb", "flash_kb"):
@@ -337,7 +339,8 @@ def load_data(cfg):
     from torch.utils.data import TensorDataset, random_split
     d = cfg["data"]
     fmt, folder = d["format"], d["directory"]
-    gen = torch.Generator().manual_seed(cfg["training"]["seed"])
+    # the validation split: fixed by [data] split_seed, so every training seed sees the same images (-1: the training seed)
+    gen = torch.Generator().manual_seed(d["split_seed"] if d["split_seed"] >= 0 else cfg["training"]["seed"])
 
     from compiler_core.train.standard import InputBitQuantizer
     s_bits = 8 - d["input_bits"]
@@ -1063,9 +1066,7 @@ def main():
         res_export = load_export(cfg, out_dir)
     if end == STAGES.index("export"):
         return
-    if cfg["chip"]["board"] and cfg["model"]["method"] == "ternary":
-        print("\n[6] CHIP  skipped: the chip harness (chip/measure.py) does not build symbex_ternary.c yet")
-    elif cfg["chip"]["board"]:
+    if cfg["chip"]["board"]:
         stage_chip(res_export, cfg, out_dir)
     else:
         print("\n[6] CHIP  skipped: set [chip] board = \"esp32\" or \"s3\" (or --board esp32) to measure on a board")

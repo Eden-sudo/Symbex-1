@@ -17,6 +17,7 @@ Run from tools/:
     python chip_test.py models/fashion_export --board esp32 --no-upload            # firmware already flashed
     python chip_test.py models/fashion_export --board esp32 --weights ram          # weights in RAM, not flash
     python chip_test.py models/fashion_export --board esp32 --first-layer planes   # first layer with bit planes
+    python chip_test.py models/fashion_export --board s3 --port /dev/ttyACM0 --usb # the S3's native USB port
     python chip_test.py --kernels --board s3                                        # kernel benchmark only (no model)
     python chip_test.py --kernels --board s3 --weights ram                          # ... with the weights in RAM
 --kernels measures which arithmetic (XNOR + popcount or AND + count) is faster on the chip, with the library's own
@@ -56,6 +57,9 @@ def main():
     ap.add_argument("--lib-path", default="../Symbex1_PIO/lib/lib_symbex")
     ap.add_argument("--no-upload", action="store_true", help="the firmware is already on the board")
     ap.add_argument("--no-int8", action="store_true", help="do not run the INT8 reference even if it was exported")
+    ap.add_argument("--usb", action="store_true",
+                    help="through the board's native USB-Serial-JTAG port (ESP32-S3, /dev/ttyACM0) instead of its UART: "
+                         "flashing needs no BOOT button, same firmware and results")
     args = ap.parse_args()
     if args.port and not args.port.startswith("/") and not args.port.upper().startswith("COM"):
         args.port = "/dev/" + args.port                  # "ttyUSB0" -> "/dev/ttyUSB0"
@@ -98,7 +102,7 @@ def main():
     try:
         res = measure_on_chip(header, x, y, sim, os.path.join(args.folder, f"chip_{args.board}"), args.lib_path,
                               args.board, args.port, args.baud, args.samples, not args.no_upload, args.popcount, flash,
-                              weights=args.weights, first_layer=args.first_layer, int8=int8)
+                              weights=args.weights, first_layer=args.first_layer, int8=int8, usb=args.usb)
     except (RuntimeError, ValueError) as e:
         sys.exit(f"[X] {e}")
     path = os.path.join(args.folder, f"chip_{args.board}_{args.popcount}_{args.weights}_{args.first_layer}.json")

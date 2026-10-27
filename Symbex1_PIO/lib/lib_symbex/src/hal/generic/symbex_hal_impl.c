@@ -8,6 +8,8 @@
  *   SWAR   : everything else
  * Flags: -DSYMBEX_POPCOUNT_FORCE_SWAR, -DSYMBEX_POPCOUNT_FORCE_LUT16, -DSYMBEX_POPCOUNT_FORCE_LUT8 (the AVR path on
  *        any chip, to check it on a PC), -DSYMBEX_POPCOUNT_NO_LUT16 (ESP32 without the table)
+ *        -DSYMBEX_POPCOUNT_FORCE_NATIVE (the compiler's __builtin_popcount, for a core whose compiler turns it
+ *        into an instruction the automatic detection does not know)
  * On the ESP32-S3, hal/esp32s3/ is used and this file compiles to nothing.
  *
  * SYMBEX v3: symbex_xnor_popcount counts ONLY the first n_real_bits bits. Padding bits
@@ -50,6 +52,8 @@
   #define PATH_SWAR 1
 #elif defined(SYMBEX_POPCOUNT_FORCE_LUT16)
   #define PATH_LUT16 1
+#elif defined(SYMBEX_POPCOUNT_FORCE_NATIVE)
+  #define PATH_NATIVE 1          /* the compiler's popcount, trusted to be an instruction */
 #elif defined(SYMBEX_POPCOUNT_FORCE_LUT8) || defined(__AVR__)
   #define PATH_LUT8 1
 #elif defined(__POPCNT__) || defined(__aarch64__) || defined(__riscv_zbb)

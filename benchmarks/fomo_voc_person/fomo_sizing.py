@@ -10,11 +10,11 @@ Run from benchmarks/fomo_voc_person/ (main environment). The same study as cnn_c
     accuracy    every variant trained by fomo_train.py (--weight 40, --epochs 100: the recipe of the measured binary
                 FOMO), scored by the test F1 with its calibrated threshold
     latency     PREDICTED: every layer costs (outputs) x (the chip's cycles per output for its packed window size,
-                tools/count_bench.py), times one factor per chip calibrated with the measured binary FOMO
+                tools/dev/count_bench.py), times one factor per chip calibrated with the measured binary FOMO
                 (32-64-128 / 1-2-2: --s3-ms 160.8, --esp32-ms 296.2)
     flash, RAM  computed as the CDT exporter lays them out (packed weight rows, thresholds, counts; the four map buffers
                 each as large as what they hold, the window, the scratch, the cell grid)
-Then the interesting variants are exported and measured as the main one (fomo_export.py, tools/fine_profile.py).
+Then the interesting variants are exported and measured as the main one (fomo_export.py, tools/dev/fine_profile.py).
 Results: results/fomo_sizing.json.
 """
 import argparse
@@ -164,7 +164,7 @@ def main():
               f"{(b['s3_ms'] / r['s3_ms'] if b else 1):>8.2f}x{r['flash_kb']:>10.1f}{r['ram_kb']:>9.1f}  "
               f"{'  *' if r['pareto'] else ''}{'   <- the benchmark FOMO' if r['spec'] == BASE else ''}")
     print("\n    * Pareto: no other variant detects better AND runs faster. Export and measure the interesting ones:"
-          "\n      python fomo_export.py runs/<run>  ;  python ../../tools/fine_profile.py runs/<run> --board s3 --plain")
+          "\n      python fomo_export.py runs/<run>  ;  python ../../tools/dev/fine_profile.py runs/<run> --board s3 --plain")
     os.makedirs("results", exist_ok=True)
     path = os.path.join("results", "fomo_sizing.json")
     out = json.load(open(path)) if os.path.exists(path) else {}

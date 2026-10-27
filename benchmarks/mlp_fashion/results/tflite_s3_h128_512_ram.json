@@ -1,0 +1,12 @@
+{
+ "board": "s3",
+ "model_ram": true,
+ "n": 1000,
+ "shape": "784-128-512-10",
+ "accuracy": 88.6,
+ "equal_pc": 100.0,
+ "median_ms": 0.8875,
+ "min_ms": 0.872,
+ "arena_kb": 6.65234375,
+ "flash_kb": 186.9765625
+}

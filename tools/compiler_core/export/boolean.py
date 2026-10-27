@@ -77,21 +77,47 @@ def train(model, train_ds, val_ds, cfg, out_dir, test_ds=None):
         if isinstance(m, (torch.nn.BatchNorm1d, torch.nn.BatchNorm2d)):
             m.momentum = 0.3
     gen = torch.Generator().manual_seed(tr["seed"])
-    trl = DataLoader(train_ds, batch_size=tr["batch_size"], shuffle=True, generator=gen, num_workers=4,
-                     persistent_workers=True, drop_last=True, pin_memory=True)
+    on_gpu = bool(tr.get("data_on_gpu")) and dev.type == "cuda"
+    if on_gpu:                                       # the whole training set on the GPU, converted once
+        xs, ys = [], []
+        for x, y in DataLoader(train_ds, batch_size=1024, num_workers=4):
+            xs.append(x.to(dev))
+            ys.append(y.to(dev))
+        xs, ys = torch.cat(xs), torch.cat(ys)
+        bs = tr["batch_size"]
+
+        def epoch_batches():
+            perm = torch.randperm(len(xs), device=dev, generator=torch.Generator(device=dev).manual_seed(
+                int(torch.randint(0, 2 ** 31 - 1, (1,), generator=gen))))
+            for i in range(0, len(perm) - bs + 1, bs):  # whole batches only (drop_last)
+                idx = perm[i:i + bs]
+                yield xs[idx], ys[idx]
+    else:
+        trl = DataLoader(train_ds, batch_size=tr["batch_size"], shuffle=True, generator=gen, num_workers=4,
+                         persistent_workers=True, drop_last=True, pin_memory=True)
+
+        def epoch_batches():
+            for x, y in trl:
+                yield x.to(dev, non_blocking=True), y.to(dev, non_blocking=True)
     val_l = DataLoader(val_ds, batch_size=512, num_workers=2, persistent_workers=True)
+    mode = tr.get("compile") or ""
+    step_model = student
+    if mode and dev.type == "cuda":                  # CUDA graphs: the training step recorded once, then replayed
+        import torch._inductor.config as inductor_config
+        inductor_config.compile_threads = min(4, os.cpu_count() or 1)    # the compiler's peak RAM: ~6 GB, not ~24
+        step_model = torch.compile(student, mode=None if mode == "default" else mode)
     opt = torch.optim.Adam(student.parameters(), lr=tr["learning_rate"])
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, tr["epochs"])
     if tr.get("distill"):
         print("    [!] method 'boolean' trains on the labels only: [training] distill is ignored")
     print(f"\n[3] TRAIN  (method 'boolean': the network as defined, {tr['epochs']} epochs, labels only, Adam "
-          f"lr {tr['learning_rate']} + cosine, crop + flip | {dev})")
+          f"lr {tr['learning_rate']} + cosine, crop + flip | {dev}"
+          + (", data on the GPU" if on_gpu else "") + (f", compile {mode}" if mode and dev.type == "cuda" else "") + ")")
     history, t0 = [], time.time()
     for ep in range(tr["epochs"]):
         student.train()
-        for x, y in trl:
-            x, y = _augment(x.to(dev, non_blocking=True)), y.to(dev, non_blocking=True)
-            loss = F.cross_entropy(student(x), y)
+        for x, y in epoch_batches():
+            loss = F.cross_entropy(step_model(_augment(x)), y)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()

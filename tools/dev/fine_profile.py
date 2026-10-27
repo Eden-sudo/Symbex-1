@@ -23,7 +23,7 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.dirname(HERE))           # tools/: compiler_core
 from compiler_core.chip.core import BOARDS, flash, lib_sources, open_port, read_line, wait_ready, write_project  # noqa
 from compiler_core.chip.measure import _build_flags                                                                  # noqa
 
@@ -39,7 +39,7 @@ def main():
     ap.add_argument("--images", type=int, default=100, help="validation images (default 100: the shares do not change)")
     ap.add_argument("--popcount", choices=["swar", "lut16"], default="swar")
     ap.add_argument("--weights", choices=["flash", "ram"], default="flash")
-    ap.add_argument("--lib", default=os.path.normpath(os.path.join(HERE, "..", "Symbex1_PIO", "lib", "lib_symbex")))
+    ap.add_argument("--lib", default=os.path.normpath(os.path.join(HERE, "..", "..", "Symbex1_PIO", "lib", "lib_symbex")))
     ap.add_argument("--no-upload", action="store_true")
     ap.add_argument("--plain", action="store_true", help="the normal library (no counters): the latency to report")
     args = ap.parse_args()

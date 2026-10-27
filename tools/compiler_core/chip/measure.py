@@ -22,10 +22,16 @@ def _build_flags(popcount, weights, first_layer):
             + (["-DSYMBEX_U8_PLANES"] if first_layer == "planes" else []))
 
 
+USB_BOARDS = {"s3"}                        # boards with a native USB-Serial-JTAG port (usb=True)
+
+
 def generate_project(project_dir, header_path, lib_path, board, port, baud, popcount="lut16",
-                     weights="flash", first_layer="mask", int8_path=None):
+                     weights="flash", first_layer="mask", int8_path=None, usb=False):
     """PlatformIO project: the exported header, the lib_symbex sources it needs, and the firmware (ESP-IDF on the
-    ESP32 boards; Arduino on AVR boards, with the weights in flash: PROGMEM, read by the library)."""
+    ESP32 boards; Arduino on AVR boards, with the weights in flash: PROGMEM, read by the library).
+    usb=True: the firmware talks over the chip's native USB-Serial-JTAG port instead of UART0 (the ESP32-S3)."""
+    if usb and board not in USB_BOARDS:
+        raise ValueError(f"chip: --usb needs a board with a native USB-Serial-JTAG port ({sorted(USB_BOARDS)})")
     extra = {"model_symbex.h": header_path}
     if board in AVR_BOARDS:
         write_project(project_dir, board, port, lib_sources(lib_path, ("symbex_dense.c", "symbex_hal_generic.c")),
@@ -35,27 +41,30 @@ def generate_project(project_dir, header_path, lib_path, board, port, baud, popc
     if int8_path:
         extra["model_int8.h"] = int8_path
         defines.update(SYMBEX_WITH_INT8=1, SYMBEX_WITH_ESP_NN=1)
+    if usb:
+        defines.update(SYMBEX_USB_SERIAL_JTAG=1)
     write_project(project_dir, board, port, lib_sources(lib_path), "model_test.c", defines, extra,
                   _build_flags(popcount, weights, first_layer), ["espressif/esp-nn"] if int8_path else (),
-                  lib_path=lib_path)
+                  "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\n" if usb else "", lib_path=lib_path)
 
 
 def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="esp32", port="/dev/ttyUSB0",
                   baud=921600, n=1000, upload=True, popcount="lut16", model_flash=None, verbose=True,
-                  weights="flash", first_layer="mask", int8=None):
+                  weights="flash", first_layer="mask", int8=None, usb=False):
     """Flashes the exported model and measures it on the board: equality with the integer simulation (must be
     100%), accuracy, latency (total and per layer) and RAM. x / y / expected: validation images (uint8), labels
     and the classes of the integer simulation. Returns a dict, or raises RuntimeError with what went wrong.
     int8 (optional): dict(header=..., expected=classes of its integer simulation, flash=bytes) to run the INT8
-    reference of the original model on the same chip and the same images (Espressif's ESP-NN kernel)."""
+    reference of the original model on the same chip and the same images (Espressif's ESP-NN kernel).
+    usb=True: through the board's native USB-Serial-JTAG port (port is then e.g. /dev/ttyACM0), not its UART."""
 
 
     import time
     generate_project(project_dir, header_path, lib_path, board, port, baud, popcount, weights, first_layer,
-                     int8["header"] if int8 else None)
+                     int8["header"] if int8 else None, usb)
     if upload:
         flash(project_dir, verbose, f"{BOARDS[board]} on {port} (popcount {popcount}, weights in {weights}, "
-                                    f"first layer {first_layer})")
+                                    f"first layer {first_layer}" + (", native USB" if usb else "") + ")")
     n = min(n, len(x))
     pred, totals, per_step, names, ram, stack = [], [], [], {}, None, None
     pred8, totals8, per_step8, info8 = [], [], [], None
@@ -64,10 +73,12 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
         if verbose and weights == "ram":
             print("    [!] AVR: the weights always stay in flash (2 KB of RAM); --weights ram is ignored")
         weights, int8 = "flash", None
-    with open_port(port, baud, "dtr" if board in AVR_BOARDS else "rts") as s:
+    with open_port(port, baud, "dtr" if board in AVR_BOARDS else "usb" if usb else "rts") as s:
         t0, warned, hal = time.time(), False, "?"
         while True:
             l = s.readline().decode(errors="replace").strip()
+            if usb and not l and hal == "?":
+                s.write(b"\x55")                       # native USB: ask again for the ready lines
             if "SYMBEX ready" in l:
                 hal = l.split("|")[1].strip() if "|" in l else "?"
             elif l.startswith("STEP:"):

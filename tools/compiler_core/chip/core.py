@@ -23,6 +23,7 @@ LIB_SOURCES = {
     "symbex_hal_generic.c": ("src", "hal", "generic", "symbex_hal_impl.c"),
     "symbex_hal_esp32s3.c": ("src", "hal", "esp32s3", "symbex_hal_impl.c"),
     "symbex_bool.c": ("src", "layers", "conv", "symbex_bool.c"),      # fully binary conv networks (method boolean)
+    "symbex_ternary.c": ("src", "layers", "dense", "symbex_ternary.c"),  # ternary dense networks (method ternary)
 }
 
 
@@ -117,8 +118,10 @@ def flash(project_dir, verbose=True, what=""):
 
 
 def open_port(port, baud, reset="rts"):
-    """Opens the serial port and resets the board: reset="rts" (ESP32: RTS pulse on EN) or "dtr" (Arduino:
-    DTR pulse on RESET, then the bootloader's ~2 s)."""
+    """Opens the serial port and resets the board: reset="rts" (ESP32: RTS pulse on EN), "dtr" (Arduino:
+    DTR pulse on RESET, then the bootloader's ~2 s) or "usb" (ESP32-S3 native USB-Serial-JTAG: opening the port
+    already resets the chip, an RTS pulse would re-enumerate the port under us; the firmware then waits for the
+    host's 0x55, sent here and again by the caller while it waits for the ready lines)."""
     import serial
     s = serial.Serial()
     s.port, s.baudrate, s.timeout = port, baud, 1
@@ -126,7 +129,11 @@ def open_port(port, baud, reset="rts"):
     s.rts = False
     s.open()
     s.reset_input_buffer()
-    if reset == "dtr":
+    if reset == "usb":
+        time.sleep(1.5)                                  # the chip boots again after the port opens
+        s.reset_input_buffer()
+        s.write(b"\x55")
+    elif reset == "dtr":
         s.dtr = True
         time.sleep(0.15)
         s.dtr = False
