@@ -24,6 +24,21 @@ Plus TensorFlow Lite Micro INT8 with the same architectures, and the same networ
   paper states.
 - **The simulator runs:** `pulp/Dockerfile` builds the PULP compiler, the PULP SDK and GVSoC (pulp-open target, whose
   fabric controller is a RI5CY core) on Ubuntu 22.04.
+- **Their kernels run unchanged in it:** compiled with their flags (`-O3 -flto`); only their measuring program was
+  ported to the current SDK (`pi_perf_*` instead of `rt_perf_*`, the same warm-up and repeat counts as their
+  `stats.h`). Their output is exact on every layer.
+
+### The measure: instructions first
+
+Their chip, PULPissimo, is no longer a buildable target in the current GVSoC, so the comparison runs on the pulp-open
+platform, the same kind of core (RI5CY). Its memory is slower for the core: measured, about **2.2 cycles per
+instruction** for both libraries (94 461 cycles for 43 616 instructions on the first layer), so the core spends more
+than half its time waiting for memory. Their published cycles therefore cannot be compared with GVSoC cycles (estimate,
+from the full-network cycle count in their paper: their code runs about 40 % slower here than on PULPissimo; to be
+checked once their networks run whole).
+
+The main measure is the **instruction count**: it does not depend on the simulated memory, and both libraries run on
+the same core, with the same compiler and the same bit count instruction (`p.cnt`). Cycles are reported too.
 
 ```
 python ucbnn_check.py --repo <path to the ultracompactBNN clone>
@@ -82,7 +97,20 @@ SYMBEX v2 needs fewer instructions and fewer cycles on every layer, both outputs
 
 ## Next
 
-1. Their benchmark program on the current SDK (the cycle counters), their kernels unchanged; their published cycles
-   reproduced.
-2. 1D layers in lib_symbex (1 × k kernels, no padding, OR pooling of 4) and a HAL using the PULP bit count instruction.
-3. The comparison layer by layer and network by network, then INT8 and the boards.
+1. UniMiB-SHAR data and the architectures of their Table 1: the whole networks through both libraries on GVSoC
+   (instructions as the main measure).
+2. TensorFlow Lite Micro INT8 with the same architectures.
+3. Real hardware: the Raspberry Pi Pico 2 (RP2350), below.
+
+### Why the Pico 2 too
+
+GVSoC simulates the memory only approximately, and that already distorted the cycles. The Pico 2 is real silicon:
+
+- Its RISC-V core (Hazard3) has a native bit count instruction (`cpop`, extension Zbb), the counterpart of `p.cnt`
+  (from its datasheet; to be checked on the board). There the cycles and the time are real, with real memory.
+- **Fairness:** their code uses PULP's own extensions (hardware loops, post-increment loads) that the Hazard3 does not
+  have. On the Pico 2 their code runs below what it was designed for, and the results will say so.
+- Its Cortex-M33 core measures INT8 with CMSIS-NN, Arm's standard library.
+
+The two measurements complement each other: GVSoC is the comparison in their environment (instructions), the Pico 2
+is the figure on real hardware (cycles and time).
