@@ -24,7 +24,7 @@ PSRAM_RESERVE_MB = 1.0        # PSRAM kept for the KV cache, activations and (op
 FLASH_RESERVED_MB = 3.0       # bootloader, partition table, nvs and the application image
 # (name, params, d_model, layers): decoder-only, 4x MLP (12 d^2 per layer), ~4k vocab, tied embeddings.
 # Every parameter is treated as a 1-bit weight read once per token (the tied LM head included).
-MODELS = [("15M", 15e6, 384, 8), ("30M", 30e6, 512, 10), ("110M", 110e6, 768, 16), ("200M", 200e6, 1024, 16)]
+MODELS = [("15M", 15e6, 384, 8), ("30M", 30e6, 512, 9), ("110M", 110e6, 768, 15), ("200M", 200e6, 1024, 16)]
 # kernels that can run a real model (xnor needs 1-bit activations: a lower bound, not a candidate; ref is a reference)
 CANDIDATE_KERNELS = ("lut4", "lut4_2core_lookup", "bitserial4", "mask")
 TIERS = ("sram", "psram", "flash", "sd")
