@@ -23,6 +23,7 @@ LIB_SOURCES = {
     "symbex_hal_generic.c": ("src", "hal", "generic", "symbex_hal_impl.c"),
     "symbex_hal_esp32s3.c": ("src", "hal", "esp32s3", "symbex_hal_impl.c"),
     "symbex_bool.c": ("src", "layers", "conv", "symbex_bool.c"),      # fully binary conv networks (method boolean)
+    "symbex_ternary.c": ("src", "layers", "dense", "symbex_ternary.c"),  # ternary dense networks (method ternary)
 }
 
 

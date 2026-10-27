@@ -38,7 +38,9 @@ definition = ""
 #   "gated"   -> block-gated layers. Only for MLPs (linear layers).
 #   "ternary" -> weights in {-1, 0, +1} (2 bit planes: sign + nonzero mask), +-1 activations. Only for MLPs.
 #                See configs/ternary_fashion.toml.
-#   "boolean" -> SYMBEX v3 boolean engine (available once it is integrated into lib_symbex).
+#   "boolean" -> fully binary convolutional networks (lib_symbex layers/conv/symbex_bool): the network is trained
+#                as defined (no plan search), folded into integers, exported and checked bit by bit.
+#                See benchmarks/cnn_cifar_resnet8/symbex.toml.
 method = "plain"
 
 [data]
@@ -53,8 +55,13 @@ directory = "data/cifar10"
 #   "cifar10", "mnist", ...   a torchvision dataset, downloaded into `directory` if missing
 format = "npy"
 
-# Fraction of the data used for validation when the format does not define the split (0-1).
+# Fraction of the TRAINING data kept apart for validation (0-1): every choice (plan search, checkpoint) is made on
+# it. The test set, where the format has one (torchvision datasets, imagefolder test/), is evaluated ONCE, at the end.
 validation_split = 0.1
+
+# Seed of that split. Fix it (e.g. 42) when you compare several training seeds, so all of them are validated on the
+# same images and a model trained outside the CDT can leave them out. -1: the training seed.
+split_seed = -1
 
 # Per-channel normalization applied to the inputs, if your model was trained with it:
 #   mean = [0.4914, 0.4822, 0.4465]    std = [0.2470, 0.2435, 0.2616]
@@ -119,11 +126,16 @@ alpha       = 0.85    # weight of the teacher vs. the true labels (distillation 
 learning_rate = 1e-3
 batch_size    = 256
 
-# Which checkpoint to keep: "last" (the fair number to compare) or "best"
-# (best TEST epoch: optimistic, it selects on the test set).
+# Which checkpoint to keep: "last" (the default) or "best" (the best VALIDATION epoch).
 checkpoint = "last"
 
-seed = 42             # fixed seed: same configuration -> same result
+seed = 42             # fixed seed: same configuration -> same result (up to the GPU's own nondeterminism)
+
+# Faster training (method "boolean"; both off by default). Measured on the binary ResNet-8 (150 epochs, RTX 4000 Ada):
+# 8.6 -> 3.0 minutes, the same test accuracy and the same exactness (tools/dev/train_bench.py measures it).
+data_on_gpu = false   # true: the whole training set on the GPU once, instead of a CPU loader every epoch
+compile = ""          # "reduce-overhead": CUDA graphs through torch.compile (the step recorded once, then
+                      # replayed; ~6 s to compile at the start); "default": torch.compile without graphs
 
 [output]
 # Where to write the result. Empty = "<model name>_binarized/" next to the model,

@@ -1,0 +1,98 @@
+[
+ {
+  "model": "SYMBEX 1 bit x1",
+  "weight_kb": 28.65625,
+  "test": [
+   85.12333333333333,
+   0.9025704035327842
+  ],
+  "int2000": 85.25,
+  "latency_ms": 1.253,
+  "equal": 100.0,
+  "file": "runs/lowbit/plain_w1_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "SYMBEX 1 bit x1.5",
+  "weight_kb": 45.984375,
+  "test": [
+   85.69333333333333,
+   1.6327379867367957
+  ],
+  "int2000": 86.2,
+  "latency_ms": 3.852,
+  "equal": 100.0,
+  "file": "runs/lowbit/plain_w1.5_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "SYMBEX 1 bit x2",
+  "weight_kb": 65.3125,
+  "test": [
+   87.25333333333333,
+   0.30022213997860975
+  ],
+  "int2000": 88.06666666666666,
+  "latency_ms": 5.389,
+  "equal": 100.0,
+  "file": "runs/lowbit/plain_w2_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "ternary x1",
+  "weight_kb": 57.3125,
+  "test": [
+   86.08,
+   0.22538855339169722
+  ],
+  "int2000": 86.85000000000001,
+  "latency_ms": 14.589,
+  "equal": 100.0,
+  "file": "runs/lowbit/ternary_w1_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "ternary x1.5",
+  "weight_kb": 91.96875,
+  "test": [
+   86.26,
+   0.3609709129556056
+  ],
+  "int2000": 87.38333333333334,
+  "latency_ms": 22.399,
+  "equal": 100.0,
+  "file": "runs/lowbit/ternary_w1.5_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "INT2 QAT x1",
+  "weight_kb": 57.3125,
+  "test": [
+   88.25,
+   0.020000000000003126
+  ],
+  "int2000": 88.73333333333333,
+  "latency_ms": 5.562,
+  "equal": 100.0,
+  "file": "runs/lowbit_chip/int2_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "INT4 QAT x1",
+  "weight_kb": 114.625,
+  "test": [
+   88.52666666666667,
+   0.06429100507328168
+  ],
+  "int2000": 88.7,
+  "latency_ms": 10.031,
+  "equal": 100.0,
+  "file": "runs/lowbit_chip/int4_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "INT8 TFLite x1 (flash)",
+  "weight_kb": 229.25,
+  "test": [
+   null,
+   null
+  ],
+  "int2000": 88.5,
+  "latency_ms": 15.885,
+  "equal": 100.0,
+  "file": "results/tflite_s3.json"
+ }
+]

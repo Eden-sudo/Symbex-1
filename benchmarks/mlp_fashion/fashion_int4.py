@@ -35,6 +35,7 @@ results/int<bits>_e<epochs>_pc.json.
 """
 import argparse
 import json
+import tomllib
 import math
 import os
 import sys
@@ -188,6 +189,19 @@ def predecir_entero(capas, x_u8):
     return x.argmax(1)
 
 
+def guardar_entero(modelo, bits, semilla, suffix=""):
+    """the integer model (exportar_entero) -> models/int<bits>_qat_s<seed>.npz, layer i as W<i>, b<i>, m<i> (the
+    float64 requantization multipliers), zin<i>, zout<i>: what int_export.py writes as C for the board"""
+    capas = exportar_entero(modelo)
+    arrays = {}
+    for i, c in enumerate(capas):
+        arrays.update({f"W{i}": c["Wq"], f"b{i}": c["bq"], f"m{i}": np.asarray(c["multiplicador"], dtype=np.float64),
+                       f"zin{i}": np.int64(c["cero_in"]), f"zout{i}": np.int64(c["cero_out"])})
+    os.makedirs(os.path.join(AQUI, "models"), exist_ok=True)
+    np.savez(os.path.join(AQUI, "models", f"int{bits}_qat_s{semilla}{suffix}.npz"), bits=bits, n_layers=len(capas),
+             **arrays)
+
+
 def bytes_modelo(capas, bits):
     pesos = sum(math.ceil(c["Wq"].size * bits / 8) for c in capas)
     escalas = sum(4 * len(c["s_w"]) for c in capas)
@@ -202,7 +216,7 @@ def niveles_usados(capas, qmax):
 # ---------------------------------------------------------------------------------------------------
 # 4. Quantization-aware fine-tuning
 # ---------------------------------------------------------------------------------------------------
-def entrenar_qat(modelo, maestro, x_tr, y_tr, x_te, y_te, epocas, semilla, lote=256):
+def entrenar_qat(modelo, maestro, x_tr, y_tr, x_te, y_te, epocas, semilla, lote=256, distill=True):
     import torch
     import torch.nn.functional as F
     torch.manual_seed(semilla)
@@ -221,7 +235,8 @@ def entrenar_qat(modelo, maestro, x_tr, y_tr, x_te, y_te, epocas, semilla, lote=
             sal = modelo(xt[idx])
             kd = F.kl_div(F.log_softmax(sal / TEMPERATURA, 1), F.softmax(logits_maestro[idx] / TEMPERATURA, 1),
                           reduction="batchmean") * TEMPERATURA ** 2
-            loss = ALFA * kd + (1 - ALFA) * F.cross_entropy(sal, yt[idx])
+            ce = F.cross_entropy(sal, yt[idx])
+            loss = ALFA * kd + (1 - ALFA) * ce if distill else ce          # --no-distill: the labels only
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -231,6 +246,14 @@ def entrenar_qat(modelo, maestro, x_tr, y_tr, x_te, y_te, epocas, semilla, lote=
         historia.append([ep, total / len(xt), acc])
         print(f"      QAT epoch {ep + 1}/{epocas} | loss {total / len(xt):.4f} | test (fake-quant) {acc:.2f}%")
     return historia
+
+
+def cdt_training_indices(n):
+    """the training images the CDT uses: it keeps [data] validation_split apart for validation, with the fixed
+    [data] split_seed (tools/cdt.py, load_data); model.split_indices makes the same call, so the QAT trains on
+    exactly the same images as the SYMBEX runs it is compared with, and as the FP32 model it starts from"""
+    from model import split_indices
+    return np.array(split_indices(n)[0])
 
 
 def maestro_fp32(capas):
@@ -267,6 +290,8 @@ def main():
     ap.add_argument("--epocas", type=int, default=EPOCAS_QAT, help="QAT epochs (the SYMBEX CDT uses 15)")
     ap.add_argument("--semillas", type=int, default=1, help="QAT seeds: 42, 43, ... (default 1)")
     ap.add_argument("--validacion", type=int, default=2000, help="validation images (the first N of the test set)")
+    ap.add_argument("--no-distill", action="store_true",
+                    help="QAT on the labels only (no distillation from the FP32 model); results get _nodistill")
     args = ap.parse_args()
     os.chdir(AQUI)
     sys.path.insert(0, AQUI)
@@ -308,9 +333,13 @@ def main():
             print(f"    qat, seed {semilla}, {args.epocas} epochs (from ptq_mse, distillation from FP32)")
             m = construir_modelo(capas, bits, [escala_mse(W, qmax) for W, _, _ in capas])
             calibrar(m, x_calib)
-            historia = entrenar_qat(m, maestro, x_tr, y_tr, x_te.astype(np.float32) / 255.0, y_te, args.epocas, semilla)
+            keep = cdt_training_indices(len(x_tr))                 # the images the CDT trains on (every seed)
+            historia = entrenar_qat(m, maestro, x_tr[keep], y_tr[keep], x_te.astype(np.float32) / 255.0, y_te,
+                                    args.epocas, semilla, distill=not args.no_distill)
             r = evaluar(f"qat s{semilla}", m, bits, x_val, y_val, x_te, y_te)
-            r.update(semilla=semilla, epocas=args.epocas, history=historia)
+            r.update(semilla=semilla, epocas=args.epocas, history=historia, train_images=len(keep),
+                     split_seed=tomllib.load(open(os.path.join(AQUI, "symbex.toml"), "rb"))["data"]["split_seed"])
+            guardar_entero(m, bits, semilla, "_nodistill" if args.no_distill else "")   # for int_export.py
             qat.append(r)
         res["metodos"]["qat"] = qat[0] if len(qat) == 1 else dict(
             semillas=qat, **{c: qat[0][c] for c in ("pesos_bytes", "escalas_bytes", "sesgos_bytes", "total_bytes")},
@@ -318,7 +347,9 @@ def main():
             precision_10k=float(np.mean([q["precision_10k"] for q in qat])),
             precision_10k_std=float(np.std([q["precision_10k"] for q in qat], ddof=1)), n=len(y_val), epocas=args.epocas)
         res["segundos"] = round(time.time() - t0, 1)
-        ruta = f"results/int{bits}{'' if args.epocas == EPOCAS_QAT else f'_e{args.epocas}'}_pc.json"
+        ruta = (f"results/int{bits}{'' if args.epocas == EPOCAS_QAT else f'_e{args.epocas}'}"
+                f"{'_nodistill' if args.no_distill else ''}_pc.json")
+        res["distill"] = not args.no_distill
         json.dump(res, open(ruta, "w"), indent=1)
         print(f"    -> {ruta} ({res['segundos']} s)")
 

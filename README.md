@@ -62,7 +62,7 @@ with the current engine and the corrected validation split (see Methodology).
 
 ### Why it is faster: counting bits against multiplying
 
-`tools/count_bench.py` measures the raw arithmetic of each chip on the same convolution pattern: binary (bit counting)
+`tools/dev/count_bench.py` measures the raw arithmetic of each chip on the same convolution pattern: binary (bit counting)
 against int8 (multiply-accumulate).
 
 | Chip | Binary against int8, raw arithmetic |

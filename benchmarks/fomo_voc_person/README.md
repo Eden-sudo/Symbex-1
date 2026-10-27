@@ -50,7 +50,7 @@ limit is the task, the same for every precision.
 ## Sizing the binary detector
 
 `fomo_sizing.py` trains the same structure with other numbers of blocks and channels per stage (single seed: differences
-of 1-2 F1 points are noise) and predicts the latency from the chip profiles of `tools/count_bench.py`, calibrated with the
+of 1-2 F1 points are noise) and predicts the latency from the chip profiles of `tools/dev/count_bench.py`, calibrated with the
 measured detector — the prediction for 32-32-128 was 125.5 ms, the chip measured 126.3 ms.
 
 | Channels / blocks | F1 | S3 ms (predicted) | |
@@ -82,7 +82,7 @@ classifier's (`../cnn_cifar_resnet8`): it depends on the task, which is why it i
 | block 4: conv 128→128, 12×12 | 23.0 | 18.2 |
 | per-cell head | 0.15 | 0.1 |
 
-Inside the library (`tools/fine_profile.py`): counting bits is ~73 % of the time, at the speed the benchmarks measure.
+Inside the library (`tools/dev/fine_profile.py`): counting bits is ~73 % of the time, at the speed the benchmarks measure.
 
 ## Reproduce
 
@@ -92,7 +92,7 @@ From this folder (environment `env_bench`, with PyTorch on CUDA and TensorFlow):
 python fomo_data.py                                          # Pascal VOC -> data/fomo_*.npz (once)
 python fomo_train.py --channels 32-32-128 --blocks 1-2-2 --weight 40 --epochs 100
 python fomo_export.py runs/c32-32-128_b1-2-2_w40_e100_s42    # integers, header, C check (100 %)
-python ../../tools/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --board s3 --port /dev/ttyUSB0 --plain
+python ../../tools/dev/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --board s3 --port /dev/ttyUSB0 --plain
 python fomo_tflite.py --channels 32-32-128 --blocks 1-2-2 --board s3 --port /dev/ttyUSB0
 python fomo_train.py --fp32 --channels 32-64-128 --blocks 1-2-2    # the floating-point reference
 python fomo_sizing.py --phase depth ; python fomo_sizing.py --phase width

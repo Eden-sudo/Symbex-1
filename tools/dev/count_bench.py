@@ -596,7 +596,7 @@ def main():
         print(f"      {w:>4} words ({w * 32:>5} bits): {r['method']} ({r['form']}), {r['per_output']:.2f} {unit} per output, "
               f"{w * 32 / r['per_output']:.2f} bit-ops per {'cycle' if unit == 'cycles' else 'ns'}")
     plat = args.board or "x86"
-    path = os.path.join(HERE, "chip_profiles", f"count_{plat}.json")
+    path = os.path.join(HERE, "..", "chip_profiles", f"count_{plat}.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     json.dump(dict(platform=plat, name=name, features=feats, unit=unit, positions=POSITIONS, outputs=OUTPUTS,
                    checksums_ok=ok, measurements=rows, fastest=best, integer_checksums_ok=iok, integer=irows),

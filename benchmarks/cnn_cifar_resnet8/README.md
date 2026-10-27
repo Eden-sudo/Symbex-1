@@ -29,7 +29,7 @@ The three seeds give the same latency to 0.01 ms (42, 43, 44: 70.60 %, 72.18 %, 
 
 ## Why: what each chip does best
 
-`tools/count_bench.py` measures, on each chip, the raw arithmetic of both families on the same layer pattern: how many
+`tools/dev/count_bench.py` measures, on each chip, the raw arithmetic of both families on the same layer pattern: how many
 **binary operations** per cycle against how many **8-bit multiply-accumulates** per cycle.
 
 | Chip | Best binary method | Binary operations per int8 multiply-accumulate |
@@ -55,7 +55,7 @@ every byte, then one multiply-accumulate adds the 16 counts), and still comes ou
 | block 5: conv 64→64, 8×8 | 3.13 | 7.7 |
 | classifier | 0.06 | 0.1 |
 
-Inside the library (`tools/fine_profile.py`, CPU cycle counters per function): counting bits is ~61 % of the time and runs
+Inside the library (`tools/dev/fine_profile.py`, CPU cycle counters per function): counting bits is ~61 % of the time and runs
 at exactly the speed the benchmarks measure; thresholds and output bits ~17 %; building the windows ~13 %; the rest is the
 thermometer, OR pooling, OR shortcuts and the classifier.
 
@@ -76,7 +76,7 @@ The same model, the same predictions; only the library changed, each step checke
 
 The ResNet-8 shape was designed for INT8. `resnet8_sizing.py` trains the same structure with other numbers of blocks and
 channels per stage (150 epochs each, one seed) and predicts the latency of every variant from the chip profiles of
-`tools/count_bench.py`, calibrated with the measured ResNet-8.
+`tools/dev/count_bench.py`, calibrated with the measured ResNet-8.
 
 **Blocks** (16-32-64 channels): the second block of stage 1, the most expensive one, adds nothing.
 
@@ -126,7 +126,7 @@ python resnet8_tflite.py --board s3 --port /dev/ttyUSB0                         
 python resnet8_tflite.py --board esp32 --port /dev/ttyUSB0
 ```
 
-Profiles: `python ../../tools/fine_profile.py runs/w1_s44 --board s3` and `python ../../tools/count_bench.py --board s3`.
+Profiles: `python ../../tools/dev/fine_profile.py runs/w1_s44 --board s3` and `python ../../tools/dev/count_bench.py --board s3`.
 
 | File | What it does |
 |---|---|

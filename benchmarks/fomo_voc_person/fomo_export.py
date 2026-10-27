@@ -2,7 +2,7 @@
 fomo_export.py -- a trained binary FOMO detector (fomo_train.py) into lib_symbex, checked, ready for the chip.
 
     python fomo_export.py runs/c32-64-128_b1-2-2_w40_e100_s42
-    python ../../tools/fine_profile.py runs/c32-64-128_b1-2-2_w40_e100_s42 --board s3 --port /dev/ttyUSB0
+    python ../../tools/dev/fine_profile.py runs/c32-64-128_b1-2-2_w40_e100_s42 --board s3 --port /dev/ttyUSB0
 
 Run from benchmarks/fomo_voc_person/ (main environment). With the CDT's exporter (compiler_core/export/boolean.py):
     fold        every binary conv + BatchNorm into one integer threshold; the head into an integer scale and bias per

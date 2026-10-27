@@ -11,7 +11,7 @@ Run from benchmarks/cnn_cifar_resnet8/ (main environment). For every variant ("1
 stage) resnet8_symbex.py --spec trains it for --epochs (default 30: a quick ranking, not the final accuracy) and exports
 it (the flash and the shape of every layer come from that export). The latency is PREDICTED, without the chip:
     every layer costs (outputs) x (cycles per output of the chip's counting method for its packed window size), the
-    method's cycles measured by tools/count_bench.py on each chip (chip_profiles/count_<chip>.json), and one factor per
+    method's cycles measured by tools/dev/count_bench.py on each chip (chip_profiles/count_<chip>.json), and one factor per
     chip calibrated with the measured ResNet-8 (results/symbex_seeds_s3_swar_w1.json, ..._esp32_lut16_w1.json)
 It is an estimate: the variants worth it are then trained in full and measured on the chip, as the main benchmark:
     python resnet8_symbex.py --spec 16-32-64/1-1-2 --seeds 3 --board s3 --port /dev/ttyUSB0
@@ -54,7 +54,7 @@ def cost_curve(chip):
     """cycles per output vs window words, for the method the library uses on this chip (count_bench measurements)"""
     prof = load(os.path.join(PROFILES, f"count_{chip}.json"))
     if not prof:
-        sys.exit(f"[X] {PROFILES}/count_{chip}.json not found: run tools/count_bench.py --board {chip} first")
+        sys.exit(f"[X] {PROFILES}/count_{chip}.json not found: run tools/dev/count_bench.py --board {chip} first")
     method, form = CHIPS[chip][:2]
     pts = sorted((r["words"], r["per_output"]) for r in prof["measurements"] if r["method"] == method and r["form"] == form)
     return np.array([p[0] for p in pts], float), np.array([p[1] for p in pts], float)

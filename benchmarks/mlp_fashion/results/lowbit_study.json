@@ -1,0 +1,115 @@
+{
+ "epochs": 15,
+ "seeds": 3,
+ "distill": true,
+ "fp32_sha256": "972dbf60edc6553bb42d1f856fbc23c60fd2df272d24fdd9413e7d4699ad9244",
+ "fp32_test": [
+  88.17
+ ],
+ "rows": [
+  {
+   "model": "SYMBEX 1 bit x1 (784-256-128-10)",
+   "bits": 1,
+   "seeds": 3,
+   "test": [
+    85.12333333333333,
+    0.9025704035327842
+   ],
+   "int2000": 85.25,
+   "weight_bytes": 29344,
+   "total_bytes": 35136,
+   "pareto": true
+  },
+  {
+   "model": "SYMBEX 1 bit x1.5 (784-384-192-10)",
+   "bits": 1,
+   "seeds": 3,
+   "test": [
+    85.69333333333333,
+    1.6327379867367957
+   ],
+   "int2000": 86.2,
+   "weight_bytes": 47088,
+   "total_bytes": 55776,
+   "pareto": true
+  },
+  {
+   "model": "ternary x1 (784-256-128-10)",
+   "bits": 2,
+   "seeds": 3,
+   "test": [
+    86.08,
+    0.22538855339169722
+   ],
+   "int2000": 86.85000000000001,
+   "weight_bytes": 58688,
+   "total_bytes": 61368,
+   "pareto": false
+  },
+  {
+   "model": "INT2 QAT x1 (784-256-128-10)",
+   "bits": 2,
+   "seeds": 3,
+   "test": [
+    88.25,
+    0.020000000000003126
+   ],
+   "int2000": 88.73333333333333,
+   "weight_bytes": 58688,
+   "total_bytes": 61840,
+   "pareto": true
+  },
+  {
+   "model": "SYMBEX 1 bit x2 (784-512-256-10)",
+   "bits": 1,
+   "seeds": 3,
+   "test": [
+    87.25333333333333,
+    0.30022213997860975
+   ],
+   "int2000": 88.06666666666666,
+   "weight_bytes": 66880,
+   "total_bytes": 78304,
+   "pareto": false
+  },
+  {
+   "model": "ternary x1.5 (784-384-192-10)",
+   "bits": 2,
+   "seeds": 3,
+   "test": [
+    86.26,
+    0.3609709129556056
+   ],
+   "int2000": 87.38333333333334,
+   "weight_bytes": 94176,
+   "total_bytes": 98136,
+   "pareto": false
+  },
+  {
+   "model": "INT4 QAT x1 (784-256-128-10)",
+   "bits": 4,
+   "seeds": 3,
+   "test": [
+    88.52666666666667,
+    0.06429100507328168
+   ],
+   "int2000": 88.7,
+   "weight_bytes": 117376,
+   "total_bytes": 120528,
+   "pareto": false
+  },
+  {
+   "model": "INT8 TFLite x1 (784-256-128-10)",
+   "bits": 8,
+   "seeds": 0,
+   "test": [
+    null,
+    null
+   ],
+   "int2000": 88.5,
+   "weight_bytes": 234752,
+   "total_bytes": 248040,
+   "pareto": false
+  }
+ ]
+}
