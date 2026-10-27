@@ -368,6 +368,7 @@ static void print_info() {
     Serial.printf("INFO,chip_revision,%d\n", (int)ESP.getChipRevision());
     Serial.printf("INFO,cores,%d\n", (int)ESP.getChipCores());
     Serial.printf("INFO,cpu_mhz,%u\n", (unsigned)getCpuFrequencyMhz());
+    Serial.printf("INFO,phase_seconds,%d\n", PROBE_PHASE_SECONDS);
     Serial.printf("INFO,heap_internal_free,%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     Serial.printf("INFO,heap_internal_largest,%u\n", (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
     Serial.printf("INFO,psram_size,%u\n", (unsigned)ESP.getPsramSize());
