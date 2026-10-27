@@ -4,3 +4,4 @@ tensorflow
 numpy
 pyserial
 platformio
+brevitas==0.13.4   # tools/lowbit: INT8 / INT4 / INT2 quantization (adds 2 small packages, keeps the installed torch)

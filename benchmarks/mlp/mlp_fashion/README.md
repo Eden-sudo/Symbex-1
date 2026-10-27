@@ -32,13 +32,14 @@ only):
 |---|---|---|---|
 | SYMBEX 1 bit | 1 bit | 1 bit (the first layer takes the 8-bit pixels) | the CDT, method `plain` |
 | ternary | -1 / 0 / +1 | 1 bit | the CDT, method `ternary` |
-| INT8, INT4, INT2 QAT | 8 / 4 / 2 bits, per channel, symmetric (INT2: levels -1, 0, +1) | 8 bits | `fashion_int4.py` |
+| INT8, INT4, INT2 QAT | 8 / 4 / 2 bits, per channel, symmetric (INT2: levels -1, 0, +1) | 8 bits | `fashion_int4.py`; `fashion_lowbit.py` (Brevitas, `tools/lowbit`) |
 | INT8 TFLite | 8 bits, full-integer post-training quantization | 8 bits | `fashion_tflite.py` (official converter, no retraining) |
 
 **On the chip** (ESP32-S3, 240 MHz, one core): every SYMBEX, ternary, INT4 and INT2 model runs through the same tool,
 `tools/chip_test.py`: the same firmware, the same 1,000 test images, the median latency, and the result checked
-against the method's integer simulation (**100 % on every run**). INT4 and INT2 run as bit planes summed by the
-library's HAL (`int_export.py`). INT8 runs on TensorFlow Lite Micro with Espressif's ESP-NN kernels, checked against
+against the method's integer simulation (**100 % on every run**). The integer models of `fashion_lowbit.py` (INT8, INT4,
+INT2) run with ordinary multiply-accumulate on Espressif's ESP-NN kernels (`tools/lowbit`); the earlier INT4 / INT2
+rows ran as bit planes summed by the library's HAL (`int_export.py`), SYMBEX arithmetic, kept for the record. INT8 TFLite runs on TensorFlow Lite Micro with Espressif's ESP-NN kernels, checked against
 the TFLite interpreter (100 %). Latency depends on the shape, not on the weight values: it is measured on the seed-42
 export of each model.
 
@@ -82,8 +83,11 @@ the 64 KB table of the default `lut16` mode gives the same speed here (measured,
 | SYMBEX 1 bit x1.5 | 86.77 | 3.854 ms | 4.12x | 54.5 KB | 4.2 KB |
 | SYMBEX 1 bit x2 | 87.02 | 5.389 ms | 2.95x | 76.5 KB | 4.7 KB |
 | ternary x1 | 86.13 | 14.589 ms | 1.09x | 59.9 KB | 66.5 KB (with a 64 KB count table) |
-| INT2 QAT x1 | 88.59 | 5.576 ms | 2.85x | 68.9 KB | 10.1 KB |
-| INT4 QAT x1 | 88.70 | 10.053 ms | 1.58x | 133.2 KB | 10.1 KB |
+| INT8 QAT x1, ESP-NN | 88.61 | 15.601 ms | 1.02x | 233.9 KB | 3.1 KB |
+| INT4 QAT x1, ESP-NN | 88.65 | 10.306 ms | 1.54x | 119.2 KB | 11.1 KB |
+| INT2 QAT x1, ESP-NN | 88.20 | 13.376 ms | 1.19x | 61.9 KB | 11.1 KB |
+| *INT2 QAT x1, bit planes (earlier)* | 88.59 | 5.576 ms | 2.85x | 68.9 KB | 10.1 KB |
+| *INT4 QAT x1, bit planes (earlier)* | 88.70 | 10.053 ms | 1.58x | 133.2 KB | 10.1 KB |
 | INT8 TFLite x1 | 89.70 (2,000) | 15.885 ms | 1.00x | 242.2 KB | 4.8 KB (arena) |
 
 ### Weights in RAM (the fastest case, when the model fits)
@@ -94,14 +98,22 @@ the 64 KB table of the default `lut16` mode gives the same speed here (measured,
 | SYMBEX 1 bit x1.5 | 0.773 ms | 1.13x | 58.6 KB |
 | SYMBEX 1 bit x2 | 1.034 ms | 0.85x | 81.1 KB |
 | ternary x1 | 11.936 ms | 0.07x | 126.4 KB (with a 64 KB count table) |
-| INT2 QAT x1 | 1.832 ms | 0.48x | 79.1 KB |
-| INT4 QAT x1 | 2.755 ms | 0.32x | 143.4 KB |
+| INT8 QAT x1, ESP-NN | 0.556 ms | 1.58x | 242.6 KB |
+| INT4 QAT x1, ESP-NN (unpacked to int8 at the first call) | 0.556 ms | 1.58x | 240.3 KB |
+| INT2 QAT x1, ESP-NN (unpacked to int8 at the first call) | 0.556 ms | 1.58x | 240.3 KB |
+| *INT2 QAT x1, bit planes (earlier)* | 1.832 ms | 0.48x | 79.1 KB |
+| *INT4 QAT x1, bit planes (earlier)* | 2.755 ms | 0.32x | 143.4 KB |
 | INT8 TFLite x1 (model copied to RAM) | 0.876 ms | 1.00x | about 247 KB |
 
 - **In flash, SYMBEX is the fastest at every size**, and the gap is large: the binary weights are 8x fewer bytes to
   read from flash than INT8.
-- **In RAM, the INT8 kernels of ESP-NN are very fast** (0.88 ms). The binary x1 and x1.5 models are still faster; x2
-  is not. INT4 and INT2 as bit planes are slower than INT8 here: each extra bit plane is another pass over the input.
+- **In RAM, the INT8 kernels of ESP-NN are very fast**: 0.556 ms called directly (0.876 ms through TensorFlow Lite
+  Micro, its interpreter included). SYMBEX x1 is still the fastest (0.525 ms, 1.06x the direct ESP-NN call) with 6x
+  less RAM; x1.5 and x2 are slower. INT4 and INT2 unpacked to int8 run exactly as INT8: the bits only save flash.
+- **In flash, fewer weight bits help INT less than expected:** INT4 / INT2 codes are unpacked to int8 before each
+  kernel call (10.3 / 13.4 ms against 15.6 ms for INT8); SYMBEX x1 stays 8.3x faster than the best of them.
+- The earlier INT4 / INT2 rows (bit planes, `int_export.py`) used the library's own counting, not integer
+  arithmetic: they are kept for the record, the ESP-NN rows are the integer baseline.
 - **The ternary kernel is slow** (12-15 ms): it is the next kernel to rewrite (see *Future work*).
 
 ### How the ESP32-S3 computes a binary layer
@@ -250,12 +262,16 @@ sha256sum models/fashion_mlp*.pth                    # option A: compare with th
 python fashion_tflite.py
 python lowbit_study.py --seeds 3
 python lowbit_study.py --seeds 3 --no-distill
+python fashion_lowbit.py                             # INT8 / INT4 / INT2 with Brevitas (tools/lowbit), 3 seeds
+python fashion_lowbit.py --no-distill
 python fashion_sizing.py --shapes 128-512 256-512 384-512 512-256 --seeds 3
 python fashion_sizing.py --shapes 128-512 256-512 384-512 512-256 --seeds 3 --no-distill
 
 # ESP32-S3: on its native USB port (/dev/ttyACM0, --usb) or on its UART (/dev/ttyUSB0, without --usb)
 python lowbit_chip.py --board s3 --port /dev/ttyACM0 --usb                     # weights in flash
 python lowbit_chip.py --board s3 --port /dev/ttyACM0 --usb --weights ram
+python fashion_lowbit.py --chip-only --board s3 --port /dev/ttyACM0 --usb    # INT8 / INT4 / INT2 on ESP-NN, flash
+python fashion_lowbit.py --chip-only --board s3 --port /dev/ttyACM0 --usb --weights ram
 python fashion_sizing.py --shapes 128-512 256-512 384-512 512-256 --seeds 3 --measure --board s3 --port /dev/ttyACM0 --usb
 python fashion_tflite.py --board s3                                            # INT8 in flash
 python fashion_tflite.py --board s3 --model-ram                                # INT8 in RAM

@@ -1,7 +1,52 @@
 # UPDATES
 
 A running log of what each pull request brings, what is still in progress and what comes next. One section per
-pull request, newest first. The plan as a whole lives in CLAUDE.md ("Next, in order").
+pull request, newest first.
+
+## PR #4: conv1d/pico2 (October 2026)
+
+### Done
+
+**`tools/lowbit`: integer baselines below INT8 for every benchmark** (new)
+- The same FP32 network at INT8, INT4 and INT2, quantized with Brevitas (an official, maintained tool) instead of our
+  own quantizer: weights per channel, symmetric, narrow range; activations int8. Linear, Conv1d, Conv2d, BatchNorm,
+  ReLU, MaxPool, Flatten; `fold()` checks the sequence against the model and stops on residual networks.
+- **Integer arithmetic only, no SYMBEX arithmetic:** the integer simulation reproduces ESP-NN's fixed-point
+  requantization (equal to its C on 200,000 random cases), and the board runs Espressif's ESP-NN kernels
+  (multiply-accumulate). INT4 / INT2 codes are stored packed and unpacked to int8.
+- The exported C is checked on the PC with ESP-NN's reference kernels against the simulation (100 %), with the
+  weights in flash and in RAM; `tools/chip_test.py` detects these headers and adds ESP-NN to the firmware.
+- The validation comes from the training split; the test set is evaluated once per final model (the earlier
+  `fashion_int4.py` called the first 2,000 test images "validation").
+- Each benchmark gets a short `<bench>_lowbit.py`; the first is `benchmarks/mlp/mlp_fashion/fashion_lowbit.py`.
+  `tests/test_lowbit.py`: 11 tests. `brevitas==0.13.4` added to `benchmarks/requirements_bench.txt`.
+
+**mlp_fashion with the new tool** (784-256-128-10, QAT 15 epochs, 3 seeds, test set)
+
+| | Weights | Distillation | Labels only | S3 flash | S3 RAM |
+|---|---|---|---|---|---|
+| INT8 | 233.9 KB | 88.61 +- 0.06 | 89.86 +- 0.04 | 15.601 ms | 0.556 ms |
+| INT4 | 119.2 KB | 88.65 +- 0.19 | 89.80 +- 0.11 | 10.306 ms | 0.556 ms |
+| INT2 | 61.9 KB | 88.20 +- 0.29 | 89.23 +- 0.13 | 13.376 ms | 0.556 ms |
+
+- Against `fashion_int4.py` (same recipe): within 0.2 points, except INT2 with distillation (0.39 below).
+- Every board run equals the integer simulation (100 %). INT8 in flash matches TensorFlow Lite Micro (15.885 ms).
+- **Honest result:** with weights in RAM, SYMBEX x1 (0.525 ms) is only 1.06x faster than INT on ESP-NN (0.556 ms),
+  with 6x less RAM; in flash it stays 8.3x faster than the best INT (INT4). The earlier INT4 / INT2 chip numbers
+  (bit planes, SYMBEX arithmetic) are kept in the README, marked as such.
+
+**Benchmarks grouped by network type:** `benchmarks/mlp/`, `conv1d/`, `conv2d/`; every relative path updated and
+checked; the benchmark `.gitignore` matches `runs/` and `models/` at any depth.
+
+**Also in this PR:** `symbex_bool1d`; mlp_fashion validation fix, sizing with measured latencies and README; the
+optional native USB transport (`--usb`); the har_ultracompact README (instructions as the main measure, the Pico 2
+plan).
+
+### Next
+
+- `har_lowbit.py` once the har networks run whole (UniMiB-SHAR, the architectures of Daghero et al.), then
+  `resnet8_lowbit.py` and `fomo_lowbit.py` (ResNet-8 needs skip connections in `fold()`).
+- A faster INT2 / INT4 unpacking in flash; the combined table (SYMBEX + INT + Pareto) per benchmark.
 
 ## PR: mlp_fashion validation split + v3 work in progress (October 2026)
 
@@ -23,7 +68,6 @@ pull request, newest first. The plan as a whole lives in CLAUDE.md ("Next, in or
 - cnn_cifar_resnet8, fomo_voc_person: sizing scripts and READMEs.
 - tools: `count_bench.py` and `fine_profile.py` moved to `tools/dev/`, new `train_bench.py`, READMEs for `tools/dev`
   and `tools/compiler_core`, CDT updates.
-- `CLAUDE.md`: how to work on the project (methodology, layout, commands, what is next).
 
 ### In progress
 

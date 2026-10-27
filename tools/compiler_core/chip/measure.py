@@ -41,10 +41,13 @@ def generate_project(project_dir, header_path, lib_path, board, port, baud, popc
     if int8_path:
         extra["model_int8.h"] = int8_path
         defines.update(SYMBEX_WITH_INT8=1, SYMBEX_WITH_ESP_NN=1)
+    with open(header_path) as f:                  # an integer model of tools/lowbit runs on ESP-NN kernels
+        needs_esp_nn = "SYMBEX_NEEDS_ESP_NN" in f.read(2048)
     if usb:
         defines.update(SYMBEX_USB_SERIAL_JTAG=1)
     write_project(project_dir, board, port, lib_sources(lib_path), "model_test.c", defines, extra,
-                  _build_flags(popcount, weights, first_layer), ["espressif/esp-nn"] if int8_path else (),
+                  _build_flags(popcount, weights, first_layer),
+                  ["espressif/esp-nn"] if (int8_path or needs_esp_nn) else (),
                   "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\n" if usb else "", lib_path=lib_path)
 
 
