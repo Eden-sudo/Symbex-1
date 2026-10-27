@@ -145,17 +145,36 @@ class QNet(nn.Module):
     """The folded network with Brevitas quantizers: an int8 quantizer on the input, `bits`-bit per-channel weights,
     an int8 quantizer after every Linear / Conv (unsigned for ReLU outputs). weight_init: "maxabs" (scale = max|w| /
     qmax, fixed: post-training), "mse" (the scale that minimizes the weight error, fixed: post-training) or "learned"
-    (initialized from max|w|, trained with the weights: QAT)."""
+    (initialized from max|w|, trained with the weights: QAT).
+    For the ablation study only (PC, fake-quant; no integer export): bits = 1 gives binary weights +-scale per channel
+    (XNOR-Net style), act_bits = 1 binarizes every hidden output with its sign (the ReLU is dropped: Linear / Conv,
+    BatchNorm folded, sign, as in SYMBEX); the input and the last layer's output stay int8."""
 
-    def __init__(self, ops, bits, weight_init="learned"):
+    def __init__(self, ops, bits, weight_init="learned", act_bits=8):
         super().__init__()
         import brevitas.nn as qnn
-        from brevitas.inject.enum import ScalingImplType
+        from brevitas.inject.enum import ScalingImplType, StatsOp
         from brevitas.quant import (Int8ActPerTensorFloat, Int8WeightPerChannelFloat, Int8WeightPerChannelFloatMSE,
+                                    SignedBinaryActPerTensorConst, SignedBinaryWeightPerTensorConst,
                                     Uint8ActPerTensorFloat)
-        self.bits, self.weight_init, self.qmax = bits, weight_init, 2 ** (bits - 1) - 1
-        wq = Int8WeightPerChannelFloatMSE if weight_init == "mse" else Int8WeightPerChannelFloat
-        extra = dict(weight_scaling_impl_type=ScalingImplType.PARAMETER_FROM_STATS) if weight_init == "learned" else {}
+
+        class BinaryWeightPerChannel(SignedBinaryWeightPerTensorConst):
+            scaling_impl_type = ScalingImplType.PARAMETER_FROM_STATS
+            scaling_per_output_channel = True
+            scaling_stats_op = StatsOp.AVE
+            scaling_stats_reduce_dim = None
+
+        if act_bits not in (1, 8):
+            raise SystemExit("[X] lowbit: activations are int8 (8) or binary (1)")
+        self.bits, self.weight_init, self.act_bits = bits, weight_init, act_bits
+        self.qmax = 1 if bits == 1 else 2 ** (bits - 1) - 1
+        if bits == 1:
+            wq, extra = BinaryWeightPerChannel, {}
+        else:
+            wq = Int8WeightPerChannelFloatMSE if weight_init == "mse" else Int8WeightPerChannelFloat
+            extra = dict(weight_scaling_impl_type=ScalingImplType.PARAMETER_FROM_STATS) if weight_init == "learned" else {}
+        n_weighted = sum(o["op"] in ("linear", "conv") for o in ops)
+        seen = 0
         self.kinds, mods = [], [qnn.QuantIdentity(act_quant=Int8ActPerTensorFloat, return_quant_tensor=True)]
         self.kinds.append(("input", None))
         i = 0
@@ -165,21 +184,27 @@ class QNet(nn.Module):
                 relu = i + 1 < len(ops) and ops[i + 1]["op"] == "relu"
                 W = torch.tensor(o["W"], dtype=torch.float32)
                 if o["op"] == "linear":
-                    m = qnn.QuantLinear(W.shape[1], W.shape[0], bias=True, weight_quant=wq, weight_bit_width=bits,
-                                        **extra)
+                    m = qnn.QuantLinear(W.shape[1], W.shape[0], bias=True, weight_quant=wq,
+                                        **({} if bits == 1 else dict(weight_bit_width=bits)), **extra)
                 else:
                     m = qnn.QuantConv2d(W.shape[1], W.shape[0], tuple(W.shape[2:]), stride=o["stride"],
-                                        padding=o["padding"], bias=True, weight_quant=wq, weight_bit_width=bits,
-                                        **extra)
+                                        padding=o["padding"], bias=True, weight_quant=wq,
+                                        **({} if bits == 1 else dict(weight_bit_width=bits)), **extra)
                 with torch.no_grad():
                     m.weight.copy_(W)
                     m.bias.copy_(torch.tensor(o["b"], dtype=torch.float32))
                 mods.append(m)
                 self.kinds.append((o["op"], o))
-                act = (qnn.QuantReLU(act_quant=Uint8ActPerTensorFloat, return_quant_tensor=True) if relu else
-                       qnn.QuantIdentity(act_quant=Int8ActPerTensorFloat, return_quant_tensor=True))
+                seen += 1
+                if act_bits == 1 and seen < n_weighted:          # binary hidden output: its sign (no ReLU)
+                    act = qnn.QuantIdentity(act_quant=SignedBinaryActPerTensorConst, return_quant_tensor=True)
+                    kind = "act_binary"
+                else:
+                    act = (qnn.QuantReLU(act_quant=Uint8ActPerTensorFloat, return_quant_tensor=True) if relu else
+                           qnn.QuantIdentity(act_quant=Int8ActPerTensorFloat, return_quant_tensor=True))
+                    kind = "act_relu" if relu else "act"
                 mods.append(act)
-                self.kinds.append(("act_relu" if relu else "act", None))
+                self.kinds.append((kind, None))
                 i += 2 if relu else 1
             elif o["op"] == "relu":
                 raise SystemExit("[X] lowbit: a ReLU that does not follow a Linear / Conv is not supported")
@@ -198,7 +223,7 @@ class QNet(nn.Module):
                 x = x.flatten(1)
             elif kind == "maxpool":
                 x = torch.nn.functional.max_pool2d(x if x.dim() == 4 else x[:, :, None, :], o["k"], o["s"])
-            elif kind in ("input", "act", "act_relu"):
+            elif kind in ("input", "act", "act_relu", "act_binary"):
                 q = m(x)
                 if hasattr(q, "scale"):                  # a plain tensor while Brevitas calibrates
                     self.scales[k] = q.scale.detach().reshape(-1)[0]
@@ -230,6 +255,8 @@ def export(qnet):
     """the integers of a QNet (after a forward pass in eval mode, which fixes the activation scales):
     {"input": (scale, zero)} then per op a dict; Linear / Conv: W (int codes, out x ...), bias int32, mult and shift
     per channel, zero_in, zero_out (int8 domain)"""
+    if qnet.bits == 1 or qnet.act_bits != 8:
+        raise SystemExit("[X] lowbit: binary weights or activations are an ablation (fake-quant): no integer export")
     qnet.eval()
     layers, s_in, z_in = [], None, 0
     pending = None

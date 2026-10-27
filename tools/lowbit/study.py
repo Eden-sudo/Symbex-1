@@ -196,3 +196,43 @@ def save(res, path):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     json.dump(res, open(path, "w"), indent=1)
     print(f"[*] -> {path}")
+
+
+def ablation(bench, model_fp32, data, weight_bits=(1, 2, 4, 8), act_bits=(8, 1), seeds=(42, 43, 44), epochs=15,
+             distill=True):
+    """Which costs the accuracy, binary weights or binary activations? The same network, recipe and seeds at every
+    (weight bits, activation bits) pair, QAT from the FP32 weights. Fake-quant accuracy on the PC (binary weights or
+    activations have no integer export here): an ablation, not a deployable kernel. W1A1 is the SYMBEX setting
+    (binary weights, binary hidden activations, int8 input), trained with Brevitas instead of the CDT."""
+    dev = _device()
+    model_fp32 = model_fp32.eval()
+    ops = fold(model_fp32, data.x_train[:64])
+    teacher = model_fp32.to(dev).eval()
+    gen = torch.Generator().manual_seed(0)
+    x_cal = data.x_train[torch.randperm(len(data.x_train), generator=gen)[:N_CALIBRATION]]
+    res = dict(bench=bench, kind="ablation (fake-quant)", recipe=dict(epochs=epochs, seeds=list(seeds), distill=distill),
+               tool="brevitas " + __import__("brevitas").__version__, grid={})
+    for a in act_bits:
+        for w in weight_bits:
+            runs = []
+            for s in seeds:
+                print(f"\n[*] W{w}A{a}, seed {s}, {epochs} epochs, {'distillation' if distill else 'labels only'}")
+                q = QNet(ops, w, "learned", act_bits=a)
+                calibrate(q, x_cal)
+                q, hist = train_qat(q, teacher, data, epochs, s, distill)
+                q.to(dev).eval()
+                with torch.no_grad():
+                    acc = {k: 100 * float(torch.cat([q(xb.to(dev)).argmax(1).cpu() for xb in _batches(x)]).eq(y).float().mean())
+                           for k, (x, y) in (("validation", (data.x_val, data.y_val)), ("test", (data.x_test, data.y_test)))}
+                q.cpu()
+                print(f"    W{w}A{a} s{s}: validation {acc['validation']:.2f}% | test {acc['test']:.2f}%")
+                runs.append(dict(seed=s, history=hist, **acc))
+            res["grid"][f"W{w}A{a}"] = dict(weight_bits=w, act_bits=a, seeds=runs,
+                                            validation=_stats([r["validation"] for r in runs]),
+                                            test=_stats([r["test"] for r in runs]))
+    print(f"\n    test (fake-quant), mean +- sd over {len(seeds)} seeds")
+    print(f"    {'':12}" + "".join(f"{'A' + str(a) + (' (int8)' if a == 8 else ' (binary)'):>20}" for a in act_bits))
+    for w in weight_bits:
+        cells = [res["grid"][f"W{w}A{a}"]["test"] for a in act_bits]
+        print(f"    {'W' + str(w):<12}" + "".join(f"{c['mean']:>13.2f} +- {c['std']:.2f}" for c in cells))
+    return res

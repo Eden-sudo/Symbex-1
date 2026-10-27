@@ -35,6 +35,17 @@ pull request, newest first.
   with 6x less RAM; in flash it stays 8.3x faster than the best INT (INT4). The earlier INT4 / INT2 chip numbers
   (bit planes, SYMBEX arithmetic) are kept in the README, marked as such.
 
+**Binary weights or binary activations? (ablation, mlp_fashion, PC fake-quant, 3 seeds)**
+- `fashion_lowbit.py --ablation`: weights 1 / 2 / 4 / 8 bits x activations int8 / binary, same recipe.
+- The binary activations cost the accuracy: labels only, 8-bit weights lose 1.51 points with binary activations, while
+  1-bit weights lose 0.56 with int8 activations. W1A1 with Brevitas (87.77 %) matches SYMBEX with the CDT (87.64 %).
+- Binary weights + int8 activations (89.30 %) equal INT2 (89.22 %): a candidate for a whole network on the kernel of
+  SYMBEX's first layer (uint8 x 1 bit), to be built and measured.
+
+**The classic ESP32** (seed 42, board = simulation 100 %): SYMBEX x1 6.754 ms in flash / 3.840 ms in RAM; INT2 / INT4 /
+INT8 on ESP-NN 30.35 / 34.61 / 41.38 ms in flash; none of them runs with the weights in RAM (INT8: DRAM overflowed by
+74 KB; INT4 / INT2 do not start, likely no 235 KB block for the unpacked weights).
+
 **Benchmarks grouped by network type:** `benchmarks/mlp/`, `conv1d/`, `conv2d/`; every relative path updated and
 checked; the benchmark `.gitignore` matches `runs/` and `models/` at any depth.
 

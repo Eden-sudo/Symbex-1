@@ -8,6 +8,7 @@ arithmetic).
     python fashion_lowbit.py --shape 128-512 --bits 8 # another FP32 shape (models/fashion_mlp_128_512.pth)
     python fashion_lowbit.py --chip-only --board s3 --port /dev/ttyACM0 --usb    # the seed-42 models on the board
     python fashion_lowbit.py --chip-only --board s3 --port /dev/ttyACM0 --usb --weights ram
+    python fashion_lowbit.py --ablation --no-distill  # weights {1,2,4,8} x activations {binary, int8} bits (PC)
 
 Run from benchmarks/mlp/mlp_fashion/ (environment env_bench). Data: the CDT's split (model.split_indices: the training
 images minus the fixed validation split), validation on that split, the 10,000 test images evaluated once per final
@@ -51,6 +52,9 @@ def main():
     ap.add_argument("--no-ptq", action="store_true", help="QAT only (skip the post-training methods)")
     ap.add_argument("--shape", default="256-128", help="hidden widths h1-h2 of the FP32 model (as fashion_sizing.py)")
     ap.add_argument("--chip-only", action="store_true", help="no training: export and measure the saved models")
+    ap.add_argument("--ablation", action="store_true",
+                    help="binary weights or binary activations? weights 1/2/4/8 bits x activations binary/int8, "
+                         "fake-quant on the PC; results/lowbit_ablation[tag].json")
     ap.add_argument("--board", choices=["esp32", "s3"], help="measure the seed-42 models on this board")
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--usb", action="store_true", help="the S3's native USB port (chip_test.py --usb)")
@@ -59,13 +63,21 @@ def main():
     args = ap.parse_args()
     os.chdir(HERE)
     from lowbit.export_c import chip_study
-    from lowbit.study import run, save, table
+    from lowbit.study import ablation, run, save, table
     from model import FashionMLP, get_fp32
     h1, h2 = (int(v) for v in args.shape.split("-"))
     shape_tag = "" if (h1, h2) == (256, 128) else f"_h{h1}_{h2}"
     tag = shape_tag + ("_nodistill" if args.no_distill else "")
     model_dir = os.path.join("runs", "lowbit" + tag)
     data = load_data()
+    if args.ablation:
+        model = FashionMLP(h1, h2)
+        model.load_state_dict(torch.load(get_fp32(h1, h2), map_location="cpu"))
+        res = ablation("mlp_fashion", model, data, seeds=[42 + k for k in range(args.seeds)], epochs=args.epochs,
+                       distill=not args.no_distill)
+        res["shape"] = f"784-{h1}-{h2}-10"
+        save(res, os.path.join("results", f"lowbit_ablation{tag}.json"))
+        return
     if not args.chip_only:
         model = FashionMLP(h1, h2)
         model.load_state_dict(torch.load(get_fp32(h1, h2), map_location="cpu"))

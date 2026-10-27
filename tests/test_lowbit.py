@@ -94,3 +94,21 @@ def test_integer_follows_fake_quant_and_c_is_exact(name, bits, tmp_path):
     for flags in ((), ("-DSYMBEX_ROM=",)):
         equal, msg = check_c(str(header), xb, sim, flags)
         assert equal == len(sim), msg
+
+
+def test_ablation_cells_train_and_refuse_export():
+    """binary weights (+-scale per channel) and binary hidden activations build and give gradients; they have no
+    integer export (an ablation on the PC)"""
+    net, shape = _nets()["mlp"]
+    x = torch.randn(*shape)
+    ops = fold(net, x[:16])
+    for w, a in ((1, 1), (1, 8), (4, 1)):
+        q = QNet(ops, w, "learned", act_bits=a)
+        calibrate(q, x)
+        q.train()
+        q(x).sum().backward()
+        assert any(p.grad is not None and p.grad.abs().sum() > 0 for p in q.parameters())
+        layer = next(m for m in q.mods if hasattr(m, "quant_weight"))
+        assert layer.quant_weight().int().unique().numel() <= (2 if w == 1 else 15)
+        with pytest.raises(SystemExit):
+            export(q)

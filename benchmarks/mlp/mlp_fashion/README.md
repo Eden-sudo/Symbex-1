@@ -68,6 +68,27 @@ export of each model.
 - The binary x1.5 and x2 models trained on the labels are **within 0.3 points of the FP32 original** (88.26-88.31 %
   vs. 88.51 % on the same test images), with 1 bit everywhere after the first layer.
 
+### Binary weights or binary activations? (ablation)
+
+`fashion_lowbit.py --ablation`: the same network, recipe and seeds at every pair of weight bits (1, 2, 4, 8) and
+activation bits (int8, binary), QAT with Brevitas from the FP32 model. Fake-quant accuracy on the PC: the mixed cells
+(W4A1, W1A8...) have no kernel in either library, so this is an ablation, not a measurement on the chip. Test, mean +-
+sd over 3 seeds:
+
+| Weights | Labels only, int8 act. | Labels only, binary act. | Distillation, int8 act. | Distillation, binary act. |
+|---|---|---|---|---|
+| 8 bits | 89.86 +- 0.04 | 88.35 +- 0.15 | 88.61 +- 0.06 | 87.78 +- 0.25 |
+| 4 bits | 89.81 +- 0.12 | 88.48 +- 0.15 | 88.64 +- 0.19 | 87.79 +- 0.16 |
+| 2 bits | 89.22 +- 0.13 | 87.20 +- 0.25 | 88.19 +- 0.29 | 86.72 +- 0.09 |
+| 1 bit | 89.30 +- 0.12 | **87.77 +- 0.41** (SYMBEX) | 88.45 +- 0.10 | 86.93 +- 0.39 |
+
+- **The binary activations cost the accuracy, not the binary weights:** with int8 activations, 1-bit weights lose
+  0.56 points against 8-bit weights (labels only); with 8-bit weights, binary activations lose 1.51.
+- W1A1 trained with Brevitas (87.77 %) matches SYMBEX trained with the CDT (87.64 %): the ablation measures the same
+  thing.
+- Binary weights with int8 activations (W1A8, 89.30 %) are as accurate as INT2 (89.22 %) with half the weight bits.
+  SYMBEX's first layer already computes uint8 inputs x 1-bit weights; a whole network of that kind is future work.
+
 ## 2. Speed on the ESP32-S3
 
 `lowbit_chip.py`. Accuracy: the distillation recipe of the table above (the network and its speed are the same with
@@ -115,6 +136,21 @@ the 64 KB table of the default `lut16` mode gives the same speed here (measured,
 - The earlier INT4 / INT2 rows (bit planes, `int_export.py`) used the library's own counting, not integer
   arithmetic: they are kept for the record, the ESP-NN rows are the integer baseline.
 - **The ternary kernel is slow** (12-15 ms): it is the next kernel to rewrite (see *Future work*).
+
+### The classic ESP32 (no SIMD, no popcount)
+
+The same seed-42 models on the ESP32 (240 MHz, one core), the current library and `tools/lowbit` (board = simulation,
+100 % on every run):
+
+| Model | Weights | Flash | RAM |
+|---|---|---|---|
+| **SYMBEX 1 bit x1** (`--popcount swar`) | 28.7 KB | **6.754 ms** | **3.840 ms** (38.6 KB of RAM) |
+| INT2 QAT x1, ESP-NN | 61.9 KB | 30.352 ms | does not start (likely: no 235 KB block for the unpacked weights) |
+| INT4 QAT x1, ESP-NN | 119.2 KB | 34.610 ms | does not start (same) |
+| INT8 QAT x1, ESP-NN | 233.9 KB | 41.377 ms | does not fit (DRAM overflowed by 74 KB) |
+
+- In flash, SYMBEX x1 is 4.5x faster than the fastest integer model (INT2); with the weights in RAM it is the only
+  one that runs.
 
 ### How the ESP32-S3 computes a binary layer
 
