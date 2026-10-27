@@ -198,6 +198,9 @@ def main():
     SUFFIX = "_nodistill" if args.no_distill else ""
     os.chdir(HERE)
     if not args.show:
+        sys.path.insert(0, HERE)
+        from model import get_fp32
+        get_fp32()                                         # the FP32 model every row starts from, trained if missing
         for method, width in CDT_RUNS:
             for s in range(42, 42 + args.seeds):
                 run_cdt(method, width, s)
