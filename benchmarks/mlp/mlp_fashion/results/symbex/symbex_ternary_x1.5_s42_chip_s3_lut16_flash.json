@@ -1,0 +1,35 @@
+{
+ "board": "s3",
+ "hal": "esp32s3: PIE pie_swar (AND / XOR layers) + lut16 (64 KB table: single words, XNOR layers)",
+ "popcount": "lut16",
+ "weights": "flash",
+ "first_layer": "mask",
+ "n": 1000,
+ "equal_simulation": 100.0,
+ "accuracy": 87.8,
+ "median_ms": 22.4,
+ "min_ms": 22.397,
+ "layers": [
+  {
+   "step": "layer 0: 784 -> 384 (uint8 x ternary) + thresholds",
+   "median_ms": 20.674
+  },
+  {
+   "step": "layer 1: 384 -> 192 (1 bit x ternary) + thresholds",
+   "median_ms": 1.679
+  },
+  {
+   "step": "layer 2: 192 -> 10 (1 bit x ternary) + argmax",
+   "median_ms": 0.047
+  }
+ ],
+ "ram": {
+  "buffers": 1632,
+  "input_bytes": 784,
+  "popcount_table": 65540,
+  "stack_used": 804,
+  "weights_in_ram": 0,
+  "total": 68760
+ },
+ "model_flash": 98136
+}

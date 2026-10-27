@@ -58,6 +58,12 @@ S3 15.90 / 0.884 ms, ESP32 41.97 ms: the README's numbers; SYMBEX x1, 3 seeds). 
 sha256. `--fp32-epochs N` works again (`fashion_symbex.py`; new in `fashion_tflite.py`, `fashion_lowbit.py`):
 `model.get_fp32(h1, h2, epochs)` trains `models/fashion_mlp[_h1_h2]_e<N>.pth`, results get `_f<N>`.
 
+**mlp_fashion chip results completed** (board = simulation 100 % on every run):
+- S3: ternary x1 / x1.5 re-measured on the current exports (14.588 / 22.400 ms in flash, 11.936 / 18.172 ms in RAM;
+  the x1 numbers equal the earlier copies).
+- ESP32: SYMBEX x1 / x1.5 / x2 6.754 / 12.949 / 17.788 ms in flash, 3.840 / 5.805 / 7.809 ms in RAM; ternary x1 /
+  x1.5 20.0 / 31.0 ms; 784-128-512 3.635 ms in flash (TFLite INT8 of the same shape: 31.108 ms, 8.6x), 2.186 ms in RAM.
+
 **Benchmarks grouped by network type:** `benchmarks/mlp/`, `conv1d/`, `conv2d/`; every relative path updated and
 checked; the benchmark `.gitignore` matches `runs/` and `models/` at any depth.
 

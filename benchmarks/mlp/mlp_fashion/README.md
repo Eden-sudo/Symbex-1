@@ -104,6 +104,7 @@ the 64 KB table of the default `lut16` mode gives the same speed here (measured,
 | SYMBEX 1 bit x1.5 | 86.77 | 3.854 ms | 4.12x | 54.5 KB | 4.2 KB |
 | SYMBEX 1 bit x2 | 87.02 | 5.389 ms | 2.95x | 76.5 KB | 4.7 KB |
 | ternary x1 | 86.13 | 14.589 ms | 1.09x | 59.9 KB | 66.5 KB (with a 64 KB count table) |
+| ternary x1.5 | 86.80 | 22.400 ms | 0.71x | 95.8 KB | 67.1 KB (with a 64 KB count table) |
 | INT8 QAT x1, ESP-NN | 88.61 | 15.601 ms | 1.02x | 233.9 KB | 3.1 KB |
 | INT4 QAT x1, ESP-NN | 88.65 | 10.306 ms | 1.54x | 119.2 KB | 11.1 KB |
 | INT2 QAT x1, ESP-NN | 88.20 | 13.376 ms | 1.19x | 61.9 KB | 11.1 KB |
@@ -119,6 +120,7 @@ the 64 KB table of the default `lut16` mode gives the same speed here (measured,
 | SYMBEX 1 bit x1.5 | 0.773 ms | 1.13x | 58.6 KB |
 | SYMBEX 1 bit x2 | 1.034 ms | 0.85x | 81.1 KB |
 | ternary x1 | 11.936 ms | 0.07x | 126.4 KB (with a 64 KB count table) |
+| ternary x1.5 | 18.172 ms | 0.05x | 163.0 KB (with a 64 KB count table) |
 | INT8 QAT x1, ESP-NN | 0.556 ms | 1.58x | 242.6 KB |
 | INT4 QAT x1, ESP-NN (unpacked to int8 at the first call) | 0.556 ms | 1.58x | 240.3 KB |
 | INT2 QAT x1, ESP-NN (unpacked to int8 at the first call) | 0.556 ms | 1.58x | 240.3 KB |
@@ -139,18 +141,27 @@ the 64 KB table of the default `lut16` mode gives the same speed here (measured,
 
 ### The classic ESP32 (no SIMD, no popcount)
 
-The same seed-42 models on the ESP32 (240 MHz, one core), the current library and `tools/lowbit` (board = simulation,
-100 % on every run):
+The same seed-42 exports on the ESP32 (240 MHz, one core), the current library and `tools/lowbit`; board = simulation,
+100 % on every run. RAM: as measured on the chip (with the weights when they are in RAM).
 
-| Model | Weights | Flash | RAM |
-|---|---|---|---|
-| **SYMBEX 1 bit x1** (`--popcount swar`) | 28.7 KB | **6.754 ms** | **3.840 ms** (38.6 KB of RAM) |
-| INT2 QAT x1, ESP-NN | 61.9 KB | 30.352 ms | does not start (likely: no 235 KB block for the unpacked weights) |
-| INT4 QAT x1, ESP-NN | 119.2 KB | 34.610 ms | does not start (same) |
-| INT8 QAT x1, ESP-NN | 233.9 KB | 41.377 ms | does not fit (DRAM overflowed by 74 KB) |
+| Model | Flash | Weights in flash | RAM | Weights in RAM |
+|---|---|---|---|---|
+| **SYMBEX 1 bit x1** (`--popcount swar`) | 34.3 KB | **6.754 ms** | 3.4 KB | **3.840 ms** (37.7 KB) |
+| SYMBEX 1 bit x1.5 | 54.5 KB | 12.949 ms | 3.9 KB | 5.805 ms (58.3 KB) |
+| SYMBEX 1 bit x2 | 76.5 KB | 17.788 ms | 4.4 KB | 7.809 ms (80.8 KB) |
+| ternary x1 (`lut16`) | 59.9 KB | 19.997 ms | 66.3 KB | 12.137 ms (126.3 KB) |
+| ternary x1.5 (`lut16`) | 95.8 KB | 31.031 ms | 66.9 KB | 18.541 ms (162.7 KB) |
+| INT2 QAT x1, ESP-NN | 61.9 KB | 30.352 ms | 11.1 KB | does not start (likely: no 235 KB block for the unpacked weights) |
+| INT4 QAT x1, ESP-NN | 119.2 KB | 34.610 ms | 11.1 KB | does not start (same) |
+| INT8 QAT x1, ESP-NN | 233.9 KB | 41.377 ms | 3.1 KB | does not fit (DRAM overflowed by 74 KB) |
+| INT8 TFLite x1 | 242.2 KB | 41.966 ms | 4.8 KB (arena) | does not fit |
+| **SYMBEX 784-128-512** (sized for binary) | 27.3 KB | **3.635 ms** | 4.4 KB | **2.186 ms** (31.6 KB) |
+| INT8 TFLite 784-128-512 (same shape) | 187 KB | 31.108 ms | 6.7 KB (arena) | not measured |
 
-- In flash, SYMBEX x1 is 4.5x faster than the fastest integer model (INT2); with the weights in RAM it is the only
-  one that runs.
+- In flash, SYMBEX x1 is 4.5x faster than the fastest integer model (INT2) and 6.2x faster than TFLite INT8; the
+  binary-sized 784-128-512 is 8.6x faster than TFLite INT8 of the same shape. With the weights in RAM only the
+  binary and ternary models run.
+- The ternary kernel is slow here too (20 ms): the next kernel to rewrite.
 
 ### How the ESP32-S3 computes a binary layer
 
