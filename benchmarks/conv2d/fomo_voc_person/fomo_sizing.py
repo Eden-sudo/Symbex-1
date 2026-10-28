@@ -8,7 +8,8 @@ fomo_sizing.py -- the ideal shape of the binary FOMO detector: blocks and channe
 
 Run from benchmarks/conv2d/fomo_voc_person/ (main environment). The same study as cnn_cifar_resnet8/resnet8_sizing.py:
     accuracy    every variant trained by fomo_train.py (--weight 40, --epochs 100: the recipe of the measured binary
-                FOMO), scored by the test F1 with its calibrated threshold
+                FOMO), RANKED by the validation F1 (the 1,000 held-out training images of fomo_train.py, calibrated
+                threshold); the test F1 is reported only, never used to choose
     latency     PREDICTED: every layer costs (outputs) x (the chip's cycles per output for its packed window size,
                 tools/dev/count_bench.py), times one factor per chip calibrated with the measured binary FOMO
                 (32-64-128 / 1-2-2: --s3-ms 160.8, --esp32-ms 296.2)
@@ -109,6 +110,13 @@ def cycles(spec, cv):
     return total
 
 
+def mark_pareto(rows, key="f1_val", cost="s3_ms"):
+    """row["pareto"] = True when no other row is better on `key` AND cheaper on `cost`"""
+    for r in rows:
+        r["pareto"] = not any(o[key] > r[key] and o[cost] < r[cost] for o in rows if o is not r)
+    return rows
+
+
 def run_dir(spec, weight, epochs, seed=42):
     ch, bl = spec.split("/")
     return os.path.join("runs", f"c{ch}_b{bl}_w{weight:g}_e{epochs}_s{seed}")
@@ -146,24 +154,27 @@ def main():
         if not os.path.exists(tj):
             continue
         info = json.load(open(tj))
+        if "calibrated_validation" not in info:
+            sys.exit(f"[X] {tj} has no validation F1 (calibrated_validation): retrain it with the current fomo_train.py")
         flash, ram = memory(spec)
-        rows.append(dict(spec=spec, f1=info["calibrated_test"]["f1"], f1_default=info["final"]["f1"],
+        rows.append(dict(spec=spec, f1_val=info["calibrated_validation"]["f1"], f1=info["calibrated_test"]["f1"],
+                         f1_default=info["final"]["f1"],
                          s3_ms=factor["s3"] * cycles(spec, cv["s3"]) / 240e3,
                          esp32_ms=factor["esp32"] * cycles(spec, cv["esp32"]) / 240e3, flash_kb=flash / 1024, ram_kb=ram / 1024))
-    for r in rows:
-        r["pareto"] = not any(o["f1"] > r["f1"] and o["s3_ms"] < r["s3_ms"] for o in rows if o is not r)
+    mark_pareto(rows)
     b = next((r for r in rows if r["spec"] == BASE), None)
     print(f"\n    SIZING THE BINARY FOMO  ({args.phase}; {args.epochs} epochs, person weight {args.weight:g}; F1 with the calibrated"
-          f" threshold, VOC 2007 test persons;\n    latency PREDICTED from the count_bench profiles, calibrated with the measured"
-          f" binary FOMO {BASE})\n")
-    print(f"    {'channels / blocks':<20}{'F1':>8}{'vs base':>9}{'S3 ms':>9}{'ESP32 ms':>10}{'vs base':>9}{'flash KB':>10}"
-          f"{'RAM KB':>9}  Pareto")
-    print("    " + "-" * 92)
+          f" threshold;\n    CHOSEN on val F1 (1,000 held-out training images); test F1 (VOC 2007 test persons) reported only;"
+          f"\n    latency PREDICTED from the count_bench profiles, calibrated with the measured binary FOMO {BASE})\n")
+    print(f"    {'channels / blocks':<20}{'val F1':>8}{'vs base':>9}{'test F1':>9}{'S3 ms':>9}{'ESP32 ms':>10}{'vs base':>9}"
+          f"{'flash KB':>10}{'RAM KB':>9}  Pareto")
+    print("    " + "-" * 101)
     for r in sorted(rows, key=lambda r: r["s3_ms"]):
-        print(f"    {r['spec']:<20}{r['f1']:>7.1f}%{r['f1'] - (b['f1'] if b else 0):>+8.1f} {r['s3_ms']:>8.1f}{r['esp32_ms']:>10.1f}"
+        print(f"    {r['spec']:<20}{r['f1_val']:>7.1f}%{r['f1_val'] - (b['f1_val'] if b else 0):>+8.1f} {r['f1']:>8.1f}%"
+              f"{r['s3_ms']:>9.1f}{r['esp32_ms']:>10.1f}"
               f"{(b['s3_ms'] / r['s3_ms'] if b else 1):>8.2f}x{r['flash_kb']:>10.1f}{r['ram_kb']:>9.1f}  "
               f"{'  *' if r['pareto'] else ''}{'   <- the benchmark FOMO' if r['spec'] == BASE else ''}")
-    print("\n    * Pareto: no other variant detects better AND runs faster. Export and measure the interesting ones:"
+    print("\n    * Pareto: no other variant detects better on validation AND runs faster. Export and measure the interesting ones:"
           "\n      python fomo_export.py runs/<run>  ;  python ../../../tools/dev/fine_profile.py runs/<run> --board s3 --plain")
     os.makedirs("results", exist_ok=True)
     path = os.path.join("results", "fomo_sizing.json")
