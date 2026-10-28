@@ -17,7 +17,10 @@ same way and quantized to INT8 with TensorFlow Lite, measured with TensorFlow Li
 Data: Pascal VOC, class *person* — training on VOC 2007 + 2012 trainval (16,551 images, 13,256 persons), test on VOC 2007
 test (4,952 images, 4,528 persons). Score: precision, recall and F1 of the detected person centers (a detection matches a
 person whose center is within 1.5 cells). Each model gets its own decision threshold, calibrated on 1,000 training images
-kept out of the training; on the chip the binary threshold costs nothing (it is folded into the integer bias of the head).
+kept out of the training, chosen at random with a fixed seed (`model.SPLIT_SEED`): the same images for every model and
+seed, binary and INT8. On the chip the binary threshold costs nothing (it is folded into the integer bias of the head).
+The published results were calibrated on the previous split (the last 1,000 training images, all from VOC 2012) and are
+to be re-measured with this one.
 
 ## Results (ESP32-S3, 240 MHz)
 
