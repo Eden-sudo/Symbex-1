@@ -362,7 +362,10 @@ static bool g_camera_ok = false;
 
 static void print_info() {
     Serial.printf("INFO,probe_version,%d\n", PROBE_VERSION);
-    Serial.printf("INFO,board,%s\n", ARDUINO_BOARD);
+    /* the detected module; ARDUINO_BOARD is only the PlatformIO build target and can name a different variant */
+    Serial.printf("INFO,board,%s_%uMB_flash_%uMB_psram\n", ESP.getChipModel(),
+                  (unsigned)(ESP.getFlashChipSize() >> 20), (unsigned)(ESP.getPsramSize() >> 20));
+    Serial.printf("INFO,pio_board,%s\n", ARDUINO_BOARD);
     Serial.printf("INFO,build,%s_%s\n", __DATE__, __TIME__);
     Serial.printf("INFO,sdk,%s\n", ESP.getSdkVersion());
     Serial.printf("INFO,chip,%s\n", ESP.getChipModel());

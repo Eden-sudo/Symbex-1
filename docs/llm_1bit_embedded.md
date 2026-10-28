@@ -32,7 +32,7 @@ portable C99 and bit-exact against the reference in `tests/test_edge_llm_kernels
 | Kernel | Idea | Cost shape |
 |---|---|---|
 | `ref` | sum of +-x, one branch/multiply per weight | correctness oracle |
-| `mask` | y = 2*S - sum(x), S = sum of x where bit = 1 | roughly the current multi-bit-input path |
+| `mask` | y = 2*S - sum(x), S = sum of x where bit = 1 | the algorithm of the current multi-bit-input path, in portable C; lib_symbex's per-chip HAL versions are faster and not timed by the probe yet |
 | `lut4` | T-MAC style: per 4 activations build a 16-entry table of all +-sums once per vector; each row then does one lookup per 4 weights | 1 table lookup per 4 weights; table build amortised over the rows |
 | `bitserial4` | 4-bit activations as 4 bit-planes; y = 2*sum_b 2^b * popcount(A_b & W) - sum(a) - 8*rowsum | 4 AND+popcount per 32 weights; **SWAR popcount** because Xtensa has no popcount instruction |
 | `xnor` | 1-bit activations, y = N - 2*popcount(x ^ w) | lower bound, not usable for an LLM |

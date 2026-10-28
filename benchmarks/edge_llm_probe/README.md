@@ -118,7 +118,8 @@ Every phase runs one steady workload for `PROBE_PHASE_SECONDS` (default 20 s, a 
    `-DPROBE_MARKER_GPIO=<pin>` drives the pin high during every non-idle phase (default -1 = disabled).
 
 Reading the schedule: sram/psram/flash/sd phases show the cost of moving bytes; lut4-gemv vs lut4-2core shows the second
-core's cost; mask-gemv is today's SYMBEX first-layer approach for comparison; camera shows what the sensor adds.
+core's cost; mask-gemv is the algorithm of today's SYMBEX first layer, in portable C (lib_symbex runs it through a
+faster per-chip HAL), for comparison; camera shows what the sensor adds.
 
 ## Camera smoke test
 
@@ -172,12 +173,14 @@ PSRAM buffer did not fit (largest internal block 110 KB).
 
 1-bit GEMV, 2048 x 2048 weights (512 KB), cache-cold, cycles per weight; every kernel matched `gemv_ref` on the chip:
 
-| Weights in | `ref` | `mask` (SYMBEX today) | `lut4` | `lut4` 2 cores (lookup) | `bitserial4` | `xnor` |
+| Weights in | `ref` | `mask` (portable C) | `lut4` | `lut4` 2 cores (lookup) | `bitserial4` | `xnor` |
 |---|---|---|---|---|---|---|
 | PSRAM | 18.19 | 12.52 | **2.82** | **1.92** | 4.04 | 1.76 |
 | Flash | 20.06 | 13.42 | 3.70 | 1.93 | 4.92 | 2.63 |
 
-- LUT4 is 4.4x faster than the mask kernel from PSRAM (5.3x from SRAM: 2.15 vs 11.49 at 256 x 1024).
+- LUT4 is 4.4x faster than the portable mask kernel from PSRAM (5.3x from SRAM: 2.15 vs 11.49 at 256 x 1024). This is
+  not the gap to SYMBEX: on the classic ESP32 lib_symbex runs this layer through its SWAR HAL at about 4.2 cycles per
+  weight (`mlp_fashion`, 784 x 128, a different shape), not timed by this probe yet.
 - Two cores do not double it: at 1.92 cycles/weight the kernel consumes ~15.6 MB/s of weights, close to what PSRAM and
   flash deliver here, so the second core runs into the memory wall.
 - Bit-serial 4-bit activations lose to LUT4 on this chip: without a popcount instruction the SWAR popcount costs more
@@ -209,7 +212,7 @@ Cycles per weight, 2048 x 2048 (256 x 1024 for SRAM; PSRAM and flash cache-cold,
 | Kernel | SRAM | PSRAM | flash |
 |---|---|---|---|
 | `ref` | 16.12 | 16.43 | 16.56 |
-| `mask` | 10.44 | 10.74 | 10.87 |
+| `mask` (portable C) | 10.44 | 10.74 | 10.87 |
 | `lut4` (build + lookup) | 1.89 | 1.94 | 2.07 |
 | `lut4_2core_lookup` (wall clock, both cores) | 0.81 | 0.96 | 1.11 |
 | `bitserial4` | 2.67 | 2.98 | 3.11 |

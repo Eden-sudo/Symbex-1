@@ -200,7 +200,7 @@ def render_measurements(data):
     info = data["info"]
     parts = ["## Measurements (from the log)", ""]
     keys = ["chip", "chip_revision", "cores", "cpu_mhz", "heap_internal_free", "psram_size", "flash_size", "sd",
-            "camera", "board", "sdk"]
+            "camera", "board", "pio_board", "sdk"]
     parts.append(_table(["key", "value"], [[k, info[k]] for k in keys if k in info]))
     if data["cam"]:
         c = data["cam"]
