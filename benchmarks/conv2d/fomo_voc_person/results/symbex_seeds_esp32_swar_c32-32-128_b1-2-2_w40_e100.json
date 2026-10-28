@@ -1,0 +1,24 @@
+{
+ "channels": "32-32-128",
+ "blocks": "1-2-2",
+ "weight": 40.0,
+ "epochs": 100,
+ "board": "esp32",
+ "weights": "flash",
+ "popcount": "swar",
+ "seeds": [
+  {
+   "seed": 42,
+   "f1_val": 31.781502172563624,
+   "f1_test": 31.798754426669923,
+   "f1_sim": 31.802638006839274,
+   "flash_kb": 41.2421875,
+   "exactness": 100.0,
+   "images": 1000,
+   "equal": 100.0,
+   "latency_ms": 274.498,
+   "min_ms": 274.404,
+   "ram_kb": 78.79296875
+  }
+ ]
+}
