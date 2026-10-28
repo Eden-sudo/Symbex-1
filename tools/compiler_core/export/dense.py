@@ -446,19 +446,40 @@ def to_uint8(x, mean=(), std=()):
     return q.to(torch.uint8).reshape(len(q), -1).numpy()
 
 
+def _save_labels(out_dir, name, values):
+    """validation_<name>.u8, or validation_<name>.u32 (int32) when a value does not fit in a byte (the 31-bit grid
+    checksums of a per-cell head, FOMO); the file of the other width is removed, so load_validation never reads a
+    stale one"""
+    v = np.asarray(values, dtype=np.int64)
+    if v.size and (v.min() < 0 or v.max() > np.iinfo(np.int32).max):
+        raise ValueError(f"save_validation: validation_{name} values must be in 0 .. 2^31 - 1")
+    ext, other = (".u32", ".u8") if v.size and v.max() > 255 else (".u8", ".u32")
+    v.astype(np.int32 if ext == ".u32" else np.uint8).tofile(os.path.join(out_dir, f"validation_{name}{ext}"))
+    stale = os.path.join(out_dir, f"validation_{name}{other}")
+    if os.path.exists(stale):
+        os.remove(stale)
+
+
+def _load_labels(out_dir, name):
+    path = os.path.join(out_dir, f"validation_{name}.u32")
+    if os.path.exists(path):
+        return np.fromfile(path, dtype=np.int32).astype(np.int64)
+    return np.fromfile(os.path.join(out_dir, f"validation_{name}.u8"), dtype=np.uint8).astype(np.int64)
+
+
 def save_validation(out_dir, x_u8, y, pred_sim):
     """validation_x.u8 (N x inputs), validation_y.u8 (labels), validation_sim.u8 (classes of the integer
-    simulation): what the chip test needs, so it can run later without retraining (probar_chip.py)."""
+    simulation): what the chip test needs, so it can run later without retraining (probar_chip.py).
+    y and pred_sim go to .u32 (int32) instead when a value passes 255 (the grid checksums of a per-cell head)."""
     np.ascontiguousarray(x_u8, dtype=np.uint8).tofile(os.path.join(out_dir, "validation_x.u8"))
-    np.asarray(y, dtype=np.uint8).tofile(os.path.join(out_dir, "validation_y.u8"))
-    np.asarray(pred_sim, dtype=np.uint8).tofile(os.path.join(out_dir, "validation_sim.u8"))
+    _save_labels(out_dir, "y", y)
+    _save_labels(out_dir, "sim", pred_sim)
 
 
 def load_validation(out_dir, n_inputs):
+    """the files of save_validation: validation_y / validation_sim from their .u32 if it exists, else the .u8"""
     x = np.fromfile(os.path.join(out_dir, "validation_x.u8"), dtype=np.uint8).reshape(-1, n_inputs)
-    y = np.fromfile(os.path.join(out_dir, "validation_y.u8"), dtype=np.uint8).astype(np.int64)
-    sim = np.fromfile(os.path.join(out_dir, "validation_sim.u8"), dtype=np.uint8).astype(np.int64)
-    return x, y, sim
+    return x, _load_labels(out_dir, "y"), _load_labels(out_dir, "sim")
 
 
 def flash_bytes(layers, arithmetic="and"):
