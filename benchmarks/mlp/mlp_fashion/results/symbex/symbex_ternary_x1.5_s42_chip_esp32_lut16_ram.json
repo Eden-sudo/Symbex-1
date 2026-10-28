@@ -1,0 +1,35 @@
+{
+ "board": "esp32",
+ "hal": "generic: lut16 (64 KB table in RAM)",
+ "popcount": "lut16",
+ "weights": "ram",
+ "first_layer": "mask",
+ "n": 1000,
+ "equal_simulation": 100.0,
+ "accuracy": 87.8,
+ "median_ms": 18.541,
+ "min_ms": 18.535,
+ "layers": [
+  {
+   "step": "layer 0: 784 -> 384 (uint8 x ternary) + thresholds",
+   "median_ms": 17.459
+  },
+  {
+   "step": "layer 1: 384 -> 192 (1 bit x ternary) + thresholds",
+   "median_ms": 1.051
+  },
+  {
+   "step": "layer 2: 192 -> 10 (1 bit x ternary) + argmax",
+   "median_ms": 0.03
+  }
+ ],
+ "ram": {
+  "buffers": 1632,
+  "input_bytes": 784,
+  "popcount_table": 65540,
+  "stack_used": 508,
+  "weights_in_ram": 98136,
+  "total": 166600
+ },
+ "model_flash": 98136
+}

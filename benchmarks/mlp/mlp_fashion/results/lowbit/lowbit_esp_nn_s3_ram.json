@@ -1,0 +1,35 @@
+[
+ {
+  "model": "INT8 QAT s42",
+  "bits": 8,
+  "weight_kb": 233.8671875,
+  "acc_integer": 89.8,
+  "c_exact": 100.0,
+  "folder": "runs/lowbit_chip/int8_qat_s42",
+  "latency_ms": 0.556,
+  "equal": 100.0,
+  "file": "runs/lowbit_chip/int8_qat_s42/chip_s3_lut16_ram_mask.json"
+ },
+ {
+  "model": "INT4 QAT s42",
+  "bits": 4,
+  "weight_kb": 119.2421875,
+  "acc_integer": 89.60000000000001,
+  "c_exact": 100.0,
+  "folder": "runs/lowbit_chip/int4_qat_s42",
+  "latency_ms": 0.556,
+  "equal": 100.0,
+  "file": "runs/lowbit_chip/int4_qat_s42/chip_s3_lut16_ram_mask.json"
+ },
+ {
+  "model": "INT2 QAT s42",
+  "bits": 2,
+  "weight_kb": 61.9296875,
+  "acc_integer": 89.60000000000001,
+  "c_exact": 100.0,
+  "folder": "runs/lowbit_chip/int2_qat_s42",
+  "latency_ms": 0.556,
+  "equal": 100.0,
+  "file": "runs/lowbit_chip/int2_qat_s42/chip_s3_lut16_ram_mask.json"
+ }
+]

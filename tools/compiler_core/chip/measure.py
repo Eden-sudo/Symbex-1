@@ -8,7 +8,7 @@ measure.py -- tests an exported model on the board (the CDT chip stage and tools
 """
 import numpy as np
 
-from .core import AVR_BOARDS, BOARDS, flash, lib_sources, open_port, write_project
+from .core import AVR_BOARDS, BOARD_MHZ, BOARDS, PICO_BOARDS, flash, lib_sources, open_port, write_project
 
 AVR_BAUD = 115200                          # an ATmega328P at 16 MHz is reliable at this speed, not at 921600
 
@@ -19,43 +19,71 @@ def _build_flags(popcount, weights, first_layer):
     return ((["-DSYMBEX_POPCOUNT_NO_LUT16"] if popcount == "swar" else [])
             + (["-DSYMBEX_ROM="] if weights == "ram" else [])
             + (["-DSYMBEX_U8_SIMPLE"] if first_layer == "simple" else [])
-            + (["-DSYMBEX_U8_PLANES"] if first_layer == "planes" else []))
+            # planes: also the RP2350's bit-plane first-layer kernel (hal/rp2350; for AND headers too; no effect elsewhere)
+            + (["-DSYMBEX_U8_PLANES", "-DSYMBEX_RP2350_U8_PLANES"] if first_layer == "planes" else []))
+
+
+USB_BOARDS = {"s3"}                        # boards with a native USB-Serial-JTAG port (usb=True)
 
 
 def generate_project(project_dir, header_path, lib_path, board, port, baud, popcount="lut16",
-                     weights="flash", first_layer="mask", int8_path=None):
+                     weights="flash", first_layer="mask", int8_path=None, usb=False):
     """PlatformIO project: the exported header, the lib_symbex sources it needs, and the firmware (ESP-IDF on the
-    ESP32 boards; Arduino on AVR boards, with the weights in flash: PROGMEM, read by the library)."""
+    ESP32 boards; Arduino on AVR boards, with the weights in flash: PROGMEM, read by the library; Arduino-Pico on the
+    Pico 2, firmware/model_test_pico.cpp, the generic HAL: lut16 on the Cortex-M33, cpop on Hazard3).
+    usb=True: the firmware talks over the chip's native USB-Serial-JTAG port instead of UART0 (the ESP32-S3)."""
+    if usb and board not in USB_BOARDS:
+        raise ValueError(f"chip: --usb needs a board with a native USB-Serial-JTAG port ({sorted(USB_BOARDS)})")
     extra = {"model_symbex.h": header_path}
     if board in AVR_BOARDS:
         write_project(project_dir, board, port, lib_sources(lib_path, ("symbex_dense.c", "symbex_hal_generic.c")),
                       "model_test_avr.cpp", {"BAUD_RATE": AVR_BAUD}, extra, lib_path=lib_path)
         return
+    if board in PICO_BOARDS:
+        if int8_path:
+            raise ValueError("chip: the INT8 reference runs on ESP-NN kernels (ESP32 boards only): use --no-int8")
+        with open(header_path) as f:
+            if "SYMBEX_NEEDS_ESP_NN" in f.read(2048):
+                raise ValueError("chip: this integer model runs on ESP-NN kernels (ESP32 boards only)")
+        names = tuple(n for n in lib_sources(lib_path) if n != "symbex_hal_esp32s3.c")
+        write_project(project_dir, board, port, lib_sources(lib_path, names), "model_test_pico.cpp",
+                      {"BAUD_RATE": baud}, extra, _build_flags(popcount, weights, first_layer), lib_path=lib_path)
+        return
     defines = {"BAUD_RATE": baud}
     if int8_path:
         extra["model_int8.h"] = int8_path
         defines.update(SYMBEX_WITH_INT8=1, SYMBEX_WITH_ESP_NN=1)
+    with open(header_path) as f:                  # an integer model of tools/lowbit runs on ESP-NN kernels
+        needs_esp_nn = "SYMBEX_NEEDS_ESP_NN" in f.read(2048)
+    if usb:
+        defines.update(SYMBEX_USB_SERIAL_JTAG=1)
     write_project(project_dir, board, port, lib_sources(lib_path), "model_test.c", defines, extra,
-                  _build_flags(popcount, weights, first_layer), ["espressif/esp-nn"] if int8_path else (),
-                  lib_path=lib_path)
+                  _build_flags(popcount, weights, first_layer),
+                  ["espressif/esp-nn"] if (int8_path or needs_esp_nn) else (),
+                  "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\n" if usb else "", lib_path=lib_path)
 
 
 def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="esp32", port="/dev/ttyUSB0",
                   baud=921600, n=1000, upload=True, popcount="lut16", model_flash=None, verbose=True,
-                  weights="flash", first_layer="mask", int8=None):
+                  weights="flash", first_layer="mask", int8=None, usb=False):
     """Flashes the exported model and measures it on the board: equality with the integer simulation (must be
     100%), accuracy, latency (total and per layer) and RAM. x / y / expected: validation images (uint8), labels
     and the classes of the integer simulation. Returns a dict, or raises RuntimeError with what went wrong.
     int8 (optional): dict(header=..., expected=classes of its integer simulation, flash=bytes) to run the INT8
-    reference of the original model on the same chip and the same images (Espressif's ESP-NN kernel)."""
+    reference of the original model on the same chip and the same images (Espressif's ESP-NN kernel).
+    usb=True: through the board's native USB-Serial-JTAG port (port is then e.g. /dev/ttyACM0), not its UART."""
 
 
     import time
+    if board in PICO_BOARDS and int8:
+        if verbose:
+            print("    [!] Pico 2: the INT8 reference runs on ESP-NN (ESP32 boards only): not measured here")
+        int8 = None
     generate_project(project_dir, header_path, lib_path, board, port, baud, popcount, weights, first_layer,
-                     int8["header"] if int8 else None)
+                     int8["header"] if int8 else None, usb)
     if upload:
         flash(project_dir, verbose, f"{BOARDS[board]} on {port} (popcount {popcount}, weights in {weights}, "
-                                    f"first layer {first_layer})")
+                                    f"first layer {first_layer}" + (", native USB" if usb else "") + ")")
     n = min(n, len(x))
     pred, totals, per_step, names, ram, stack = [], [], [], {}, None, None
     pred8, totals8, per_step8, info8 = [], [], [], None
@@ -64,10 +92,13 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
         if verbose and weights == "ram":
             print("    [!] AVR: the weights always stay in flash (2 KB of RAM); --weights ram is ignored")
         weights, int8 = "flash", None
-    with open_port(port, baud, "dtr" if board in AVR_BOARDS else "rts") as s:
+    reset = "dtr" if board in AVR_BOARDS else "pico" if board in PICO_BOARDS else "usb" if usb else "rts"
+    with open_port(port, baud, reset) as s:
         t0, warned, hal = time.time(), False, "?"
         while True:
             l = s.readline().decode(errors="replace").strip()
+            if (usb or reset == "pico") and not l and hal == "?":
+                s.write(b"\x55")                       # native USB: ask again for the ready lines
             if "SYMBEX ready" in l:
                 hal = l.split("|")[1].strip() if "|" in l else "?"
             elif l.startswith("STEP:"):
@@ -141,7 +172,7 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
                            ram_buffers=info8[1] if info8 else None, flash=int8.get("flash"))
     if verbose:
         status = "OK" if out["equal_simulation"] == 100 else "[X] MISMATCH between the chip and the simulation"
-        mhz = 16 if board in AVR_BOARDS else 240
+        mhz = BOARD_MHZ[board]
         print(f"\n    ON THE CHIP  ({BOARDS[board]}, {mhz} MHz, one core, {hal}, weights in {weights}, first layer {first_layer})")
         print(f"    images        : {n} | equal to the integer simulation {out['equal_simulation']:.2f}% {status}")
         print(f"    accuracy      : {out['accuracy']:.2f}%")

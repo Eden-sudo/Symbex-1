@@ -7,7 +7,7 @@
  * the PC -- the guarantee every SYMBEX benchmark measures.
  *
  * To run a real model:
- *   1. export it with the CDT or a benchmark (for example benchmarks/cnn_cifar_resnet8: resnet8_symbex.py); the run
+ *   1. export it with the CDT or a benchmark (for example benchmarks/conv2d/cnn_cifar_resnet8: resnet8_symbex.py); the run
  *      folder holds its model_symbex.h
  *   2. copy that model_symbex.h over src/model_symbex.h, and delete src/demo_input.h
  *   3. give the input to symbex_mlp_infer(): SYMBEX_MLP_N_INPUTS bytes (an RGB image in HWC order, uint8, for the

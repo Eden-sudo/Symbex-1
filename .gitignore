@@ -49,7 +49,7 @@ sdkconfig.old
 *.swp
 *~
 .DS_Store
-benchmarks/cnn_cifar_vgg/
+benchmarks/conv2d/cnn_cifar_vgg/
 benchmarks/gpu/
 runs/
 *.bak

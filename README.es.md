@@ -48,7 +48,7 @@ preparando para publicarla en `benchmarks/`.
 El motor convolucional v3 conserva como primera capa un pequeño **codificador int8 aprendido** (por ahí entra la
 imagen); todas las capas que siguen son binarias. Su RAM intermedia baja hasta 16 KB con el popcount en software.
 
-### MLP en Fashion-MNIST, de punta a punta con el CDT ([`benchmarks/mlp_fashion`](benchmarks/mlp_fashion/))
+### MLP en Fashion-MNIST, de punta a punta con el CDT ([`benchmarks/mlp/mlp_fashion`](benchmarks/mlp/mlp_fashion/))
 
 Mismo modelo FP32 (88.17%), INT8 oficial de TFLite Micro, las mismas 1000 imágenes, todas las capas de SYMBEX en
 1 bit:

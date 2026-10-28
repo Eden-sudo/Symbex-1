@@ -3,8 +3,12 @@
  *
  * Implementations:
  *   hal/esp32s3/symbex_hal_impl.c  -- ESP32-S3 only (PIE SIMD)
- *   hal/generic/symbex_hal_impl.c -- everything else (chosen at compile time: native popcount, lut16 on the
- *                                     ESP32, SWAR, libgcc on AVR)
+ *   hal/rp2350/symbex_hal_impl.c   -- Raspberry Pi Pico 2 (RP2350): the first-layer kernels (symbex_u8_*) of its
+ *                                     two core types: usada8 on the Cortex-M33 (DSP), bit planes + cpop on Hazard3.
+ *                                     The bit counts come from hal/generic, which leaves its symbex_u8_* out there.
+ *   hal/generic/symbex_hal_impl.c -- everything else (chosen at compile time: native popcount (x86, AArch64, RISC-V
+ *                                     Zbb such as the RP2350's Hazard3), lut16 on the ESP32 and the RP2350's
+ *                                     Cortex-M33, SWAR, lut8 on AVR)
  *
  * Every counting primitive has a *_rows form that computes a whole layer in one call (one result per weight
  * row): the per-call work (checks, table lookup setup, SIMD register setup) is paid once per layer instead of
@@ -16,6 +20,21 @@
 #define SYMBEX_HAL_H
 
 #include <stdint.h>
+
+/* RP2350 (PICO_RP2350 comes from the Pico SDK / Arduino-Pico build; SYMBEX_HAL_TEST_RP2350 builds it on a PC):
+   its first-layer method, seen by hal/rp2350 (the kernels) and hal/generic (symbex_hal_name). USADA8 on the
+   Cortex-M33 (DSP), PLANES elsewhere (Hazard3); -DSYMBEX_RP2350_U8_PLANES / _USADA8 force one. */
+#if defined(PICO_RP2350) || defined(SYMBEX_HAL_TEST_RP2350)
+  #define SYMBEX_HAL_RP2350 1
+  #if defined(SYMBEX_RP2350_U8_PLANES)
+    #define SYMBEX_RP2350_U8_NAME "first layer: 8 bit planes + counts"
+  #elif defined(SYMBEX_RP2350_U8_USADA8) || defined(__ARM_FEATURE_SIMD32)
+    #define SYMBEX_RP2350_U8_USADA8_ON 1
+    #define SYMBEX_RP2350_U8_NAME "first layer: usada8"
+  #else
+    #define SYMBEX_RP2350_U8_NAME "first layer: 8 bit planes + counts"
+  #endif
+#endif
 
 #ifdef __cplusplus
 extern "C" {

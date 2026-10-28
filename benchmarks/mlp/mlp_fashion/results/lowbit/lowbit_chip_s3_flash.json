@@ -1,0 +1,98 @@
+[
+ {
+  "model": "SYMBEX 1 bit x1",
+  "weight_kb": 28.65625,
+  "test": [
+   85.69,
+   0.3750999866702209
+  ],
+  "int2000": 86.23333333333333,
+  "latency_ms": 1.253,
+  "equal": 100.0,
+  "file": "runs/lowbit/plain_w1_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "SYMBEX 1 bit x1.5",
+  "weight_kb": 45.984375,
+  "test": [
+   86.77333333333334,
+   0.4481443219916287
+  ],
+  "int2000": 87.39999999999999,
+  "latency_ms": 3.852,
+  "equal": 100.0,
+  "file": "runs/lowbit/plain_w1.5_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "SYMBEX 1 bit x2",
+  "weight_kb": 65.3125,
+  "test": [
+   87.02333333333333,
+   0.28448784391135545
+  ],
+  "int2000": 87.81666666666666,
+  "latency_ms": 5.389,
+  "equal": 100.0,
+  "file": "runs/lowbit/plain_w2_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "ternary x1",
+  "weight_kb": 57.3125,
+  "test": [
+   86.13000000000001,
+   1.463249807790862
+  ],
+  "int2000": 87.21666666666667,
+  "latency_ms": 14.589,
+  "equal": 100.0,
+  "file": "runs/lowbit/ternary_w1_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "ternary x1.5",
+  "weight_kb": 91.96875,
+  "test": [
+   86.8,
+   0.2771281292110145
+  ],
+  "int2000": 87.26666666666667,
+  "latency_ms": 22.399,
+  "equal": 100.0,
+  "file": "runs/lowbit/ternary_w1.5_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "INT2 QAT x1",
+  "weight_kb": 57.3125,
+  "test": [
+   88.58666666666667,
+   0.037859388971996796
+  ],
+  "int2000": 89.66666666666666,
+  "latency_ms": 5.576,
+  "equal": 100.0,
+  "file": "runs/lowbit_chip/int2_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "INT4 QAT x1",
+  "weight_kb": 114.625,
+  "test": [
+   88.70333333333333,
+   0.1115048578911801
+  ],
+  "int2000": 89.83333333333333,
+  "latency_ms": 10.053,
+  "equal": 100.0,
+  "file": "runs/lowbit_chip/int4_s42/chip_s3_lut16_flash_mask.json"
+ },
+ {
+  "model": "INT8 TFLite x1 (flash)",
+  "weight_kb": 229.25,
+  "test": [
+   null,
+   null
+  ],
+  "int2000": 89.7,
+  "latency_ms": 15.885,
+  "equal": 100.0,
+  "file": "results/tflite_s3.json"
+ }
+]
