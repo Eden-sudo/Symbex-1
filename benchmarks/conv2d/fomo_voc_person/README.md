@@ -59,19 +59,23 @@ limit is the task, the same for every precision.
 of 1-2 F1 points are noise) and predicts the latency from the chip profiles of `tools/dev/count_bench.py`, calibrated with the
 measured detector — the prediction for 32-32-128 was 125.5 ms, the chip measured 126.3 ms.
 
-| Channels / blocks | F1 | S3 ms (predicted) | |
-|---|---|---|---|
-| 32-64-128 / 1-2-2 (the benchmark detector) | 31.0 % | 160.8 | |
-| **32-32-128 / 1-2-2** | **31.8 %** (3 seeds: 31.2 ± 0.7 %) | **125.5** | as accurate and 1.28× faster |
-| 32-64-64 / 1-2-2 | 31.0 % | 137.5 | |
-| 32-32-32 / 1-2-2 | 29.8 % | 96.3 | 1.67× faster |
-| 16-32-64 / 1-2-2 | 28.5 % | 59.7 | 2.69× faster |
-| 32-64-128 / 2-2-2 | 30.8 % | 197.7 | the extra block in stage 1 does not help |
-| 32-64-128 / 1-2-1 | 26.8 % | 140.3 | the second block of the last stage matters |
+| Channels / blocks | Validation F1 (chooses) | Test F1 (reported) | S3 ms (predicted) | |
+|---|---|---|---|---|
+| 32-64-128 / 1-2-2 (the benchmark detector) | 30.4 % | 31.0 % | 160.8 | |
+| **32-32-128 / 1-2-2** | **31.8 %** | **31.8 %** (3 seeds: 31.2 ± 0.7 %) | **125.5** | the best on validation, and 1.28× faster |
+| 32-64-64 / 1-2-2 | 29.2 % | 31.0 % | 137.5 | |
+| 32-32-32 / 1-2-2 | 29.9 % | 29.8 % | 96.3 | 1.67× faster |
+| 16-32-64 / 1-2-2 | 28.9 % | 28.5 % | 59.7 | 2.69× faster |
+| 32-64-128 / 2-2-2 | 31.2 % | 30.8 % | 197.7 | +0.8 on validation for 1.23× the time: within the noise of one seed |
+| 32-64-128 / 1-2-1 | 27.6 % | 26.8 % | 140.3 | the second block of the last stage matters |
 
-The variants were ranked on the test F1 of one seed; the chosen one was then trained with two more seeds, which were
-never used to choose: 30.9 % on average, against 31.8 % for the seed that chose it. Ranking on a validation split
-carved out of the training data is the cleaner method, and the next version of the study uses it.
+The variants are ranked on the **validation F1**: the 1,000 training images `fomo_train.py` keeps out of the training
+to calibrate the threshold. The test F1 is reported, never used to choose. Ranked that way the choice holds:
+32-32-128 / 1-2-2 is also the best of the 27 width variants on validation. (An earlier version of the study ranked on
+the test F1; the chosen shape was then trained with two more seeds that took no part in the choice: 30.9 % on average,
+against 31.8 % for the seed that chose it.) The validation F1 is slightly optimistic, because the threshold is
+calibrated on those same images; it is equally so for every variant, which is enough to rank them, but the final
+measure is still the test F1.
 
 The middle stage needs few channels, the last stage and the stem pay their cost. The best shape differs from the
 classifier's (`../cnn_cifar_resnet8`): it depends on the task, which is why it is measured and not assumed.
