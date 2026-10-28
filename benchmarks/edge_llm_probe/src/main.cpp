@@ -623,11 +623,14 @@ static void kernels_for_shape(int m, int n) {
     } else {
         Serial.printf("# skip %dx%d in sram: %u KB does not fit\n", m, n, (unsigned)(bytes / 1024));
     }
-    uint32_t* w_psram = ESP.getPsramSize() > 0 ? (uint32_t*)alloc_psram(bytes) : nullptr;
+    /* flush_cache evicts by reading the flash payload: without it the PSRAM runs would be warm, not cold */
+    uint32_t* w_psram = ESP.getPsramSize() > 0 && g_flash.ok ? (uint32_t*)alloc_psram(bytes) : nullptr;
     if (w_psram) {
         fill_pattern(w_psram, words, PAYLOAD_SEED);
         if (!w_sram) onebit_rowsums(w_psram, m, n, rowsum);
         kernels_at("psram", w_psram, m, n, &in, rowsum, y, y_mask, y_ref, y_ref4, y_ref1);
+    } else if (ESP.getPsramSize() > 0 && !g_flash.ok) {
+        Serial.printf("# skip %dx%d in psram: no flash probe partition to evict the cache with\n", m, n);
     } else {
         Serial.printf("# skip %dx%d in psram: not available\n", m, n);
     }
@@ -646,7 +649,8 @@ static void kernels_for_shape(int m, int n) {
 
 static void kernel_benchmark() {
     Serial.println("# --- kernels: KERN,<kernel>,<mem>,<M>,<N>,<cycles per weight>,<us per call>,<OK|FAIL>");
-    Serial.println("# weights are cache-cold for psram and flash; *_build / *_pack are per input vector, amortised over M rows");
+    Serial.println("# weights are cache-cold for psram and flash (both need the flash probe partition, which evicts the "
+                   "cache); *_build / *_pack are per input vector, amortised over M rows");
     static const int SHAPES[][2] = {{256, 1024}, {1024, 1024}, {2048, 2048}};
     for (const auto& shape : SHAPES) kernels_for_shape(shape[0], shape[1]);
 }
