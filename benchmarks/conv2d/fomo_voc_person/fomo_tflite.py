@@ -10,8 +10,8 @@ Run from benchmarks/conv2d/fomo_voc_person/ with the benchmark environment (env_
 architecture of model.RealFOMO, written directly in Keras (no conversion between frameworks): stem 3x3 stride 2, blocks
 of conv + BatchNorm + ReLU with summed shortcuts (1x1 conv where the shape changes), a 1x1 head with two outputs per
 cell. The same recipe as fomo_train.py: VOC person grids, cross-entropy per cell with the person cells weighted, a
-horizontal flip of image and grid, Adam + cosine, the last 1,000 training images kept out to calibrate the decision
-threshold (each model gets its own). Then:
+horizontal flip of image and grid, Adam + cosine, 1,000 random training images kept out to calibrate the decision
+threshold (the same fixed split as fomo_train.py, model.SPLIT_SEED; each model gets its own threshold). Then:
     INT8        full-integer post-training quantization (TFLiteConverter, 500 representative training images)
     F1 (PC)     the TFLite interpreter on the 4,952 VOC 2007 test images, with the INT8 model's own calibrated threshold
     board       TensorFlow Lite Micro (esp-tflite-micro, ESP-NN) on the first --images test images: latency, arena, and
@@ -90,7 +90,7 @@ def main():
     import tensorflow as tf
     for g in tf.config.list_physical_devices("GPU"):                    # share the GPU with other trainings
         tf.config.experimental.set_memory_growth(g, True)
-    from model import f1_score, load                                    # the data and the score
+    from model import SPLIT_SEED, f1_score, held_out_centers, load, split_indices    # the data, the split and the score
     ch = tuple(int(v) for v in args.channels.split("-"))
     bl = tuple(int(v) for v in args.blocks.split("-"))
     name = f"c{args.channels}_b{args.blocks}_w{args.weight:g}_e{args.epochs}" + ("" if args.seed == 42 else f"_s{args.seed}")
@@ -99,13 +99,20 @@ def main():
     os.makedirs("results", exist_ok=True)
     xtr, ytr, ctr, otr = load("train")
     xte, _, cte, ote = load("test")
-    nv = args.val
-    xva, cva, ova = xtr[-nv:], ctr[otr >= len(xtr) - nv], otr[otr >= len(xtr) - nv] - (len(xtr) - nv)
+    nv = args.val                                                       # the same fixed random split as fomo_train.py
+    tr, va = split_indices(len(xtr), nv)
+    xva = xtr[va]
+    cva, ova = held_out_centers(ctr, otr, va)
+    split = dict(split_seed=SPLIT_SEED, val=nv)
+    split_path = path.replace(".tflite", "_split.json")                 # the split the model was trained without
+    if os.path.exists(path) and (json.load(open(split_path)) if os.path.exists(split_path) else None) != split:
+        sys.exit(f"[X] {path} was trained with another validation split (or before the fixed one): calibrating it on "
+                 f"this split would choose its threshold on images it trained on. Delete it to train it again")
 
     if not os.path.exists(path):
         tf.keras.utils.set_random_seed(args.seed)
         model = build(ch, bl, tf)
-        steps = (len(xtr) - nv) // 128
+        steps = len(tr) // 128
         opt = tf.keras.optimizers.Adam(tf.keras.optimizers.schedules.CosineDecay(5e-3, steps * args.epochs))
         w = tf.constant([1.0, args.weight])
 
@@ -117,14 +124,14 @@ def main():
             f = tf.random.uniform(()) < 0.5
             return tf.cond(f, lambda: tf.image.flip_left_right(x), lambda: x), tf.cond(f, lambda: y[:, ::-1], lambda: y)
 
-        ds = (tf.data.Dataset.from_tensor_slices((xtr[:-nv].astype(np.float32), ytr[:-nv].astype(np.int32)))
+        ds = (tf.data.Dataset.from_tensor_slices((xtr[tr].astype(np.float32), ytr[tr].astype(np.int32)))
               .shuffle(4096, seed=args.seed).map(flip, num_parallel_calls=tf.data.AUTOTUNE).batch(128, drop_remainder=True)
               .prefetch(tf.data.AUTOTUNE))
         model.compile(optimizer=opt, loss=loss_fn)
         print(f"[*] training the float {args.channels} / {args.blocks} FOMO in Keras ({args.epochs} epochs, person weight "
               f"{args.weight:g}) ...")
         model.fit(ds, epochs=args.epochs, verbose=2)
-        rep = xtr[np.random.default_rng(0).choice(len(xtr) - nv, 500, replace=False)].astype(np.float32)
+        rep = xtr[np.random.default_rng(0).choice(tr, 500, replace=False)].astype(np.float32)
         conv = tf.lite.TFLiteConverter.from_keras_model(model)
         conv.optimizations = [tf.lite.Optimize.DEFAULT]
         conv.representative_dataset = lambda: ([r[None]] for r in rep)
@@ -132,6 +139,7 @@ def main():
         conv.inference_input_type = tf.int8
         conv.inference_output_type = tf.int8
         open(path, "wb").write(conv.convert())
+        json.dump(split, open(split_path, "w"))
     tflite = open(path, "rb").read()
 
     from fomo_train import calibrate                                    # the same calibration as the binary model
@@ -143,7 +151,8 @@ def main():
     print(f"    threshold calibrated on {nv} held-out training images: {th:+.3f}  (validation F1 {sva['f1']:.1f}%)")
     print(f"    test F1: default {s0['f1']:.1f}% | calibrated {s1['f1']:.1f}% (precision {s1['precision']:.1f}%, recall "
           f"{s1['recall']:.1f}%)")
-    json.dump(dict(model=path, seed=args.seed, kb=len(tflite) / 1024, threshold=th, f1_default=s0, f1_calibrated=s1),
+    json.dump(dict(model=path, seed=args.seed, split_seed=SPLIT_SEED, val=nv, kb=len(tflite) / 1024, threshold=th,
+                   f1_default=s0, f1_calibrated=s1),
               open(os.path.join("results", f"tflite_pc_{name}.json"), "w"), indent=1)
     if not args.board:
         return
