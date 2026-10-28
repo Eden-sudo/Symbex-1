@@ -1,8 +1,9 @@
 # A native 1-bit LLM on ESP32-class chips
 
-Design note for [`benchmarks/edge_llm_probe/`](../benchmarks/edge_llm_probe/). **Nothing here has been measured on a
-chip.** Figures are arithmetic from the model shapes or are labelled as unverified; the probe exists to replace them with
-measurements.
+Design note for [`benchmarks/edge_llm_probe/`](../benchmarks/edge_llm_probe/). The bandwidths below and the kernel
+figures in the probe README are **measured on one ESP32-S3-DevKitC-1 N16R8 and one ESP32-CAM** (one board each, one run
+each); the power phases are still pending. Every other figure is arithmetic from the model shapes or is labelled as
+unverified.
 
 ## 1. Why a native 1-bit LLM fits SYMBEX
 
@@ -52,14 +53,15 @@ s/token = max(t_mem, t_cpu)    optimistic: reads overlap compute perfectly
 s/token = t_mem + t_cpu        pessimistic: no overlap
 ```
 
-Memory tiers the probe measures (capacities are from board datasheets; bandwidths are **pending: run on hardware**):
+Memory tiers the probe measures (capacities are from board datasheets; bandwidths are measured sequential reads,
+`read32_seq`, MB = 10^6 B):
 
-| Tier | Typical capacity | Used for | Bandwidth |
-|---|---|---|---|
-| internal SRAM | 520 KB (ESP32), 512 KB (S3), under 300 KB usable | activations, LUT, scratch, hot layers | pending: run on hardware |
-| PSRAM | 4 MB (ESP32-CAM, mapped), 8 MB (S3 N8R8) | weights, KV cache | pending: run on hardware |
-| flash, memory-mapped | 4 MB (ESP32-CAM), 8-16 MB (S3) | weights (read-only) | pending: run on hardware |
-| SD card (SDMMC) | GBs | weights of models too large for the rest | pending: run on hardware |
+| Tier | Typical capacity | Used for | ESP32-S3 N16R8 | ESP32-CAM |
+|---|---|---|---|---|
+| internal SRAM | 520 KB (ESP32), 512 KB (S3), under 300 KB usable | activations, LUT, scratch, hot layers | 424 MB/s | 237.5 MB/s |
+| PSRAM | 4 MB (ESP32-CAM, mapped), 8 MB (S3 N16R8) | weights, KV cache | 61.9 MB/s (octal) | 25.5 MB/s (quad) |
+| flash, memory-mapped | 4 MB (ESP32-CAM), 8-16 MB (S3) | weights (read-only) | 26.5 MB/s | 14.5 MB/s (DIO, 40 MHz) |
+| SD card (SDMMC) | GBs | weights of models too large for the rest | no slot on this board | 4.26 MB/s 4-bit, 2.57 MB/s 1-bit (old 2 GB SDSC card) |
 
 PSRAM and flash go through the data cache, so the probe times them cache-cold (a weight matrix is not reused within a
 token). `parse_log.py` applies these formulas to the measured numbers and labels the result PROJECTION. Attention

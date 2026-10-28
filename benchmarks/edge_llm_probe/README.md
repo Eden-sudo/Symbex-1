@@ -10,9 +10,10 @@ usefully on an **ESP32-S3** and on a classic **ESP32** (AI-Thinker ESP32-CAM):
 It also contains an energy schedule for a USB power meter, a camera smoke test, and a host-side parser that projects
 tokens/s. The design reasoning is in [`docs/llm_1bit_embedded.md`](../../docs/llm_1bit_embedded.md).
 
-> **Status: nothing has been measured on silicon yet.** The firmware builds for both boards and the kernels are
-> bit-exact against numpy on the host (`tests/test_edge_llm_kernels.py`); every table below says "pending". The parser's
-> PROJECTION is arithmetic on measurements, never a measurement.
+> **Status: measured on one ESP32-S3-DevKitC-1 N16R8 and one ESP32-CAM (AI Thinker, ESP32-D0WD-V3); the power phases
+> are pending.** The kernels are bit-exact against numpy on the host
+> (`tests/test_edge_llm_kernels.py`) and against `gemv_ref` on the chip. The parser's PROJECTION is arithmetic on
+> measurements, never a measurement.
 
 | What | File |
 |---|---|
@@ -150,9 +151,43 @@ schematic. The Freenove ESP32-S3-WROOM CAM is documented as using the ESP32-S3-E
 | Board | Memory BW | Kernels (cycles/weight) | Power per phase | Camera |
 |---|---|---|---|---|
 | ESP32-S3 | measured, see below | measured, see below | pending: needs the USB meter | not on this board |
-| ESP32-CAM | pending: run on hardware | pending: run on hardware | pending: run on hardware | pending: run on hardware |
+| ESP32-CAM | measured, see below | measured, see below | pending: needs the USB meter | not detected (`0x105`) |
 
-Commit the JSON files produced by `parse_log.py` under `results/` once they exist.
+### ESP32-CAM (AI Thinker, ESP32-D0WD-V3, 240 MHz, flash DIO 40 MHz, 4 MB PSRAM), one board, one run
+
+Raw log: [`results/esp32cam_aithinker_d0wdv3.log`](results/esp32cam_aithinker_d0wdv3.log); parsed:
+`results/esp32d0wdv3_20261028_140812.json`.
+
+Sequential read bandwidth (`read32_seq`, MB = 10^6 B; `memcpy` into SRAM agrees within 4 %):
+
+| Internal SRAM (16 KB) | PSRAM (1 MB, cache-cold) | Flash, memory-mapped (1 MB) | microSD 1-bit / 4-bit (32 KB buffer) |
+|---|---|---|---|
+| 237.5 | **25.5** | **14.5** | 2.57 / **4.26** |
+
+The microSD figures come from the first run (`results/esp32cam_aithinker_d0wdv3_run1_read32_bug.log`, an old 2 GB
+SDSC card; writing ran at 0.67 MB/s). That firmware had the `read32_seq` bug fixed since (GCC folded the repeated pure
+`read_sum` calls into one, so its `read32_seq` lines are inflated by the number of passes and must be ignored); the SD
+test reads through the file API and does not use `read_sum`, so its numbers stand. The 128 KB SRAM buffer and the 4 MB
+PSRAM buffer did not fit (largest internal block 110 KB).
+
+1-bit GEMV, 2048 x 2048 weights (512 KB), cache-cold, cycles per weight; every kernel matched `gemv_ref` on the chip:
+
+| Weights in | `ref` | `mask` (SYMBEX today) | `lut4` | `lut4` 2 cores (lookup) | `bitserial4` | `xnor` |
+|---|---|---|---|---|---|---|
+| PSRAM | 18.19 | 12.52 | **2.82** | **1.92** | 4.04 | 1.76 |
+| Flash | 20.06 | 13.42 | 3.70 | 1.93 | 4.92 | 2.63 |
+
+- LUT4 is 4.4x faster than the mask kernel from PSRAM (5.3x from SRAM: 2.15 vs 11.49 at 256 x 1024).
+- Two cores do not double it: at 1.92 cycles/weight the kernel consumes ~15.6 MB/s of weights, close to what PSRAM and
+  flash deliver here, so the second core runs into the memory wall.
+- Bit-serial 4-bit activations lose to LUT4 on this chip: without a popcount instruction the SWAR popcount costs more
+  than the table lookups.
+- The camera did not answer (`0x105 ESP_ERR_NOT_FOUND`: no sensor on SCCB); not diagnosed yet (ribbon seating is the
+  usual cause).
+
+PROJECTION (not a measurement; `parse_log.py`, attention and KV cache not included): a 15M-parameter 1-bit model
+(1.88 MB) in PSRAM, LUT4 on two cores, gives 5.2-8.3 tokens/s. A 30M model (3.75 MB) does not fit the 3 MB of usable
+PSRAM on this board, and the 4 MB flash leaves no room for weights.
 
 ### ESP32-S3-DevKitC-1 N16R8 (October 2026)
 
