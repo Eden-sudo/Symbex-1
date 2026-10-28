@@ -1,0 +1,11 @@
+{
+ "arch": "max5",
+ "seed": 43,
+ "board": "esp32",
+ "windows": 1000,
+ "equal_to_pc": 100.0,
+ "median_ms": 114.2165,
+ "min_ms": 114.187,
+ "model_kb": 41.75,
+ "arena_kb": 10.80859375
+}

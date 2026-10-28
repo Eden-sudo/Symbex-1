@@ -32,6 +32,11 @@ struct SymbexBool1D {
                                                disagreements over the kernel * in_ch bits; uint8 input: raw =
                                                sum of x * (+1 / -1) */
     const int32_t* weight_counts;           /* popcount of row o (binary input, AND form); NULL for the uint8 layer */
+    const int8_t* weights_i8;               /* uint8 layer only, optional: int8 weights instead of the 1-bit rows (a
+                                               first layer as in ultracompactBNN): out_ch rows of kernel * in_ch bytes,
+                                               byte k * in_ch + c = the weight of step k, channel c; raw = sum of x * w.
+                                               NULL: the 1-bit weights (write it: ESP-IDF builds with
+                                               -Werror=missing-field-initializers) */
 };
 
 /* binary input. window: 2 * row_words words, 16-byte aligned (two windows where the bits are counted inline);
@@ -40,8 +45,9 @@ struct SymbexBool1D {
 void symbex_bool1d_conv(const struct SymbexBool1D* layer, const uint32_t* in, uint32_t* out, uint32_t* window,
                         int32_t* scratch);
 
-/* first layer: uint8 input, time-major (in_len x in_ch bytes), 1-bit weights; signed data enters offset by 128 (the
-   offset folds into the thresholds). workspace: row_words * 32 bytes, 16-byte aligned; scratch: out_ch int32. */
+/* first layer: uint8 input, time-major (in_len x in_ch bytes), 1-bit weights (or int8 weights: weights_i8); signed
+   data enters offset by 128 (the offset folds into the thresholds). workspace: row_words * 32 bytes, 16-byte aligned;
+   scratch: out_ch int32. */
 void symbex_bool1d_conv_u8(const struct SymbexBool1D* layer, const uint8_t* in, uint32_t* out, uint8_t* workspace,
                            int32_t* scratch);
 

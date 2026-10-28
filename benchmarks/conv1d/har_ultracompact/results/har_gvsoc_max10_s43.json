@@ -1,0 +1,135 @@
+{
+ "arch": "max10",
+ "seed": 43,
+ "steps": [
+  "conv 3->8 k15",
+  "conv 8->32 k7 + pool 4",
+  "conv 32->32 k7 + pool 4",
+  "classifier"
+ ],
+ "ucbnn": {
+  "errors": 0,
+  "windows": 4,
+  "steps": [
+   {
+    "instr": 33727,
+    "cycles": 81818
+   },
+   {
+    "instr": 117481,
+    "cycles": 261599
+   },
+   {
+    "instr": 31433,
+    "cycles": 66841
+   },
+   {
+    "instr": 728,
+    "cycles": 1676
+   }
+  ],
+  "instr": 183369,
+  "cycles": 411934
+ },
+ "symbex": {
+  "errors": 0,
+  "windows": 4,
+  "steps": [
+   {
+    "instr": 297347,
+    "cycles": 827551
+   },
+   {
+    "instr": 73304,
+    "cycles": 161091
+   },
+   {
+    "instr": 27465,
+    "cycles": 60176
+   },
+   {
+    "instr": 1144,
+    "cycles": 2632
+   }
+  ],
+  "instr": 399260,
+  "cycles": 1051450
+ },
+ "symbex_pulp_u8": {
+  "errors": 0,
+  "windows": 4,
+  "steps": [
+   {
+    "instr": 83180,
+    "cycles": 227220
+   },
+   {
+    "instr": 73300,
+    "cycles": 161083
+   },
+   {
+    "instr": 27463,
+    "cycles": 60179
+   },
+   {
+    "instr": 1144,
+    "cycles": 2562
+   }
+  ],
+  "instr": 185087,
+  "cycles": 451044
+ },
+ "symbex_pulp_layer": {
+  "errors": 0,
+  "windows": 4,
+  "steps": [
+   {
+    "instr": 31385,
+    "cycles": 72884
+   },
+   {
+    "instr": 73303,
+    "cycles": 161096
+   },
+   {
+    "instr": 27465,
+    "cycles": 60176
+   },
+   {
+    "instr": 1144,
+    "cycles": 2568
+   }
+  ],
+  "instr": 133297,
+  "cycles": 296724
+ },
+ "symbex_i8_first": {
+  "errors": 0,
+  "windows": 4,
+  "steps": [
+   {
+    "instr": 31387,
+    "cycles": 77155
+   },
+   {
+    "instr": 73566,
+    "cycles": 160837
+   },
+   {
+    "instr": 27437,
+    "cycles": 60204
+   },
+   {
+    "instr": 1145,
+    "cycles": 2718
+   }
+  ],
+  "instr": 133535,
+  "cycles": 300914
+ },
+ "windows": 4,
+ "accuracy": {
+  "ucbnn": 57.49785775492716,
+  "symbex": 56.041131105398456
+ }
+}

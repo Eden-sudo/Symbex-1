@@ -43,37 +43,102 @@ static inline void put_bits(const struct SymbexBool1D* L, uint32_t step, const i
 #if defined(BOOL1D_INLINE)
 static inline void set_bit(uint32_t* out, uint32_t i) { out[i >> 5] |= 1UL << (i & 31); }
 
-static void conv_pairs(const struct SymbexBool1D* L, const uint32_t* in, uint32_t* out, uint32_t* window) {
+/* Two time steps x four output channels per pass: every window word is read once for four rows, every weight word once
+   for two windows (6 loads for 8 counts). The threshold becomes a limit on the disagreements, one compare per output:
+   n - 2 d >= threshold  <=>  d <= floor((n - threshold) / 2). The four bits of a group go out in one OR (out_ch a
+   multiple of 4: a group never crosses a word). Windows that start on a word with whole words (stride * in_ch and
+   kernel * in_ch multiples of 32) are read in place, not copied. */
+static void conv_pairs(const struct SymbexBool1D* L, const uint32_t* in, uint32_t* out, uint32_t* window,
+                       int32_t* lim) {
     const int n_bits = L->kernel * L->in_ch;
     const int nw = (n_bits + 31) >> 5;
     const uint32_t steps = (uint32_t)L->out_len * L->pool;
-    uint32_t* w0 = window;
-    uint32_t* w1 = window + L->row_words;
-    uint32_t t = 0;
-    for (; t + 1 < steps; t += 2) {
-        window_bits(in, t * L->stride * L->in_ch, n_bits, w0);
-        window_bits(in, (t + 1) * L->stride * L->in_ch, n_bits, w1);
-        const uint32_t b0 = (t / L->pool) * L->out_ch, b1 = ((t + 1) / L->pool) * L->out_ch;
+    const uint32_t hop = (uint32_t)L->stride * L->in_ch;
+    const int in_place = (hop & 31) == 0 && (n_bits & 31) == 0;
+    const int rw = L->row_words;
+    const int groups = (L->out_ch & 3) == 0 ? L->out_ch >> 2 : 0;
+    for (uint16_t o = 0; o < L->out_ch; o++) lim[o] = (n_bits - L->thresholds[o]) >> 1;   /* floor: arithmetic shift */
+    for (uint32_t t = 0; t < steps; t += 2) {
+        const uint32_t t1 = (t + 1 < steps) ? t + 1 : t;          /* an odd number of steps: the last one twice */
+        const uint32_t *w0, *w1;
+        if (in_place) {
+            w0 = in + ((t * hop) >> 5);
+            w1 = in + ((t1 * hop) >> 5);
+        } else {
+            window_bits(in, t * hop, n_bits, window);
+            window_bits(in, t1 * hop, n_bits, window + rw);
+            w0 = window;
+            w1 = window + rw;
+        }
+        const uint32_t b0 = (t / L->pool) * L->out_ch, b1 = (t1 / L->pool) * L->out_ch;
         const uint32_t* row = L->weights;
-        for (uint16_t o = 0; o < L->out_ch; o++, row += L->row_words) {
+        int o = 0;
+        for (int g = 0; g < groups; g++, o += 4, row += 4 * rw) {
+            const uint32_t *r1 = row + rw, *r2 = r1 + rw, *r3 = r2 + rw;
+            int32_t a0 = 0, a1 = 0, a2 = 0, a3 = 0, c0 = 0, c1 = 0, c2 = 0, c3 = 0;
+            for (int j = 0; j < nw; j++) {
+                const uint32_t x0 = w0[j], x1 = w1[j];
+                const uint32_t v0 = row[j], v1 = r1[j], v2 = r2[j], v3 = r3[j];
+                a0 += __builtin_popcount(x0 ^ v0);
+                a1 += __builtin_popcount(x0 ^ v1);
+                a2 += __builtin_popcount(x0 ^ v2);
+                a3 += __builtin_popcount(x0 ^ v3);
+                c0 += __builtin_popcount(x1 ^ v0);
+                c1 += __builtin_popcount(x1 ^ v1);
+                c2 += __builtin_popcount(x1 ^ v2);
+                c3 += __builtin_popcount(x1 ^ v3);
+            }
+            const int32_t l0 = lim[o], l1 = lim[o + 1], l2 = lim[o + 2], l3 = lim[o + 3];
+            const uint32_t m0 = (uint32_t)(a0 <= l0) | (uint32_t)(a1 <= l1) << 1 | (uint32_t)(a2 <= l2) << 2 |
+                                (uint32_t)(a3 <= l3) << 3;
+            const uint32_t m1 = (uint32_t)(c0 <= l0) | (uint32_t)(c1 <= l1) << 1 | (uint32_t)(c2 <= l2) << 2 |
+                                (uint32_t)(c3 <= l3) << 3;
+            out[(b0 + o) >> 5] |= m0 << ((b0 + o) & 31);
+            out[(b1 + o) >> 5] |= m1 << ((b1 + o) & 31);
+        }
+        for (; o < L->out_ch; o++, row += rw) {                  /* out_ch not a multiple of 4: one row at a time */
             int32_t d0 = 0, d1 = 0;
             for (int j = 0; j < nw; j++) {
                 const uint32_t wv = row[j];
                 d0 += __builtin_popcount(w0[j] ^ wv);
                 d1 += __builtin_popcount(w1[j] ^ wv);
             }
-            if (n_bits - 2 * d0 >= L->thresholds[o]) set_bit(out, b0 + o);
-            if (n_bits - 2 * d1 >= L->thresholds[o]) set_bit(out, b1 + o);
+            if (d0 <= lim[o]) set_bit(out, b0 + o);
+            if (d1 <= lim[o]) set_bit(out, b1 + o);
         }
     }
-    if (t < steps) {                                             /* an odd number of steps: the last one alone */
-        window_bits(in, t * L->stride * L->in_ch, n_bits, w0);
-        const uint32_t b0 = (t / L->pool) * L->out_ch;
-        const uint32_t* row = L->weights;
-        for (uint16_t o = 0; o < L->out_ch; o++, row += L->row_words) {
-            int32_t d0 = 0;
-            for (int j = 0; j < nw; j++) d0 += __builtin_popcount(w0[j] ^ row[j]);
-            if (n_bits - 2 * d0 >= L->thresholds[o]) set_bit(out, b0 + o);
+}
+
+/* Windows of one word (kernel * in_ch <= 32): the cost per step is all fixed cost, so it is cut to the bone. Groups of
+   four output channels run over the whole layer: their four weight words and four limits stay in registers, a step is
+   the window (two loads and a shift), four counts and four compares; the pool ORs the bits in a register and each
+   pooled step's four bits go out once (they may cross into the next word). A last group of 1-3 channels gets limits
+   of -1 (never set) for the missing ones. */
+static void conv_word(const struct SymbexBool1D* L, const uint32_t* in, uint32_t* out, int32_t* lim) {
+    const int n_bits = L->kernel * L->in_ch;
+    const uint32_t mask = n_bits == 32 ? 0xFFFFFFFFUL : (1UL << n_bits) - 1UL;
+    const uint32_t hop = (uint32_t)L->stride * L->in_ch;
+    const int rw = L->row_words, oc = L->out_ch;
+    for (int o = 0; o < oc; o++) lim[o] = (n_bits - L->thresholds[o]) >> 1;
+    for (int g = 0; g < oc; g += 4) {
+        const int last = oc - 1;
+        const uint32_t v0 = L->weights[g * rw], v1 = L->weights[(g + 1 <= last ? g + 1 : g) * rw];
+        const uint32_t v2 = L->weights[(g + 2 <= last ? g + 2 : g) * rw], v3 = L->weights[(g + 3 <= last ? g + 3 : g) * rw];
+        const int32_t l0 = lim[g], l1 = g + 1 <= last ? lim[g + 1] : -1;
+        const int32_t l2 = g + 2 <= last ? lim[g + 2] : -1, l3 = g + 3 <= last ? lim[g + 3] : -1;
+        uint32_t bit = 0, base = (uint32_t)g;
+        for (uint16_t q = 0; q < L->out_len; q++, base += oc) {
+            uint32_t acc = 0;
+            for (uint16_t k = 0; k < L->pool; k++, bit += hop) {
+                const uint32_t* p = in + (bit >> 5);
+                const uint32_t sh = bit & 31;
+                const uint32_t w = (sh ? (p[0] >> sh) | (p[1] << (32 - sh)) : p[0]) & mask;
+                acc |= (uint32_t)(__builtin_popcount(w ^ v0) <= l0) | (uint32_t)(__builtin_popcount(w ^ v1) <= l1) << 1 |
+                       (uint32_t)(__builtin_popcount(w ^ v2) <= l2) << 2 | (uint32_t)(__builtin_popcount(w ^ v3) <= l3) << 3;
+            }
+            const uint32_t sh = base & 31;
+            out[base >> 5] |= acc << sh;
+            if (sh > 28) out[(base >> 5) + 1] |= acc >> (32 - sh);
         }
     }
 }
@@ -86,7 +151,10 @@ void symbex_bool1d_conv(const struct SymbexBool1D* L, const uint32_t* in, uint32
 #if defined(BOOL1D_INLINE)
     if (symbex_bool_force_mode != 1) {                           /* the AND form can still be forced (tests) */
         clear(out, L);
-        conv_pairs(L, in, out, window);
+        if (nw == 1)
+            conv_word(L, in, out, scratch);
+        else
+            conv_pairs(L, in, out, window, scratch);
         return;
     }
 #endif
@@ -112,10 +180,59 @@ void symbex_bool1d_conv(const struct SymbexBool1D* L, const uint32_t* in, uint32
     }
 }
 
+/* -DSYMBEX_BOOL1D_U8_EXTERNAL: the application gives its own uint8 first layer (same contract), e.g. a chip's byte
+   dot product: benchmarks/conv1d/har_ultracompact/pulp/symbex_u8_pulp.c */
+#if !defined(SYMBEX_BOOL1D_U8_EXTERNAL)
+/* int8 weights (weights_i8): a plain integer convolution, two time steps x four output channels per pass (each input
+   byte serves 4 rows, each weight byte 2 steps). The compiler maps the multiply-accumulate to what the chip has. */
+static void conv_u8_i8(const struct SymbexBool1D* L, const uint8_t* in, uint32_t* out) {
+    const int n = L->kernel * L->in_ch;
+    const uint32_t steps = (uint32_t)L->out_len * L->pool;
+    const uint32_t hop = (uint32_t)L->stride * L->in_ch;
+    const int groups = (L->out_ch & 3) == 0 ? L->out_ch >> 2 : 0;
+    for (uint32_t t = 0; t < steps; t += 2) {
+        const uint32_t t1 = (t + 1 < steps) ? t + 1 : t;          /* an odd number of steps: the last one twice */
+        const uint8_t *x0 = in + t * hop, *x1 = in + t1 * hop;
+        const uint32_t b0 = (t / L->pool) * L->out_ch, b1 = (t1 / L->pool) * L->out_ch;
+        const int8_t* r0 = L->weights_i8;
+        int o = 0;
+        for (int g = 0; g < groups; g++, o += 4, r0 += 4 * n) {
+            const int8_t *r1 = r0 + n, *r2 = r1 + n, *r3 = r2 + n;
+            int32_t a0 = 0, a1 = 0, a2 = 0, a3 = 0, c0 = 0, c1 = 0, c2 = 0, c3 = 0;
+            for (int i = 0; i < n; i++) {
+                const int32_t u0 = x0[i], u1 = x1[i];
+                const int32_t v0 = r0[i], v1 = r1[i], v2 = r2[i], v3 = r3[i];
+                a0 += u0 * v0; a1 += u0 * v1; a2 += u0 * v2; a3 += u0 * v3;
+                c0 += u1 * v0; c1 += u1 * v1; c2 += u1 * v2; c3 += u1 * v3;
+            }
+            const int32_t* th = L->thresholds + o;
+            const uint32_t m0 = (uint32_t)(a0 >= th[0]) | (uint32_t)(a1 >= th[1]) << 1 | (uint32_t)(a2 >= th[2]) << 2 |
+                                (uint32_t)(a3 >= th[3]) << 3;
+            const uint32_t m1 = (uint32_t)(c0 >= th[0]) | (uint32_t)(c1 >= th[1]) << 1 | (uint32_t)(c2 >= th[2]) << 2 |
+                                (uint32_t)(c3 >= th[3]) << 3;
+            out[(b0 + o) >> 5] |= m0 << ((b0 + o) & 31);
+            out[(b1 + o) >> 5] |= m1 << ((b1 + o) & 31);
+        }
+        for (; o < L->out_ch; o++, r0 += n) {                    /* out_ch not a multiple of 4: one row at a time */
+            int32_t a0 = 0, c0 = 0;
+            for (int i = 0; i < n; i++) {
+                a0 += x0[i] * r0[i];
+                c0 += x1[i] * r0[i];
+            }
+            if (a0 >= L->thresholds[o]) out[(b0 + o) >> 5] |= 1UL << ((b0 + o) & 31);
+            if (c0 >= L->thresholds[o]) out[(b1 + o) >> 5] |= 1UL << ((b1 + o) & 31);
+        }
+    }
+}
+
 void symbex_bool1d_conv_u8(const struct SymbexBool1D* L, const uint8_t* in, uint32_t* out, uint8_t* workspace,
                            int32_t* scratch) {
     const int n = L->kernel * L->in_ch;
     clear(out, L);
+    if (L->weights_i8) {
+        conv_u8_i8(L, in, out);
+        return;
+    }
     const uint32_t steps = (uint32_t)L->out_len * L->pool;
     for (uint32_t t = 0; t < steps; t++) {
         const uint8_t* x = in + t * L->stride * L->in_ch;
@@ -128,3 +245,4 @@ void symbex_bool1d_conv_u8(const struct SymbexBool1D* L, const uint8_t* in, uint
         put_bits(L, t, scratch, out);
     }
 }
+#endif

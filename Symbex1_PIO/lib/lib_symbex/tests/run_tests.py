@@ -1310,8 +1310,9 @@ int main(void) { int a[5]; static uint32_t m[24 * 24 * 4], w[16 * 8] __attribute
     return n, len(bad), (f"value {bad[0]}: got {got[bad[0]]}, expected {flat[bad[0]]}" if len(bad) else "")
 
 
-def bool1d_case(c, u8):
-    """one random 1D layer: (sizes, input, weights, thresholds, expected output words)"""
+def bool1d_case(c, u8, i8=False):
+    """one random 1D layer: (sizes, input, weights, thresholds, expected output words, int8 weights or None).
+    i8: the uint8 layer with int8 weights (weights_i8) instead of the 1-bit rows."""
     k = pick(1, 16, c)
     ch = pick(1, 41, c) if not u8 else pick(1, 13, c)
     o = pick(1, 41, c)
@@ -1328,35 +1329,39 @@ def bool1d_case(c, u8):
     rows[:, :-(-n // 32)] = words(wb, -(-n // 32))
     x = u8_data(length * ch, c).reshape(length, ch) if u8 else bits_data((length, ch), c)
     win = np.stack([x[t * s:t * s + k].ravel() for t in range(out_len * p)])          # (steps, n)
-    raw = win @ (2 * wb - 1).T if u8 else (2 * win - 1) @ (2 * wb - 1).T
-    spread = 255 * n // 4 if u8 else n // 2
+    w8 = RNG.integers(-128, 128, (o, n)) if i8 else None
+    raw = win @ (w8 if i8 else 2 * wb - 1).T if u8 else (2 * win - 1) @ (2 * wb - 1).T
+    spread = (255 * 127 * n // 16 if i8 else 255 * n // 4) if u8 else n // 2
     thr = RNG.integers(-spread - 1, spread + 2, o)
     bits = (raw >= thr[None]).astype(np.int64).reshape(out_len, p, o).max(axis=1)        # OR pool
     out_words = -(-out_len * o // 32) + 1
     exp = words(bits.ravel(), out_words).astype(np.int64)
     in_data = (x.astype(np.uint8).tobytes() if u8 else
                words(x.ravel(), -(-length * ch // 32) + 1).astype(np.uint32).tobytes())
-    return (length, ch, o, k, s, p, out_len, rw), in_data, rows, wb.sum(1), thr, exp
+    return (length, ch, o, k, s, p, out_len, rw), in_data, rows, wb.sum(1), thr, exp, w8
 
 
 def test_bool1d(hal, n):
-    """symbex_bool1d_conv (binary input) and symbex_bool1d_conv_u8 (uint8 input) against numpy: any kernel, stride,
+    """symbex_bool1d_conv (binary input) and symbex_bool1d_conv_u8 (uint8 input, 1-bit or int8 weights) against numpy: any kernel, stride,
     channel count (not only powers of 2), OR pool fused, windows at every bit offset of the stream; AND and XOR forms"""
     exe = build("bool1d", """
 #include "layers/conv/symbex_bool.h"
 #include "layers/conv/symbex_bool1d.h"
-int main(void) { int a[10]; static uint32_t in[8192], out[8192], w[200 * 320] __attribute__((aligned(16)));
+int main(void) { int a[11]; static uint32_t in[8192], out[8192], w[200 * 320] __attribute__((aligned(16)));
+  static int8_t w8[1 << 19];                                      /* stress sizes: 161 rows x 61 x 49 */
   static uint32_t win[640] __attribute__((aligned(16))); static uint8_t ws[320 * 32] __attribute__((aligned(16)));
   static uint8_t in8[32768]; static int32_t thr[256], cnt[256], scr[256];
-  while (fread(a, 4, 10, stdin) == 10) {
+  while (fread(a, 4, 11, stdin) == 11) {
     int u8 = a[0], form = a[1], len = a[2], ch = a[3], o = a[4], k = a[5], s = a[6], p = a[7], ol = a[8], rw = a[9];
+    int i8 = a[10];
     int in_w = (len * ch + 31) / 32 + 1, out_w = (ol * o + 31) / 32 + 1;
     if (u8) { if (fread(in8, 1, (size_t)(len * ch), stdin) != (size_t)(len * ch)) return 1; }
     else if (fread(in, 4, (size_t)in_w, stdin) != (size_t)in_w) return 1;
     if (fread(w, 4, (size_t)(o * rw), stdin) != (size_t)(o * rw) || fread(cnt, 4, (size_t)o, stdin) != (size_t)o ||
         fread(thr, 4, (size_t)o, stdin) != (size_t)o) return 1;
+    if (i8 && fread(w8, 1, (size_t)(o * k * ch), stdin) != (size_t)(o * k * ch)) return 1;
     struct SymbexBool1D L = {(uint16_t)ch, (uint16_t)o, (uint16_t)k, (uint16_t)s, (uint16_t)p, (uint16_t)len,
-                             (uint16_t)ol, (uint16_t)rw, w, thr, cnt};
+                             (uint16_t)ol, (uint16_t)rw, w, thr, cnt, i8 ? w8 : NULL};
     symbex_bool_force_mode = form;
     for (int i = 0; i < out_w; i++) out[i] = 0xDEADBEEFu;          /* the layer must overwrite every word */
     if (u8) symbex_bool1d_conv_u8(&L, in8, out, ws, scr); else symbex_bool1d_conv(&L, in, out, win, scr);
@@ -1365,12 +1370,13 @@ int main(void) { int a[10]; static uint32_t in[8192], out[8192], w[200 * 320] __
   return 0; }""", hal)
     data, exp = Chunks(), []
     for c in range(n):
-        for u8 in (0, 1):
-            (length, ch, o, k, s, p, ol, rw), in_data, rows, cnt, thr, e = bool1d_case(c, u8)
+        for u8, i8 in ((0, 0), (1, 0), (1, 1)):
+            (length, ch, o, k, s, p, ol, rw), in_data, rows, cnt, thr, e, w8 = bool1d_case(c, u8, i8)
             for form in ((0,) if u8 else (1, 2)):
                 exp.append(e)
-                data += i32(u8, form, length, ch, o, k, s, p, ol, rw) + in_data + rows.tobytes() \
-                    + cnt.astype(np.int32).tobytes() + thr.astype(np.int32).tobytes()
+                data += i32(u8, form, length, ch, o, k, s, p, ol, rw, i8) + in_data + rows.tobytes() \
+                    + cnt.astype(np.int32).tobytes() + thr.astype(np.int32).tobytes() \
+                    + (w8.astype(np.int8).tobytes() if i8 else b"")
     got = run(exe, data)
     flat = np.concatenate(exp)
     bad = np.nonzero(got != flat)[0]

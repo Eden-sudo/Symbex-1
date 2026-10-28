@@ -15,6 +15,8 @@
  *        without the table: 64 KB of RAM back)
  *        -DSYMBEX_POPCOUNT_FORCE_NATIVE (the compiler's __builtin_popcount, for a core whose compiler turns it
  *        into an instruction the automatic detection does not know)
+ *        -DSYMBEX_U8_EXTERNAL (the first-layer kernels symbex_u8_* are left out: the application gives its own,
+ *        e.g. benchmarks/conv1d/har_ultracompact/pulp/symbex_u8_pulp.c with the PULP dot-product instruction)
  * On the ESP32-S3, hal/esp32s3/ is used and this file compiles to nothing. On the RP2350 (SYMBEX_HAL_RP2350), the
  * first-layer kernels (symbex_u8_*) come from hal/rp2350/ and are left out here.
  *
@@ -376,7 +378,7 @@ void symbex_and_planes_rows(const uint32_t* planes, int k, int low, const uint32
 #endif
 }
 
-#if !defined(SYMBEX_HAL_RP2350)                          /* the RP2350 has its own: hal/rp2350/ */
+#if !defined(SYMBEX_HAL_RP2350) && !defined(SYMBEX_U8_EXTERNAL)   /* the RP2350 has its own: hal/rp2350/ */
 void symbex_u8_prepare(const uint8_t* x, int n_inputs, uint8_t* workspace, int n_words) {
     const int bytes = n_words * 32;                      /* natural order, zero padding */
     for (int i = 0; i < bytes; i++) workspace[i] = (i < n_inputs) ? x[i] : 0;
@@ -393,6 +395,6 @@ void symbex_u8_sum_bits_rows(const uint8_t* workspace, int n_inputs, const uint3
     if (n_inputs > stride * 32) n_inputs = stride * 32;
     for (int r = 0; r < n_rows; r++, w += stride) out[r] = symbex_swar_u8_masked_sum(workspace, w, (uint16_t)n_inputs);
 }
-#endif // !SYMBEX_HAL_RP2350
+#endif // !SYMBEX_HAL_RP2350 && !SYMBEX_U8_EXTERNAL
 
 #endif // !CONFIG_IDF_TARGET_ESP32S3
