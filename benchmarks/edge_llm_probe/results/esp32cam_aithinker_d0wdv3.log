@@ -1,0 +1,118 @@
+ets�ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:1184
+load:0x40078000,len:13232
+load:0x40080400,len:3028
+entry 0x400805e4
+E (281) esp_core_dump_flash: N?�ɕ�dump partition found!
+E (281) esp_core_dump_flash: No core dump partition found!
+[  3469][E][esp32-hal-misc.c:143] disableCore1WDT(): Failed to remove Core 1 IDLE task from WDT
+
+# SYMBEX edge-LLM probe: nothing below is an estimate; every number is measured on this chip
+INFO,probe_version,1
+INFO,board,AI Thinker ESP32-CAM
+INFO,build,Oct 28 2026_13:58:44
+INFO,sdk,v4.4.7-dirty
+INFO,chip,ESP32-D0WD-V3
+INFO,chip_revision,3
+INFO,cores,2
+INFO,cpu_mhz,240
+INFO,phase_seconds,20
+INFO,heap_internal_free,239236
+INFO,heap_internal_largest,110580
+INFO,psram_size,4192107
+INFO,psram_free,4191863
+INFO,flash_size,4194304
+INFO,flash_speed_hz,40000000
+INFO,flash_probe,ok_1088_KB
+E (3539) sdmmc_common: sdmmc_init_ocr: send_op_cond (1) returned 0x107
+E (3539) vfs_fat_sdmmc: sdmmc_card_init failed (0x107).
+[  3544][E][SD_MMC.cpp:148] begin(): Failed to initialize the card (0x107). Make sure SD card lines have pull-up resistors in place.
+INFO,sd,none
+E (3595) camera: Camera probe failed with error 0x105(ESP_ERR_NOT_FOUND)
+INFO,camera,fail:0x105
+# --- memory bandwidth: BW,<tier>,<test>,<bytes per repetition>,<MB/s best>,<MB/s median> (MB = 10^6 B)
+BW,sram_16KB,read32_seq,4194304,237.56,237.45
+BW,sram_16KB,memcpy_to_sram,4194304,377.80,377.76
+# skip sram_128KB 128 KB: allocation failed
+BW,psram_16KB,read32_seq,4194304,237.54,237.45
+BW,psram_16KB,memcpy_to_sram,4194304,377.76,377.76
+BW,psram_1MB,read32_seq,4194304,25.48,25.47
+BW,psram_1MB,memcpy_to_sram,4194304,26.49,26.49
+# skip psram_4MB 4096 KB: allocation failed
+BW,flash_mmap_1MB,read32_seq,4194304,14.48,14.48
+BW,flash_mmap_1MB,memcpy_to_sram,4194304,14.95,14.95
+# --- kernels: KERN,<kernel>,<mem>,<M>,<N>,<cycles per weight>,<us per call>,<OK|FAIL>
+# weights are cache-cold for psram and flash; *_build / *_pack are per input vector, amortised over M rows
+KERN,ref,sram,256,1024,17.143,18724.2,OK
+KERN,mask,sram,256,1024,11.492,12552.1,OK
+KERN,lut4_build,sram,256,1024,0.420,458.8,OK
+KERN,lut4_lookup,sram,256,1024,1.725,1884.3,OK
+KERN,lut4,sram,256,1024,2.145,2343.1,OK
+KERN,lut4_2core_lookup,sram,256,1024,0.893,975.0,OK
+KERN,bitserial4_pack,sram,256,1024,0.228,248.8,OK
+KERN,bitserial4,sram,256,1024,3.006,3283.6,OK
+KERN,xnor,sram,256,1024,0.716,782.2,OK
+KERN,ref,psram,256,1024,17.174,18759.0,OK
+KERN,mask,psram,256,1024,11.537,12602.0,OK
+KERN,lut4_build,psram,256,1024,0.420,458.8,OK
+KERN,lut4_lookup,psram,256,1024,1.770,1932.8,OK
+KERN,lut4,psram,256,1024,2.190,2391.6,OK
+KERN,lut4_2core_lookup,psram,256,1024,0.929,1015.0,OK
+KERN,bitserial4_pack,psram,256,1024,0.228,248.8,OK
+KERN,bitserial4,psram,256,1024,3.063,3345.7,OK
+KERN,xnor,psram,256,1024,0.746,815.1,OK
+KERN,ref,flash,256,1024,20.083,21936.2,OK
+KERN,mask,flash,256,1024,13.474,14716.7,OK
+KERN,lut4_build,flash,256,1024,0.420,458.8,OK
+KERN,lut4_lookup,flash,256,1024,3.686,4025.7,OK
+KERN,lut4,flash,256,1024,4.106,4484.5,OK
+KERN,lut4_2core_lookup,flash,256,1024,1.860,2031.5,OK
+KERN,bitserial4_pack,flash,256,1024,0.228,248.8,OK
+KERN,bitserial4,flash,256,1024,4.973,5432.0,OK
+KERN,xnor,flash,256,1024,2.659,2904.5,OK
+# skip 1024x1024 in sram: 128 KB does not fit
+KERN,ref,psram,1024,1024,18.199,79514.4,OK
+KERN,mask,psram,1024,1024,12.535,54765.0,OK
+KERN,lut4_build,psram,1024,1024,0.105,458.8,OK
+KERN,lut4_lookup,psram,1024,1024,2.788,12182.6,OK
+KERN,lut4,psram,1024,1024,2.893,12641.4,OK
+KERN,lut4_2core_lookup,psram,1024,1024,1.944,8492.2,OK
+KERN,bitserial4_pack,psram,1024,1024,0.057,248.8,OK
+KERN,bitserial4,psram,1024,1024,4.068,17771.5,OK
+KERN,xnor,psram,1024,1024,1.770,7734.0,OK
+KERN,ref,flash,1024,1024,20.076,87712.0,OK
+KERN,mask,flash,1024,1024,13.444,58735.8,OK
+KERN,lut4_build,flash,1024,1024,0.105,458.8,OK
+KERN,lut4_lookup,flash,1024,1024,3.667,16022.5,OK
+KERN,lut4,flash,1024,1024,3.772,16481.3,OK
+KERN,lut4_2core_lookup,flash,1024,1024,1.940,8474.5,OK
+KERN,bitserial4_pack,flash,1024,1024,0.057,248.8,OK
+KERN,bitserial4,flash,1024,1024,4.954,21642.6,OK
+KERN,xnor,flash,1024,1024,2.642,11543.4,OK
+# skip 2048x2048 in sram: 512 KB does not fit
+KERN,ref,psram,2048,2048,18.190,317894.9,OK
+KERN,mask,psram,2048,2048,12.515,218719.3,OK
+KERN,lut4_build,psram,2048,2048,0.053,925.1,OK
+KERN,lut4_lookup,psram,2048,2048,2.768,48378.2,OK
+KERN,lut4,psram,2048,2048,2.821,49303.3,OK
+KERN,lut4_2core_lookup,psram,2048,2048,1.919,33542.5,OK
+KERN,bitserial4_pack,psram,2048,2048,0.028,497.4,OK
+KERN,bitserial4,psram,2048,2048,4.039,70585.1,OK
+KERN,xnor,psram,2048,2048,1.758,30727.9,OK
+KERN,ref,flash,2048,2048,20.064,350638.3,OK
+KERN,mask,flash,2048,2048,13.422,234571.0,OK
+KERN,lut4_build,flash,2048,2048,0.053,925.1,OK
+KERN,lut4_lookup,flash,2048,2048,3.645,63708.4,OK
+KERN,lut4,flash,2048,2048,3.698,64633.4,OK
+KERN,lut4_2core_lookup,flash,2048,2048,1.930,33733.3,OK
+KERN,bitserial4_pack,flash,2048,2048,0.028,497.4,OK
+KERN,bitserial4,flash,2048,2048,4.924,86057.0,OK
+KERN,xnor,flash,2048,2048,2.630,45961.4,OK
+# --- energy schedule, round 1: 20 s per phase. Write down watts per phase (total and above idle).
+# weights for the gemv phases: 1024x1024 from PSRAM
+PHASE,1,idle,start

@@ -14,6 +14,7 @@ The benchmarks are grouped by the kind of network: `mlp/` (dense layers), `conv1
 | [`mlp/mlp_fashion/`](mlp/mlp_fashion/) | Fashion-MNIST | MLP, every layer at 1 bit | the same FP32 model, quantized | complete on ESP32 and ESP32-S3; being re-measured with the current engine |
 | [`mlp/mlp_digits/`](mlp/mlp_digits/) | scikit-learn Digits | MLP, every layer at 1 bit | the same FP32 model, quantized | complete; being re-measured with the current engine |
 | [`conv1d/har_ultracompact/`](conv1d/har_ultracompact/) | human activity recognition, 1D | binary 1D CNN | INT8, and the binary library of Daghero et al. (2021) in its own RISC-V environment | in preparation |
+| [`edge_llm_probe/`](edge_llm_probe/) | memory bandwidth, 1-bit kernel cycles and power for a native 1-bit LLM ([design note](../docs/llm_1bit_embedded.md)) | `kernels/onebit_gemv.c`, host-tested | none (a hardware probe) | bandwidth and kernels measured on one ESP32-S3 and one ESP32-CAM; power pending |
 | [`experiments/`](experiments/) | kernels on the ESP32-S3 | `pie_swar_bench.py`, `pie_conv_bench.py` | | isolated measurements behind the library's choices |
 
 ## The rules every benchmark follows

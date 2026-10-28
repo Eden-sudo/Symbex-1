@@ -1,0 +1,6 @@
+# Name,   Type, SubType, Offset,   Size,     Flags
+# Valid on a 4 MB flash (ends at 0x3F0000) and on larger chips. Offsets are 64 KB aligned where the probe partition
+# is memory-mapped (esp_partition_mmap works in 64 KB pages).
+nvs,      data, nvs,     0x9000,   0x5000,
+app,      app,  factory, 0x10000,  0x2D0000,
+probe,    data, 0x40,    0x2E0000, 0x110000,
