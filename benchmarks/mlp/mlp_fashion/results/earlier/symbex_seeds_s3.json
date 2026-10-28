@@ -1,0 +1,16 @@
+{
+ "board": "s3",
+ "weights": "ram",
+ "popcount": "swar",
+ "input_bits": 8,
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 1.5,
+   "val_accuracy": 87.01,
+   "flash_kb": 54.46875,
+   "arithmetic": "and"
+  }
+ ],
+ "val_accuracy": "87.01"
+}

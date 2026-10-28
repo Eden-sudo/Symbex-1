@@ -1,14 +1,22 @@
 /*
  * symbex_hal_impl.c (generic) -- chooses AT COMPILE TIME how to count bits:
- *   NATIVE : x86 with POPCNT, AArch64, RISC-V with Zbb (64-bit words)
- *   LUT16  : ESP32 (ESP_PLATFORM): 64 KB table in RAM; SWAR if there is no RAM for it
+ *   NATIVE : x86 with POPCNT, AArch64 (64-bit words), RISC-V with Zbb (cpop; the Hazard3 core of the RP2350)
+ *   LUT16  : ESP32 (ESP_PLATFORM) and the Cortex-M33 core of the RP2350 (Raspberry Pi Pico 2): 64 KB table in RAM;
+ *            SWAR if there is no RAM for it. Measured with tools/dev/count_bench.py on the Pico 2 (M33, 150 MHz):
+ *            lut16 1.8x faster than SWAR and 2.8x faster than the compiler's popcount; SWAR with the DSP usada8
+ *            (bytes summed in one instruction) only 1.1x faster than SWAR. On Hazard3, cpop is 1.25x faster than
+ *            SWAR and 1.8x faster than lut16.
  *   LUT8   : AVR (Arduino Uno): 256-byte table in flash (PROGMEM), 4 lookups per 32-bit word; weights read
  *            from flash too. libgcc's __builtin_popcountl took ~300 cycles per word on the ATmega328P (measured);
  *            the table takes a few tens.
  *   SWAR   : everything else
  * Flags: -DSYMBEX_POPCOUNT_FORCE_SWAR, -DSYMBEX_POPCOUNT_FORCE_LUT16, -DSYMBEX_POPCOUNT_FORCE_LUT8 (the AVR path on
- *        any chip, to check it on a PC), -DSYMBEX_POPCOUNT_NO_LUT16 (ESP32 without the table)
- * On the ESP32-S3, hal/esp32s3/ is used and this file compiles to nothing.
+ *        any chip, to check it on a PC), -DSYMBEX_POPCOUNT_NO_LUT16 (ESP32 / RP2350 Arm
+ *        without the table: 64 KB of RAM back)
+ *        -DSYMBEX_POPCOUNT_FORCE_NATIVE (the compiler's __builtin_popcount, for a core whose compiler turns it
+ *        into an instruction the automatic detection does not know)
+ * On the ESP32-S3, hal/esp32s3/ is used and this file compiles to nothing. On the RP2350 (SYMBEX_HAL_RP2350), the
+ * first-layer kernels (symbex_u8_*) come from hal/rp2350/ and are left out here.
  *
  * SYMBEX v3: symbex_xnor_popcount counts ONLY the first n_real_bits bits. Padding bits
  * (the rest of the last word and any extra words) never count, whatever their value.
@@ -50,11 +58,13 @@
   #define PATH_SWAR 1
 #elif defined(SYMBEX_POPCOUNT_FORCE_LUT16)
   #define PATH_LUT16 1
+#elif defined(SYMBEX_POPCOUNT_FORCE_NATIVE)
+  #define PATH_NATIVE 1          /* the compiler's popcount, trusted to be an instruction */
 #elif defined(SYMBEX_POPCOUNT_FORCE_LUT8) || defined(__AVR__)
   #define PATH_LUT8 1
 #elif defined(__POPCNT__) || defined(__aarch64__) || defined(__riscv_zbb)
   #define PATH_NATIVE 1
-#elif defined(ESP_PLATFORM) && !defined(SYMBEX_POPCOUNT_NO_LUT16)
+#elif (defined(ESP_PLATFORM) || (defined(PICO_RP2350) && !defined(__riscv))) && !defined(SYMBEX_POPCOUNT_NO_LUT16)
   #define PATH_LUT16 1
 #else
   #define PATH_SWAR 1
@@ -228,15 +238,24 @@ void symbex_xnor_popcount_rows(const uint32_t* a, const uint32_t* w, int n_words
     for (int r = 0; r < n_rows; r++, w += n_words) out[r] = n_real_bits - 2 * xnor_diff(a, w, full_words, mask, t);
 }
 
+#if defined(SYMBEX_HAL_RP2350)
+#define NAME_TAIL ", rp2350 " SYMBEX_RP2350_U8_NAME
+#else
+#define NAME_TAIL ""
+#endif
+
 const char* symbex_hal_name(void) {
 #if defined(PATH_LUT16)
-    return lut16_ready() ? "generic: lut16 (64 KB table in RAM)" : "generic: SWAR (no RAM available for lut16)";
+    return lut16_ready() ? "generic: lut16 (64 KB table in RAM)" NAME_TAIL
+                         : "generic: SWAR (no RAM available for lut16)" NAME_TAIL;
+#elif defined(PATH_NATIVE) && (UINTPTR_MAX > 0xFFFFFFFFu)
+    return "generic: NATIVE popcount, 64-bit words" NAME_TAIL;
 #elif defined(PATH_NATIVE)
-    return "generic: NATIVE popcount, 64-bit words";
+    return "generic: NATIVE popcount, 32-bit words" NAME_TAIL;
 #elif defined(PATH_LUT8)
-    return "generic: lut8 (256-byte table in flash)";
+    return "generic: lut8 (256-byte table in flash)" NAME_TAIL;
 #else
-    return "generic: SWAR fallback in software";
+    return "generic: SWAR fallback in software" NAME_TAIL;
 #endif
 }
 
@@ -304,9 +323,10 @@ void symbex_xor_popcount_rows_n(const uint32_t* a, const uint32_t* w, int n_word
 
 /* measured (tools/count_bench.py): with the 64 KB table the AND form is 1.15-1.25x faster than XOR on the ESP32 (AND
    results reuse fewer table entries: fewer cache misses); with a popcount instruction, SWAR or the 8-bit table, XOR
-   is as fast or faster and needs no stored counts */
+   is as fast or faster and needs no stored counts. On the RP2350's M33 (no data cache in front of its SRAM) the table
+   prefers XOR too: 1.05-1.14x faster than AND */
 int symbex_hal_prefers_xor(void) {
-#if defined(PATH_LUT16)
+#if defined(PATH_LUT16) && defined(ESP_PLATFORM)
     return count_table() ? 0 : 1;
 #else
     return 1;
@@ -356,6 +376,7 @@ void symbex_and_planes_rows(const uint32_t* planes, int k, int low, const uint32
 #endif
 }
 
+#if !defined(SYMBEX_HAL_RP2350)                          /* the RP2350 has its own: hal/rp2350/ */
 void symbex_u8_prepare(const uint8_t* x, int n_inputs, uint8_t* workspace, int n_words) {
     const int bytes = n_words * 32;                      /* natural order, zero padding */
     for (int i = 0; i < bytes; i++) workspace[i] = (i < n_inputs) ? x[i] : 0;
@@ -372,5 +393,6 @@ void symbex_u8_sum_bits_rows(const uint8_t* workspace, int n_inputs, const uint3
     if (n_inputs > stride * 32) n_inputs = stride * 32;
     for (int r = 0; r < n_rows; r++, w += stride) out[r] = symbex_swar_u8_masked_sum(workspace, w, (uint16_t)n_inputs);
 }
+#endif // !SYMBEX_HAL_RP2350
 
 #endif // !CONFIG_IDF_TARGET_ESP32S3

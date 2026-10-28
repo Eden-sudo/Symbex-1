@@ -1,0 +1,52 @@
+# mlp_fashion benchmark -- CDT configuration (paths relative to benchmarks/mlp/mlp_fashion/).
+# Run it through fashion_symbex.py, which trains the FP32 model first if it is missing and passes the seed,
+# the output folder and the board on the command line.
+
+[model]
+file       = "models/fashion_mlp.pth"
+definition = "model.py:FashionMLP"             # the .pth holds only the weights
+method     = "plain"
+
+[data]
+directory           = "../../data/fashionmnist"
+format              = "fashionmnist"           # torchvision, downloaded if missing
+validation_split    = 0.1
+split_seed          = 42                       # ONE validation split for every seed; model.py trains the FP32 without it
+calibration_samples = 64
+mean = [0.2860]                                # same normalization the model was trained with
+std  = [0.3530]
+
+[hardware]
+ram_kb   = 320                                 # ESP32 (classic)
+flash_kb = 4096
+psram_kb = 0
+cpu_bits = 32
+
+[target]
+budget            = 0.25
+tolerance         = 0.99
+options           = ["bin"]                    # every layer at 1 bit
+max_accuracy_drop = 2.0
+search_epochs     = 5
+widths            = [1.5]                      # the benchmark model: hidden layers x1.5 (784 -> 384 -> 192 -> 10)
+
+[training]
+epochs     = 15
+distill    = true
+checkpoint = "last"
+seed       = 42
+
+[output]
+directory          = "runs/symbex"
+verbose            = true
+lib_path           = "../../../Symbex1_PIO/lib/lib_symbex"
+validation_samples = 2000
+arithmetic         = "auto"                    # the fastest on the board (chip profile)
+int8_reference     = false                     # the INT8 comparison is fashion_tflite.py (official TFLite)
+
+[chip]
+board    = ""                                  # set by fashion_symbex.py --board
+port     = "/dev/ttyUSB0"
+samples  = 1000
+popcount = "swar"
+weights  = "ram"

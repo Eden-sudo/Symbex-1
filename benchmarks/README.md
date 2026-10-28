@@ -4,14 +4,17 @@ Every number SYMBEX-1 reports comes from a benchmark in this folder, and every b
 Each one compares the SYMBEX model against an **INT8 baseline produced outside SYMBEX** (TensorFlow Lite converter +
 TensorFlow Lite Micro on the chip), on the **same images** and the **same chips**.
 
+The benchmarks are grouped by the kind of network: `mlp/` (dense layers), `conv1d/` (1D convolutions, sensor data) and
+`conv2d/` (2D convolutions, images). `data/` (the data sets) and `env_bench/` (the Python environment) are shared.
+
 | Benchmark | Task | SYMBEX model | INT8 baseline | Status |
 |---|---|---|---|---|
-| [`cnn_cifar_resnet8/`](cnn_cifar_resnet8/) | image classification, CIFAR-10 | fully binary ResNet-8, and a version sized for binary | the official MLPerf Tiny ResNet-8 | complete: ESP32 and ESP32-S3, 3 seeds, sizing study |
-| [`fomo_voc_person/`](fomo_voc_person/) | person detection (FOMO), Pascal VOC | fully binary detector | the same architecture, trained the same way | complete: ESP32 and ESP32-S3, sizing study |
-| [`mlp_fashion/`](mlp_fashion/) | Fashion-MNIST | MLP, every layer at 1 bit | the same FP32 model, quantized | complete on ESP32 and ESP32-S3; being re-measured with the current engine |
-| [`mlp_digits/`](mlp_digits/) | scikit-learn Digits | MLP, every layer at 1 bit | the same FP32 model, quantized | complete; being re-measured with the current engine |
-| [`har_ultracompact/`](har_ultracompact/) | human activity recognition, 1D | binary 1D CNN | INT8, and the binary library of Daghero et al. (2021) in its own RISC-V environment | in preparation |
-| [`edge_llm_probe/`](edge_llm_probe/) | memory bandwidth, 1-bit kernel cycles and power for a native 1-bit LLM ([design note](../docs/llm_1bit_embedded.md)) | `kernels/onebit_gemv.c`, host-tested | none (a hardware probe) | firmware builds; not yet run on a board |
+| [`conv2d/cnn_cifar_resnet8/`](conv2d/cnn_cifar_resnet8/) | image classification, CIFAR-10 | fully binary ResNet-8, and a version sized for binary | the official MLPerf Tiny ResNet-8 | complete: ESP32 and ESP32-S3, 3 seeds, sizing study |
+| [`conv2d/fomo_voc_person/`](conv2d/fomo_voc_person/) | person detection (FOMO), Pascal VOC | fully binary detector | the same architecture, trained the same way | complete: ESP32 and ESP32-S3, sizing study |
+| [`mlp/mlp_fashion/`](mlp/mlp_fashion/) | Fashion-MNIST | MLP, every layer at 1 bit | the same FP32 model, quantized | complete on ESP32 and ESP32-S3; being re-measured with the current engine |
+| [`mlp/mlp_digits/`](mlp/mlp_digits/) | scikit-learn Digits | MLP, every layer at 1 bit | the same FP32 model, quantized | complete; being re-measured with the current engine |
+| [`conv1d/har_ultracompact/`](conv1d/har_ultracompact/) | human activity recognition, 1D | binary 1D CNN | INT8, and the binary library of Daghero et al. (2021) in its own RISC-V environment | in preparation |
+| [`edge_llm_probe/`](edge_llm_probe/) | memory bandwidth, 1-bit kernel cycles and power for a native 1-bit LLM ([design note](../docs/llm_1bit_embedded.md)) | `kernels/onebit_gemv.c`, host-tested | none (a hardware probe) | bandwidth and kernels measured on one ESP32-S3 and one ESP32-CAM; power pending |
 | [`experiments/`](experiments/) | kernels on the ESP32-S3 | `pie_swar_bench.py`, `pie_conv_bench.py` | | isolated measurements behind the library's choices |
 
 ## The rules every benchmark follows
@@ -61,7 +64,7 @@ python -c "import torch, tensorflow as tf; print(torch.cuda.is_available(), tf.c
 (Use the PyTorch CUDA version that matches your driver; the CPU versions also work, slower.)
 
 The chips are programmed with PlatformIO (ESP-IDF and the Arduino framework). The 1D benchmark adds a Docker image with
-the PULP RISC-V toolchain and the GVSoC simulator (`har_ultracompact/pulp/Dockerfile`).
+the PULP RISC-V toolchain and the GVSoC simulator (`conv1d/har_ultracompact/pulp/Dockerfile`).
 
 ## Hardware used
 

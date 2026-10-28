@@ -1,4 +1,17 @@
-# SYMBEX-1 -- Binary neural networks for microcontrollers
+<p align="center">
+  <img src="docs/assets/symbex-1-banner.jpg" alt="SYMBEX-1, binary neural networks for microcontrollers" width="100%">
+</p>
+
+<p align="center"><b>Binary neural networks for microcontrollers.</b></p>
+
+<p align="center">
+  <a href="https://github.com/Eden-sudo/Symbex-1/releases"><img src="https://img.shields.io/github/v/release/Eden-sudo/Symbex-1?color=14b8a6&label=release" alt="release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Eden-sudo/Symbex-1?color=0d9488&label=license" alt="license"></a>
+  <a href="https://symbex-1.pages.dev/"><img src="https://img.shields.io/badge/website-symbex--1.pages.dev-0f766e" alt="website"></a>
+  <a href="benchmarks/"><img src="https://img.shields.io/badge/chips-ESP32%20%7C%20ESP32--S3%20%7C%20RP2350%20%7C%20AVR-115e59" alt="chips"></a>
+  <a href="https://github.com/Eden-sudo/Symbex-1/pulls"><img src="https://img.shields.io/badge/PRs-welcome-f97316" alt="PRs"></a>
+  <a href="README.es.md"><img src="https://img.shields.io/badge/leer-en%20espa%C3%B1ol-334155" alt="leer"></a>
+</p>
 
 SYMBEX-1 compiles neural networks into **fully binary networks that run on small microcontrollers**, and measures
 them on real chips against the official INT8 toolchain (TensorFlow Lite Micro).
@@ -13,7 +26,7 @@ It has three parts:
 
 ## Results (ESP32-S3 and ESP32, 240 MHz, one core)
 
-### Image classification: a fully binary ResNet-8 ([`benchmarks/cnn_cifar_resnet8`](benchmarks/cnn_cifar_resnet8/))
+### Image classification: a fully binary ResNet-8 ([`benchmarks/conv2d/cnn_cifar_resnet8`](benchmarks/conv2d/cnn_cifar_resnet8/))
 
 CIFAR-10, against the official INT8 ResNet-8 of MLPerf Tiny. Every layer of the SYMBEX network is binary, the first
 one included (the image enters as a thermometer of bits); 3 training seeds, labels only.
@@ -38,7 +51,7 @@ the chip):
 | **16-32-128, 1-1-2 blocks** | **73.10 ± 0.23 %** | **39.6 ms** | 60.9 ms (weights in RAM) | 15 KB |
 | **16-64-128, 1-1-2 blocks** | **74.45 ± 0.23 %** | 46.6 ms | | 16 KB |
 
-### Person detection: FOMO, binary against the same detector in INT8 ([`benchmarks/fomo_voc_person`](benchmarks/fomo_voc_person/))
+### Person detection: FOMO, binary against the same detector in INT8 ([`benchmarks/conv2d/fomo_voc_person`](benchmarks/conv2d/fomo_voc_person/))
 
 Pascal VOC persons, 96 × 96 images, a 12 × 12 grid of person centers. The INT8 reference is **the same architecture**
 trained with the same recipe.
@@ -54,7 +67,7 @@ trained with the same recipe.
 
 Detection binarizes well: every cell answers a yes/no question, and the binary detector is as accurate as the INT8 one.
 
-### Dense networks ([`benchmarks/mlp_fashion`](benchmarks/mlp_fashion/), [`benchmarks/mlp_digits`](benchmarks/mlp_digits/))
+### Dense networks ([`benchmarks/mlp/mlp_fashion`](benchmarks/mlp/mlp_fashion/), [`benchmarks/mlp/mlp_digits`](benchmarks/mlp/mlp_digits/))
 
 Fashion-MNIST, every layer at 1 bit, twice as wide: 86.80 ± 0.36 % (INT8: 87.20 %) with **69 KB of weights against
 242 KB**, and **2.5× faster than INT8 on the ESP32** (16.70 ms against 41.97 ms). These figures are being re-measured
@@ -62,7 +75,7 @@ with the current engine and the corrected validation split (see Methodology).
 
 ### Why it is faster: counting bits against multiplying
 
-`tools/count_bench.py` measures the raw arithmetic of each chip on the same convolution pattern: binary (bit counting)
+`tools/dev/count_bench.py` measures the raw arithmetic of each chip on the same convolution pattern: binary (bit counting)
 against int8 (multiply-accumulate).
 
 | Chip | Binary against int8, raw arithmetic |

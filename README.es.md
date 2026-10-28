@@ -1,4 +1,17 @@
-# SYMBEX-1 -- Redes neuronales binarias para microcontroladores
+<p align="center">
+  <img src="docs/assets/symbex-1-banner.jpg" alt="SYMBEX-1, redes neuronales binarias para microcontroladores" width="100%">
+</p>
+
+<p align="center"><b>Redes neuronales binarias para microcontroladores.</b></p>
+
+<p align="center">
+  <a href="https://github.com/Eden-sudo/Symbex-1/releases"><img src="https://img.shields.io/github/v/release/Eden-sudo/Symbex-1?color=14b8a6&label=release" alt="release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Eden-sudo/Symbex-1?color=0d9488&label=license" alt="license"></a>
+  <a href="https://symbex-1.pages.dev/"><img src="https://img.shields.io/badge/sitio-symbex--1.pages.dev-0f766e" alt="sitio"></a>
+  <a href="benchmarks/"><img src="https://img.shields.io/badge/chips-ESP32%20%7C%20ESP32--S3%20%7C%20RP2350%20%7C%20AVR-115e59" alt="chips"></a>
+  <a href="https://github.com/Eden-sudo/Symbex-1/pulls"><img src="https://img.shields.io/badge/PRs-welcome-f97316" alt="PRs"></a>
+  <a href="README.md"><img src="https://img.shields.io/badge/read-in%20English-334155" alt="read"></a>
+</p>
 
 SYMBEX-1 convierte una red neuronal entrenada en una **red binarizada que corre en microcontroladores pequeños**,
 y la mide en chips reales contra la herramienta oficial de INT8.
@@ -48,7 +61,7 @@ preparando para publicarla en `benchmarks/`.
 El motor convolucional v3 conserva como primera capa un pequeño **codificador int8 aprendido** (por ahí entra la
 imagen); todas las capas que siguen son binarias. Su RAM intermedia baja hasta 16 KB con el popcount en software.
 
-### MLP en Fashion-MNIST, de punta a punta con el CDT ([`benchmarks/mlp_fashion`](benchmarks/mlp_fashion/))
+### MLP en Fashion-MNIST, de punta a punta con el CDT ([`benchmarks/mlp/mlp_fashion`](benchmarks/mlp/mlp_fashion/))
 
 Mismo modelo FP32 (88.17%), INT8 oficial de TFLite Micro, las mismas 1000 imágenes, todas las capas de SYMBEX en
 1 bit:

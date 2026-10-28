@@ -15,7 +15,8 @@ or more, any signed overflow stops the test), sizes up to 4x larger, every bound
 
 Every test runs three times: with hal/generic, with hal/esp32s3 in its C mode (SYMBEX_HAL_TEST_NO_PIE: the same
 code as on the chip, with the PIE instructions replaced by C), and with the 8-bit code paths the library uses on
-AVR (SYMBEX_U8_BYTEWISE, SYMBEX_POPCOUNT_FORCE_LUT8, SYMBEX_PLANES_PLANE_OUTER, SYMBEX_PLANES_PER_NEURON). The PIE
+AVR (SYMBEX_U8_BYTEWISE, SYMBEX_POPCOUNT_FORCE_LUT8, SYMBEX_PLANES_PLANE_OUTER, SYMBEX_PLANES_PER_NEURON), and
+with the RP2350's first-layer kernels (hal/rp2350: bit planes, and usada8 with a C stand-in). The PIE and usada8
 instructions and AVR itself
 can only be checked on the
 chip (chip_test.py, and the checksums of chip_test.py --kernels).
@@ -50,13 +51,20 @@ SOURCES = ["src/ops/symbex_and.c", "src/ops/symbex_bitops.c", "src/ops/symbex_bi
            "src/layers/dense/symbex_dense.c", "src/layers/dense/symbex_gated.c",
            "src/layers/conv/symbex_bpr.c", "src/layers/conv/symbex_conv2d.c", "src/layers/conv/symbex_binary_pool.c",
            "src/core/network/symbex_network_dense.c", "src/core/network/symbex_network_conv.c",
-           "src/layers/conv/symbex_bool.c"]
+           "src/layers/conv/symbex_bool.c", "src/layers/conv/symbex_bool1d.c"]
 HALS = {"generic": (["src/hal/generic/symbex_hal_impl.c"], []),
         "esp32s3 (C mode)": (["src/hal/esp32s3/symbex_hal_impl.c"],
                              ["-DCONFIG_IDF_TARGET_ESP32S3", "-DSYMBEX_HAL_TEST_NO_PIE"]),
+        "generic, native count forced": (["src/hal/generic/symbex_hal_impl.c"], ["-DSYMBEX_POPCOUNT_FORCE_NATIVE"]),
         "generic, 8-bit paths (as on AVR)": (["src/hal/generic/symbex_hal_impl.c"],
                                              ["-DSYMBEX_U8_BYTEWISE", "-DSYMBEX_POPCOUNT_FORCE_LUT8", "-DSYMBEX_PLANES_PLANE_OUTER",
-                                              "-DSYMBEX_PLANES_PER_NEURON"])}
+                                              "-DSYMBEX_PLANES_PER_NEURON"]),
+        # the Pico 2's first-layer kernels (hal/rp2350) on top of hal/generic: bit planes (Hazard3) and usada8 (the
+        # M33's DSP instruction, a C stand-in on the PC)
+        "rp2350, bit planes": (["src/hal/generic/symbex_hal_impl.c", "src/hal/rp2350/symbex_hal_impl.c"],
+                               ["-DSYMBEX_HAL_TEST_RP2350"]),
+        "rp2350, usada8 (C stand-in)": (["src/hal/generic/symbex_hal_impl.c", "src/hal/rp2350/symbex_hal_impl.c"],
+                                        ["-DSYMBEX_HAL_TEST_RP2350", "-DSYMBEX_RP2350_U8_USADA8"])}
 RNG = np.random.default_rng(1234)
 STRESS = False                             # set by --stress
 SANITIZE = ["-fsanitize=address,undefined", "-fno-sanitize-recover=all", "-fno-omit-frame-pointer", "-g"]
@@ -1302,6 +1310,73 @@ int main(void) { int a[5]; static uint32_t m[24 * 24 * 4], w[16 * 8] __attribute
     return n, len(bad), (f"value {bad[0]}: got {got[bad[0]]}, expected {flat[bad[0]]}" if len(bad) else "")
 
 
+def bool1d_case(c, u8):
+    """one random 1D layer: (sizes, input, weights, thresholds, expected output words)"""
+    k = pick(1, 16, c)
+    ch = pick(1, 41, c) if not u8 else pick(1, 13, c)
+    o = pick(1, 41, c)
+    s = int(RNG.integers(1, 4))
+    p = int(RNG.integers(1, 5))
+    n_pre_min = p                                            # at least one pooled output
+    length = k + s * (n_pre_min - 1) + pick(0, 60, c)
+    n_pre = (length - k) // s + 1
+    out_len = n_pre // p
+    n = k * ch
+    rw = -(-(-(-n // 32)) // 4) * 4
+    wb = RNG.integers(0, 2, (o, n))
+    rows = np.zeros((o, rw), dtype=np.uint32)
+    rows[:, :-(-n // 32)] = words(wb, -(-n // 32))
+    x = u8_data(length * ch, c).reshape(length, ch) if u8 else bits_data((length, ch), c)
+    win = np.stack([x[t * s:t * s + k].ravel() for t in range(out_len * p)])          # (steps, n)
+    raw = win @ (2 * wb - 1).T if u8 else (2 * win - 1) @ (2 * wb - 1).T
+    spread = 255 * n // 4 if u8 else n // 2
+    thr = RNG.integers(-spread - 1, spread + 2, o)
+    bits = (raw >= thr[None]).astype(np.int64).reshape(out_len, p, o).max(axis=1)        # OR pool
+    out_words = -(-out_len * o // 32) + 1
+    exp = words(bits.ravel(), out_words).astype(np.int64)
+    in_data = (x.astype(np.uint8).tobytes() if u8 else
+               words(x.ravel(), -(-length * ch // 32) + 1).astype(np.uint32).tobytes())
+    return (length, ch, o, k, s, p, out_len, rw), in_data, rows, wb.sum(1), thr, exp
+
+
+def test_bool1d(hal, n):
+    """symbex_bool1d_conv (binary input) and symbex_bool1d_conv_u8 (uint8 input) against numpy: any kernel, stride,
+    channel count (not only powers of 2), OR pool fused, windows at every bit offset of the stream; AND and XOR forms"""
+    exe = build("bool1d", """
+#include "layers/conv/symbex_bool.h"
+#include "layers/conv/symbex_bool1d.h"
+int main(void) { int a[10]; static uint32_t in[8192], out[8192], w[200 * 320] __attribute__((aligned(16)));
+  static uint32_t win[640] __attribute__((aligned(16))); static uint8_t ws[320 * 32] __attribute__((aligned(16)));
+  static uint8_t in8[32768]; static int32_t thr[256], cnt[256], scr[256];
+  while (fread(a, 4, 10, stdin) == 10) {
+    int u8 = a[0], form = a[1], len = a[2], ch = a[3], o = a[4], k = a[5], s = a[6], p = a[7], ol = a[8], rw = a[9];
+    int in_w = (len * ch + 31) / 32 + 1, out_w = (ol * o + 31) / 32 + 1;
+    if (u8) { if (fread(in8, 1, (size_t)(len * ch), stdin) != (size_t)(len * ch)) return 1; }
+    else if (fread(in, 4, (size_t)in_w, stdin) != (size_t)in_w) return 1;
+    if (fread(w, 4, (size_t)(o * rw), stdin) != (size_t)(o * rw) || fread(cnt, 4, (size_t)o, stdin) != (size_t)o ||
+        fread(thr, 4, (size_t)o, stdin) != (size_t)o) return 1;
+    struct SymbexBool1D L = {(uint16_t)ch, (uint16_t)o, (uint16_t)k, (uint16_t)s, (uint16_t)p, (uint16_t)len,
+                             (uint16_t)ol, (uint16_t)rw, w, thr, cnt};
+    symbex_bool_force_mode = form;
+    for (int i = 0; i < out_w; i++) out[i] = 0xDEADBEEFu;          /* the layer must overwrite every word */
+    if (u8) symbex_bool1d_conv_u8(&L, in8, out, ws, scr); else symbex_bool1d_conv(&L, in, out, win, scr);
+    for (int i = 0; i < out_w; i++) printf("%u ", out[i]);
+    printf("\\n"); }
+  return 0; }""", hal)
+    data, exp = Chunks(), []
+    for c in range(n):
+        for u8 in (0, 1):
+            (length, ch, o, k, s, p, ol, rw), in_data, rows, cnt, thr, e = bool1d_case(c, u8)
+            for form in ((0,) if u8 else (1, 2)):
+                exp.append(e)
+                data += i32(u8, form, length, ch, o, k, s, p, ol, rw) + in_data + rows.tobytes() \
+                    + cnt.astype(np.int32).tobytes() + thr.astype(np.int32).tobytes()
+    got = run(exe, data)
+    flat = np.concatenate(exp)
+    bad = np.nonzero(got != flat)[0]
+    return n, len(bad), (f"value {bad[0]}: got {got[bad[0]]}, expected {flat[bad[0]]}" if len(bad) else "")
+
+
 TESTS = [("hal: popcount32", test_hal_popcount32), ("hal: name", test_hal_name),
          ("hal: xnor_popcount (real bits only)", test_hal_xnor_popcount),
          ("hal: and_popcount", test_hal_and_popcount), ("hal: u8_prepare + u8_sum_bits", test_hal_u8_sum_bits),
@@ -1322,7 +1397,8 @@ TESTS = [("hal: popcount32", test_hal_popcount32), ("hal: name", test_hal_name),
          ("bool: thermometer, OR pool, OR, integer classifier", test_bool_pieces),
          ("bool: whole random networks, AND and XOR forms (symbex_bool_net_run)", test_bool_net),
          ("hal: xor_popcount_rows, *_rows_n (AND / XOR over the first n words)", test_hal_xor_rows),
-         ("bool: per-cell head (FOMO) + grid checksum", test_bool_cell_head)]
+         ("bool: per-cell head (FOMO) + grid checksum", test_bool_cell_head),
+         ("bool1d: 1D conv + fused OR pool, binary and uint8 input, AND and XOR forms", test_bool1d)]
 
 
 def main():

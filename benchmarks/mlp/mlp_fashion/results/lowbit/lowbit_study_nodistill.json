@@ -1,0 +1,128 @@
+{
+ "epochs": 15,
+ "seeds": 3,
+ "distill": false,
+ "fp32_sha256": "d74f32d30cbf661e2937e46acbe15cd2a1ecbb2a2f57117b8c8bff53abb560d1",
+ "fp32_test": [
+  88.51
+ ],
+ "rows": [
+  {
+   "model": "SYMBEX 1 bit x1 (784-256-128-10)",
+   "bits": 1,
+   "seeds": 3,
+   "test": [
+    87.64333333333333,
+    0.3590728802532019
+   ],
+   "int2000": 88.0,
+   "weight_bytes": 29344,
+   "total_bytes": 35136,
+   "pareto": true
+  },
+  {
+   "model": "SYMBEX 1 bit x1.5 (784-384-192-10)",
+   "bits": 1,
+   "seeds": 3,
+   "test": [
+    88.25666666666666,
+    0.13012814197295675
+   ],
+   "int2000": 88.88333333333333,
+   "weight_bytes": 47088,
+   "total_bytes": 55776,
+   "pareto": true
+  },
+  {
+   "model": "ternary x1 (784-256-128-10)",
+   "bits": 2,
+   "seeds": 3,
+   "test": [
+    87.92666666666666,
+    0.2683902631120118
+   ],
+   "int2000": 88.71666666666667,
+   "weight_bytes": 58688,
+   "total_bytes": 61368,
+   "pareto": false
+  },
+  {
+   "model": "INT2 QAT x1 (784-256-128-10)",
+   "bits": 2,
+   "seeds": 3,
+   "test": [
+    89.26333333333334,
+    0.10408329997330869
+   ],
+   "int2000": 90.25,
+   "weight_bytes": 58688,
+   "total_bytes": 61840,
+   "pareto": true
+  },
+  {
+   "model": "SYMBEX 1 bit x2 (784-512-256-10)",
+   "bits": 1,
+   "seeds": 3,
+   "test": [
+    88.31,
+    0.20000000000000284
+   ],
+   "int2000": 89.1,
+   "weight_bytes": 66880,
+   "total_bytes": 78304,
+   "pareto": false
+  },
+  {
+   "model": "ternary x1.5 (784-384-192-10)",
+   "bits": 2,
+   "seeds": 3,
+   "test": [
+    88.36666666666666,
+    0.11590225767142007
+   ],
+   "int2000": 88.93333333333332,
+   "weight_bytes": 94176,
+   "total_bytes": 98136,
+   "pareto": false
+  },
+  {
+   "model": "INT4 QAT x1 (784-256-128-10)",
+   "bits": 4,
+   "seeds": 3,
+   "test": [
+    89.95,
+    0.07549834435270283
+   ],
+   "int2000": 91.06666666666668,
+   "weight_bytes": 117376,
+   "total_bytes": 120528,
+   "pareto": true
+  },
+  {
+   "model": "INT8 QAT x1 (784-256-128-10)",
+   "bits": 8,
+   "seeds": 3,
+   "test": [
+    90.04333333333334,
+    0.023094010767580435
+   ],
+   "int2000": 91.18333333333334,
+   "weight_bytes": 234752,
+   "total_bytes": 237904,
+   "pareto": true
+  },
+  {
+   "model": "INT8 TFLite x1 (784-256-128-10)",
+   "bits": 8,
+   "seeds": 0,
+   "test": [
+    null,
+    null
+   ],
+   "int2000": 89.7,
+   "weight_bytes": 234752,
+   "total_bytes": 248040,
+   "pareto": false
+  }
+ ]
+}
