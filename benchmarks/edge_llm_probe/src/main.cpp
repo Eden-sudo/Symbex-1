@@ -58,8 +58,9 @@ static void fill_pattern(uint32_t* p, size_t words, uint32_t seed) {
 static void* alloc_internal(size_t bytes) { return heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT); }
 static void* alloc_psram(size_t bytes) { return heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT); }
 
-/* sequential 32-bit read-sum, 4 independent accumulators */
-__attribute__((noinline)) static uint32_t read_sum(const uint32_t* p, size_t words) {
+/* sequential 32-bit read-sum, 4 independent accumulators. noipa: without it GCC infers the function is pure and
+ * folds repeated calls on the same buffer into one, which inflated read32_seq by the number of passes */
+__attribute__((noinline, noipa)) static uint32_t read_sum(const uint32_t* p, size_t words) {
     uint32_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;
     for (size_t i = 0; i + 4 <= words; i += 4) {
         s0 += p[i];
