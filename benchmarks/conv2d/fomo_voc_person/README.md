@@ -37,9 +37,12 @@ to be re-measured with this one.
 **On the classic ESP32** (ESP32-D0WD-V3, 240 MHz, one core, no PSRAM) the resized binary detector runs in **226.3 ms**
 (32-32-128, 3 seeds: 226.31-226.35 ms; lut16 counting, weights in flash, 143 KB of RAM), every seed 100 % equal to its
 simulation on 1,000 test images; the original shape, in **296.2 ms** with the same setting. With the weights in RAM:
-210.7 / 275.0 ms (184 / 197 KB of RAM); without the 64 KB counting table (swar): 274.5 / 364.6 ms (79 / 81 KB). Flash is
-the number to report (a real deployment keeps the weights there); RAM is 7 % faster, probably because the weights (41-52
-KB) are more than the flash cache keeps, as measured in `../cnn_cifar_resnet8` (a hypothesis here, not checked). The
+210.7 / 275.0 ms (184 / 197 KB of RAM); without the 64 KB counting table (swar): 274.5 / 364.6 ms (79 / 81 KB); the
+32-32-128 figures over 3 seeds. Flash is the number to report (a real deployment keeps the weights there); RAM is 7 %
+faster. Step by step (`tools/dev/fine_profile.py --plain`, seed 42), the steps with 11-21 KB of weights gain 10-11 % in
+RAM and those with 2-6 KB 5-7 %: the large layers pay the flash cache, as in `../cnn_cifar_resnet8`, but even the
+smallest pay about 5 %, which the size of the cache alone does not explain (perhaps the code sharing the same cache;
+not measured). The
 INT8 detector does not fit: its arena overflows the chip's RAM by 97 KB (original shape); for 32-32-128, by 87.9 KB
 even with the arena cut to the 223 KB it needs (94.9 KB with the default 230 KB; `fomo_tflite.py --arena-kb 223`).
 
