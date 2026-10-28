@@ -151,3 +151,55 @@ def test_precision_recall_and_f1_formula(fomo):
     s = fomo.f1_score([grid((0, 0), (5, 5), (11, 0)), grid()], centers, owner)
     assert (s["tp"], s["fp"], s["fn"]) == (2, 1, 1)
     assert (s["precision"], s["recall"], s["f1"]) == pytest.approx((200 / 3, 200 / 3, 200 / 3))
+
+
+# --- the validation split: split_indices() and held_out_centers() ---
+
+def test_split_is_a_partition(fomo):
+    tr, va = fomo.split_indices(100, 10)
+    assert len(va) == 10 and len(tr) == 90
+    assert set(tr).isdisjoint(va)
+    assert sorted(np.concatenate([tr, va])) == list(range(100))
+
+
+def test_split_is_fixed_whatever_the_training_seed(fomo):
+    import torch
+    torch.manual_seed(1)
+    a = fomo.split_indices(16551)
+    torch.manual_seed(2)
+    b = fomo.split_indices(16551)
+    assert np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1])
+
+
+def test_split_is_not_the_last_images(fomo):
+    """the case being fixed: the calibration set used to be the last 1,000 images (all of them from VOC 2012)"""
+    _, va = fomo.split_indices(16551)
+    assert len(va) == 1000
+    assert sorted(va) != list(range(15551, 16551))
+    assert (va < 5011).any()              # some come from VOC 2007 trainval (the first 5,011 images)
+
+
+def test_held_out_centers_reindexes_to_val(fomo):
+    centers = np.array([[10.0, 10.0], [20.0, 20.0], [30.0, 30.0], [40.0, 40.0]])
+    owner = np.array([0, 2, 4, 4])                       # persons in images 0, 2 and 4 (two in image 4)
+    c, o = fomo.held_out_centers(centers, owner, np.array([4, 2]))
+    assert c.tolist() == [[20.0, 20.0], [30.0, 30.0], [40.0, 40.0]]
+    assert o.tolist() == [1, 0, 0]                        # image 2 is val[1], image 4 is val[0]
+
+
+def test_held_out_centers_image_without_persons(fomo):
+    """a validation image without persons (and beyond the last owner) breaks nothing"""
+    c, o = fomo.held_out_centers(np.array([[10.0, 10.0]]), np.array([0]), np.array([3, 0]))
+    assert c.tolist() == [[10.0, 10.0]] and o.tolist() == [1]
+
+
+def test_held_out_centers_score_perfectly_on_their_own_grids(fomo):
+    """grids drawn from the returned centers, in val order, give F1 100 with f1_score"""
+    centers = np.array([[12.0, 20.0], [60.0, 44.0], [84.0, 76.0]])
+    owner = np.array([1, 3, 4])
+    val = np.array([4, 1, 3])
+    c, o = fomo.held_out_centers(centers, owner, val)
+    grids = np.zeros((len(val), fomo.GRID, fomo.GRID), np.uint8)
+    for (x, y), i in zip(c, o):
+        grids[i, int(y // fomo.CELL), int(x // fomo.CELL)] = 1
+    assert fomo.f1_score(grids, c, o)["f1"] == pytest.approx(100.0)

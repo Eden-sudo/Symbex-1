@@ -11,6 +11,8 @@ so the output is a 12 x 12 grid, one class per 8 x 8 pixel cell: "the center of 
     BoolFOMO(channels, blocks, levels)     the network (uint8 or [0, 1] images; output N x 2 x 12 x 12)
     RealFOMO(channels, blocks)             the same architecture in floating point (the reference)
     load(split)                            data/fomo_<split>.npz (fomo_data.py): images, grids, person centers
+    split_indices(n, n_val)                (train, validation) indices: one fixed random split (SPLIT_SEED)
+    held_out_centers(centers, owner, val)  the person centers of the validation images, re-indexed to them
     detections(grid)                       the person centers a grid of classes predicts (connected cells)
     f1_score(grids, centers, owner)        precision, recall and F1 against the true centers
 """
@@ -39,6 +41,7 @@ BinaryConv, Block, sign, thermometer = _r8.BinaryConv, _r8.Block, _r8.sign, _r8.
 CELL, GRID, SIZE = 8, 12, 96
 STRIDES = (1, 2, 2)                       # after the stride-2 stem: 48 -> 48 -> 24 -> 12
 MATCH_DISTANCE = 1.5 * CELL               # a detection matches a person whose center is within 12 pixels
+SPLIT_SEED = 42                           # one validation split for every model and seed (as [data] split_seed in the CDT)
 
 
 class RealBlock(nn.Module):
@@ -102,6 +105,24 @@ class BoolFOMO(nn.Module):
 def load(split):
     d = np.load(os.path.join(HERE, "data", f"fomo_{split}.npz"))
     return d["x"], d["y"], d["centers"], d["image_of_center"]
+
+
+def split_indices(n, n_val=1000):
+    """(train, validation) indices of the n training images: random_split with its own generator seeded with
+    SPLIT_SEED, as ../../mlp/mlp_fashion/model.py splits Fashion-MNIST. Fixed: the same for every training seed and for
+    both columns (binary and INT8), whatever torch.manual_seed was set to."""
+    from torch.utils.data import random_split
+    train, val = random_split(range(n), [n - n_val, n_val], generator=torch.Generator().manual_seed(SPLIT_SEED))
+    return np.array(train.indices), np.array(val.indices)
+
+
+def held_out_centers(centers, owner, val):
+    """the person centers of the images `val` (indices into the training set), with their owner re-indexed to the
+    position inside `val`: what f1_score expects for the grids of x[val]"""
+    pos = np.full(max(int(owner.max()) + 1 if len(owner) else 0, int(val.max()) + 1), -1)
+    pos[val] = np.arange(len(val))
+    keep = pos[owner] >= 0
+    return centers[keep], pos[owner[keep]]
 
 
 def detections(grid):

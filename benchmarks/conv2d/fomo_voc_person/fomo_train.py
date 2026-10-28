@@ -10,7 +10,8 @@ goes to the GPU once (uint8, ~600 MB). Loss: cross-entropy per cell, the person 
 (only ~0.5% of the cells hold a person: without the weight, "nobody anywhere" is a 99.5%-accurate answer). Augmentation:
 horizontal flip of the image AND its grid. Every 10 epochs: precision, recall and F1 of the detected person centers on
 the 4,952 VOC 2007 test images (model.f1_score), with the default decision (the more likely class of every cell).
-At the end, the decision THRESHOLD is calibrated, fairly: --val training images are kept out of the training; on them,
+At the end, the decision THRESHOLD is calibrated, fairly: --val random training images are kept out of the training (one
+fixed split, model.SPLIT_SEED: the same for every seed and for fomo_tflite.py); on them,
 a range of thresholds on (person logit - background logit) is tried and the one with the best F1 is kept; the test F1
 is then measured with that fixed threshold (the test images never choose anything). On the chip the threshold is free:
 it only shifts the integer bias of the person class in the head. Saves runs/<name>/model.pth and train.json.
@@ -27,7 +28,7 @@ import torch.nn.functional as F
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from model import BoolFOMO, RealFOMO, f1_score, load                                                      # noqa: E402
+from model import SPLIT_SEED, BoolFOMO, RealFOMO, f1_score, held_out_centers, load, split_indices         # noqa: E402
 
 
 @torch.no_grad()
@@ -70,9 +71,11 @@ def main():
     ch = tuple(int(v) for v in args.channels.split("-"))
     bl = tuple(int(v) for v in args.blocks.split("-"))
     xtr, ytr, ctr, otr = load("train")
-    nv = args.val                                   # the LAST nv training images: the calibration set, never trained on
-    xva, cva, ova = xtr[-nv:], ctr[otr >= len(xtr) - nv], otr[otr >= len(xtr) - nv] - (len(xtr) - nv)
-    xtr, ytr = xtr[:-nv], ytr[:-nv]
+    nv = args.val                                   # nv random training images (fixed: SPLIT_SEED): the calibration set, never trained on
+    tr, va = split_indices(len(xtr), nv)
+    xva = xtr[va]
+    cva, ova = held_out_centers(ctr, otr, va)
+    xtr, ytr = xtr[tr], ytr[tr]
     xte, yte, cte, ote = load("test")
     xtr = torch.as_tensor(xtr, device=dev).permute(0, 3, 1, 2).contiguous()        # uint8 N x 3 x 96 x 96
     ytr = torch.as_tensor(ytr, device=dev).long()
@@ -118,7 +121,8 @@ def main():
     os.makedirs(out, exist_ok=True)
     torch.save(model.state_dict(), os.path.join(out, "model.pth"))
     json.dump(dict(fp32=args.fp32, channels=ch, blocks=bl, levels=args.levels, weight=args.weight, epochs=args.epochs, seed=args.seed,
-                   final=history[-1], threshold=th, calibrated_validation=sva, calibrated_test=ste, history=history),
+                   split_seed=SPLIT_SEED, val=nv, final=history[-1], threshold=th, calibrated_validation=sva,
+                   calibrated_test=ste, history=history),
               open(os.path.join(out, "train.json"), "w"), indent=1)
     print(f"[*] saved {out}/model.pth -- test F1 {ste['f1']:.1f}% with the calibrated threshold "
           f"({history[-1]['f1']:.1f}% with the default one)")
