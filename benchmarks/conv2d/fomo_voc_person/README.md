@@ -31,8 +31,14 @@ kept out of the training; on the chip the binary threshold costs nothing (it is 
 | RAM | **53 KB** | 223.3 KB (arena) | **51 KB** | 222.6 KB (arena) |
 | Same result as its PC reference | **100 %** | 90 % | **100 %** | 88 % |
 
-**On the classic ESP32** the binary detector runs in **296.2 ms** (original shape); the INT8 detector does not fit: its
-arena overflows the chip's RAM by 97 KB.
+**On the classic ESP32** (ESP32-D0WD-V3, 240 MHz, one core, no PSRAM) the resized binary detector runs in **226.3 ms**
+(32-32-128, 3 seeds: 226.31-226.35 ms; lut16 counting, weights in flash, 143 KB of RAM), every seed 100 % equal to its
+simulation on 1,000 test images; the original shape, in **296.2 ms** with the same setting. With the weights in RAM:
+210.7 / 275.0 ms (184 / 197 KB of RAM); without the 64 KB counting table (swar): 274.5 / 364.6 ms (79 / 81 KB). Flash is
+the number to report (a real deployment keeps the weights there); RAM is 7 % faster, probably because the weights (41-52
+KB) are more than the flash cache keeps, as measured in `../cnn_cifar_resnet8` (a hypothesis here, not checked). The
+INT8 detector does not fit: its arena overflows the chip's RAM by 97 KB (original shape); for 32-32-128, by 87.9 KB
+even with the arena cut to the 223 KB it needs (94.9 KB with the default 230 KB; `fomo_tflite.py --arena-kb 223`).
 
 The resized shape is reported over 3 training seeds on both sides (42, 43, 44); the original shape, one seed. The
 floating-point version of the same network reaches 32.0 % F1: **binarization costs about one point here**, and the
@@ -93,6 +99,9 @@ python fomo_data.py                                          # Pascal VOC -> dat
 python fomo_train.py --channels 32-32-128 --blocks 1-2-2 --weight 40 --epochs 100
 python fomo_export.py runs/c32-32-128_b1-2-2_w40_e100_s42    # integers, header, C check (100 %)
 python ../../../tools/dev/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --board s3 --port /dev/ttyUSB0 --plain
+python fomo_symbex.py --channels 32-32-128 --seeds 3 --board esp32 --port /dev/ttyUSB0                   # train (if needed) + export + chip
+python fomo_symbex.py --channels 32-32-128 --seeds 1 --board esp32 --port /dev/ttyUSB0 --weights ram
+python fomo_symbex.py --channels 32-32-128 --seeds 1 --board esp32 --port /dev/ttyUSB0 --popcount swar
 python fomo_tflite.py --channels 32-32-128 --blocks 1-2-2 --board s3 --port /dev/ttyUSB0
 python fomo_train.py --fp32 --channels 32-64-128 --blocks 1-2-2    # the floating-point reference
 python fomo_sizing.py --phase depth ; python fomo_sizing.py --phase width
@@ -104,6 +113,7 @@ python fomo_sizing.py --phase depth ; python fomo_sizing.py --phase width
 | `model.py` | the binary detector (the binary pieces of `../cnn_cifar_resnet8/model.py`), its float version, the F1 score |
 | `fomo_train.py` | trains a detector (binary or `--fp32`) and calibrates its threshold |
 | `fomo_export.py` | the binary detector into lib_symbex through the CDT exporter, checked against the simulation |
+| `fomo_symbex.py` | train + export + measure on the board, per seed; summary in `results/symbex_seeds_<board>_<popcount>[_ram]_<name>.json` |
 | `fomo_tflite.py` | the same architecture in Keras → INT8 → TFLite Micro on the boards |
 | `fomo_sizing.py` | the sizing study |
 
