@@ -102,7 +102,7 @@ static uint32_t win[2 * RW] __attribute__((aligned(16)));
 static int32_t scr[C_OUT];
 
 int main(void) {
-    const struct SymbexBool1D L = {C_IN, C_OUT, K_S, 1, 1, L_IN, L_OUT, RW, w, thr, cnt};
+    const struct SymbexBool1D L = {C_IN, C_OUT, K_S, 1, 1, L_IN, L_OUT, RW, w, thr, cnt, NULL};
     unsigned long cycles = 0, instr = 0;
     symbex_bool_force_mode = FORM;
     pi_perf_conf((1 << PI_PERF_CYCLES) | (1 << PI_PERF_INSTR));

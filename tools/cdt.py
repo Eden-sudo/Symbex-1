@@ -332,8 +332,8 @@ def load_model(cfg):
 
 def load_data(cfg):
     """Returns (train, validation, test) datasets. Validation drives every selection (search, checkpoint);
-    test is touched once, for the final report. Formats without a separate test set (npy, imagefolder
-    without a test/ folder) return test=None and the final report falls back to validation."""
+    test is touched once, for the final report. Formats without a separate test set (npy without test.npy,
+    imagefolder without a test/ folder) return test=None and the final report falls back to validation."""
     import numpy as np
     import torch
     from torch.utils.data import TensorDataset, random_split
@@ -374,11 +374,20 @@ def load_data(cfg):
             x = x.permute(0, 3, 1, 2).contiguous()           # NHWC -> NCHW
         x = normalize(x)
         y = torch.from_numpy(y)
-        rv = os.path.join(folder, "val.npy")
+        # optional masks over the whole array (True = that sample): test.npy is held out (evaluated once, at the
+        # end); val.npy is the validation set, else validation_split of what is left
+        rv, rt = os.path.join(folder, "val.npy"), os.path.join(folder, "test.npy")
+        held = torch.from_numpy(np.load(rt).astype(bool)) if os.path.exists(rt) else torch.zeros(len(y), dtype=torch.bool)
+        if len(held) != len(y):
+            sys.exit(f"[X] test.npy has {len(held)} entries and y.npy {len(y)}")
+        test = TensorDataset(x[held], y[held]) if held.any() else None
         if os.path.exists(rv):
             val = torch.from_numpy(np.load(rv).astype(bool))
-            return TensorDataset(x[~val], y[~val]), TensorDataset(x[val], y[val]), None
-        return split(TensorDataset(x, y)) + (None,)
+            if len(val) != len(y) or (val & held).any():
+                sys.exit("[X] val.npy must have one entry per sample and share none with test.npy")
+            keep = ~val & ~held
+            return TensorDataset(x[keep], y[keep]), TensorDataset(x[val], y[val]), test
+        return split(TensorDataset(x[~held], y[~held])) + (test,)
 
     import torchvision
     import torchvision.transforms as T
