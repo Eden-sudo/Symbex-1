@@ -46,7 +46,7 @@ def train_teacher(teacher, trainloader, testloader, epochs=150, lr=5e-3, device=
             loss.backward()
             optimizer.step()
         if verbose and (epoch + 1) % max(1, epochs // 10) == 0:
-            print(f"  [teacher] Epoch [{epoch + 1:03d}/{epochs}] | Test: {evaluate(teacher, testloader, device):5.2f}%")
+            print(f"  [teacher] Epoch [{epoch + 1:03d}/{epochs}] | Val: {evaluate(teacher, testloader, device):5.2f}%")
 
     acc = evaluate(teacher, testloader, device)
     return teacher.eval(), acc
@@ -119,7 +119,7 @@ def distill_student(student, teacher, trainloader, testloader, epochs=300, lr=1e
         history.append((epoch, loss_sum / len(trainloader), acc_train, acc_test))
         if verbose:
             print(f"  [student] Epoch [{epoch + 1:03d}/{epochs}] | Loss: {loss_sum / len(trainloader):.4f} | "
-                  f"Train: {acc_train:5.2f}% | Test: {acc_test:5.2f}% | {time.time() - t0:.1f}s")
+                  f"Train: {acc_train:5.2f}% | Val: {acc_test:5.2f}% | {time.time() - t0:.1f}s")
         ckpt.after_epoch(student, epoch, epochs, acc_test)
 
     return _summary(history, average_last)
