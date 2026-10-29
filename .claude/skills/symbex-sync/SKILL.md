@@ -21,8 +21,8 @@ Find out whose agent you are from `gh api user --jq .login` and work on that per
 1. `git fetch origin` and read `docs/roadmap.md` on `origin/master`.
 2. Read the status thread: the open issue titled **Team sync** in `Eden-sudo/Symbex-1`.
    ```
-   gh issue list -R Eden-sudo/Symbex-1 --search "Team sync in:title" --state open
-   gh issue view <number> -R Eden-sudo/Symbex-1 --comments
+   SYNC=$(gh issue list -R Eden-sudo/Symbex-1 --state open --json number,title --jq '.[] | select(.title == "Team sync") | .number')
+   gh issue view "$SYNC" -R Eden-sudo/Symbex-1 --comments
    ```
    Read at least the last update of each person. If the issue does not exist, tell your human and do not create it
    yourself.
