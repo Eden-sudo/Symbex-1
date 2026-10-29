@@ -22,6 +22,9 @@
 
 #include "probe_config.h"
 #include "onebit_gemv.h"
+#include "hal/symbex_hal.h"
+#include "layers/dense/symbex_dense.h"
+#include "ops/symbex_and.h"           /* symbex_and_input_u8: the first layer of the exported SYMBEX MLPs */   /* lib_symbex: the first-layer kernels a SYMBEX model runs, through this chip's HAL */
 
 #if !defined(PROBE_CAMERA_NONE)
 #include <esp_camera.h>
@@ -376,6 +379,7 @@ static void print_info() {
     Serial.printf("INFO,heap_internal_free,%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     Serial.printf("INFO,heap_internal_largest,%u\n", (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
     Serial.printf("INFO,psram_size,%u\n", (unsigned)ESP.getPsramSize());
+    Serial.printf("INFO,symbex_hal,%s\n", symbex_hal_name());   /* the lib_symbex HAL behind the symbex_* kernels */
     Serial.printf("INFO,psram_free,%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     Serial.printf("INFO,flash_size,%u\n", (unsigned)ESP.getFlashChipSize());
     Serial.printf("INFO,flash_speed_hz,%u\n", (unsigned)ESP.getFlashChipSpeed());
@@ -553,6 +557,136 @@ static void kern_report(const char* kernel, const char* mem, int m, int n, uint3
     Serial.printf("KERN,%s,%s,%d,%d,%.3f,%.1f,%s\n", kernel, mem, m, n, cpw, us, ok ? "OK" : "FAIL");
 }
 
+/* ---- lib_symbex's own first-layer kernels (uint8 inputs x 1-bit weights), through this chip's HAL ---- */
+
+/* the uint8 reference of lib_symbex's convention: raw = 2 * sum(u where bit = 1) - sum(u), bit 1 = weight +1, rows of
+   ceil(n / 32) words, bit i of word i / 32 = input i (the probe's packing when n is a multiple of 32) */
+static void u8_reference(const uint32_t* w, int rw, const uint8_t* u, int32_t* raw, int m, int n) {
+    for (int r = 0; r < m; r++) {
+        int32_t pos = 0, sum = 0;
+        for (int i = 0; i < n; i++) {
+            sum += u[i];
+            if ((w[(size_t)r * rw + i / 32] >> (i % 32)) & 1u) pos += u[i];
+        }
+        raw[r] = 2 * pos - sum;
+    }
+}
+
+static bool bits_match(const uint32_t* bits, const int32_t* raw, const int32_t* thr, int m) {
+    for (int r = 0; r < m; r++)
+        if ((int)((bits[r / 32] >> (r % 32)) & 1u) != (int)(raw[r] >= thr[r])) return false;
+    return true;
+}
+
+/* symbex_dense_input_u8_mask (int32 raw scores) and symbex_dense_input_u8_planes_bits with k = 4 and 8 (bits after a
+   threshold; the k bit planes of the input are built inside each call). Every result is checked on the chip against
+   u8_reference; mask also against the probe's gemv_ref (u = x8 + 128: raw_u8 = raw_int8 + 128 * rowsum). */
+static void symbex_kernels_at(const char* mem, const uint32_t* w, int m, int n, KernelInputs* in, const int32_t* rowsum,
+                              const int32_t* y_ref, int32_t* y) {
+    const bool cold = strcmp(mem, "sram") != 0;
+    const int rw = (n + 31) / 32;
+    uint8_t* u = (uint8_t*)alloc_internal(n);
+    uint8_t* uq = (uint8_t*)alloc_internal(n);
+    int32_t* ref = (int32_t*)alloc_internal((size_t)m * sizeof(int32_t));
+    int32_t* thr = (int32_t*)alloc_internal((size_t)m * sizeof(int32_t));
+    uint32_t* planes = (uint32_t*)alloc_internal((size_t)8 * rw * sizeof(uint32_t));
+    uint32_t* bits = (uint32_t*)alloc_internal((size_t)((m + 31) / 32) * sizeof(uint32_t));
+    if (!u || !uq || !ref || !thr || !planes || !bits) {
+        Serial.printf("# skip symbex kernels %dx%d in %s: no SRAM for their buffers\n", m, n, mem);
+    } else {
+        const struct SymbexLayerData layer = {(uint16_t)n, (uint16_t)m, 1, w};
+        for (int i = 0; i < n; i++) u[i] = (uint8_t)((int)in->x8[i] + 128);
+        u8_reference(w, rw, u, ref, m, n);
+        bool ok = true;
+        if (y_ref && rowsum)
+            for (int r = 0; r < m; r++) ok = ok && ref[r] == y_ref[r] + 128 * rowsum[r];
+        const uint32_t c_mask = best_cycles(cold, [&]() { symbex_dense_input_u8_mask(u, y, &layer); });
+        kern_report("symbex_u8_mask", mem, m, n, c_mask, ok && memcmp(y, ref, (size_t)m * sizeof(int32_t)) == 0);
+        /* the call the exported MLP headers make (AND arithmetic): the HAL prepares the input once, then counts every
+           row; on the S3 with PIE when rows are a multiple of 4 words and the buffers 16-byte aligned, else in C */
+        if (rw % 4 == 0) {
+            uint8_t* work = (uint8_t*)heap_caps_aligned_alloc(16, (size_t)rw * 32, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+            /* the exporter aligns its weights to 16 bytes; a PSRAM block from the probe's allocator may not be: an
+               aligned copy in the same memory, so the HAL takes its PIE path as it would in a real model */
+            const uint32_t* wa = w;
+            uint32_t* copy = nullptr;
+            if (((uintptr_t)w & 15u) != 0 && strcmp(mem, "psram") == 0) {
+                copy = (uint32_t*)heap_caps_aligned_alloc(16, (size_t)m * rw * 4, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                if (copy) {
+                    memcpy(copy, w, (size_t)m * rw * 4);
+                    wa = copy;
+                }
+            }
+            if (work) {
+                Serial.printf("# symbex_and_input_u8 %s %dx%d: weights %s16-byte aligned%s\n", mem, m, n,
+                              ((uintptr_t)wa & 15u) == 0 ? "" : "NOT ", copy ? " (aligned copy)" : "");
+                const uint32_t c_and = best_cycles(cold, [&]() {
+                    symbex_and_input_u8(u, (uint16_t)n, wa, (uint16_t)rw, (uint16_t)m, work, y); });
+                kern_report("symbex_and_input_u8", mem, m, n, c_and, memcmp(y, ref, (size_t)m * sizeof(int32_t)) == 0);
+                heap_caps_free(work);
+            }
+            heap_caps_free(copy);
+        }
+        for (int k = 4; k <= 8; k += 4) {
+            const uint8_t top = (uint8_t)(0xFFu << (8 - k));
+            for (int i = 0; i < n; i++) uq[i] = u[i] & top;
+            u8_reference(w, rw, uq, ref, m, n);
+            for (int r = 0; r < m; r++) thr[r] = ref[(r * 7 + 3) % m];   /* thresholds from the scores: both bit values */
+            const uint32_t c = best_cycles(cold, [&]() { symbex_dense_input_u8_planes_bits(u, (uint8_t)k, planes, thr, bits, &layer); });
+            kern_report(k == 4 ? "symbex_u8_planes_bits_k4" : "symbex_u8_planes_bits_k8", mem, m, n, c,
+                        bits_match(bits, ref, thr, m));
+        }
+    }
+    free(u);
+    free(uq);
+    free(ref);
+    free(thr);
+    free(planes);
+    free(bits);
+}
+
+/* the mlp_fashion first layer (784 x 128, weights in SRAM): cross-checks lib_symbex's 0.270 ms there. 784 is not a
+   multiple of 32, so only the lib_symbex kernels run (the probe's kernels need N % 32 == 0) */
+static void symbex_mlp_fashion_layer() {
+    const int m = 128, n = 784, rw = (n + 31) / 32;
+    uint32_t* w = (uint32_t*)alloc_internal((size_t)m * rw * sizeof(uint32_t));
+    const int stride = (rw + 3) / 4 * 4;                        /* 28 words: the mlp_fashion export's row stride */
+    uint32_t* w4 = (uint32_t*)heap_caps_aligned_alloc(16, (size_t)m * stride * 4, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    uint8_t* work = (uint8_t*)heap_caps_aligned_alloc(16, (size_t)stride * 32, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    int32_t* y = (int32_t*)alloc_internal((size_t)m * sizeof(int32_t));
+    KernelInputs in;
+    if (!w || !y || !inputs_alloc(&in, n)) {
+        Serial.println("# skip symbex 128x784 in sram: no SRAM");
+    } else {
+        fill_pattern(w, (size_t)m * rw, PAYLOAD_SEED);
+        inputs_fill(&in);
+        symbex_kernels_at("sram", w, m, n, &in, nullptr, nullptr, y);
+        if (w4 && work) {
+            memset(w4, 0, (size_t)m * stride * 4);
+            for (int r = 0; r < m; r++) {
+                memcpy(w4 + (size_t)r * stride, w + (size_t)r * rw, (size_t)rw * 4);
+                w4[(size_t)r * stride + rw - 1] &= (1u << (n % 32)) - 1u;   /* padding bits 0, as exported */
+            }
+            uint8_t* u = (uint8_t*)alloc_internal(n);
+            int32_t* ref = (int32_t*)alloc_internal((size_t)m * sizeof(int32_t));
+            if (u && ref) {
+                for (int i = 0; i < n; i++) u[i] = (uint8_t)((int)in.x8[i] + 128);
+                u8_reference(w4, stride, u, ref, m, n);
+                const uint32_t c_and = best_cycles(false, [&]() {
+                    symbex_and_input_u8(u, (uint16_t)n, w4, (uint16_t)stride, (uint16_t)m, work, y); });
+                kern_report("symbex_and_input_u8", "sram", m, n, c_and, memcmp(y, ref, (size_t)m * sizeof(int32_t)) == 0);
+            }
+            free(u);
+            free(ref);
+        }
+        inputs_free(&in);
+    }
+    heap_caps_free(w4);
+    heap_caps_free(work);
+    free(w);
+    free(y);
+}
+
 /* all kernels for one weight matrix at one location */
 static void kernels_at(const char* mem, const uint32_t* w, int m, int n, KernelInputs* in, const int32_t* rowsum,
                        int32_t* y, int32_t* y_mask, int32_t* y_ref, int32_t* y_ref4, int32_t* y_ref1) {
@@ -594,6 +728,8 @@ static void kernels_at(const char* mem, const uint32_t* w, int m, int n, KernelI
     xnor_pack(in->x1, n, in->xbits);
     const uint32_t c_xnor = best_cycles(cold, [&]() { gemv_xnor(w, in->xbits, y, m, n); });
     kern_report("xnor", mem, m, n, c_xnor, memcmp(y, y_ref1, yb) == 0);
+
+    symbex_kernels_at(mem, w, m, n, in, rowsum, y_ref, y);
 }
 
 static void kernels_for_shape(int m, int n) {
@@ -656,6 +792,7 @@ static void kernel_benchmark() {
                    "cache); *_build / *_pack are per input vector, amortised over M rows");
     static const int SHAPES[][2] = {{256, 1024}, {1024, 1024}, {2048, 2048}};
     for (const auto& shape : SHAPES) kernels_for_shape(shape[0], shape[1]);
+    symbex_mlp_fashion_layer();
 }
 
 /* ============================================================================================================ */

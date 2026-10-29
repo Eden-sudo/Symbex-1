@@ -1,0 +1,1290 @@
+{
+  "schema": 1,
+  "generated": "20261028_174235",
+  "measurements": {
+    "info": {
+      "probe_version": "1",
+      "board": "ESP32-S3_16MB_flash_7MB_psram",
+      "pio_board": "Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)",
+      "build": "Oct 28 2026_17:42:20",
+      "sdk": "v4.4.7-dirty",
+      "chip": "ESP32-S3",
+      "chip_revision": "0",
+      "cores": "2",
+      "cpu_mhz": "240",
+      "phase_seconds": "20",
+      "heap_internal_free": "359648",
+      "heap_internal_largest": "319476",
+      "psram_size": "8386295",
+      "symbex_hal": "esp32s3: PIE pie_swar (AND / XOR layers) + SWAR (single words, XNOR layers)",
+      "psram_free": "8386295",
+      "flash_size": "16777216",
+      "flash_speed_hz": "80000000",
+      "flash_probe": "ok_1088_KB",
+      "sd": "none",
+      "camera": "skipped"
+    },
+    "bw": [
+      {
+        "tier": "sram_16KB",
+        "test": "read32_seq",
+        "bytes": 4194304,
+        "mbps_best": 422.39,
+        "mbps_median": 422.13
+      },
+      {
+        "tier": "sram_16KB",
+        "test": "memcpy_to_sram",
+        "bytes": 4194304,
+        "mbps_best": 379.3,
+        "mbps_median": 379.3
+      },
+      {
+        "tier": "sram_128KB",
+        "test": "read32_seq",
+        "bytes": 4194304,
+        "mbps_best": 423.8,
+        "mbps_median": 423.54
+      },
+      {
+        "tier": "sram_128KB",
+        "test": "memcpy_to_sram",
+        "bytes": 4194304,
+        "mbps_best": 379.64,
+        "mbps_median": 379.64
+      },
+      {
+        "tier": "psram_16KB",
+        "test": "read32_seq",
+        "bytes": 4194304,
+        "mbps_best": 422.13,
+        "mbps_median": 422.13
+      },
+      {
+        "tier": "psram_16KB",
+        "test": "memcpy_to_sram",
+        "bytes": 4194304,
+        "mbps_best": 379.33,
+        "mbps_median": 379.33
+      },
+      {
+        "tier": "psram_1MB",
+        "test": "read32_seq",
+        "bytes": 4194304,
+        "mbps_best": 61.84,
+        "mbps_median": 61.84
+      },
+      {
+        "tier": "psram_1MB",
+        "test": "memcpy_to_sram",
+        "bytes": 4194304,
+        "mbps_best": 60.36,
+        "mbps_median": 60.36
+      },
+      {
+        "tier": "psram_4MB",
+        "test": "read32_seq",
+        "bytes": 4194304,
+        "mbps_best": 61.84,
+        "mbps_median": 61.84
+      },
+      {
+        "tier": "psram_4MB",
+        "test": "memcpy_to_sram",
+        "bytes": 4194304,
+        "mbps_best": 60.37,
+        "mbps_median": 60.36
+      },
+      {
+        "tier": "flash_mmap_1MB",
+        "test": "read32_seq",
+        "bytes": 4194304,
+        "mbps_best": 26.46,
+        "mbps_median": 26.46
+      },
+      {
+        "tier": "flash_mmap_1MB",
+        "test": "memcpy_to_sram",
+        "bytes": 4194304,
+        "mbps_best": 26.45,
+        "mbps_median": 26.45
+      }
+    ],
+    "kern": [
+      {
+        "kernel": "ref",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 16.12,
+        "us_per_call": 17607.2,
+        "ok": true
+      },
+      {
+        "kernel": "mask",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 10.44,
+        "us_per_call": 11403.2,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_build",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 0.298,
+        "us_per_call": 325.4,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_lookup",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 1.59,
+        "us_per_call": 1736.2,
+        "ok": true
+      },
+      {
+        "kernel": "lut4",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 1.887,
+        "us_per_call": 2061.6,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_2core_lookup",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 0.815,
+        "us_per_call": 890.7,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4_pack",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 0.22,
+        "us_per_call": 240.3,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 2.673,
+        "us_per_call": 2919.2,
+        "ok": true
+      },
+      {
+        "kernel": "xnor",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 0.681,
+        "us_per_call": 743.9,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_mask",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 4.089,
+        "us_per_call": 4466.5,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_and_input_u8",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 0.483,
+        "us_per_call": 527.5,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k4",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 3.691,
+        "us_per_call": 4031.3,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k8",
+        "mem": "sram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 7.048,
+        "us_per_call": 7698.0,
+        "ok": true
+      },
+      {
+        "kernel": "ref",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 16.437,
+        "us_per_call": 17953.3,
+        "ok": true
+      },
+      {
+        "kernel": "mask",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 10.759,
+        "us_per_call": 11751.3,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_build",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 0.298,
+        "us_per_call": 325.4,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_lookup",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 1.91,
+        "us_per_call": 2086.1,
+        "ok": true
+      },
+      {
+        "kernel": "lut4",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 2.208,
+        "us_per_call": 2411.5,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_2core_lookup",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 0.976,
+        "us_per_call": 1065.7,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4_pack",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 0.22,
+        "us_per_call": 240.3,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 2.995,
+        "us_per_call": 3271.5,
+        "ok": true
+      },
+      {
+        "kernel": "xnor",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 0.999,
+        "us_per_call": 1091.3,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_mask",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 4.413,
+        "us_per_call": 4820.5,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_and_input_u8",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 0.809,
+        "us_per_call": 883.7,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k4",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 4.01,
+        "us_per_call": 4380.0,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k8",
+        "mem": "psram",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 7.37,
+        "us_per_call": 8049.6,
+        "ok": true
+      },
+      {
+        "kernel": "ref",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 16.565,
+        "us_per_call": 18093.2,
+        "ok": true
+      },
+      {
+        "kernel": "mask",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 10.894,
+        "us_per_call": 11898.7,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_build",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 0.298,
+        "us_per_call": 325.4,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_lookup",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 2.04,
+        "us_per_call": 2228.2,
+        "ok": true
+      },
+      {
+        "kernel": "lut4",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 2.338,
+        "us_per_call": 2553.6,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_2core_lookup",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 1.121,
+        "us_per_call": 1224.6,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4_pack",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 0.22,
+        "us_per_call": 240.3,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 3.124,
+        "us_per_call": 3412.3,
+        "ok": true
+      },
+      {
+        "kernel": "xnor",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 1.215,
+        "us_per_call": 1326.6,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_mask",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 4.544,
+        "us_per_call": 4963.1,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_and_input_u8",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 1.277,
+        "us_per_call": 1395.2,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k4",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 4.136,
+        "us_per_call": 4517.3,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k8",
+        "mem": "flash",
+        "m": 256,
+        "n": 1024,
+        "cycles_per_weight": 7.498,
+        "us_per_call": 8189.7,
+        "ok": true
+      },
+      {
+        "kernel": "ref",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 16.119,
+        "us_per_call": 70423.2,
+        "ok": true
+      },
+      {
+        "kernel": "mask",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 10.43,
+        "us_per_call": 45567.3,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_build",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 0.074,
+        "us_per_call": 325.4,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_lookup",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 1.594,
+        "us_per_call": 6963.0,
+        "ok": true
+      },
+      {
+        "kernel": "lut4",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 1.668,
+        "us_per_call": 7288.4,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_2core_lookup",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 0.8,
+        "us_per_call": 3493.7,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4_pack",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 0.055,
+        "us_per_call": 240.3,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 2.678,
+        "us_per_call": 11702.0,
+        "ok": true
+      },
+      {
+        "kernel": "xnor",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 0.679,
+        "us_per_call": 2968.3,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_mask",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 4.083,
+        "us_per_call": 17839.6,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_and_input_u8",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 0.42,
+        "us_per_call": 1833.9,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k4",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 3.505,
+        "us_per_call": 15314.8,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k8",
+        "mem": "sram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 6.723,
+        "us_per_call": 29374.2,
+        "ok": true
+      },
+      {
+        "kernel": "ref",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 16.436,
+        "us_per_call": 71810.7,
+        "ok": true
+      },
+      {
+        "kernel": "mask",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 10.752,
+        "us_per_call": 46974.2,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_build",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 0.074,
+        "us_per_call": 325.4,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_lookup",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 1.908,
+        "us_per_call": 8338.2,
+        "ok": true
+      },
+      {
+        "kernel": "lut4",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 1.983,
+        "us_per_call": 8663.6,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_2core_lookup",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 0.96,
+        "us_per_call": 4196.5,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4_pack",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 0.055,
+        "us_per_call": 240.3,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 2.997,
+        "us_per_call": 13096.0,
+        "ok": true
+      },
+      {
+        "kernel": "xnor",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 0.998,
+        "us_per_call": 4359.0,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_mask",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 4.401,
+        "us_per_call": 19229.7,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_and_input_u8",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 0.741,
+        "us_per_call": 3237.0,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k4",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 3.822,
+        "us_per_call": 16698.6,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k8",
+        "mem": "psram",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 7.041,
+        "us_per_call": 30763.7,
+        "ok": true
+      },
+      {
+        "kernel": "ref",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 16.566,
+        "us_per_call": 72377.8,
+        "ok": true
+      },
+      {
+        "kernel": "mask",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 10.88,
+        "us_per_call": 47535.5,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_build",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 0.075,
+        "us_per_call": 325.6,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_lookup",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 2.042,
+        "us_per_call": 8921.3,
+        "ok": true
+      },
+      {
+        "kernel": "lut4",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 2.116,
+        "us_per_call": 9246.9,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_2core_lookup",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 1.111,
+        "us_per_call": 4855.3,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4_pack",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 0.055,
+        "us_per_call": 240.3,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 3.126,
+        "us_per_call": 13657.2,
+        "ok": true
+      },
+      {
+        "kernel": "xnor",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 1.21,
+        "us_per_call": 5286.8,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_mask",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 4.533,
+        "us_per_call": 19806.7,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_and_input_u8",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 1.213,
+        "us_per_call": 5298.4,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k4",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 3.952,
+        "us_per_call": 17268.5,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k8",
+        "mem": "flash",
+        "m": 1024,
+        "n": 1024,
+        "cycles_per_weight": 7.171,
+        "us_per_call": 31332.0,
+        "ok": true
+      },
+      {
+        "kernel": "ref",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 16.429,
+        "us_per_call": 287116.0,
+        "ok": true
+      },
+      {
+        "kernel": "mask",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 10.744,
+        "us_per_call": 187758.9,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_build",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 0.037,
+        "us_per_call": 650.9,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_lookup",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 1.899,
+        "us_per_call": 33185.9,
+        "ok": true
+      },
+      {
+        "kernel": "lut4",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 1.936,
+        "us_per_call": 33836.8,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_2core_lookup",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 0.956,
+        "us_per_call": 16699.9,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4_pack",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 0.027,
+        "us_per_call": 480.3,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 2.98,
+        "us_per_call": 52071.9,
+        "ok": true
+      },
+      {
+        "kernel": "xnor",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 0.989,
+        "us_per_call": 17287.3,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_mask",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 4.382,
+        "us_per_call": 76576.2,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_and_input_u8",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 0.719,
+        "us_per_call": 12560.7,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k4",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 3.753,
+        "us_per_call": 65580.8,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k8",
+        "mem": "psram",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 6.937,
+        "us_per_call": 121236.3,
+        "ok": true
+      },
+      {
+        "kernel": "ref",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 16.559,
+        "us_per_call": 289381.2,
+        "ok": true
+      },
+      {
+        "kernel": "mask",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 10.873,
+        "us_per_call": 190015.8,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_build",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 0.037,
+        "us_per_call": 650.9,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_lookup",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 2.03,
+        "us_per_call": 35474.0,
+        "ok": true
+      },
+      {
+        "kernel": "lut4",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 2.067,
+        "us_per_call": 36124.9,
+        "ok": true
+      },
+      {
+        "kernel": "lut4_2core_lookup",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 1.111,
+        "us_per_call": 19422.7,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4_pack",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 0.027,
+        "us_per_call": 480.3,
+        "ok": true
+      },
+      {
+        "kernel": "bitserial4",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 3.109,
+        "us_per_call": 54334.8,
+        "ok": true
+      },
+      {
+        "kernel": "xnor",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 1.202,
+        "us_per_call": 21001.2,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_mask",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 4.513,
+        "us_per_call": 78869.8,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_and_input_u8",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 1.191,
+        "us_per_call": 20809.3,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k4",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 3.882,
+        "us_per_call": 67847.5,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k8",
+        "mem": "flash",
+        "m": 2048,
+        "n": 2048,
+        "cycles_per_weight": 7.067,
+        "us_per_call": 123500.5,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_mask",
+        "mem": "sram",
+        "m": 128,
+        "n": 784,
+        "cycles_per_weight": 4.285,
+        "us_per_call": 1791.9,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k4",
+        "mem": "sram",
+        "m": 128,
+        "n": 784,
+        "cycles_per_weight": 4.022,
+        "us_per_call": 1681.7,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_u8_planes_bits_k8",
+        "mem": "sram",
+        "m": 128,
+        "n": 784,
+        "cycles_per_weight": 7.65,
+        "us_per_call": 3198.7,
+        "ok": true
+      },
+      {
+        "kernel": "symbex_and_input_u8",
+        "mem": "sram",
+        "m": 128,
+        "n": 784,
+        "cycles_per_weight": 0.632,
+        "us_per_call": 264.1,
+        "ok": true
+      }
+    ],
+    "cam": null,
+    "phases": [
+      {
+        "number": 1,
+        "name": "idle",
+        "iterations": 2001
+      },
+      {
+        "number": 2,
+        "name": "sram-read",
+        "iterations": 127784
+      },
+      {
+        "number": 3,
+        "name": "psram-read",
+        "iterations": 1180
+      },
+      {
+        "number": 4,
+        "name": "flash-read",
+        "iterations": 505
+      },
+      {
+        "number": 6,
+        "name": "lut4-gemv",
+        "iterations": 2307
+      },
+      {
+        "number": 7,
+        "name": "lut4-2core",
+        "iterations": 4407
+      },
+      {
+        "number": 8,
+        "name": "mask-gemv",
+        "iterations": 426
+      }
+    ],
+    "boots_in_log": 1
+  },
+  "meter_watts": {},
+  "projection": {
+    "label": "PROJECTION, not a measurement",
+    "assumptions": {
+      "sram_usable_kb": 300,
+      "psram_reserve_mb": 1.0,
+      "flash_reserved_mb": 3.0,
+      "models": [
+        {
+          "name": "15M",
+          "params": 15000000.0,
+          "d_model": 384,
+          "layers": 8
+        },
+        {
+          "name": "30M",
+          "params": 30000000.0,
+          "d_model": 512,
+          "layers": 9
+        },
+        {
+          "name": "110M",
+          "params": 110000000.0,
+          "d_model": 768,
+          "layers": 15
+        },
+        {
+          "name": "200M",
+          "params": 200000000.0,
+          "d_model": 1024,
+          "layers": 16
+        }
+      ]
+    },
+    "rows": [
+      {
+        "model": "15M",
+        "params": 15000000.0,
+        "d_model": 384,
+        "layers": 8,
+        "weight_bytes": 1875000.0,
+        "tier": "psram",
+        "bandwidth_mbps": 61.84,
+        "kernel": "lut4_2core_lookup",
+        "cycles_per_weight": 0.956,
+        "s_mem": 0.030320181112548514,
+        "s_cpu": 0.05975,
+        "s_per_token_optimistic": 0.05975,
+        "s_per_token_pessimistic": 0.09007018111254851,
+        "tok_s_optimistic": 16.736401673640167,
+        "tok_s_pessimistic": 11.102453527327045,
+        "mj_per_token_optimistic": null,
+        "mj_per_token_above_idle_optimistic": null,
+        "mj_per_token_pessimistic": null,
+        "mj_per_token_above_idle_pessimistic": null
+      },
+      {
+        "model": "15M",
+        "params": 15000000.0,
+        "d_model": 384,
+        "layers": 8,
+        "weight_bytes": 1875000.0,
+        "tier": "flash",
+        "bandwidth_mbps": 26.46,
+        "kernel": "lut4_2core_lookup",
+        "cycles_per_weight": 1.111,
+        "s_mem": 0.07086167800453515,
+        "s_cpu": 0.0694375,
+        "s_per_token_optimistic": 0.07086167800453515,
+        "s_per_token_pessimistic": 0.14029917800453515,
+        "tok_s_optimistic": 14.112,
+        "tok_s_pessimistic": 7.127625508737301,
+        "mj_per_token_optimistic": null,
+        "mj_per_token_above_idle_optimistic": null,
+        "mj_per_token_pessimistic": null,
+        "mj_per_token_above_idle_pessimistic": null
+      },
+      {
+        "model": "30M",
+        "params": 30000000.0,
+        "d_model": 512,
+        "layers": 9,
+        "weight_bytes": 3750000.0,
+        "tier": "psram",
+        "bandwidth_mbps": 61.84,
+        "kernel": "lut4_2core_lookup",
+        "cycles_per_weight": 0.956,
+        "s_mem": 0.06064036222509703,
+        "s_cpu": 0.1195,
+        "s_per_token_optimistic": 0.1195,
+        "s_per_token_pessimistic": 0.18014036222509702,
+        "tok_s_optimistic": 8.368200836820083,
+        "tok_s_pessimistic": 5.551226763663522,
+        "mj_per_token_optimistic": null,
+        "mj_per_token_above_idle_optimistic": null,
+        "mj_per_token_pessimistic": null,
+        "mj_per_token_above_idle_pessimistic": null
+      },
+      {
+        "model": "30M",
+        "params": 30000000.0,
+        "d_model": 512,
+        "layers": 9,
+        "weight_bytes": 3750000.0,
+        "tier": "flash",
+        "bandwidth_mbps": 26.46,
+        "kernel": "lut4_2core_lookup",
+        "cycles_per_weight": 1.111,
+        "s_mem": 0.1417233560090703,
+        "s_cpu": 0.138875,
+        "s_per_token_optimistic": 0.1417233560090703,
+        "s_per_token_pessimistic": 0.2805983560090703,
+        "tok_s_optimistic": 7.056,
+        "tok_s_pessimistic": 3.5638127543686506,
+        "mj_per_token_optimistic": null,
+        "mj_per_token_above_idle_optimistic": null,
+        "mj_per_token_pessimistic": null,
+        "mj_per_token_above_idle_pessimistic": null
+      },
+      {
+        "model": "110M",
+        "params": 110000000.0,
+        "d_model": 768,
+        "layers": 15,
+        "weight_bytes": 13750000.0,
+        "tier": "sd",
+        "bandwidth_mbps": null,
+        "kernel": null,
+        "cycles_per_weight": null,
+        "s_mem": null,
+        "s_cpu": null,
+        "s_per_token_optimistic": null,
+        "s_per_token_pessimistic": null,
+        "tok_s_optimistic": null,
+        "tok_s_pessimistic": null,
+        "mj_per_token_optimistic": null,
+        "mj_per_token_above_idle_optimistic": null,
+        "mj_per_token_pessimistic": null,
+        "mj_per_token_above_idle_pessimistic": null
+      },
+      {
+        "model": "200M",
+        "params": 200000000.0,
+        "d_model": 1024,
+        "layers": 16,
+        "weight_bytes": 25000000.0,
+        "tier": "sd",
+        "bandwidth_mbps": null,
+        "kernel": null,
+        "cycles_per_weight": null,
+        "s_mem": null,
+        "s_cpu": null,
+        "s_per_token_optimistic": null,
+        "s_per_token_pessimistic": null,
+        "tok_s_optimistic": null,
+        "tok_s_pessimistic": null,
+        "mj_per_token_optimistic": null,
+        "mj_per_token_above_idle_optimistic": null,
+        "mj_per_token_pessimistic": null,
+        "mj_per_token_above_idle_pessimistic": null
+      }
+    ]
+  }
+}
