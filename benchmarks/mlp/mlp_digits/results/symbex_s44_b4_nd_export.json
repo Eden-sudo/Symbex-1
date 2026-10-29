@@ -1,8 +1,8 @@
 {
  "n": 360,
  "arithmetic": "and",
- "acc_pytorch": 98.05555555555556,
- "acc_integer": 98.05555555555556,
+ "acc_pytorch": 97.22222222222221,
+ "acc_integer": 97.22222222222221,
  "fidelity": 100.0,
  "bit_agreement": [
   100.0

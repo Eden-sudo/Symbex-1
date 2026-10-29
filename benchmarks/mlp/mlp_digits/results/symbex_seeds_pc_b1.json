@@ -1,0 +1,35 @@
+{
+ "board": "",
+ "weights": "flash",
+ "popcount": "swar",
+ "input_bits": 1,
+ "fp32_sha256": "9dd155035e5f9a5881b2475bd1b85aadf8eb9b3a990087ab0872deedda5bfa2b",
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 2.0,
+   "val_accuracy": 85.76388888888889,
+   "test_accuracy": 88.61111111111111,
+   "flash_kb": 5.46875,
+   "arithmetic": "and"
+  },
+  {
+   "seed": 43,
+   "width": 2.0,
+   "val_accuracy": 87.15277777777777,
+   "test_accuracy": 88.61111111111111,
+   "flash_kb": 5.46875,
+   "arithmetic": "and"
+  },
+  {
+   "seed": 44,
+   "width": 2.0,
+   "val_accuracy": 84.375,
+   "test_accuracy": 88.33333333333333,
+   "flash_kb": 5.46875,
+   "arithmetic": "and"
+  }
+ ],
+ "val_accuracy": "85.76 +- 1.39",
+ "test_accuracy": "88.52 +- 0.16"
+}

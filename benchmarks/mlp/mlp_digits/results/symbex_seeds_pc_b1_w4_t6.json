@@ -3,28 +3,33 @@
  "weights": "flash",
  "popcount": "swar",
  "input_bits": 1,
+ "fp32_sha256": "9dd155035e5f9a5881b2475bd1b85aadf8eb9b3a990087ab0872deedda5bfa2b",
  "seeds": [
   {
    "seed": 42,
    "width": 4.0,
-   "val_accuracy": 89.72222222222223,
+   "val_accuracy": 88.19444444444444,
+   "test_accuracy": 90.0,
    "flash_kb": 10.78125,
    "arithmetic": "and"
   },
   {
    "seed": 43,
    "width": 4.0,
-   "val_accuracy": 88.88888888888889,
+   "val_accuracy": 90.27777777777777,
+   "test_accuracy": 90.27777777777777,
    "flash_kb": 10.78125,
    "arithmetic": "and"
   },
   {
    "seed": 44,
    "width": 4.0,
-   "val_accuracy": 90.83333333333333,
+   "val_accuracy": 88.88888888888889,
+   "test_accuracy": 91.94444444444444,
    "flash_kb": 10.78125,
    "arithmetic": "and"
   }
  ],
- "val_accuracy": "89.81 +- 0.98"
+ "val_accuracy": "89.12 +- 1.06",
+ "test_accuracy": "90.74 +- 1.05"
 }

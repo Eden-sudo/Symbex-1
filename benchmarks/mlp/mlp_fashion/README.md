@@ -163,6 +163,23 @@ The same seed-42 exports on the ESP32 (240 MHz, one core), the current library a
   binary and ternary models run.
 - The ternary kernel is slow here too (20 ms): the next kernel to rewrite.
 
+### The Raspberry Pi Pico 2 (RP2350, 150 MHz)
+
+The same exports on both cores of the Pico 2 (`--board pico2_riscv` / `pico2_arm`); board = simulation, 100 % on every
+run. The Hazard3 RISC-V cores count bits with their native instruction; the Cortex-M33 has none and uses the 64 KB table
+(`lut16`), with its `usada8` instruction for the 8-bit first layer.
+
+| Model | Hazard3, weights in flash | Cortex-M33, weights in flash | Hazard3, weights in RAM | Cortex-M33, weights in RAM |
+|---|---|---|---|---|
+| **SYMBEX 784-128-512** (sized for binary, seed 42) | 4.416 ms (4.8 KB RAM) | 4.565 ms (68.7 KB) | **1.405 ms** (32.1 KB) | 1.529 ms (96.0 KB) |
+| SYMBEX 1 bit x1.5 (3 seeds) | 10.32 ms (4.3 KB) | 11.07 ms (68.2 KB) | -- | -- |
+
+- **On the Pico 2 the flash costs 3x:** 784-128-512 runs in 4.4 ms with the weights in flash and 1.4 ms in RAM (on the
+  S3: 0.42 / 0.41 ms). The weights (21 KB) fit in the RP2350's RAM (520 KB), so RAM is the natural choice there.
+- **The two cores are close:** the Hazard3 is 3-8 % faster and needs no table (4.8 KB of RAM against 69 KB).
+- On the M33, the `usada8` first layer beats bit planes (4.565 against 7.202 ms in flash, 1.529 against 5.883 in RAM).
+- INT8 on the Pico 2 (TFLite Micro with CMSIS-NN on the M33) is not measured yet.
+
 ### How the ESP32-S3 computes a binary layer
 
 The S3 has no popcount instruction, but its PIE SIMD unit has an 8-bit multiply-accumulate: `ee.vmulas.u8.accx`,
@@ -295,8 +312,8 @@ python ../../experiments/poplut_probe.py --modelo runs/symbex_local_s42/model_bi
 
 From `benchmarks/mlp/mlp_fashion/`, environment `env_bench`.
 
-**Option A -- the same FP32 models (recommended).** The FP32 starting models are published in `models/` (the only
-models in the repository). `model.get_fp32` uses them when present; every result file records the sha256 of the
+**Option A -- the same FP32 models (recommended).** The FP32 starting models are published in `models/`.
+`model.get_fp32` uses them when present; every result file records the sha256 of the
 model it started from (`fp32_sha256`).
 
 | File | Shape | sha256 |
@@ -336,6 +353,10 @@ python earlier/fashion_int4.py --bits 8 --epocas 15 --semillas 3 --shape 128-512
 python fashion_tflite.py --shape 128-512 --board s3 --port /dev/ttyACM0 --usb  # its TFLite INT8, flash
 python fashion_tflite.py --shape 128-512 --board s3 --port /dev/ttyACM0 --usb --model-ram
 python ../../../tools/chip_test.py runs/sizing/h128_512_s42 --board s3 --port /dev/ttyACM0 --usb --popcount swar  # minimum RAM
+# Raspberry Pi Pico 2 (both cores; also --weights ram); copies of the reports in results/symbex/
+python ../../../tools/chip_test.py runs/sizing/h128_512_s42 --board pico2_riscv --port /dev/ttyACM0 --popcount lut16
+python ../../../tools/chip_test.py runs/sizing/h128_512_s42 --board pico2_arm --port /dev/ttyACM0 --popcount lut16
+python ../../../tools/chip_test.py runs/symbex_s42 --board pico2_riscv --port /dev/ttyACM0 --popcount lut16   # x1.5; s43, s44
 ```
 
 The earlier results (1-bit input, the classic ESP32, the INT baselines of `earlier/fashion_int4.py`, the Pareto plot):
