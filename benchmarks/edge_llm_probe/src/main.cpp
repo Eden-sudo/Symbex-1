@@ -654,7 +654,7 @@ static void symbex_mlp_fashion_layer() {
     uint32_t* w4 = (uint32_t*)heap_caps_aligned_alloc(16, (size_t)m * stride * 4, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     uint8_t* work = (uint8_t*)heap_caps_aligned_alloc(16, (size_t)stride * 32, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     int32_t* y = (int32_t*)alloc_internal((size_t)m * sizeof(int32_t));
-    KernelInputs in;
+    KernelInputs in = {};                                       /* all null: inputs_free is safe on every path */
     if (!w || !y || !inputs_alloc(&in, n)) {
         Serial.println("# skip symbex 128x784 in sram: no SRAM");
     } else {
@@ -679,8 +679,8 @@ static void symbex_mlp_fashion_layer() {
             free(u);
             free(ref);
         }
-        inputs_free(&in);
     }
+    inputs_free(&in);                                           /* also a partial allocation on the skip path */
     heap_caps_free(w4);
     heap_caps_free(work);
     free(w);
