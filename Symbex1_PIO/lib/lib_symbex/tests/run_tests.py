@@ -1333,6 +1333,8 @@ def bool1d_case(c, u8, i8=False):
     raw = win @ (w8 if i8 else 2 * wb - 1).T if u8 else (2 * win - 1) @ (2 * wb - 1).T
     spread = (255 * 127 * n // 16 if i8 else 255 * n // 4) if u8 else n // 2
     thr = RNG.integers(-spread - 1, spread + 2, o)
+    if RNG.integers(0, 4) == 0:                              # the exporter's always on / always off channels
+        thr[RNG.integers(0, 2, o) == 1] = RNG.choice([-2 ** 31, 2 ** 31 - 1])
     bits = (raw >= thr[None]).astype(np.int64).reshape(out_len, p, o).max(axis=1)        # OR pool
     out_words = -(-out_len * o // 32) + 1
     exp = words(bits.ravel(), out_words).astype(np.int64)
@@ -1349,7 +1351,7 @@ def test_bool1d(hal, n):
 #include "layers/conv/symbex_bool1d.h"
 int main(void) { int a[11]; static uint32_t in[8192], out[8192], w[200 * 320] __attribute__((aligned(16)));
   static int8_t w8[1 << 19];                                      /* stress sizes: 161 rows x 61 x 49 */
-  static uint32_t win[640] __attribute__((aligned(16))); static uint8_t ws[320 * 32] __attribute__((aligned(16)));
+  static uint32_t win[640] __attribute__((aligned(16))); static uint8_t ws[1 << 17] __attribute__((aligned(16)));   /* >= SYMBEX_BOOL1D_U8_WORK_BYTES at stress sizes */
   static uint8_t in8[32768]; static int32_t thr[256], cnt[256], scr[256];
   while (fread(a, 4, 11, stdin) == 11) {
     int u8 = a[0], form = a[1], len = a[2], ch = a[3], o = a[4], k = a[5], s = a[6], p = a[7], ol = a[8], rw = a[9];

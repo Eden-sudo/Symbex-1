@@ -46,8 +46,12 @@ void symbex_bool1d_conv(const struct SymbexBool1D* layer, const uint32_t* in, ui
                         int32_t* scratch);
 
 /* first layer: uint8 input, time-major (in_len x in_ch bytes), 1-bit weights (or int8 weights: weights_i8); signed
-   data enters offset by 128 (the offset folds into the thresholds). workspace: row_words * 32 bytes, 16-byte aligned;
-   scratch: out_ch int32. */
+   data enters offset by 128 (the offset folds into the thresholds). workspace: SYMBEX_BOOL1D_U8_WORK_BYTES bytes,
+   16-byte aligned (where the bits are counted with one instruction the input's 8 bit planes live there, built once
+   per call); scratch: out_ch int32. */
+#define SYMBEX_BOOL1D_U8_WORK_BYTES(in_len, in_ch, row_words) \
+    (4 * (8 * (((in_len) * (in_ch) + 31) / 32 + 1) + 8 * (row_words)) > 32 * (row_words) \
+         ? 4 * (8 * (((in_len) * (in_ch) + 31) / 32 + 1) + 8 * (row_words)) : 32 * (row_words))
 void symbex_bool1d_conv_u8(const struct SymbexBool1D* layer, const uint8_t* in, uint32_t* out, uint8_t* workspace,
                            int32_t* scratch);
 
