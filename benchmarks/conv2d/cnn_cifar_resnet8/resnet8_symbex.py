@@ -5,6 +5,8 @@ resnet8_symbex.py -- the cnn_cifar_resnet8 benchmark: a fully binary ResNet-8, t
     python resnet8_symbex.py --width 1 --seeds 3 --board s3 --port /dev/ttyUSB0   # ... and measure on the board
     python resnet8_symbex.py --width 1 --seeds 3 --board esp32 --weights ram
     python resnet8_symbex.py --width 2 --seeds 3                                   # twice the channels
+    python resnet8_symbex.py --seeds 3 --board pico2_riscv --port /dev/ttyACM0 --popcount lut16   # Pico 2 (or pico2_arm)
+    python resnet8_symbex.py --seeds 3 --board s3 --summary   # the summary from runs measured with tools/chip_test.py
 
 Run from benchmarks/conv2d/cnn_cifar_resnet8/ (main environment, .venv; a GPU helps). The network (model.py) has the shape of
 the MLPerf Tiny ResNet-8 that resnet8_tflite.py measures in INT8 (--width 1: the same 16-32-64 channels); only what
@@ -14,7 +16,9 @@ exports it to lib_symbex (layers/conv/symbex_bool) and, with --board, measures i
 tables as every other benchmark (100% equal to the integer simulation, accuracy, latency per layer, RAM).
 Each seed lands in runs/w<width>_s<seed>/; a seed already trained is only exported again (seconds; the export depends
 on the board), --redo trains it again. Summary: results/symbex_seeds_<board>_<popcount>[_ram]_w<width>.json
-(results/symbex_seeds_pc_w<width>.json without a board).
+(results/symbex_seeds_pc_w<width>.json without a board; with --epochs, in results/sizing/). --summary runs no CDT: it
+rebuilds the summary from the chip_<board>_<popcount>_<weights>_mask.json files that tools/chip_test.py leaves in each
+run folder (the S3's native USB port: chip_test.py runs/w1_s42 --board s3 --port /dev/ttyACM0 --usb).
 """
 import argparse
 import json
@@ -63,15 +67,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--width", type=float, default=1, choices=[1, 2], help="1: 16-32-64 channels (the INT8 reference's)")
     ap.add_argument("--seeds", type=int, default=1, help="number of seeds: 42, 43, ... (default 1)")
-    ap.add_argument("--board", choices=["esp32", "s3"], help="measure on this board")
+    ap.add_argument("--board", choices=["esp32", "s3", "pico2_arm", "pico2_riscv"],
+                    help="measure on this board (pico2_arm / pico2_riscv: the Pico 2's Cortex-M33 / Hazard3)")
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--weights", choices=["flash", "ram"], default="flash", help="where the weights live on the board")
     ap.add_argument("--popcount", choices=["swar", "lut16"], default="swar", help="counting mode (swar: minimum RAM)")
     ap.add_argument("--epochs", type=int, default=0, help="override [training] epochs (a quick check)")
     ap.add_argument("--redo", action="store_true", help="train again seeds that are already trained")
+    ap.add_argument("--summary", action="store_true",
+                    help="run no CDT: summarize the runs' chip_<board>_<popcount>_<weights>_mask.json (needs --board)")
     ap.add_argument("--spec", default="", help='a variant of the sizing study: "16-32-64/2-2-2" = channels / blocks '
                                                'per stage (replaces --width)')
     args = ap.parse_args()
+    if args.summary and not args.board:
+        sys.exit("[X] --summary needs --board")
     os.chdir(HERE)
     os.makedirs("results", exist_ok=True)
     rows = []
@@ -83,22 +92,28 @@ def main():
         name = f"w{args.width:g}" + (f"_e{args.epochs}" if args.epochs else "")
     for seed in [42 + i for i in range(args.seeds)]:
         out_dir = os.path.join("runs", f"{name}_s{seed}")
-        trained = os.path.exists(os.path.join(out_dir, "model_binarized.pth")) and os.path.exists(os.path.join(out_dir, "train.json"))
-        cmd = [sys.executable, CDT, config_for(args.width, out_dir, args.spec or None), "--seed", str(seed),
-               "--output-directory", out_dir]
-        if trained and not args.redo:
-            print(f"\n[*] seed {seed}: already trained in {out_dir} (--redo to train it again): exporting again")
-            cmd += ["--from", "export"]
-        if args.epochs:
-            cmd += ["--epochs", str(args.epochs)]
-        if args.board:
-            cmd += ["--board", args.board, "--port", args.port, "--weights", args.weights, "--popcount", args.popcount]
+        chip_file = f"chip_{args.board}_{args.popcount}_{args.weights}_mask.json" if args.summary else "chip.json"
+        if args.summary:
+            if not os.path.exists(os.path.join(out_dir, chip_file)):
+                print(f"[!] seed {seed}: no {os.path.join(out_dir, chip_file)}: skipped")
+                continue
         else:
-            cmd += ["--to", "export"]
-        print("\n[*] " + " ".join(os.path.relpath(c) if os.path.isabs(c) else c for c in cmd[1:]))
-        if subprocess.run(cmd).returncode != 0:
-            print(f"[X] the CDT failed on seed {seed}")
-        tr, ex, ch = (load(os.path.join(out_dir, f)) for f in ("train.json", "export.json", "chip.json"))
+            trained = os.path.exists(os.path.join(out_dir, "model_binarized.pth")) and os.path.exists(os.path.join(out_dir, "train.json"))
+            cmd = [sys.executable, CDT, config_for(args.width, out_dir, args.spec or None), "--seed", str(seed),
+                   "--output-directory", out_dir]
+            if trained and not args.redo:
+                print(f"\n[*] seed {seed}: already trained in {out_dir} (--redo to train it again): exporting again")
+                cmd += ["--from", "export"]
+            if args.epochs:
+                cmd += ["--epochs", str(args.epochs)]
+            if args.board:
+                cmd += ["--board", args.board, "--port", args.port, "--weights", args.weights, "--popcount", args.popcount]
+            else:
+                cmd += ["--to", "export"]
+            print("\n[*] " + " ".join(os.path.relpath(c) if os.path.isabs(c) else c for c in cmd[1:]))
+            if subprocess.run(cmd).returncode != 0:
+                print(f"[X] the CDT failed on seed {seed}")
+        tr, ex, ch = (load(os.path.join(out_dir, f)) for f in ("train.json", "export.json", chip_file))
         # test accuracy: acc_test since the CDT keeps a validation split apart (train.json n_test); in runs made before,
         # the CDT validated on the test set itself, so their acc_last IS the test accuracy
         test_acc = tr.get("acc_test") if "acc_test" in tr else tr.get("acc_last")
@@ -128,8 +143,12 @@ def main():
         import statistics
         sd = statistics.stdev(accs) if len(accs) > 1 else 0.0
         print(f"    test accuracy over {len(accs)} seed(s): {statistics.mean(accs):.2f} +- {sd:.2f} %")
+    if args.summary and not rows:
+        sys.exit("[X] --summary: no measured seed for this board and setting")
     tag = f"{args.board}_{args.popcount}{'_ram' if args.weights == 'ram' else ''}" if args.board else "pc"
-    path = os.path.join("results", f"symbex_seeds_{tag}_{name}.json")
+    folder = os.path.join("results", "sizing") if args.epochs else "results"      # quick --epochs runs: the sizing study
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, f"symbex_seeds_{tag}_{name}.json")
     json.dump(dict(width=args.width, spec=args.spec or None, board=args.board, weights=args.weights, popcount=args.popcount,
                    seeds=rows),
               open(path, "w"), indent=1)

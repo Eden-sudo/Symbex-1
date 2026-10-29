@@ -31,8 +31,10 @@ to be re-measured with this one.
 | Latency | **160.8 ms** | 379.1 ms | **126.3 ms** | 256.9 ms |
 | Speed-up | **2.36×** | | **2.03×** | |
 | Flash | **52.3 KB** | 315.7 KB | **41.2 KB** | 236.1 KB |
-| RAM | **53 KB** | 223.3 KB (arena) | **51 KB** | 222.6 KB (arena) |
+| RAM (with the 27 KB input image, as in the arena) | **81 KB** * | 223.3 KB (arena) | **79 KB** | 222.6 KB (arena) |
 | Same result as its PC reference | **100 %** | 90 % | **100 %** | 88 % |
+
+\* measured on the classic ESP32 with the same setting (no counting table): the buffers depend only on the shape.
 
 **On the classic ESP32** (ESP32-D0WD-V3, 240 MHz, one core, no PSRAM) the resized binary detector runs in **226.3 ms**
 (32-32-128, 3 seeds: 226.31-226.35 ms; lut16 counting, weights in flash, 143 KB of RAM), every seed 100 % equal to its
@@ -47,6 +49,10 @@ The resized shape is reported over 3 training seeds on both sides (42, 43, 44); 
 floating-point version of the same network reaches 32.0 % F1: **binarization costs about one point here**, and the
 binary detector is as accurate as the INT8 one, or slightly more. Person detection in VOC at 96 × 96 is hard for networks this small — the
 limit is the task, the same for every precision.
+
+**On the Raspberry Pi Pico 2** (RP2350, 150 MHz, weights in flash, 3 seeds, every seed 100 % equal to its simulation):
+32-32-128 runs in **338.5 ms** on the Hazard3 RISC-V cores (native popcount, 79 KB of RAM) and **416.4 ms** on the
+Cortex-M33 (64 KB counting table, 143 KB). TFLite INT8 on the Pico 2 (CMSIS-NN on the M33) is not measured yet.
 
 ### Why detection binarizes so well here
 
@@ -109,6 +115,9 @@ python ../../../tools/dev/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --
 python fomo_symbex.py --channels 32-32-128 --seeds 3 --board esp32 --port /dev/ttyUSB0                   # train (if needed) + export + chip
 python fomo_symbex.py --channels 32-32-128 --seeds 1 --board esp32 --port /dev/ttyUSB0 --weights ram
 python fomo_symbex.py --channels 32-32-128 --seeds 1 --board esp32 --port /dev/ttyUSB0 --popcount swar
+python fomo_symbex.py --channels 32-32-128 --seeds 3 --board s3 --port /dev/ttyACM0 --usb --popcount swar  # native USB
+python fomo_symbex.py --channels 32-32-128 --seeds 3 --board pico2_riscv --port /dev/ttyACM0             # Pico 2 (Hazard3)
+python fomo_symbex.py --channels 32-32-128 --seeds 3 --board pico2_arm --port /dev/ttyACM0               # Pico 2 (M33)
 python fomo_tflite.py --channels 32-32-128 --blocks 1-2-2 --board s3 --port /dev/ttyUSB0
 python fomo_train.py --fp32 --channels 32-64-128 --blocks 1-2-2    # the floating-point reference
 python fomo_sizing.py --phase depth ; python fomo_sizing.py --phase width

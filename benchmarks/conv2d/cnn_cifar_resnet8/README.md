@@ -18,14 +18,17 @@ integer simulation on every image.
 
 | | **SYMBEX binary** | MLPerf Tiny INT8 | |
 |---|---|---|---|
-| **ESP32 (240 MHz)** | **59.7 ms** (lut16, weights in RAM) · **64.8 ms** (lut16, weights in flash) · **72.6 ms** (no table) | 717.8 ms | **12.0× / 11.1× / 9.9× faster** |
-| **ESP32-S3 (240 MHz)** | **40.7 ms** | 52.0 ms | **1.28× faster** |
-| RAM | **20 KB** (84 KB with the lut16 table; 103 KB with the weights in RAM too) | 53 KB (ESP32) / 80.5 KB (S3) of arena | **2.7-4× less** on the S3 |
+| **ESP32 (240 MHz)** | **59.7 ms** (lut16, weights in RAM) · **63.3 ms** (lut16, weights in flash) · **71.0 ms** (no table) | 717.8 ms | **12.0× / 11.3× / 10.1× faster** |
+| **ESP32-S3 (240 MHz)** | **39.2 ms** | 52.0 ms | **1.33× faster** |
+| Raspberry Pi Pico 2 (150 MHz) | **56.1 ms** (Hazard3 RISC-V, native popcount) · **74.5 ms** (Cortex-M33, lut16) | not measured yet | |
+| RAM | **15 KB** (79 KB with the lut16 table; 103 KB with the weights in RAM too) | 53 KB (ESP32) / 80.5 KB (S3) of arena | **3.6× / 5.4× less** (ESP32 no table / S3) |
 | Flash (weights) | **24.3 KB** | 96.2 KB | **4× less** |
 | Same result as the reference on the PC | **100%** (by design) | 98.1% | |
 | CIFAR-10 accuracy (10,000 test images) | 71.3 ± 0.8 % | 87.0 % | |
 
-The three seeds give the same latency to 0.01 ms (42, 43, 44: 70.60 %, 72.18 %, 71.06 %).
+The three seeds give the same latency to 0.01 ms (42, 43, 44: 70.60 %, 72.18 %, 71.06 %). The chip gives the same class as
+the integer simulation on 100 % of the images on every board. The Pico 2 has no INT8 reference yet (TFLite Micro with
+CMSIS-NN on the M33 is future work).
 
 ## Why: what each chip does best
 
@@ -42,17 +45,17 @@ On chips without SIMD — most low-cost microcontrollers — binary arithmetic w
 SIMD unit multiplies 16 bytes per instruction, SYMBEX counts bits **with that same multiplier** (`pie_swar`: SWAR inside
 every byte, then one multiply-accumulate adds the 16 counts), and still comes out ahead.
 
-## Where the time goes (ESP32-S3, 40.7 ms)
+## Where the time goes (ESP32-S3, 39.2 ms)
 
 | Step | ms | % |
 |---|---|---|
-| thermometer + stem 24→16, 32×32 | 9.34 | 23.0 |
-| block 0: conv 16→16, 32×32 | 7.73 | 19.0 |
-| block 1: conv 16→16, 32×32 | 7.73 | 19.0 |
-| block 2: conv 16→32, stride 2 + OR pool + 1×1 | 5.40 | 13.3 |
-| block 3: conv 32→32, 16×16 | 4.29 | 10.5 |
-| block 4: conv 32→64, stride 2 + OR pool + 1×1 | 3.01 | 7.4 |
-| block 5: conv 64→64, 8×8 | 3.13 | 7.7 |
+| thermometer + stem 24→16, 32×32 | 7.84 | 20.0 |
+| block 0: conv 16→16, 32×32 | 7.73 | 19.7 |
+| block 1: conv 16→16, 32×32 | 7.73 | 19.7 |
+| block 2: conv 16→32, stride 2 + OR pool + 1×1 | 5.40 | 13.8 |
+| block 3: conv 32→32, 16×16 | 4.28 | 10.9 |
+| block 4: conv 32→64, stride 2 + OR pool + 1×1 | 3.01 | 7.7 |
+| block 5: conv 64→64, 8×8 | 3.13 | 8.0 |
 | classifier | 0.06 | 0.1 |
 
 Inside the library (`tools/dev/fine_profile.py`, CPU cycle counters per function): counting bits is ~61 % of the time and runs
@@ -68,7 +71,8 @@ The same model, the same predictions; only the library changed, each step checke
 | First version | 67.1 ms | 100.5 ms * |
 | `pie_swar`: one multiply per 128 bits instead of eight; XOR form | 48.3 ms | — |
 | Windows, thresholds and counts without padding | 45.9 ms * | 77.9 ms * |
-| Packed windows for 16 and 24 channels | **40.7 ms** | **64.8 ms** |
+| Packed windows for 16 and 24 channels | 40.7 ms | 64.8 ms |
+| Current library (Oct 28; the gain is in the stem: 9.3 → 7.8 ms) | **39.2 ms** | **63.3 ms** |
 
 \* measured with the fine profile (CPU cycle counters inside the library: about 1-2 ms more than a normal run).
 
@@ -92,9 +96,9 @@ stage (32×32, expensive) buy little. The interesting variants, **measured on th
 
 | Channels / blocks | Accuracy | ESP32-S3 | ESP32 (weights in RAM) | RAM (S3) | Flash |
 |---|---|---|---|---|---|
-| 16-32-64 / 2-2-2 (ResNet-8) | 71.28 ± 0.81 % | 40.7 ms | 59.7 ms | 20.2 KB | 24.3 KB |
+| 16-32-64 / 2-2-2 (ResNet-8) | 71.28 ± 0.81 % | 39.2 ms | 59.7 ms | 14.8 KB | 24.3 KB |
 | 16-32-64 / 1-1-2 | 68.80 ± 0.22 % | **28.7 ms** | | 20.2 KB | 21.3 KB |
-| **16-32-128 / 1-1-2** | **73.10 ± 0.23 %** | **39.6 ms** | 60.9 ms | **15.4 KB** | 46.4 KB |
+| **16-32-128 / 1-1-2** | **73.10 ± 0.23 %** | **39.6 ms** | 60.9 ms | 15.4 KB | 46.4 KB |
 | **16-64-128 / 1-1-2** | **74.45 ± 0.23 %** | 46.6 ms | | 16.4 KB | 52.8 KB |
 
 **A binary network shaped for binary is more accurate at the same speed:** 16-32-128 / 1-1-2 gains 1.8 points over the
@@ -105,7 +109,7 @@ ResNet-8 shape in the same time, with less RAM; 16-64-128 / 1-1-2 gains 3.2 poin
   choose: 72.97 % and 74.58 % for them, against 73.10 % and 74.45 % over all three. Ranking on a validation split carved
   out of the training data is the cleaner method, and the next version of the study uses it.
 - **The best shape depends on the chip.** On the ESP32, the 128-channel last stage holds 18 KB of weights, more than the
-  flash cache keeps: in flash its last block takes 43 ms, in RAM 21 ms (the whole network: 88.2 against 60.9 ms). With the
+  flash cache keeps: in flash its last block takes 43 ms, in RAM 21 ms (the whole network: 88.8 against 60.9 ms). With the
   weights in RAM, 16-32-128 runs at the speed of the ResNet-8 shape with 1.8 points more.
 
 ## Reproduce
@@ -119,6 +123,10 @@ python resnet8_symbex.py --width 1 --seeds 3 --board esp32 --port /dev/ttyUSB0 -
 python resnet8_symbex.py --width 1 --seeds 3 --board esp32 --port /dev/ttyUSB0 --popcount lut16 --weights ram
 python resnet8_symbex.py --width 1 --seeds 3 --board esp32 --port /dev/ttyUSB0
 python resnet8_symbex.py --spec 16-32-128/1-1-2 --seeds 3 --board s3 --port /dev/ttyUSB0     # a sized variant
+python resnet8_symbex.py --width 1 --seeds 3 --board pico2_riscv --port /dev/ttyACM0 --popcount lut16   # Pico 2 (Hazard3)
+python resnet8_symbex.py --width 1 --seeds 3 --board pico2_arm --port /dev/ttyACM0 --popcount lut16     # Pico 2 (M33)
+python ../../../tools/chip_test.py runs/w1_s42 --board s3 --port /dev/ttyACM0 --usb   # a trained seed, the S3's native USB
+python resnet8_symbex.py --width 1 --seeds 3 --board s3 --summary              # summary of the chip_test.py runs
 python resnet8_sizing.py --phase depth --epochs 150                            # the sizing study
 python resnet8_sizing.py --phase width --blocks 1-1-2 --epochs 150
 python resnet8_tflite.py                                                       # INT8: accuracy on the PC
@@ -132,10 +140,10 @@ Profiles: `python ../../../tools/dev/fine_profile.py runs/w1_s44 --board s3` and
 |---|---|
 | `model.py` | the binary ResNet-8 with any channels and blocks per stage, the thermometer, CIFAR-10 |
 | `symbex.toml` | the CDT configuration (method `boolean`, 150 epochs, labels only) |
-| `resnet8_symbex.py` | the CDT per seed and per board; summary in `results/symbex_seeds_<board>_<popcount>_w1.json` |
+| `resnet8_symbex.py` | the CDT per seed and per board; summary in `results/symbex_seeds_<board>_<popcount>_w1.json` (`--summary`: from runs measured with `tools/chip_test.py`; older summaries in `results/earlier/`) |
 | `resnet8_tflite.py` | the official MLPerf Tiny INT8 model, on the PC and with TFLite Micro on the boards |
 | `resnet8_train.py` | evaluates a trained model on its own (`--check`) |
-| `resnet8_sizing.py` | the sizing study: variants, predicted latency, Pareto front (`results/sizing.json`) |
+| `resnet8_sizing.py` | the sizing study: variants, predicted latency, Pareto front (`results/sizing.json`; every variant's quick training in `results/sizing/`) |
 
 ## Future work
 

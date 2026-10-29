@@ -3,15 +3,17 @@
  "weights": "flash",
  "popcount": "swar",
  "input_bits": 1,
+ "fp32_sha256": "9dd155035e5f9a5881b2475bd1b85aadf8eb9b3a990087ab0872deedda5bfa2b",
  "seeds": [
   {
    "seed": 42,
    "width": 4.0,
-   "val_accuracy": 94.16666666666667,
+   "val_accuracy": 91.66666666666667,
+   "test_accuracy": 93.88888888888889,
    "flash_kb": 6.7421875,
    "arithmetic": "xnor",
-   "chip_accuracy": 94.16666666666667,
-   "latency_ms": 9.876,
+   "chip_accuracy": 93.88888888888889,
+   "latency_ms": 9.95,
    "equal": 100.0,
    "ram_kb": 0.267578125,
    "other_latency_ms": null
@@ -19,11 +21,12 @@
   {
    "seed": 43,
    "width": 4.0,
-   "val_accuracy": 93.61111111111111,
+   "val_accuracy": 92.70833333333333,
+   "test_accuracy": 95.27777777777777,
    "flash_kb": 6.7421875,
    "arithmetic": "xnor",
-   "chip_accuracy": 93.61111111111111,
-   "latency_ms": 9.932,
+   "chip_accuracy": 95.27777777777777,
+   "latency_ms": 9.888,
    "equal": 100.0,
    "ram_kb": 0.267578125,
    "other_latency_ms": null
@@ -31,17 +34,19 @@
   {
    "seed": 44,
    "width": 4.0,
-   "val_accuracy": 93.33333333333333,
+   "val_accuracy": 92.01388888888889,
+   "test_accuracy": 94.16666666666667,
    "flash_kb": 6.7421875,
    "arithmetic": "xnor",
-   "chip_accuracy": 93.33333333333333,
-   "latency_ms": 9.94,
+   "chip_accuracy": 94.16666666666667,
+   "latency_ms": 9.944,
    "equal": 100.0,
    "ram_kb": 0.267578125,
    "other_latency_ms": null
   }
  ],
- "val_accuracy": "93.70 +- 0.42",
- "latency_ms": "9.92 +- 0.03",
- "chip_accuracy": "93.70 +- 0.42"
+ "val_accuracy": "92.13 +- 0.53",
+ "test_accuracy": "94.44 +- 0.73",
+ "latency_ms": "9.93 +- 0.03",
+ "chip_accuracy": "94.44 +- 0.73"
 }

@@ -1,0 +1,45 @@
+{
+ "width": 1,
+ "spec": "16-32-128/1-1-2",
+ "board": "pico2_arm",
+ "weights": "flash",
+ "popcount": "lut16",
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 1,
+   "val_accuracy": null,
+   "test_accuracy": 73.35,
+   "flash_kb": 46.4296875,
+   "exactness": 100.0,
+   "chip_accuracy": 74.6,
+   "latency_ms": 149.3935,
+   "equal": 100.0,
+   "ram_kb": 79.4140625
+  },
+  {
+   "seed": 43,
+   "width": 1,
+   "val_accuracy": null,
+   "test_accuracy": 72.89,
+   "flash_kb": 46.4296875,
+   "exactness": 100.0,
+   "chip_accuracy": 72.7,
+   "latency_ms": 149.4005,
+   "equal": 100.0,
+   "ram_kb": 79.4140625
+  },
+  {
+   "seed": 44,
+   "width": 1,
+   "val_accuracy": null,
+   "test_accuracy": 73.05,
+   "flash_kb": 46.4296875,
+   "exactness": 100.0,
+   "chip_accuracy": 72.8,
+   "latency_ms": 149.3885,
+   "equal": 100.0,
+   "ram_kb": 79.4140625
+  }
+ ]
+}
