@@ -438,4 +438,30 @@ void symbex_u8_sum_bits_rows(const uint8_t* workspace, int n_inputs, const uint3
     for (int r = 0; r < n_rows; r++, w += stride) out[r] = u8_c(workspace, w, stride, interleaved);
 }
 
+/* int8 window x int8 rows (a first layer with int8 weights): out[r] = sum_{i < n} x[i] * w[r * stride + i].
+   PIE: 16 products per ee.vmulas.s8.accx. The rows keep any alignment (ee.ld.128.usar.ip + ee.src.q.qup realign them),
+   so the weights stay where the exporter put them, in flash or in RAM; each row is read in whole 16-byte blocks, up
+   to 31 bytes past its end, and those bytes meet the zero padding of x. */
+void symbex_s8_dot_rows(const int8_t* x, int n, const int8_t* w, int stride, int n_rows, int32_t* out) {
+#if !defined(SYMBEX_HAL_TEST_NO_PIE)
+    const int nv = (n + 15) >> 4;
+    for (int r = 0; r < n_rows; r++, w += stride) {
+        const int8_t* pw = w;
+        const int8_t* px = x;
+        __asm__ __volatile__ ("ee.zero.accx \n\t ee.ld.128.usar.ip q0, %0, 16 \n\t" : "+r"(pw) : : "memory");
+        for (int v = 0; v < nv; v++)
+            __asm__ __volatile__ ("ee.ld.128.usar.ip q1, %0, 16 \n\t ee.vld.128.ip q2, %1, 16 \n\t"
+                                  "ee.src.q.qup q3, q0, q1 \n\t ee.vmulas.s8.accx q2, q3 \n\t"
+                                  : "+r"(pw), "+r"(px) : : "memory");
+        out[r] = (int32_t)read_accx();               /* |sum| < 2^31: the low 32 bits of the 40-bit ACCX */
+    }
+#else
+    for (int r = 0; r < n_rows; r++, w += stride) {
+        int32_t s = 0;
+        for (int i = 0; i < n; i++) s += (int32_t)x[i] * w[i];
+        out[r] = s;
+    }
+#endif
+}
+
 #endif // CONFIG_IDF_TARGET_ESP32S3

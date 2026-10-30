@@ -1,0 +1,69 @@
+{
+ "board": "esp32-s3",
+ "mhz": 240,
+ "reps": "best of 7",
+ "flash": {
+  "mlp_bits": {
+   "cycles": 62700,
+   "ms": 0.2612,
+   "equal_reference": true
+  },
+  "mlp_bits_kernel": {
+   "cycles": 45994,
+   "ms": 0.1916,
+   "equal_reference": true
+  },
+  "mlp_int8": {
+   "cycles": 1592834,
+   "ms": 6.6368,
+   "equal_reference": true
+  },
+  "mlp_int8_kernel": {
+   "cycles": 1591575,
+   "ms": 6.6316,
+   "equal_reference": true
+  },
+  "stem_bits": {
+   "cycles": 1196085,
+   "ms": 4.9837,
+   "equal_reference": true
+  },
+  "stem_int8": {
+   "cycles": 1123574,
+   "ms": 4.6816,
+   "equal_reference": true
+  }
+ },
+ "ram": {
+  "mlp_bits": {
+   "cycles": 62700,
+   "ms": 0.2612,
+   "equal_reference": true
+  },
+  "mlp_bits_kernel": {
+   "cycles": 45994,
+   "ms": 0.1916,
+   "equal_reference": true
+  },
+  "mlp_int8": {
+   "cycles": 53882,
+   "ms": 0.2245,
+   "equal_reference": true
+  },
+  "mlp_int8_kernel": {
+   "cycles": 52502,
+   "ms": 0.2188,
+   "equal_reference": true
+  },
+  "stem_bits": {
+   "cycles": 1196082,
+   "ms": 4.9837,
+   "equal_reference": true
+  },
+  "stem_int8": {
+   "cycles": 1123524,
+   "ms": 4.6814,
+   "equal_reference": true
+  }
+ }
+}

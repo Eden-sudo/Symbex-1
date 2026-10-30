@@ -2,6 +2,11 @@
  * symbex_bool1d.c -- binary 1D convolutions (see symbex_bool1d.h). Integers only, no multiplication: the windows are
  * cut from the bit stream with shifts, the bits are counted by the HAL row functions.
  */
+#if defined(__has_include)                       /* CONFIG_IDF_TARGET_ESP32S3 (ESP-IDF) lives in sdkconfig.h */
+#  if __has_include("sdkconfig.h")
+#    include "sdkconfig.h"
+#  endif
+#endif
 #include "layers/conv/symbex_bool1d.h"
 #include "layers/conv/symbex_bool.h"
 #include "hal/symbex_hal.h"
@@ -191,7 +196,9 @@ void symbex_bool1d_conv(const struct SymbexBool1D* L, const uint32_t* in, uint32
    dot product: benchmarks/conv1d/har_ultracompact/pulp/symbex_u8_pulp.c */
 #if !defined(SYMBEX_BOOL1D_U8_EXTERNAL)
 /* int8 weights (weights_i8): a plain integer convolution, two time steps x four output channels per pass (each input
-   byte serves 4 rows, each weight byte 2 steps). The compiler maps the multiply-accumulate to what the chip has. */
+   byte serves 4 rows, each weight byte 2 steps). The compiler maps the multiply-accumulate to what the chip has.
+   The ESP32-S3 has its own (conv_u8_i8_pie, below). */
+#if !defined(CONFIG_IDF_TARGET_ESP32S3)
 static void conv_u8_i8(const struct SymbexBool1D* L, const uint8_t* in, uint32_t* out) {
     const int n = L->kernel * L->in_ch;
     const uint32_t steps = (uint32_t)L->out_len * L->pool;
@@ -231,6 +238,47 @@ static void conv_u8_i8(const struct SymbexBool1D* L, const uint8_t* in, uint32_t
         }
     }
 }
+#endif
+
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+/* int8 weights on the ESP32-S3: PIE multiplies int8 x int8 (no uint8 x int8), so each window enters as int8
+   (x - 128, the data as it was before the offset) and the thresholds take the offset back: sum of x * w =
+   sum of (x - 128) * w + 128 * sum of w, so raw >= T  <=>  sum of (x - 128) * w >= T - 128 * sum of w. One window
+   copy per step, then 16 products per instruction (symbex_s8_dot_rows), 32 rows per call. work: 16-byte aligned,
+   16 * ceil(n / 16) bytes; scratch: out_ch int32 (the thresholds moved). */
+static void conv_u8_i8_pie(const struct SymbexBool1D* L, const uint8_t* in, uint32_t* out, uint8_t* work,
+                           int32_t* scratch) {
+    const int n = L->kernel * L->in_ch;
+    const int padded = (n + 15) & ~15;
+    int8_t* x = (int8_t*)work;
+    int32_t* thr = scratch;
+    int32_t dot[32];
+    for (int i = 0; i < padded; i++) x[i] = i < n ? 1 : 0;      /* the sums of the rows, with the same kernel */
+    for (int o0 = 0; o0 < L->out_ch; o0 += 32) {
+        const int rows = L->out_ch - o0 < 32 ? L->out_ch - o0 : 32;
+        symbex_s8_dot_rows(x, n, L->weights_i8 + o0 * n, n, rows, dot);
+        for (int o = 0; o < rows; o++) {        /* in 64 bits, clamped: the dot products fit 32, so the same test */
+            const int64_t t = (int64_t)L->thresholds[o0 + o] - 128 * (int64_t)dot[o];
+            thr[o0 + o] = t < INT32_MIN ? INT32_MIN : (t > INT32_MAX ? INT32_MAX : (int32_t)t);
+        }
+    }
+    const uint32_t steps = (uint32_t)L->out_len * L->pool;
+    const uint32_t hop = (uint32_t)L->stride * L->in_ch;
+    for (uint32_t t = 0; t < steps; t++) {
+        const uint8_t* p = in + t * hop;
+        for (int i = 0; i < n; i++) x[i] = (int8_t)(p[i] ^ 0x80u);   /* x - 128; the padding stays 0 */
+        const uint32_t base = (t / L->pool) * L->out_ch;
+        for (int o0 = 0; o0 < L->out_ch; o0 += 32) {
+            const int rows = L->out_ch - o0 < 32 ? L->out_ch - o0 : 32;
+            symbex_s8_dot_rows(x, n, L->weights_i8 + o0 * n, n, rows, dot);
+            for (int o = 0; o < rows; o++) {
+                const uint32_t b = base + (uint32_t)(o0 + o);
+                if (dot[o] >= thr[o0 + o]) out[b >> 5] |= 1UL << (b & 31);
+            }
+        }
+    }
+}
+#endif
 
 #if defined(BOOL1D_INLINE)
 /* 1-bit weights where the bits are counted with one instruction: the uint8 input is 8 binary streams, its bit planes
@@ -293,7 +341,11 @@ void symbex_bool1d_conv_u8(const struct SymbexBool1D* L, const uint8_t* in, uint
                            int32_t* scratch) {
     clear(out, L);
     if (L->weights_i8) {
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+        conv_u8_i8_pie(L, in, out, workspace, scratch);
+#else
         conv_u8_i8(L, in, out);
+#endif
         return;
     }
 #if defined(BOOL1D_INLINE)
