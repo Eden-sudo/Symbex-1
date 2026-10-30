@@ -99,8 +99,8 @@ void symbex_u8_sum_bits_rows(const uint8_t* workspace, int n_inputs, const uint3
                              int32_t* out);
 
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-/* ESP32-S3 only (PIE): out[r] = sum_{i < n} x[i] * w[r * stride + i]. x: 16-byte aligned, zero padded to a multiple
-   of 16 bytes; the rows any alignment (read in whole 16-byte blocks, up to 31 bytes past each row's end). */
+/* ESP32-S3 only (PIE): out[r] = sum_{i < n} x[i] * w[r * stride + i], n >= 1. x: 16-byte aligned, zero padded to a
+   multiple of 16 bytes; the rows any alignment (read in aligned 16-byte blocks, only those holding bytes of the row). */
 void symbex_s8_dot_rows(const int8_t* x, int n, const int8_t* w, int stride, int n_rows, int32_t* out);
 #endif
 

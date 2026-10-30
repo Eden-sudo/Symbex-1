@@ -223,12 +223,15 @@ def write_project(project, port, weights):
     write_data(os.path.join(src, "bench_data.h"), weights)
 
 
-def read_results(port):
+def read_results(port, weights):
     s = open_port(port, 115200, reset="usb")
     rows, ready, t0 = {}, False, time.time()
     while time.time() - t0 < 60:
         line = s.readline().decode(errors="replace").strip()
         if "INT8 FIRST BENCH ready" in line:
+            if f"(weights in {weights})" not in line:        # the firmware on the board says where its weights are
+                s.close()
+                sys.exit(f"[X] the board runs another firmware: {line!r}, expected weights in {weights}")
             ready, rows = True, {}
         elif ready and line.startswith("R:"):
             name, cyc, ok = line[2:].split("|")
@@ -246,13 +249,15 @@ def main():
     ap.add_argument("--weights", choices=["flash", "ram", "both"], default="both")
     ap.add_argument("--no-upload", action="store_true", help="the firmware is already on the board")
     a = ap.parse_args()
+    if a.no_upload and a.weights == "both":
+        ap.error("--no-upload reads the firmware already on the board: give --weights flash or --weights ram")
     out = {}
     for weights in (["flash", "ram"] if a.weights == "both" else [a.weights]):
         project = os.path.join(HERE, "runs", f"int8_first_bench_s3_{weights}")
         if not a.no_upload:
             write_project(project, a.port, weights)
             flash(project, verbose=False, what=f"weights in {weights}")
-        rows = read_results(a.port)
+        rows = read_results(a.port, weights)
         print(f"\nESP32-S3, weights in {weights} (240 MHz, best of 7)")
         print(f"  {'method':<17}{'cycles':>10}{'ms':>9}  equal to the reference")
         for name, (cyc, ok) in rows.items():

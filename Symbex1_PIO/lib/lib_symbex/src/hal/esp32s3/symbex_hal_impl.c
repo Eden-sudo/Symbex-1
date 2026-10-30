@@ -440,19 +440,25 @@ void symbex_u8_sum_bits_rows(const uint8_t* workspace, int n_inputs, const uint3
 
 /* int8 window x int8 rows (a first layer with int8 weights): out[r] = sum_{i < n} x[i] * w[r * stride + i].
    PIE: 16 products per ee.vmulas.s8.accx. The rows keep any alignment (ee.ld.128.usar.ip + ee.src.q.qup realign them),
-   so the weights stay where the exporter put them, in flash or in RAM; each row is read in whole 16-byte blocks, up
-   to 31 bytes past its end, and those bytes meet the zero padding of x. */
+   so the weights stay where the exporter put them, in flash or in RAM. Each row is read in whole aligned 16-byte
+   blocks, only the blocks that hold bytes of the row (never past the weight array); the lanes of the last vector past
+   the row's end hold other bytes, and they meet the zero padding of x. */
 void symbex_s8_dot_rows(const int8_t* x, int n, const int8_t* w, int stride, int n_rows, int32_t* out) {
 #if !defined(SYMBEX_HAL_TEST_NO_PIE)
     const int nv = (n + 15) >> 4;
     for (int r = 0; r < n_rows; r++, w += stride) {
         const int8_t* pw = w;
         const int8_t* px = x;
+        /* vectors that load the next block: the row touches 1 + nl aligned blocks, nl = nv or nv - 1 */
+        const int nl = (int)((((uintptr_t)w & 15U) + (unsigned)n - 1U) >> 4);
         __asm__ __volatile__ ("ee.zero.accx \n\t ee.ld.128.usar.ip q0, %0, 16 \n\t" : "+r"(pw) : : "memory");
-        for (int v = 0; v < nv; v++)
+        for (int v = 0; v < nl; v++)
             __asm__ __volatile__ ("ee.ld.128.usar.ip q1, %0, 16 \n\t ee.vld.128.ip q2, %1, 16 \n\t"
                                   "ee.src.q.qup q3, q0, q1 \n\t ee.vmulas.s8.accx q2, q3 \n\t"
                                   : "+r"(pw), "+r"(px) : : "memory");
+        if (nl < nv)                                 /* the last vector: its bytes past q0 are past the row (x is 0) */
+            __asm__ __volatile__ ("ee.vld.128.ip q2, %0, 16 \n\t ee.src.q q3, q0, q0 \n\t"
+                                  "ee.vmulas.s8.accx q2, q3 \n\t" : "+r"(px) : : "memory");
         out[r] = (int32_t)read_accx();               /* |sum| < 2^31: the low 32 bits of the 40-bit ACCX */
     }
 #else

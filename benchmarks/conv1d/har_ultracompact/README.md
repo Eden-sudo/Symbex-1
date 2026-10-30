@@ -22,7 +22,7 @@ The README follows the order of the work:
   own trained network** too (same int8 first layer, same weights, same accuracy): **1.06-1.37×**. Every output is exact:
   equal to the integer simulation, window by window.
 - **Against INT8 on real boards** (TFLite Micro, the same architectures, weights in flash), all binary: SYMBEX is
-  **5.3-10.4× faster** on the ESP32 and **1.44-1.86× faster** on the ESP32-S3. It takes **2-10× less RAM** and
+  **5.3-10.4× faster** on the ESP32 and **1.47-1.90× faster** on the ESP32-S3. It takes **2-10× less RAM** and
   **6.5-10× less flash**. INT8 is more accurate on these small networks: about 9 points on the large ones, 23 on the
   smallest.
 - **Where fully binary stops paying: a working theory.** Binary network work usually keeps the first layer in higher
@@ -31,7 +31,7 @@ The README follows the order of the work:
   products per bit count), where fully binary should win. An 8-bit input (here the accelerometer) costs about one
   operation per input whether the weights have 1 bit or 8. There the int8 first layer is **faster than the fully
   binary one** on every board measured (equal on the M33's largest network), because the chips multiply bytes faster
-  than they count bit planes (on the ESP32-S3, a new PIE kernel: **1.8-2.4×** for that layer, **1.25-1.66×** for the
+  than they count bit planes (on the ESP32-S3, a new PIE kernel: **1.8-2.5×** for that layer, **1.26-1.70×** for the
   whole network). It is also **more accurate**: **+4.5-4.8 points** on the two small networks, equal on the large
   ones. Measured on one task (activity recognition) and checked quickly on two others: a theory to test further, not a
   general rule.
@@ -114,10 +114,10 @@ first-layer weights stored as +1 / −1 bytes and run by the int8 kernel, `har_e
 
 | Network | ESP32-S3: first layer in bits | ±1 bytes | TFLite INT8 | SYMBEX vs TFLite |
 |---|---|---|---|---|
-| min | 0.83 | **0.50** | 0.72 | **1.44×** |
-| max-10% | 2.36 | **1.84** | 2.93 | **1.59×** |
-| max-5% | 4.87 | **3.85** | 7.14 | **1.86×** |
-| max | 4.83 | **3.87** | 7.11 | **1.84×** |
+| min | 0.83 | **0.49** | 0.72 | **1.47×** |
+| max-10% | 2.36 | **1.83** | 2.93 | **1.60×** |
+| max-5% | 4.87 | **3.76** | 7.14 | **1.90×** |
+| max | 4.83 | **3.83** | 7.11 | **1.85×** |
 
 | Network | Pico 2 Hazard3: bits | ±1 bytes | Pico 2 M33: bits | ±1 bytes |
 |---|---|---|---|---|
@@ -138,10 +138,10 @@ faster on the ESP32, for 64 KB more, and gives the same speed on the S3), native
 
 | Network | ESP32: all binary (lut16) | int8 first layer (lut16) | TFLite INT8 | S3: all binary, bits | ±1 bytes | int8 first layer | TFLite INT8 |
 |---|---|---|---|---|---|---|---|
-| min | 1.58 | 0.79 | 3.74 | 0.83 | **0.50** | **0.50** | 0.71 |
-| max-10% | 4.43 | 3.74 | 28.72 | 2.36 | **1.84** | **1.84** | 2.93 |
-| max-5% | 13.28 | 9.33 | 100.97 | 4.87 | **3.85** | **3.85** | 6.40 |
-| max | 13.40 | 12.30 | 102.70 | 4.83 | **3.87** | **3.87** | 6.16 |
+| min | 1.58 | 0.79 | 3.74 | 0.83 | **0.49** | **0.49** | 0.71 |
+| max-10% | 4.43 | 3.74 | 28.72 | 2.36 | **1.83** | **1.83** | 2.93 |
+| max-5% | 13.28 | 9.33 | 100.97 | 4.87 | **3.76** | **3.76** | 6.40 |
+| max | 13.40 | 12.30 | 102.70 | 4.83 | **3.83** | **3.84** | 6.16 |
 
 TFLite with the weights in RAM copies the whole model at boot. On the S3, SYMBEX takes the same time with the weights in
 flash or in RAM (its weights fit the cache: 0.7-6.5 KB). On the Pico 2, the weights in RAM change SYMBEX's latency by
@@ -177,7 +177,7 @@ RAM; TFLite 7.3 KB of flash, 2.7-2.9 KB of arena.
 To compare with ultracompactBNN on equal terms, SYMBEX also had to run **their** network, which keeps the first layer
 in int8 (section 1). On the boards that layer first ran on a generic C kernel. Writing a PIE kernel for it on the
 ESP32-S3 (`symbex_s8_dot_rows`: 16 products per `ee.vmulas.s8.accx`, rows at any alignment so the weights stay in
-flash) made the first layer **1.8-2.4× faster than SYMBEX's own bit planes**, which had been the fastest form on the
+flash) made the first layer **1.8-2.5× faster than SYMBEX's own bit planes**, which had been the fastest form on the
 S3. The same kernel runs the all-binary network's first layer as ±1 bytes, at the same speed.
 
 ### What the earlier work says, and what this suggests (a working theory)
@@ -203,7 +203,7 @@ What the theory expects (the evidence so far in the last row):
 If the theory holds, the earlier practice is right for 8-bit data, for a reason it did not state: with an 8-bit
 input, the first layer does not gain from 1-bit weights at all. And on chips that multiply bytes fast (here all four
 boards, most of all the ESP32-S3's PIE), the int8 first layer **beats the fully binary network** in speed, not only in
-accuracy. The last layer (the classifier) weighs little here: 0.009 ms of 3.87 ms (0.2 %) on the S3.
+accuracy. The last layer (the classifier) weighs little here: 0.009 ms of 3.84 ms (0.2 %) on the S3.
 
 ### The theory: binary weights pay off only where the input is binary too
 
@@ -233,22 +233,22 @@ bytes, the same kernel):
 
 | Network | ESP32 | ESP32-S3 | Pico 2 Hazard3 | Pico 2 M33 | TFLite INT8, ESP32 / S3 |
 |---|---|---|---|---|---|
-| min | 0.77 (0.78) | 0.50 (0.50) | 0.56 (0.57) | 0.84 (0.82) | 4.17 / 0.72 |
-| max-10% | 4.00 (4.01) | 1.84 (1.84) | 2.59 (2.56) | 3.66 (3.64) | 31.23 / 2.93 |
-| max-5% | 10.98 (10.99) | 3.85 (3.85) | 6.00 (5.99) | 9.90 (9.89) | 114.22 / 7.14 |
-| max | 14.07 (14.08) | 3.87 (3.87) | 8.59 (8.59) | 11.81 (11.79) | 115.62 / 7.11 |
+| min | 0.77 (0.78) | 0.49 (0.49) | 0.56 (0.57) | 0.84 (0.82) | 4.17 / 0.72 |
+| max-10% | 4.00 (4.01) | 1.83 (1.83) | 2.59 (2.56) | 3.66 (3.64) | 31.23 / 2.93 |
+| max-5% | 10.98 (10.99) | 3.76 (3.76) | 6.00 (5.99) | 9.90 (9.89) | 114.22 / 7.14 |
+| max | 14.07 (14.08) | 3.84 (3.83) | 8.59 (8.59) | 11.81 (11.79) | 115.62 / 7.11 |
 
 The first layer alone on the ESP32-S3 (ms, from the per-step times of `chip_test.py`):
 
 | Network | bits | int8 (PIE) | faster | whole network, bits → int8 |
 |---|---|---|---|---|
-| min | 0.57 | 0.24 | 2.4× | 0.83 → 0.50 ms (1.66×) |
-| max-10% | 0.97 | 0.46 | 2.1× | 2.36 → 1.84 ms (1.28×) |
-| max-5% | 2.06 | 1.04 | 2.0× | 4.87 → 3.85 ms (1.26×) |
-| max | 2.18 | 1.22 | 1.8× | 4.83 → 3.87 ms (1.25×) |
+| min | 0.57 | 0.23 | 2.5× | 0.83 → 0.49 ms (1.70×) |
+| max-10% | 0.97 | 0.45 | 2.2× | 2.36 → 1.83 ms (1.29×) |
+| max-5% | 2.06 | 0.96 | 2.2× | 4.87 → 3.76 ms (1.29×) |
+| max | 2.18 | 1.19 | 1.8× | 4.83 → 3.84 ms (1.26×) |
 
 Every run is 100 % equal to the simulation (48 runs on the S3: 4 networks × 3 forms × 3 seeds, flash and RAM). With the
-int8 first layer, SYMBEX is still **5.4-10.4× faster than TFLite on the ESP32 and 1.44-1.84× on the S3**, with
+int8 first layer, SYMBEX is still **5.4-10.4× faster than TFLite on the ESP32 and 1.47-1.90× on the S3**, with
 6.5-10× less flash. TFLite stays more accurate: 4.5 points on max-10%, about 9 on the large networks, 19 on min.
 
 ### Does it carry over to the other benchmarks? A quick check
@@ -259,12 +259,12 @@ every method equal to a C reference on the chip):
 
 | First layer | today (1-bit weights) | int8 weights | |
 |---|---|---|---|
-| mlp_fashion 784 → 128, weights in flash | **0.261 ms** | 6.637 ms | int8 25× slower |
-| mlp_fashion 784 → 128, weights in RAM | 0.261 ms | **0.225 ms** | 1.16× (the kernel alone: 0.88×) |
-| ResNet-8 stem, 32×32 × 16 channels | 7.84 ms (whole stem, `fine_profile`); counts alone 4.98 ms | **4.68 ms** (whole stem) | estimate: ~3 ms of 39.2 ms |
+| mlp_fashion 784 → 128, weights in flash | **0.261 ms** | 6.633 ms | int8 25× slower |
+| mlp_fashion 784 → 128, weights in RAM | 0.261 ms | **0.221 ms** | 1.18× (the kernel alone: 0.89×) |
+| ResNet-8 stem, 32×32 × 16 channels | 7.84 ms (whole stem, `fine_profile`); counts alone 4.98 ms | **4.52 ms** (whole stem) | estimate: ~3 ms of 39.2 ms |
 
 - **mlp_fashion: no.** Its first layer has 100 KB of int8 weights, which do not fit the S3's flash cache, while the
-  1-bit weights (14 KB) do. In RAM, the two forms are within 16 %, as the theory predicts. The MLP keeps its 1-bit
+  1-bit weights (14 KB) do. In RAM, the two forms are within 18 %, as the theory predicts. The MLP keeps its 1-bit
   first layer.
 - **ResNet-8: a small gain, an estimate.** An int8 stem would save about 3 ms of the 39.2 ms (~8 %, comparing the
   microbenchmark with the profile of the real stem). It needs an int8 stem in the CDT and retraining; it is future work.

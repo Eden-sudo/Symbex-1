@@ -14,23 +14,23 @@
    "equal_reference": true
   },
   "mlp_int8": {
-   "cycles": 1592834,
-   "ms": 6.6368,
+   "cycles": 1591928,
+   "ms": 6.633,
    "equal_reference": true
   },
   "mlp_int8_kernel": {
-   "cycles": 1591575,
-   "ms": 6.6316,
+   "cycles": 1590548,
+   "ms": 6.6273,
    "equal_reference": true
   },
   "stem_bits": {
-   "cycles": 1196085,
+   "cycles": 1196081,
    "ms": 4.9837,
    "equal_reference": true
   },
   "stem_int8": {
-   "cycles": 1123574,
-   "ms": 4.6816,
+   "cycles": 1084612,
+   "ms": 4.5192,
    "equal_reference": true
   }
  },
@@ -46,23 +46,23 @@
    "equal_reference": true
   },
   "mlp_int8": {
-   "cycles": 53882,
-   "ms": 0.2245,
+   "cycles": 53112,
+   "ms": 0.2213,
    "equal_reference": true
   },
   "mlp_int8_kernel": {
-   "cycles": 52502,
-   "ms": 0.2188,
+   "cycles": 51732,
+   "ms": 0.2155,
    "equal_reference": true
   },
   "stem_bits": {
-   "cycles": 1196082,
+   "cycles": 1196081,
    "ms": 4.9837,
    "equal_reference": true
   },
   "stem_int8": {
-   "cycles": 1123524,
-   "ms": 4.6814,
+   "cycles": 1084612,
+   "ms": 4.5192,
    "equal_reference": true
   }
  }
