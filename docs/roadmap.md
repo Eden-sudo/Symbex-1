@@ -5,13 +5,23 @@ as the work that changes it (`.claude/skills/symbex-sync/SKILL.md`). Day-to-day 
 issue, not here.
 
 State: **done** (merged), **open** (pull request open), **next** (agreed, not started), **proposed** (an idea that
-still needs the owner's agreement). Updated 2026-10-28.
+still needs the owner's agreement). FOMO and hardware policy updated 2026-10-30; other track states retain their
+2026-10-28 snapshot unless noted.
 
-## Shared target
+## Shared target and active classic ESP32 target
 
-All chip measurements are made on **Eden's ESP32-S3-DevKitC-1 N16R8** (16 MB flash, 8 MB octal PSRAM, 240 MHz),
-connected to Eden's PC. Board runs are requested on the pull request (skill, section 2). Results from other boards are
-kept, labelled with the board.
+Both targets remain active, as confirmed by Obed on 2026-10-30:
+
+- **Abrahan's classic ESP32 without PSRAM:** FOMO results measured on his board, including PR #15's ESP32-D0WD-V3
+  runs, remain a first-class track. Re-measure the new validation split on that classic ESP32.
+- **Shared ESP32-S3 with microSD on Eden's PC:** every S3 measurement goes through a board request (skill, section 2),
+  the existing physical-access approval and an exclusive board turn. Eden reported ESP32-S3-DevKitC-1 N16R8
+  (16 MB flash, 8 MB PSRAM) in PR #2; reconfirm the actual module/configuration before a run. The microSD module,
+  pinout, SPI/SDMMC interface, card capacity and configuration remain unverified; confirm them before SD-specific
+  work. No integrated slot or card capacity is assumed.
+
+Label each result by board, owner, commit, environment and raw log. Existing classic results are not future S3
+measurements; request S3 FOMO numbers separately rather than replacing or relabelling classic experiments.
 
 ## LLM on the chip (Obed)
 
@@ -35,13 +45,19 @@ kept, labelled with the board.
 | Rewrite the ternary kernel (12-20 ms in `mlp_fashion`, the slowest path) | proposed | `mlp/mlp_fashion/README.md` |
 | Host the shared S3 and run the board requests | ongoing | |
 
-## FOMO detection (Abraham)
+## FOMO detection (Abrahan)
 
 | Item | State | Where |
 |---|---|---|
 | Binary person detector on Pascal VOC, ESP32 and S3, sizing study | done | `benchmarks/conv2d/fomo_voc_person` |
 | Detection score tests, `.u32` labels, classic ESP32 run, sizing by validation F1, one fixed random validation split | done | PRs #5, #6, #8, #9, #10 |
-| Re-measure the published results with the new validation split (they were calibrated on the previous one) | next | `fomo_voc_person/README.md` |
+| Classic ESP32 without PSRAM: lut16 weights in RAM and swar over seeds 42/43/44, plus flash/RAM captures per step | open (verified 2026-10-30) | PR #15, head `b8ed19e`; measurements reported by Abrahan on his ESP32-D0WD-V3, previous validation split |
+| Re-measure the published results with the new validation split on Abrahan's classic ESP32 (previous results used the old split) | next | `fomo_voc_person/README.md` |
+| Measure FOMO on the shared S3, with board-labelled results separate from the classic measurements | next, board request required | Request Eden's approved board turn; skill section 2 |
+
+Coordination evidence: [Abrahan reported](https://github.com/Eden-sudo/Symbex-1/pull/12#issuecomment-6526390086)
+running the original skill steps 1.2 and 1.3 read-only on Linux/zsh: Team sync resolved to #13 and mention discovery
+found #15. This is collaborator-reported evidence for the earlier commands, not our execution of the revised ones.
 
 ## Not assigned
 

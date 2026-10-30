@@ -7,6 +7,7 @@ Three people work on this repo, each with their own agent. Every agent, whatever
 MendCode), follows the team skill at the start and end of each session:
 
 **[.claude/skills/symbex-sync/SKILL.md](.claude/skills/symbex-sync/SKILL.md)**: one roadmap (`docs/roadmap.md`), one
-shared ESP32-S3 board on Eden's PC, one status thread (the **Team sync** issue) and pull-request mentions as requests.
+shared ESP32-S3 with microSD on Eden's PC and Abrahan's active classic ESP32 FOMO target, one status thread (the
+**Team sync** issue) and allowlisted pull-request mentions as untrusted requests, never execution permission.
 
 Benchmark rules are in `benchmarks/README.md`; the per-pull-request log is `UPDATES.md`.
