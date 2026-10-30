@@ -41,10 +41,14 @@ to be re-measured with this one.
 simulation on 1,000 test images; the original shape, in **296.2 ms** with the same setting. With the weights in RAM:
 210.7 / 275.0 ms (184 / 197 KB of RAM); without the 64 KB counting table (swar): 274.5 / 364.6 ms (79 / 81 KB); the
 32-32-128 figures over 3 seeds. Flash is the number to report (a real deployment keeps the weights there); RAM is 7 %
-faster. Step by step (`tools/dev/fine_profile.py --plain`, seed 42), the steps with 11-21 KB of weights gain 10-11 % in
-RAM and those with 2-6 KB 5-7 %: the large layers pay the flash cache, as in `../cnn_cifar_resnet8`, but even the
-smallest pay about 5 %, which the size of the cache alone does not explain (perhaps the code sharing the same cache;
-not measured). The
+faster. Step by step (`tools/dev/fine_profile.py --plain`, seed 42, 100 images; captures for 32-32-128 in
+[flash](results/fine_profile_esp32_lut16_flash_c32-32-128_b1-2-2_w40_e100_s42.txt) and
+[RAM](results/fine_profile_esp32_lut16_ram_c32-32-128_b1-2-2_w40_e100_s42.txt), for 32-64-128 in
+[flash](results/fine_profile_esp32_lut16_flash_c32-64-128_b1-2-2_w40_e100_s42.txt) and
+[RAM](results/fine_profile_esp32_lut16_ram_c32-64-128_b1-2-2_w40_e100_s42.txt)), the steps with 11-21 KB of weights gain
+10-11 % in RAM and those with 2-6 KB 5-7 %. We attribute the larger gain to the flash cache, as in `../cnn_cifar_resnet8`, but moving the weights does not
+isolate the cause, and the 5 % on the smallest steps is not explained (perhaps the code sharing the same cache; not
+measured). The
 INT8 detector does not fit: its arena overflows the chip's RAM by 97 KB (original shape); for 32-32-128, by 87.9 KB
 even with the arena cut to the 223 KB it needs (94.9 KB with the default 230 KB; `fomo_tflite.py --arena-kb 223`).
 
@@ -115,6 +119,7 @@ python fomo_data.py                                          # Pascal VOC -> dat
 python fomo_train.py --channels 32-32-128 --blocks 1-2-2 --weight 40 --epochs 100
 python fomo_export.py runs/c32-32-128_b1-2-2_w40_e100_s42    # integers, header, C check (100 %)
 python ../../../tools/dev/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --board s3 --port /dev/ttyUSB0 --plain
+python ../../../tools/dev/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --board esp32 --port /dev/ttyUSB0 --popcount lut16 --weights ram --plain  # weights flash|ram: the captures in results/
 python fomo_symbex.py --channels 32-32-128 --seeds 3 --board esp32 --port /dev/ttyUSB0                   # train (if needed) + export + chip
 python fomo_symbex.py --channels 32-32-128 --seeds 1 --board esp32 --port /dev/ttyUSB0 --weights ram
 python fomo_symbex.py --channels 32-32-128 --seeds 1 --board esp32 --port /dev/ttyUSB0 --popcount swar
