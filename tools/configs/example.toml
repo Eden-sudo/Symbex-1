@@ -49,14 +49,16 @@ directory = "data/cifar10"
 
 # How the data is stored in `directory`:
 #   "npy"          x.npy (samples) + y.npy (integer labels), and optionally val.npy
-#                  (True for the samples used for validation). Like the VWW / Wake Vision data.
+#                  (True for the samples used for validation) and test.npy (True for the held-out test samples,
+#                  evaluated once at the end). Like the VWW / Wake Vision data.
 #   "imagefolder"  one sub-folder per class: directory/cat/*.png, directory/dog/*.png ...
 #                  (with train/ and val/ sub-folders if the split is already made)
 #   "cifar10", "mnist", ...   a torchvision dataset, downloaded into `directory` if missing
 format = "npy"
 
 # Fraction of the TRAINING data kept apart for validation (0-1): every choice (plan search, checkpoint) is made on
-# it. The test set, where the format has one (torchvision datasets, imagefolder test/), is evaluated ONCE, at the end.
+# it. The test set, where the format has one (torchvision datasets, imagefolder test/, npy test.npy), is evaluated
+# ONCE, at the end.
 validation_split = 0.1
 
 # Seed of that split. Fix it (e.g. 42) when you compare several training seeds, so all of them are validated on the

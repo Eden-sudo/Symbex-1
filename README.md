@@ -34,10 +34,11 @@ one included (the image enters as a thermometer of bits); 3 training seeds, labe
 | | **SYMBEX, binary** | MLPerf Tiny INT8 |
 |---|---|---|
 | Accuracy | 71.28 ± 0.81 % | 87.0 % |
-| ESP32-S3 | **40.7 ms (1.28× faster)** | 52.0 ms |
-| ESP32 | **59.7 ms (12.0× faster)**, weights in RAM; 64.8 ms in flash | 717.8 ms |
+| ESP32-S3 | **39.2 ms (1.33× faster)** | 52.0 ms |
+| ESP32 | **59.7 ms (12.0× faster)**, weights in RAM; 63.3 ms in flash | 717.8 ms |
+| Raspberry Pi Pico 2 | **56.1 ms** (Hazard3 RISC-V) · 74.5 ms (Cortex-M33) | not measured yet |
 | Flash | **24.3 KB** | 96.2 KB |
-| RAM | **20 KB** | 53-80 KB |
+| RAM | **15 KB** | 53-80 KB |
 | Same result as its PC reference | **100 %** | 98.1 % |
 
 **Sized for binary.** The best shape of a binary network is not the INT8 one: a sizing study (blocks and channels per
@@ -47,7 +48,7 @@ the chip):
 
 | Network | Accuracy | ESP32-S3 | ESP32 | RAM |
 |---|---|---|---|---|
-| ResNet-8 shape (16-32-64, 2-2-2 blocks) | 71.28 ± 0.81 % | 40.7 ms | 59.7 ms (weights in RAM) | 20 KB |
+| ResNet-8 shape (16-32-64, 2-2-2 blocks) | 71.28 ± 0.81 % | 39.2 ms | 59.7 ms (weights in RAM) | 15 KB |
 | **16-32-128, 1-1-2 blocks** | **73.10 ± 0.23 %** | **39.6 ms** | 60.9 ms (weights in RAM) | 15 KB |
 | **16-64-128, 1-1-2 blocks** | **74.45 ± 0.23 %** | 46.6 ms | | 16 KB |
 

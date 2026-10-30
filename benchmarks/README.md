@@ -9,12 +9,12 @@ The benchmarks are grouped by the kind of network: `mlp/` (dense layers), `conv1
 
 | Benchmark | Task | SYMBEX model | INT8 baseline | Status |
 |---|---|---|---|---|
-| [`conv2d/cnn_cifar_resnet8/`](conv2d/cnn_cifar_resnet8/) | image classification, CIFAR-10 | fully binary ResNet-8, and a version sized for binary | the official MLPerf Tiny ResNet-8 | complete: ESP32 and ESP32-S3, 3 seeds, sizing study |
-| [`conv2d/fomo_voc_person/`](conv2d/fomo_voc_person/) | person detection (FOMO), Pascal VOC | fully binary detector | the same architecture, trained the same way | complete: ESP32 and ESP32-S3, sizing study |
-| [`mlp/mlp_fashion/`](mlp/mlp_fashion/) | Fashion-MNIST | MLP, every layer at 1 bit | the same FP32 model, quantized | complete on ESP32 and ESP32-S3; being re-measured with the current engine |
-| [`mlp/mlp_digits/`](mlp/mlp_digits/) | scikit-learn Digits | MLP, every layer at 1 bit | the same FP32 model, quantized | complete; being re-measured with the current engine |
-| [`conv1d/har_ultracompact/`](conv1d/har_ultracompact/) | human activity recognition, 1D | binary 1D CNN | INT8, and the binary library of Daghero et al. (2021) in its own RISC-V environment | in preparation |
-| [`experiments/`](experiments/) | kernels on the ESP32-S3 | `pie_swar_bench.py`, `pie_conv_bench.py` | | isolated measurements behind the library's choices |
+| [`conv2d/cnn_cifar_resnet8/`](conv2d/cnn_cifar_resnet8/) | image classification, CIFAR-10 | fully binary ResNet-8, and a version sized for binary | the official MLPerf Tiny ResNet-8 | complete: ESP32, ESP32-S3, Pico 2 (both cores), 3 seeds, sizing study; INT8 on the Pico 2 to do |
+| [`conv2d/fomo_voc_person/`](conv2d/fomo_voc_person/) | person detection (FOMO), Pascal VOC | fully binary detector | the same architecture, trained the same way | complete: ESP32, ESP32-S3, Pico 2 (both cores), 3 seeds, sizing study; INT8 on the Pico 2 to do |
+| [`mlp/mlp_fashion/`](mlp/mlp_fashion/) | Fashion-MNIST | MLP, every layer at 1 bit | the same FP32 model, quantized | complete on ESP32, ESP32-S3 and Pico 2 (both cores; validation split fixed); INT8 on the Pico 2 to do |
+| [`mlp/mlp_digits/`](mlp/mlp_digits/) | scikit-learn Digits | MLP, every layer at 1 bit | the same FP32 model, quantized; TFLite Micro INT8 | complete: Arduino Uno, ESP32, ESP32-S3, Pico 2 (both cores), 3 seeds, validation split carved from training |
+| [`conv1d/har_ultracompact/`](conv1d/har_ultracompact/) | human activity recognition, 1D | binary 1D CNN (their four networks) | the binary library of Daghero et al. (2021) in its own RISC-V environment (GVSoC); TFLite Micro INT8 and INT8 / INT4 / INT2 (`tools/lowbit`) | binary vs binary complete (3 seeds, 1.07-1.37× fewer instructions); ESP32, ESP32-S3, Pico 2 measured; TFLite on the Pico 2 to do |
+| [`experiments/`](experiments/) | pairs of bits; kernels on the ESP32-S3; arithmetics on the GPU | `pair_bits.py`, `pie_swar_bench.py`, `pie_conv_bench.py`, `gpu_bench.py` | | isolated measurements behind the library's choices |
 
 ## The rules every benchmark follows
 

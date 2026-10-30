@@ -1,8 +1,8 @@
 {
  "n": 360,
  "arithmetic": "xnor",
- "acc_pytorch": 93.61111111111111,
- "acc_integer": 93.61111111111111,
+ "acc_pytorch": 95.27777777777777,
+ "acc_integer": 95.27777777777777,
  "fidelity": 100.0,
  "bit_agreement": [
   100.0
