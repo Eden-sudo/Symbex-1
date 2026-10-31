@@ -10,7 +10,7 @@ The sweep (weights in RAM and in flash, rows read where they lie, as the exporte
     offset   0..15: the first row starts at every alignment
     stride   n, n + 1, n + 5: the following rows move through the alignments
     rows     17 (one more than 16 alignments)
-    values   random int8; every 4th case all -128 (the largest products: checks the 32-bit sum)
+    values   random int8; every 4th offset all -128, x and weights, in RAM and in flash (the largest sums)
 x keeps its contract: 16-byte aligned, 16 * ceil(n / 16) bytes, zero past n. Every case is compared row by row.
 """
 import argparse
@@ -68,19 +68,21 @@ static int one(const char* where, const int8_t* pool, int n, int off, int stride
 void app_main(void) {
     for (;;) {
         printf("S8 DOT ROWS TEST ready\n");
-        long cases = 0, bad_cases = 0, bad_rows = 0;
+        long cases = 0, extreme_cases = 0, bad_cases = 0, bad_rows = 0;
         for (int k = 0; k < 96 + 6; k++) {
             const int n = k < 96 ? k + 1 : extra_n[k - 96];
             for (int si = 0; si < 3; si++) {
                 const int stride = n + extra_stride[si];
                 for (int off = 0; off < 16; off++) {
-                    const int extreme = (cases & 3) == 3;
+                    const int extreme = (off & 3) == 3;
                     memset(x, 0, sizeof x);
                     for (int i = 0; i < n; i++) x[i] = extreme ? -128 : (int8_t)next();
                     for (int i = 0; i < POOL; i++) wram[i] = extreme ? -128 : (int8_t)next();
                     for (int p = 0; p < 2; p++) {
-                        const int b = one(p ? "flash" : "ram", p ? WFLASH : wram, n, off, stride, (int)bad_rows);
+                        const int8_t* pool = p ? (extreme ? WFLASH_MIN : WFLASH) : wram;
+                        const int b = one(p ? "flash" : "ram", pool, n, off, stride, (int)bad_rows);
                         cases++;
+                        extreme_cases += extreme;
                         bad_rows += b;
                         bad_cases += b != 0;
                     }
@@ -88,7 +90,8 @@ void app_main(void) {
             }
             vTaskDelay(1);
         }
-        printf("RESULT cases=%ld bad_cases=%ld bad_rows=%ld\n", cases, bad_cases, bad_rows);
+        printf("RESULT cases=%ld extreme_cases=%ld bad_cases=%ld bad_rows=%ld\n", cases, extreme_cases, bad_cases,
+               bad_rows);
         printf("DONE\n");
         vTaskDelay(pdMS_TO_TICKS(3000));
     }
@@ -124,6 +127,7 @@ def write_project(project, port):
         for i in range(0, POOL, 32):
             f.write("    " + ", ".join(str(int(v)) for v in pool[i:i + 32]) + ",\n")
         f.write("};\n")
+        f.write("static const int8_t WFLASH_MIN[POOL] __attribute__((aligned(16))) = {" + "-128, " * POOL + "};\n")
 
 
 def main():
