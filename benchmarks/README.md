@@ -14,6 +14,7 @@ The benchmarks are grouped by the kind of network: `mlp/` (dense layers), `conv1
 | [`mlp/mlp_fashion/`](mlp/mlp_fashion/) | Fashion-MNIST | MLP, every layer at 1 bit | the same FP32 model, quantized | complete on ESP32, ESP32-S3 and Pico 2 (both cores; validation split fixed); INT8 on the Pico 2 to do |
 | [`mlp/mlp_digits/`](mlp/mlp_digits/) | scikit-learn Digits | MLP, every layer at 1 bit | the same FP32 model, quantized; TFLite Micro INT8 | complete: Arduino Uno, ESP32, ESP32-S3, Pico 2 (both cores), 3 seeds, validation split carved from training |
 | [`conv1d/har_ultracompact/`](conv1d/har_ultracompact/) | human activity recognition, 1D | binary 1D CNN (their four networks) | the binary library of Daghero et al. (2021) in its own RISC-V environment (GVSoC); TFLite Micro INT8 and INT8 / INT4 / INT2 (`tools/lowbit`) | binary vs binary complete (3 seeds, 1.07-1.37× fewer instructions); ESP32, ESP32-S3, Pico 2 measured; TFLite on the Pico 2 to do |
+| [`edge_llm_probe/`](edge_llm_probe/) | memory bandwidth, 1-bit kernel cycles and power for a native 1-bit LLM ([design note](../docs/llm_1bit_embedded.md)) | `kernels/onebit_gemv.c`, host-tested | none (a hardware probe) | bandwidth and kernels measured on one ESP32-S3 and one ESP32-CAM; power pending |
 | [`experiments/`](experiments/) | pairs of bits; kernels on the ESP32-S3; arithmetics on the GPU | `pair_bits.py`, `pie_swar_bench.py`, `pie_conv_bench.py`, `gpu_bench.py` | | isolated measurements behind the library's choices |
 
 ## The rules every benchmark follows

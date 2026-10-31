@@ -1,0 +1,170 @@
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x28 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x420278ae
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce3808,len:0x4bc
+load:0x403c9700,len:0xbd8
+load:0x403cc700,len:0x2a0c
+entry 0x403c98d0
+E (90) esp_core_dump_flash: No core dump partition found!
+E (90) esp_core_dump_flash: No core dump partition found!
+[  3097][E][esp32-hal-misc.c:143] disableCore1WDT(): Failed to remove Core 1 IDLE task from WDT
+
+# SYMBEX edge-LLM probe: nothing below is an estimate; every number is measured on this chip
+INFO,probe_version,1
+INFO,board,Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)
+INFO,build,Oct 27 2026_00:58:46
+INFO,sdk,v4.4.7-dirty
+INFO,chip,ESP32-S3
+INFO,chip_revision,0
+INFO,cores,2
+INFO,cpu_mhz,240
+INFO,phase_seconds,20
+INFO,heap_internal_free,361184
+INFO,heap_internal_largest,319476
+INFO,psram_size,8386295
+INFO,psram_free,8386295
+INFO,flash_size,16777216
+INFO,flash_speed_hz,80000000
+INFO,flash_probe,ok_1088_KB
+INFO,sd,none
+INFO,camera,skipped
+# --- memory bandwidth: BW,<tier>,<test>,<bytes per repetition>,<MB/s best>,<MB/s median> (MB = 10^6 B)
+BW,sram_16KB,read32_seq,4194304,422.13,422.09
+BW,sram_16KB,memcpy_to_sram,4194304,379.33,379.30
+BW,sram_128KB,read32_seq,4194304,423.80,423.54
+BW,sram_128KB,memcpy_to_sram,4194304,379.64,379.61
+BW,psram_16KB,read32_seq,4194304,422.13,422.09
+BW,psram_16KB,memcpy_to_sram,4194304,379.33,379.33
+BW,psram_1MB,read32_seq,4194304,61.84,61.84
+BW,psram_1MB,memcpy_to_sram,4194304,60.36,60.36
+BW,psram_4MB,read32_seq,4194304,61.85,61.84
+BW,psram_4MB,memcpy_to_sram,4194304,60.36,60.36
+BW,flash_mmap_1MB,read32_seq,4194304,26.46,26.46
+BW,flash_mmap_1MB,memcpy_to_sram,4194304,26.45,26.45
+# --- kernels: KERN,<kernel>,<mem>,<M>,<N>,<cycles per weight>,<us per call>,<OK|FAIL>
+# weights are cache-cold for psram and flash; *_build / *_pack are per input vector, amortised over M rows
+KERN,ref,sram,256,1024,16.116,17602.8,OK
+KERN,mask,sram,256,1024,10.440,11403.2,OK
+KERN,lut4_build,sram,256,1024,0.298,325.4,OK
+KERN,lut4_lookup,sram,256,1024,1.590,1736.2,OK
+KERN,lut4,sram,256,1024,1.887,2061.6,OK
+KERN,lut4_2core_lookup,sram,256,1024,0.814,889.5,OK
+KERN,bitserial4_pack,sram,256,1024,0.220,240.3,OK
+KERN,bitserial4,sram,256,1024,2.673,2919.1,OK
+KERN,xnor,sram,256,1024,0.675,737.2,OK
+KERN,ref,psram,256,1024,16.432,17948.3,OK
+KERN,mask,psram,256,1024,10.759,11751.9,OK
+KERN,lut4_build,psram,256,1024,0.299,326.1,OK
+KERN,lut4_lookup,psram,256,1024,1.917,2094.1,OK
+KERN,lut4,psram,256,1024,2.216,2420.2,OK
+KERN,lut4_2core_lookup,psram,256,1024,0.976,1066.5,OK
+KERN,bitserial4_pack,psram,256,1024,0.220,240.3,OK
+KERN,bitserial4,psram,256,1024,2.997,3273.3,OK
+KERN,xnor,psram,256,1024,0.998,1090.0,OK
+KERN,ref,flash,256,1024,16.567,18095.3,OK
+KERN,mask,flash,256,1024,10.893,11898.3,OK
+KERN,lut4_build,flash,256,1024,0.298,325.6,OK
+KERN,lut4_lookup,flash,256,1024,2.046,2234.7,OK
+KERN,lut4,flash,256,1024,2.344,2560.3,OK
+KERN,lut4_2core_lookup,flash,256,1024,1.125,1228.4,OK
+KERN,bitserial4_pack,flash,256,1024,0.220,240.3,OK
+KERN,bitserial4,flash,256,1024,3.130,3419.1,OK
+KERN,xnor,flash,256,1024,1.207,1318.8,OK
+KERN,ref,sram,1024,1024,16.119,70423.2,OK
+KERN,mask,sram,1024,1024,10.430,45567.2,OK
+KERN,lut4_build,sram,1024,1024,0.074,325.4,OK
+KERN,lut4_lookup,sram,1024,1024,1.594,6963.0,OK
+KERN,lut4,sram,1024,1024,1.668,7288.5,OK
+KERN,lut4_2core_lookup,sram,1024,1024,0.799,3492.2,OK
+KERN,bitserial4_pack,sram,1024,1024,0.055,240.3,OK
+KERN,bitserial4,sram,1024,1024,2.677,11695.4,OK
+KERN,xnor,sram,1024,1024,0.679,2968.3,OK
+KERN,ref,psram,1024,1024,16.435,71805.5,OK
+KERN,mask,psram,1024,1024,10.752,46974.5,OK
+KERN,lut4_build,psram,1024,1024,0.075,325.6,OK
+KERN,lut4_lookup,psram,1024,1024,1.909,8339.0,OK
+KERN,lut4,psram,1024,1024,1.983,8664.6,OK
+KERN,lut4_2core_lookup,psram,1024,1024,0.963,4206.0,OK
+KERN,bitserial4_pack,psram,1024,1024,0.055,240.3,OK
+KERN,bitserial4,psram,1024,1024,2.997,13094.9,OK
+KERN,xnor,psram,1024,1024,0.997,4357.9,OK
+KERN,ref,flash,1024,1024,16.565,72375.0,OK
+KERN,mask,flash,1024,1024,10.881,47539.3,OK
+KERN,lut4_build,flash,1024,1024,0.074,325.4,OK
+KERN,lut4_lookup,flash,1024,1024,2.040,8913.4,OK
+KERN,lut4,flash,1024,1024,2.115,9238.9,OK
+KERN,lut4_2core_lookup,flash,1024,1024,1.112,4857.9,OK
+KERN,bitserial4_pack,flash,1024,1024,0.055,240.3,OK
+KERN,bitserial4,flash,1024,1024,3.126,13658.0,OK
+KERN,xnor,flash,1024,1024,1.210,5286.2,OK
+# skip 2048x2048 in sram: 512 KB does not fit
+KERN,ref,psram,2048,2048,16.429,287117.5,OK
+KERN,mask,psram,2048,2048,10.744,187761.9,OK
+KERN,lut4_build,psram,2048,2048,0.038,655.4,OK
+KERN,lut4_lookup,psram,2048,2048,1.899,33183.5,OK
+KERN,lut4,psram,2048,2048,1.936,33838.9,OK
+KERN,lut4_2core_lookup,psram,2048,2048,0.955,16695.9,OK
+KERN,bitserial4_pack,psram,2048,2048,0.027,480.4,OK
+KERN,bitserial4,psram,2048,2048,2.980,52072.8,OK
+KERN,xnor,psram,2048,2048,0.989,17287.1,OK
+KERN,ref,flash,2048,2048,16.559,289387.2,OK
+KERN,mask,flash,2048,2048,10.873,190018.1,OK
+KERN,lut4_build,flash,2048,2048,0.037,650.9,OK
+KERN,lut4_lookup,flash,2048,2048,2.030,35473.2,OK
+KERN,lut4,flash,2048,2048,2.067,36124.1,OK
+KERN,lut4_2core_lookup,flash,2048,2048,1.111,19421.0,OK
+KERN,bitserial4_pack,flash,2048,2048,0.027,480.3,OK
+KERN,bitserial4,flash,2048,2048,3.109,54333.2,OK
+KERN,xnor,flash,2048,2048,1.202,21001.2,OK
+# --- energy schedule, round 1: 20 s per phase. Write down watts per phase (total and above idle).
+# weights for the gemv phases: 1024x1024 from PSRAM
+PHASE,1,idle,start
+# phase 1 idle: 14 s left, read the meter now
+# phase 1 idle: 9 s left, read the meter now
+# phase 1 idle: 4 s left, read the meter now
+# phase 1 idle: 0 s left, read the meter now
+PHASE,1,idle,end,2000
+PHASE,2,sram-read,start
+# phase 2 sram-read: 14 s left, read the meter now
+# phase 2 sram-read: 9 s left, read the meter now
+# phase 2 sram-read: 4 s left, read the meter now
+# phase 2 sram-read: 0 s left, read the meter now
+PHASE,2,sram-read,end,127787
+PHASE,3,psram-read,start
+# phase 3 psram-read: 14 s left, read the meter now
+# phase 3 psram-read: 9 s left, read the meter now
+# phase 3 psram-read: 4 s left, read the meter now
+# phase 3 psram-read: 0 s left, read the meter now
+PHASE,3,psram-read,end,1180
+PHASE,4,flash-read,start
+# phase 4 flash-read: 14 s left, read the meter now
+# phase 4 flash-read: 9 s left, read the meter now
+# phase 4 flash-read: 4 s left, read the meter now
+# phase 4 flash-read: 0 s left, read the meter now
+PHASE,4,flash-read,end,505
+# phase 5 sd-read skipped (not available on this board)
+PHASE,6,lut4-gemv,start
+# phase 6 lut4-gemv: 14 s left, read the meter now
+# phase 6 lut4-gemv: 9 s left, read the meter now
+# phase 6 lut4-gemv: 4 s left, read the meter now
+# phase 6 lut4-gemv: 0 s left, read the meter now
+PHASE,6,lut4-gemv,end,2307
+PHASE,7,lut4-2core,start
+# phase 7 lut4-2core: 14 s left, read the meter now
+# phase 7 lut4-2core: 9 s left, read the meter now
+# phase 7 lut4-2core: 4 s left, read the meter now
+# phase 7 lut4-2core: 0 s left, read the meter now
+PHASE,7,lut4-2core,end,4407
+PHASE,8,mask-gemv,start
+# phase 8 mask-gemv: 14 s left, read the meter now
+# phase 8 mask-gemv: 9 s left, read the meter now
+# phase 8 mask-gemv: 4 s left, read the meter now
+# phase 8 mask-gemv: 0 s left, read the meter now
+PHASE,8,mask-gemv,end,426
+# --- round complete
+# --- energy schedule, round 2: 20 s per phase. Write down watts per phase (total and above idle).
+# weights for the gemv phases: 1024x1024 from PSRAM
+PHASE,1,idle,start
