@@ -125,6 +125,7 @@ Quick, separate tests, each documented in its own docstring:
 | `pie_conv_bench.py` | the AND + PIE arithmetic of the convolutions on the ESP32-S3 |
 | `pie_swar_bench.py` | a faster way to count bits with the ESP32-S3's multiplier? |
 | `int8_first_bench.py` | does an int8 first layer speed up mlp_fashion and ResNet-8 on the ESP32-S3, as it does conv1d? |
+| `s8_dot_rows_chip_test.py` | is the S3 PIE kernel `symbex_s8_dot_rows` exact at every alignment? (9,792 cases on the chip, weights in RAM and flash: all equal to C) |
 | `poplut_probe.py` | PopLUT (codebook-compressed binary weights) on mlp_fashion: a falsification probe |
 | `gpu_bench.py` | every arithmetic (FP32, TF32, FP16, BF16, INT8, 1 bit) on the CUDA GPU, same matrix product |
 
