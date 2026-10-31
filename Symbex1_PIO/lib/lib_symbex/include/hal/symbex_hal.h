@@ -98,6 +98,12 @@ int32_t symbex_u8_sum_bits(const uint8_t* workspace, const uint32_t* w, int n_wo
 void symbex_u8_sum_bits_rows(const uint8_t* workspace, int n_inputs, const uint32_t* w, int stride, int n_rows,
                              int32_t* out);
 
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+/* ESP32-S3 only (PIE): out[r] = sum_{i < n} x[i] * w[r * stride + i], n >= 1. x: 16-byte aligned, zero padded to a
+   multiple of 16 bytes; the rows any alignment (read in aligned 16-byte blocks, only those holding bytes of the row). */
+void symbex_s8_dot_rows(const int8_t* x, int n, const int8_t* w, int stride, int n_rows, int32_t* out);
+#endif
+
 /* Weighted AND counts over bit planes (first layer with the input split into k bit planes):
    out[r] = sum_{q < k} count(planes[q * n_words ...] AND row r) << (low + q), rows of n_words words.
    Each weight word is read once for the k planes. */
