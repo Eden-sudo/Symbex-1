@@ -365,9 +365,11 @@ static bool g_camera_ok = false;
 
 static void print_info() {
     Serial.printf("INFO,probe_version,%d\n", PROBE_VERSION);
-    /* the detected module; ARDUINO_BOARD is only the PlatformIO build target and can name a different variant */
+    /* the detected module; ARDUINO_BOARD is only the PlatformIO build target and can name a different variant.
+       getPsramSize() is the usable PSRAM, a few KB under the module's capacity (8386295 bytes on an 8 MB N16R8),
+       so the label rounds it to the nearest MB; psram_size below keeps the measured bytes */
     Serial.printf("INFO,board,%s_%uMB_flash_%uMB_psram\n", ESP.getChipModel(),
-                  (unsigned)(ESP.getFlashChipSize() >> 20), (unsigned)(ESP.getPsramSize() >> 20));
+                  (unsigned)(ESP.getFlashChipSize() >> 20), (unsigned)((ESP.getPsramSize() + (1u << 19)) >> 20));
     Serial.printf("INFO,pio_board,%s\n", ARDUINO_BOARD);
     Serial.printf("INFO,build,%s_%s\n", __DATE__, __TIME__);
     Serial.printf("INFO,sdk,%s\n", ESP.getSdkVersion());
