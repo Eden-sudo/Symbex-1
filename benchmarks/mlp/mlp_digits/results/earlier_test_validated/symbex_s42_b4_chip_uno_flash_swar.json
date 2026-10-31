@@ -1,0 +1,32 @@
+{
+ "board": "uno",
+ "hal": "avr: ATmega328P, generic: lut8 (256-byte table in flash)",
+ "popcount": "swar",
+ "weights": "flash",
+ "first_layer": "mask",
+ "n": 360,
+ "equal_simulation": 100.0,
+ "accuracy": 98.88888888888889,
+ "median_ms": 21.892,
+ "min_ms": 21.608,
+ "layers": [
+  {
+   "step": "layer 0: 64 -> 256 (4-bit input x 1 bit) + thresholds",
+   "median_ms": 21.004
+  },
+  {
+   "step": "layer 1: 256 -> 10 (1 bit x 1 bit) + argmax",
+   "median_ms": 0.884
+  }
+ ],
+ "ram": {
+  "buffers": 136,
+  "input_bytes": 64,
+  "popcount_table": 0,
+  "stack_used": 34,
+  "weights_in_ram": 0,
+  "total": 234
+ },
+ "model_flash": 3512,
+ "arithmetic": "xnor"
+}

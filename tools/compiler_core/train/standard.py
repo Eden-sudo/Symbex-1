@@ -169,7 +169,7 @@ def train_model(model, trainloader, testloader, epochs=30, lr=1e-3, weight_decay
         history.append((epoch, loss_sum / len(trainloader), acc_train, acc_test))
         if verbose:
             print(f"  Epoch [{epoch + 1:03d}/{epochs}] | Loss: {loss_sum / len(trainloader):.4f} | "
-                  f"Train: {acc_train:5.2f}% | Test: {acc_test:5.2f}% | {time.time() - t0:.1f}s")
+                  f"Train: {acc_train:5.2f}% | Val: {acc_test:5.2f}% | {time.time() - t0:.1f}s")
         ckpt.after_epoch(model, epoch, epochs, acc_test)
 
     return _summary(history, average_last)

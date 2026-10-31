@@ -5,6 +5,7 @@ digits_symbex.py -- mlp_digits benchmark, SYMBEX side (main environment, .venv).
     python digits_symbex.py --seeds 3 --board s3                # seeds 42, 43, 44: CDT + the board, each
     python digits_symbex.py --board s3 --compare-arithmetic     # also the whole model with the other arithmetic
     python digits_symbex.py --board esp32 --sweep               # every chip setting on the first seed's export
+    python digits_symbex.py --seeds 3 --board pico2_riscv --port /dev/ttyACM0   # the Pico 2 (also pico2_arm)
 
 Run from benchmarks/mlp/mlp_digits/.
   1. models/digits_mlp.pth: the original FP32 model (model.py prepares the data and trains it if missing). Every seed starts from this
@@ -19,6 +20,7 @@ Summary tables at the end; every result .json is copied to results/ (the only ou
 """
 import argparse
 import glob
+import hashlib
 import json
 import os
 import shutil
@@ -68,7 +70,8 @@ def chip_on(out_dir, seed, args, weights, popcount, compare, data_flags=()):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=1, help="number of seeds: 42, 43, ... (default 1)")
-    ap.add_argument("--board", choices=["uno", "esp32", "s3"], default="", help="measure on this board")
+    ap.add_argument("--board", choices=["uno", "esp32", "s3", "pico2_arm", "pico2_riscv"], default="",
+                    help="measure on this board (pico2_arm / pico2_riscv: the Raspberry Pi Pico 2's Cortex-M33 / Hazard3)")
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--weights", choices=["flash", "ram"], default="flash", help="where the weights live on the board")
     ap.add_argument("--popcount", choices=["swar", "lut16"], default="swar")
@@ -91,7 +94,7 @@ def main():
     sys.path.insert(0, HERE)
     from model import get_fp32
     print("[*] original FP32 model (models/digits_mlp.pth, trained if missing)")
-    get_fp32()
+    fp32_sha256 = hashlib.sha256(open(get_fp32(), "rb").read()).hexdigest()
     os.makedirs("results", exist_ok=True)
     seeds = [42 + i for i in range(args.seeds)]
     suffix = ("" if args.input_bits == 8 else f"_b{args.input_bits}") + (f"_w{args.widths.replace(',', '-')}" if args.widths else "") \
@@ -114,7 +117,8 @@ def main():
                     *(["--widths", args.widths] if args.widths else []),
                     *(["--board", args.board, "--port", args.port, "--popcount", args.popcount] if args.board else []))
         tr, ex = load(os.path.join(out_dir, "train.json")), load(os.path.join(out_dir, "export.json"))
-        row = dict(seed=seed, width=tr["width"], val_accuracy=tr["acc_last"], flash_kb=ex["flash_bytes"] / 1024,
+        row = dict(seed=seed, width=tr["width"], val_accuracy=tr["acc_last"],
+                   test_accuracy=(tr.get("test") or {}).get("acc_symbex"), flash_kb=ex["flash_bytes"] / 1024,
                    arithmetic=ex.get("arithmetic"))
         if args.board and not args.sweep:
             chip, other = chip_on(out_dir, seed, args, args.weights, args.popcount, args.compare_arithmetic, data_flags)
@@ -129,20 +133,27 @@ def main():
         for f in glob.glob(os.path.join(out_dir, "*.json")):
             name = os.path.basename(f)
             if name.startswith("chip"):
+                if not args.board:                   # a PC run: the chip files are an earlier board run's
+                    continue
                 name = name.replace("chip", f"chip_{args.board}_{args.weights}_{args.popcount}", 1)
             shutil.copy(f, os.path.join("results", f"symbex{tag}_{name}"))
 
     on_chip = args.board and not args.sweep
-    print(f"\n    SEEDS  (same FP32 original; validation accuracy on the 360 Digits test images, last epoch)")
-    print(f"    {'seed':>5}{'width':>7}{'val acc':>10}{'flash KB':>10}"
+    print(f"\n    SEEDS  (same FP32 original; last epoch: validation = 288 images split from the training data, "
+          f"test = the 360 held-out images, evaluated once; the board runs the test images)")
+    print(f"    {'seed':>5}{'width':>7}{'val acc':>10}{'test acc':>10}{'flash KB':>10}"
           + (f"{'arith.':>8}{'chip acc':>10}{'ms':>9}{'equal':>8}{'RAM KB':>9}" if on_chip else ""))
     for r in rows:
-        print(f"    {r['seed']:>5}{r['width']:>6g}x{r['val_accuracy']:>9.2f}%{r['flash_kb']:>10.1f}"
+        test = f"{r['test_accuracy']:>9.2f}%" if r.get("test_accuracy") is not None else f"{'--':>10}"
+        print(f"    {r['seed']:>5}{r['width']:>6g}x{r['val_accuracy']:>9.2f}%{test}{r['flash_kb']:>10.1f}"
               + (f"{str(r.get('arithmetic')).upper():>8}{r['chip_accuracy']:>9.2f}%{r['latency_ms']:>9.3f}"
                  f"{r['equal']:>7.0f}%{r['ram_kb']:>9.2f}" if on_chip and "chip_accuracy" in r else ""))
     summary = dict(board=args.board, weights=args.weights, popcount=args.popcount, input_bits=args.input_bits,
-                   seeds=rows, val_accuracy=mean_std([r["val_accuracy"] for r in rows]))
+                   fp32_sha256=fp32_sha256, seeds=rows, val_accuracy=mean_std([r["val_accuracy"] for r in rows]))
     print(f"    validation accuracy over {len(rows)} seed(s): {summary['val_accuracy']} %")
+    if all(r.get("test_accuracy") is not None for r in rows):
+        summary["test_accuracy"] = mean_std([r["test_accuracy"] for r in rows])
+        print(f"    test accuracy over {len(rows)} seed(s): {summary['test_accuracy']} %")
     if on_chip and rows and "latency_ms" in rows[0]:
         summary["latency_ms"] = mean_std([r["latency_ms"] for r in rows])
         summary["chip_accuracy"] = mean_std([r["chip_accuracy"] for r in rows])

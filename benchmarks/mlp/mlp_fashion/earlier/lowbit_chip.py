@@ -66,7 +66,7 @@ def ensure_int(bits):
         return folder
     if not os.path.exists(os.path.join(HERE, "models", f"int{bits}_qat_s42.npz")):
         print(f"\n[*] INT{bits}: no saved model yet: fashion_int4.py again (3 seeds, the same results, now saved)")
-        r = subprocess.run([sys.executable, os.path.join("earlier", "fashion_int4.py"), "--bits", str(bits), "--epocas", "15", "--semillas", "3"],
+        r = subprocess.run([sys.executable, os.path.join("earlier", "fashion_int4.py"), "--bits", str(bits), "--epochs", "15", "--seeds", "3"],
                            cwd=HERE)
         if r.returncode != 0 or not os.path.exists(os.path.join(HERE, "models", f"int{bits}_qat_s42.npz")):
             sys.exit(f"[X] models/int{bits}_qat_s42.npz was not saved: was patch_lowbit_chip.py applied?")

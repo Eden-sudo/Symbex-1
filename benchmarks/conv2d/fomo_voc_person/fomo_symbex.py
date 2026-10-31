@@ -5,6 +5,9 @@ fomo_symbex.py -- the fomo_voc_person benchmark: the binary FOMO detector, train
     python fomo_symbex.py --channels 32-32-128 --seeds 3 --board esp32 --port /dev/ttyUSB0  # ... and measure on the board
     python fomo_symbex.py --channels 32-32-128 --seeds 3 --board esp32 --weights ram
     python fomo_symbex.py --channels 32-64-128 --seeds 1 --board esp32 --popcount swar
+    python fomo_symbex.py --seeds 3 --board s3 --port /dev/ttyACM0 --usb --popcount swar   # the S3's native USB port
+    python fomo_symbex.py --seeds 3 --board pico2_riscv --port /dev/ttyACM0                 # Pico 2 (or pico2_arm)
+    python fomo_symbex.py --seeds 3 --board s3 --popcount swar --summary                   # the summary only
 
 Run from benchmarks/conv2d/fomo_voc_person/ (main environment, .venv; a GPU helps the training). For every seed:
 fomo_train.py (skipped if runs/<name>_s<seed>/ already holds model.pth and train.json; --redo trains it again),
@@ -12,7 +15,8 @@ fomo_export.py (always: the C check on the PC, EXACTNESS must be 100%) and, with
 same images (equality with the integer simulation must be 100%; latency; RAM). Every number in the summary is read
 from the files these scripts write (train.json, export.json, chip_<board>_<popcount>_<weights>_mask.json), never typed.
 Summary: results/symbex_seeds_<board>_<popcount>[_ram]_<name>.json (results/symbex_seeds_pc_<name>.json without a
-board), <name> = c<channels>_b<blocks>_w<weight>_e<epochs>.
+board), <name> = c<channels>_b<blocks>_w<weight>_e<epochs>. --summary trains, exports and measures nothing: it rebuilds
+the summary from the files already in the run folders.
 """
 import argparse
 import json
@@ -50,11 +54,14 @@ def main():
     ap.add_argument("--epochs", type=int, default=100)
     ap.add_argument("--seeds", type=int, default=1, help="number of seeds: 42, 43, ... (default 1)")
     ap.add_argument("--images", type=int, default=1000, help="test images for the C check and the chip (default 1000)")
-    ap.add_argument("--board", choices=["esp32", "s3"], help="measure on this board")
+    ap.add_argument("--board", choices=["esp32", "s3", "pico2_arm", "pico2_riscv"],
+                    help="measure on this board (pico2_arm / pico2_riscv: the Pico 2's Cortex-M33 / Hazard3)")
+    ap.add_argument("--usb", action="store_true", help="the ESP32-S3's native USB port (passed to chip_test.py)")
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--weights", choices=["flash", "ram"], default="flash", help="where the weights live on the board")
     ap.add_argument("--popcount", choices=["swar", "lut16"], default="lut16", help="counting mode (swar: minimum RAM)")
     ap.add_argument("--redo", action="store_true", help="train again seeds that are already trained")
+    ap.add_argument("--summary", action="store_true", help="no training, export or chip run: summarize the run folders")
     args = ap.parse_args()
     os.chdir(HERE)
     os.makedirs("results", exist_ok=True)
@@ -62,23 +69,30 @@ def main():
     rows = []
     for seed in [42 + i for i in range(args.seeds)]:
         out_dir = os.path.join("runs", f"{name}_s{seed}")
+        chip_json = os.path.join(out_dir, f"chip_{args.board}_{args.popcount}_{args.weights}_mask.json")
+        if args.summary:
+            if not os.path.exists(chip_json if args.board else os.path.join(out_dir, "export.json")):
+                print(f"[!] seed {seed}: nothing measured in {out_dir} for this setting: skipped")
+                continue
         trained = os.path.exists(os.path.join(out_dir, "model.pth")) and os.path.exists(os.path.join(out_dir, "train.json"))
-        if trained and not args.redo:
+        if args.summary:
+            pass
+        elif trained and not args.redo:
             print(f"\n[*] seed {seed}: already trained in {out_dir} (--redo to train it again): exporting again")
         elif not run([sys.executable, "fomo_train.py", "--channels", args.channels, "--blocks", args.blocks,
                       "--weight", f"{args.weight:g}", "--epochs", str(args.epochs), "--seed", str(seed)]):
             print(f"[X] the training failed on seed {seed}")
             continue
-        if not run([sys.executable, "fomo_export.py", out_dir, "--images", str(args.images)]):
+        if not args.summary and not run([sys.executable, "fomo_export.py", out_dir, "--images", str(args.images)]):
             print(f"[X] the export failed on seed {seed}")
             continue
-        chip_json = os.path.join(out_dir, f"chip_{args.board}_{args.popcount}_{args.weights}_mask.json")
-        if args.board:
+        if args.board and not args.summary:
             if os.path.exists(chip_json):
                 os.remove(chip_json)                 # a failed measurement must not leave an older one in the summary
             if not run([sys.executable, os.path.join(TOOLS, "chip_test.py"), os.path.abspath(out_dir),
                         "--board", args.board, "--port", args.port, "--popcount", args.popcount,
-                        "--weights", args.weights, "--samples", str(args.images), "--lib-path", LIB], cwd=TOOLS):
+                        "--weights", args.weights, "--samples", str(args.images), "--lib-path", LIB]
+                       + (["--usb"] if args.usb else []), cwd=TOOLS):
                 print(f"[X] the chip measurement failed on seed {seed}")
         tr, ex = load(os.path.join(out_dir, "train.json")), load(os.path.join(out_dir, "export.json"))
         row = dict(seed=seed, f1_val=tr.get("calibrated_validation", {}).get("f1"),
@@ -108,6 +122,8 @@ def main():
     ms, ms_sd = mean_sd([r.get("latency_ms") for r in rows])
     if ms is not None:
         print(f"    latency over {len(rows)} seed(s): {ms:.3f} +- {ms_sd:.3f} ms ({args.popcount}, weights in {args.weights})")
+    if args.summary and not rows:
+        sys.exit("[X] --summary: no measured seed for this board and setting")
     tag = f"{args.board}_{args.popcount}{'_ram' if args.weights == 'ram' else ''}" if args.board else "pc"
     path = os.path.join("results", f"symbex_seeds_{tag}_{name}.json")
     json.dump(dict(channels=args.channels, blocks=args.blocks, weight=args.weight, epochs=args.epochs, board=args.board,

@@ -2,9 +2,9 @@
  "board": "s3",
  "model_ram": true,
  "n": 360,
- "accuracy": 98.61111111111111,
+ "accuracy": 98.33333333333333,
  "equal_pc": 100.0,
- "median_ms": 0.113,
+ "median_ms": 0.112,
  "min_ms": 0.109,
  "arena_kb": 1.82421875,
  "flash_kb": 14.734375

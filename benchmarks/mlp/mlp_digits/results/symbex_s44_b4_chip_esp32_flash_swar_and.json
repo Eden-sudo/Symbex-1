@@ -6,7 +6,7 @@
  "first_layer": "mask",
  "n": 360,
  "equal_simulation": 100.0,
- "accuracy": 98.33333333333333,
+ "accuracy": 97.5,
  "median_ms": 0.381,
  "min_ms": 0.381,
  "layers": [
@@ -23,10 +23,9 @@
   "buffers": 1216,
   "input_bytes": 64,
   "popcount_table": 0,
-  "stack_used": 496,
+  "stack_used": 520,
   "weights_in_ram": 0,
-  "total": 1776
+  "total": 1800
  },
- "model_flash": 5600,
- "arithmetic": "and"
+ "model_flash": 5600
 }

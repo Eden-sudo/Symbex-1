@@ -8,11 +8,36 @@
   {
    "seed": 42,
    "width": 1,
-   "val_accuracy": 73.35,
+   "val_accuracy": null,
+   "test_accuracy": 73.35,
    "flash_kb": 46.4296875,
    "exactness": 100.0,
    "chip_accuracy": 74.6,
    "latency_ms": 60.921,
+   "equal": 100.0,
+   "ram_kb": 125.5625
+  },
+  {
+   "seed": 43,
+   "width": 1,
+   "val_accuracy": null,
+   "test_accuracy": 72.89,
+   "flash_kb": 46.4296875,
+   "exactness": 100.0,
+   "chip_accuracy": 72.7,
+   "latency_ms": 60.919,
+   "equal": 100.0,
+   "ram_kb": 125.5625
+  },
+  {
+   "seed": 44,
+   "width": 1,
+   "val_accuracy": null,
+   "test_accuracy": 73.05,
+   "flash_kb": 46.4296875,
+   "exactness": 100.0,
+   "chip_accuracy": 72.8,
+   "latency_ms": 60.916,
    "equal": 100.0,
    "ram_kb": 125.5625
   }

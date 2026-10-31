@@ -3,6 +3,7 @@ digits_tflite.py -- mlp_digits benchmark, official INT8 side (TensorFlow Lite), 
 
     python digits_tflite.py                    # convert to INT8 with TFLite and evaluate it on the PC
     python digits_tflite.py --board esp32      # ... and measure it on the board with TensorFlow Lite Micro
+    python digits_tflite.py --board s3 --port /dev/ttyACM0 --usb   # the ESP32-S3 through its native USB port
     python digits_tflite.py --table-only       # only the comparison table, from results/ (no board)
 --no-upload assumes the TFLite firmware is still on the board: after running the SYMBEX side (which flashes
 its own firmware), measure without --no-upload, or just print the table with --table-only.
@@ -119,6 +120,10 @@ MAIN_TFLM = r"""
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include <cstring>
+#ifdef USB_SERIAL_JTAG
+#include "driver/usb_serial_jtag.h"
+#include "driver/usb_serial_jtag_vfs.h"
+#endif
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/schema/schema_generated.h"
@@ -130,14 +135,27 @@ static int8_t q8[256];
 
 static void read_exact(uint8_t* d, size_t n) {
     size_t r = 0;
+#ifdef USB_SERIAL_JTAG
+    while (r < n) { int k = usb_serial_jtag_read_bytes(d + r, n - r, portMAX_DELAY); if (k > 0) r += (size_t)k; }
+#else
     while (r < n) { int k = uart_read_bytes(UART_NUM_0, d + r, n - r, portMAX_DELAY); if (k > 0) r += (size_t)k; }
+#endif
 }
 
 extern "C" void app_main(void) {
     esp_log_level_set("*", ESP_LOG_WARN);
+#ifdef USB_SERIAL_JTAG
+    /* the S3's native USB port (--usb): the same protocol, the host sends 0x55 when it listens */
+    usb_serial_jtag_driver_config_t usb = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+    usb.rx_buffer_size = 8192;
+    usb.tx_buffer_size = 4096;
+    usb_serial_jtag_driver_install(&usb);
+    usb_serial_jtag_vfs_use_driver();
+#else
     uart_driver_install(UART_NUM_0, 8192, 0, 0, nullptr, 0);
     uart_wait_tx_done(UART_NUM_0, pdMS_TO_TICKS(100));
     uart_set_baudrate(UART_NUM_0, BAUD_RATE);
+#endif
     vTaskDelay(pdMS_TO_TICKS(50));
 #ifdef MODEL_IN_RAM
     /* copy the whole .tflite (weights included) to internal RAM: no flash cache misses */
@@ -158,11 +176,20 @@ extern "C" void app_main(void) {
         float q = roundf((p / 255.0f) / inp->params.scale) + inp->params.zero_point;
         q8[p] = (int8_t)(q < -128 ? -128 : (q > 127 ? 127 : q));
     }
+#ifdef USB_SERIAL_JTAG
+    uint8_t hello = 0;
+    while (hello != 0x55) read_exact(&hello, 1);
+#endif
     printf("\nTFLITE ready | arena used %u bytes\n", (unsigned)it.arena_used_bytes());
     fflush(stdout);
     while (true) {
         uint8_t mark = 0;
         read_exact(&mark, 1);
+        if (mark == 0x55) {                           /* the host asks for the ready line again */
+            printf("\nTFLITE ready | arena used %u bytes\n", (unsigned)it.arena_used_bytes());
+            fflush(stdout);
+            continue;
+        }
         if (mark != 0xA5) continue;
         read_exact(x, sizeof x);
         int64_t t0 = esp_timer_get_time();
@@ -178,7 +205,7 @@ extern "C" void app_main(void) {
 """
 
 
-def tflm_project(project_dir, tflite, board, port, baud, arena_kb, n_inputs, n_classes, model_ram=False):
+def tflm_project(project_dir, tflite, board, port, baud, arena_kb, n_inputs, n_classes, model_ram=False, usb=False):
     src = os.path.join(project_dir, "src")
     os.makedirs(src, exist_ok=True)
     for f in os.listdir(project_dir):
@@ -190,7 +217,8 @@ def tflm_project(project_dir, tflite, board, port, baud, arena_kb, n_inputs, n_c
     w("sdkconfig.defaults", "CONFIG_COMPILER_OPTIMIZATION_PERF=y\nCONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y\n"
                             "CONFIG_ESP32_DEFAULT_CPU_FREQ_240=y\nCONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y\n"
                             "CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384\nCONFIG_LOG_DEFAULT_LEVEL_WARN=y\n"
-                            "CONFIG_ESP_TASK_WDT_EN=n\nCONFIG_NN_OPTIMIZED=y\n")
+                            "CONFIG_ESP_TASK_WDT_EN=n\nCONFIG_NN_OPTIMIZED=y\n"
+                            + ("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\n" if usb else ""))
     w("CMakeLists.txt", "cmake_minimum_required(VERSION 3.16.0)\ninclude($ENV{IDF_PATH}/tools/cmake/project.cmake)\n"
                         f"project({os.path.basename(os.path.abspath(project_dir))})\n")
     w("src/CMakeLists.txt", 'idf_component_register(SRCS "main.cc" "model_tflite.cc" INCLUDE_DIRS ".")\n')
@@ -202,10 +230,11 @@ def tflm_project(project_dir, tflite, board, port, baud, arena_kb, n_inputs, n_c
     lines += ["};", f"const size_t g_model_len = {len(tflite)};"]
     w("src/model_tflite.cc", "\n".join(lines) + "\n")
     w("src/main.cc", f"#define BAUD_RATE {baud}\n#define ARENA_KB {arena_kb}\n#define N_INPUTS {n_inputs}\n"
-                     f"#define N_CLASSES {n_classes}\n" + ("#define MODEL_IN_RAM 1\n" if model_ram else "") + MAIN_TFLM)
+                     f"#define N_CLASSES {n_classes}\n" + ("#define MODEL_IN_RAM 1\n" if model_ram else "")
+                     + ("#define USB_SERIAL_JTAG 1\n" if usb else "") + MAIN_TFLM)
 
 
-def measure_chip(project_dir, board, port, baud, x_u8, upload):
+def measure_chip(project_dir, board, port, baud, x_u8, upload, usb=False):
     import serial
     if upload:
         if shutil.which("pio") is None:
@@ -219,12 +248,19 @@ def measure_chip(project_dir, board, port, baud, x_u8, upload):
     s.rts = False
     s.open()
     s.reset_input_buffer()
-    s.rts = True
-    time.sleep(0.15)
-    s.rts = False
+    if usb:                                              # native USB: opening the port resets the chip
+        time.sleep(1.5)
+        s.reset_input_buffer()
+        s.write(b"\x55")
+    else:
+        s.rts = True
+        time.sleep(0.15)
+        s.rts = False
     arena, t0, warned = None, time.time(), False
     while True:
         l = s.readline().decode(errors="replace").strip()
+        if usb and not l:
+            s.write(b"\x55")                             # ask again for the ready line
         if "ERROR:" in l:
             sys.exit(f"[X] {l[l.index('ERROR:'):]} (raise --arena-kb)")
         if "TFLITE ready" in l:
@@ -312,9 +348,12 @@ def main():
                          "has room for it, the classic ESP32 usually does not)")
     ap.add_argument("--table-only", action="store_true",
                     help="only print the comparison table from results/ (no conversion, no board needed)")
+    ap.add_argument("--usb", action="store_true", help="the ESP32-S3's native USB port (/dev/ttyACM0), not its UART")
     args = ap.parse_args()
     if args.port and not args.port.startswith("/") and not args.port.upper().startswith("COM"):
         args.port = "/dev/" + args.port                  # "ttyUSB0" -> "/dev/ttyUSB0"
+    if args.usb and args.board != "s3":
+        sys.exit("[X] --usb: only the ESP32-S3 (--board s3) has a native USB-Serial-JTAG port")
     os.chdir(HERE)
     if args.table_only:
         board = args.board or "esp32"
@@ -352,8 +391,10 @@ def main():
         print(f"[*] 4. INT8 on the chip ({args.board}, TensorFlow Lite Micro)")
         n = min(args.samples, len(x_val))
         project_dir = f"runs/tflite/chip_{args.board}"
-        tflm_project(project_dir, tflite, args.board, args.port, args.baud, args.arena_kb, 64, 10, args.model_ram)
-        pred, times, arena = measure_chip(project_dir, args.board, args.port, args.baud, x_val[:n], not args.no_upload)
+        tflm_project(project_dir, tflite, args.board, args.port, args.baud, args.arena_kb, 64, 10, args.model_ram,
+                     args.usb)
+        pred, times, arena = measure_chip(project_dir, args.board, args.port, args.baud, x_val[:n], not args.no_upload,
+                                          args.usb)
         r = dict(board=args.board, model_ram=args.model_ram, n=n, accuracy=100 * float((pred == y_val[:n]).mean()),
                  equal_pc=100 * float((pred == pred_pc[:n]).mean()), median_ms=float(np.median(times)) / 1000,
                  min_ms=float(np.min(times)) / 1000, arena_kb=arena / 1024, flash_kb=len(tflite) / 1024)

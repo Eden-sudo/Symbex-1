@@ -116,8 +116,7 @@ def run_int(bits, seeds):
             print(f"[*] INT{bits}: {os.path.basename(path)} comes from another FP32 model (test {theirs}% against "
                   f"{mine}% here): running it again on this machine")
     print(f"\n[*] INT{bits} QAT, {seeds} seed(s), {EPOCHS} epochs")
-    # fashion_int4.py's own option names (Spanish: --epocas, --semillas) -- change here if they are renamed
-    cmd = [sys.executable, os.path.join("earlier", "fashion_int4.py"), "--bits", str(bits), "--epocas", str(EPOCHS), "--semillas", str(seeds)]
+    cmd = [sys.executable, os.path.join("earlier", "fashion_int4.py"), "--bits", str(bits), "--epochs", str(EPOCHS), "--seeds", str(seeds)]
     if SUFFIX:
         cmd.append("--no-distill")
     if subprocess.run(cmd, cwd=HERE).returncode != 0:

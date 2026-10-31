@@ -1,13 +1,13 @@
 {
  "n": 360,
- "arithmetic": "xnor",
- "acc_pytorch": 88.61111111111111,
- "acc_integer": 88.61111111111111,
+ "arithmetic": "and",
+ "acc_pytorch": 88.33333333333333,
+ "acc_integer": 88.33333333333333,
  "fidelity": 100.0,
  "bit_agreement": [
   100.0
  ],
- "flash_bytes": 3512,
+ "flash_bytes": 5600,
  "header": "runs/symbex_s44_b1/model_symbex.h",
  "c_exactness": 100.0,
  "c_note": ""

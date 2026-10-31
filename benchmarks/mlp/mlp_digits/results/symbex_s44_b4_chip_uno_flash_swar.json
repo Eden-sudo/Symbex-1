@@ -6,13 +6,13 @@
  "first_layer": "mask",
  "n": 360,
  "equal_simulation": 100.0,
- "accuracy": 98.33333333333333,
- "median_ms": 21.88,
- "min_ms": 21.588,
+ "accuracy": 97.5,
+ "median_ms": 21.916,
+ "min_ms": 21.68,
  "layers": [
   {
    "step": "layer 0: 64 -> 256 (4-bit input x 1 bit) + thresholds",
-   "median_ms": 20.996
+   "median_ms": 21.032
   },
   {
    "step": "layer 1: 256 -> 10 (1 bit x 1 bit) + argmax",

@@ -31,15 +31,24 @@ to be re-measured with this one.
 | Latency | **160.8 ms** | 379.1 ms | **126.3 ms** | 256.9 ms |
 | Speed-up | **2.36×** | | **2.03×** | |
 | Flash | **52.3 KB** | 315.7 KB | **41.2 KB** | 236.1 KB |
-| RAM | **53 KB** | 223.3 KB (arena) | **51 KB** | 222.6 KB (arena) |
+| RAM (with the 27 KB input image, as in the arena) | **81 KB** * | 223.3 KB (arena) | **79 KB** | 222.6 KB (arena) |
 | Same result as its PC reference | **100 %** | 90 % | **100 %** | 88 % |
+
+\* measured on the classic ESP32 with the same setting (no counting table): the buffers depend only on the shape.
 
 **On the classic ESP32** (ESP32-D0WD-V3, 240 MHz, one core, no PSRAM) the resized binary detector runs in **226.3 ms**
 (32-32-128, 3 seeds: 226.31-226.35 ms; lut16 counting, weights in flash, 143 KB of RAM), every seed 100 % equal to its
 simulation on 1,000 test images; the original shape, in **296.2 ms** with the same setting. With the weights in RAM:
-210.7 / 275.0 ms (184 / 197 KB of RAM); without the 64 KB counting table (swar): 274.5 / 364.6 ms (79 / 81 KB). Flash is
-the number to report (a real deployment keeps the weights there); RAM is 7 % faster, probably because the weights (41-52
-KB) are more than the flash cache keeps, as measured in `../cnn_cifar_resnet8` (a hypothesis here, not checked). The
+210.7 / 275.0 ms (184 / 197 KB of RAM); without the 64 KB counting table (swar): 274.5 / 364.6 ms (79 / 81 KB); the
+32-32-128 figures over 3 seeds. Flash is the number to report (a real deployment keeps the weights there); RAM is 7 %
+faster. Step by step (`tools/dev/fine_profile.py --plain`, seed 42, 100 images; captures for 32-32-128 in
+[flash](results/fine_profile_esp32_lut16_flash_c32-32-128_b1-2-2_w40_e100_s42.txt) and
+[RAM](results/fine_profile_esp32_lut16_ram_c32-32-128_b1-2-2_w40_e100_s42.txt), for 32-64-128 in
+[flash](results/fine_profile_esp32_lut16_flash_c32-64-128_b1-2-2_w40_e100_s42.txt) and
+[RAM](results/fine_profile_esp32_lut16_ram_c32-64-128_b1-2-2_w40_e100_s42.txt)), the steps with 11-21 KB of weights gain
+10-11 % in RAM and those with 2-6 KB 5-7 %. We attribute the larger gain to the flash cache, as in `../cnn_cifar_resnet8`, but moving the weights does not
+isolate the cause, and the 5 % on the smallest steps is not explained (perhaps the code sharing the same cache; not
+measured). The
 INT8 detector does not fit: its arena overflows the chip's RAM by 97 KB (original shape); for 32-32-128, by 87.9 KB
 even with the arena cut to the 223 KB it needs (94.9 KB with the default 230 KB; `fomo_tflite.py --arena-kb 223`).
 
@@ -47,6 +56,10 @@ The resized shape is reported over 3 training seeds on both sides (42, 43, 44); 
 floating-point version of the same network reaches 32.0 % F1: **binarization costs about one point here**, and the
 binary detector is as accurate as the INT8 one, or slightly more. Person detection in VOC at 96 × 96 is hard for networks this small — the
 limit is the task, the same for every precision.
+
+**On the Raspberry Pi Pico 2** (RP2350, 150 MHz, weights in flash, 3 seeds, every seed 100 % equal to its simulation):
+32-32-128 runs in **338.5 ms** on the Hazard3 RISC-V cores (native popcount, 79 KB of RAM) and **416.4 ms** on the
+Cortex-M33 (64 KB counting table, 143 KB). TFLite INT8 on the Pico 2 (CMSIS-NN on the M33) is not measured yet.
 
 ### Why detection binarizes so well here
 
@@ -106,9 +119,13 @@ python fomo_data.py                                          # Pascal VOC -> dat
 python fomo_train.py --channels 32-32-128 --blocks 1-2-2 --weight 40 --epochs 100
 python fomo_export.py runs/c32-32-128_b1-2-2_w40_e100_s42    # integers, header, C check (100 %)
 python ../../../tools/dev/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --board s3 --port /dev/ttyUSB0 --plain
+python ../../../tools/dev/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --board esp32 --port /dev/ttyUSB0 --popcount lut16 --weights ram --plain  # weights flash|ram: the captures in results/
 python fomo_symbex.py --channels 32-32-128 --seeds 3 --board esp32 --port /dev/ttyUSB0                   # train (if needed) + export + chip
 python fomo_symbex.py --channels 32-32-128 --seeds 1 --board esp32 --port /dev/ttyUSB0 --weights ram
 python fomo_symbex.py --channels 32-32-128 --seeds 1 --board esp32 --port /dev/ttyUSB0 --popcount swar
+python fomo_symbex.py --channels 32-32-128 --seeds 3 --board s3 --port /dev/ttyACM0 --usb --popcount swar  # native USB
+python fomo_symbex.py --channels 32-32-128 --seeds 3 --board pico2_riscv --port /dev/ttyACM0             # Pico 2 (Hazard3)
+python fomo_symbex.py --channels 32-32-128 --seeds 3 --board pico2_arm --port /dev/ttyACM0               # Pico 2 (M33)
 python fomo_tflite.py --channels 32-32-128 --blocks 1-2-2 --board s3 --port /dev/ttyUSB0
 python fomo_train.py --fp32 --channels 32-64-128 --blocks 1-2-2    # the floating-point reference
 python fomo_sizing.py --phase depth ; python fomo_sizing.py --phase width

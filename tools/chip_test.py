@@ -38,6 +38,9 @@ from compiler_core.chip.kernels import run_kernels, save_profile
 from compiler_core.chip.measure import measure_on_chip
 from compiler_core.export.dense import load_validation
 
+# resolved from this file, so chip_test.py runs from any folder
+LIB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Symbex1_PIO", "lib", "lib_symbex")
+
 
 def main():
     ap = argparse.ArgumentParser(description="Test an exported SYMBEX model on a microcontroller")
@@ -54,7 +57,7 @@ def main():
                     help="where the weights live: flash (default) or RAM (faster if the model is bigger than the flash cache)")
     ap.add_argument("--first-layer", choices=["mask", "planes", "simple"], default="mask",
                     help="uint8 first layer of XNOR headers (same result): masks (default), bit planes or the simple loop")
-    ap.add_argument("--lib-path", default="../Symbex1_PIO/lib/lib_symbex")
+    ap.add_argument("--lib-path", default=LIB_PATH, help="lib_symbex folder (default: the one in this repository)")
     ap.add_argument("--no-upload", action="store_true", help="the firmware is already on the board")
     ap.add_argument("--no-int8", action="store_true", help="do not run the INT8 reference even if it was exported")
     ap.add_argument("--usb", action="store_true",

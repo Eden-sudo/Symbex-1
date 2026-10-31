@@ -1,0 +1,135 @@
+{
+ "arch": "min",
+ "seed": 42,
+ "steps": [
+  "conv 3->4 k7",
+  "conv 4->4 k7 + pool 4",
+  "conv 4->4 k7 + pool 4",
+  "classifier"
+ ],
+ "ucbnn": {
+  "errors": 0,
+  "windows": 4,
+  "steps": [
+   {
+    "instr": 10339,
+    "cycles": 21165
+   },
+   {
+    "instr": 7579,
+    "cycles": 16810
+   },
+   {
+    "instr": 1501,
+    "cycles": 3297
+   },
+   {
+    "instr": 455,
+    "cycles": 1070
+   }
+  ],
+  "instr": 19874,
+  "cycles": 42342
+ },
+ "symbex": {
+  "errors": 0,
+  "windows": 4,
+  "steps": [
+   {
+    "instr": 179807,
+    "cycles": 670921
+   },
+   {
+    "instr": 5274,
+    "cycles": 13943
+   },
+   {
+    "instr": 1239,
+    "cycles": 3121
+   },
+   {
+    "instr": 588,
+    "cycles": 1445
+   }
+  ],
+  "instr": 186908,
+  "cycles": 689430
+ },
+ "symbex_pulp_u8": {
+  "errors": 0,
+  "windows": 4,
+  "steps": [
+   {
+    "instr": 36981,
+    "cycles": 105085
+   },
+   {
+    "instr": 5274,
+    "cycles": 13943
+   },
+   {
+    "instr": 1239,
+    "cycles": 3101
+   },
+   {
+    "instr": 590,
+    "cycles": 1452
+   }
+  ],
+  "instr": 44084,
+  "cycles": 123581
+ },
+ "symbex_pulp_layer": {
+  "errors": 0,
+  "windows": 4,
+  "steps": [
+   {
+    "instr": 11190,
+    "cycles": 26513
+   },
+   {
+    "instr": 5277,
+    "cycles": 13950
+   },
+   {
+    "instr": 1240,
+    "cycles": 3118
+   },
+   {
+    "instr": 592,
+    "cycles": 1454
+   }
+  ],
+  "instr": 18299,
+  "cycles": 45035
+ },
+ "symbex_i8_first": {
+  "errors": 0,
+  "windows": 4,
+  "steps": [
+   {
+    "instr": 11461,
+    "cycles": 27017
+   },
+   {
+    "instr": 5067,
+    "cycles": 12470
+   },
+   {
+    "instr": 1204,
+    "cycles": 2904
+   },
+   {
+    "instr": 600,
+    "cycles": 1451
+   }
+  ],
+  "instr": 18332,
+  "cycles": 43842
+ },
+ "windows": 4,
+ "accuracy": {
+  "ucbnn": 39.16023993144816,
+  "symbex": 30.46272493573265
+ }
+}

@@ -1,0 +1,27 @@
+command : python ../../../tools/dev/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --board esp32 --port /dev/ttyUSB0 --popcount lut16 --weights flash --plain
+commit  : 2a8cfb1
+board   : ESP32-D0WD-V3 rev 3.1, 240 MHz, 4 MB flash, no PSRAM
+flash   : DIO, 40 MHz (ESP-IDF 6.1.0 default)
+model   : model_symbex.h sha256 48a140ae8288b59e541263f0f900f1b664023b6fc4e87f4f837292a41cf14026
+date    : 2026-10-30
+The build log is left out; everything below is the output of the tool, unchanged.
+
+    board ready | generic: lut16 (64 KB table in RAM) | 27648 inputs
+      25/100 images
+      50/100 images
+      75/100 images
+      100/100 images
+
+    LATENCY  (esp32, 240 MHz, 100 images, popcount lut16, weights in flash; normal library, no counters): median 226.333 ms
+
+    STEPS                                                ms/img      %
+    --------------------------------------------------------------
+    thermometer (8 levels) + stem 24->32 96x96           54.048  23.9%  ######
+    block 0: conv 32->32 48x48 | OR                      62.453  27.6%  #######
+    block 1: conv 32->32 48x48 s2 + OR pool + 1x1 |      20.734   9.2%  ##
+    block 2: conv 32->32 24x24 | OR                      16.323   7.2%  ##
+    block 3: conv 32->128 24x24 s2 + OR pool + 1x1 |     20.536   9.1%  ##
+    block 4: conv 128->128 12x12 | OR                    51.937  22.9%  ######
+    per-cell head                                         0.295   0.1%  
+    --------------------------------------------------------------
+    total                                               226.326
