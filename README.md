@@ -19,12 +19,13 @@ them on real chips against the official INT8 toolchain (TensorFlow Lite Micro).
 It has three parts:
 
 - **`lib_symbex`** -- a portable C inference engine for binary networks: bit counting instead of multiplication,
-  integer thresholds, no floating point. One hardware layer per chip family (generic, ESP32, ESP32-S3, AVR).
+  integer thresholds, no floating point. One hardware layer per chip family (generic, ESP32, ESP32-S3, AVR,
+  RP2350).
 - **The CDT** (`tools/cdt.py`) -- takes a model, your data and your hardware limits, trains the binary network,
   folds it into integers, writes its C header and checks it bit by bit, on the PC and on the chip.
 - **`benchmarks/`** -- reproducible comparisons against INT8 TensorFlow Lite Micro on the same chips.
 
-## Results (ESP32-S3 and ESP32, 240 MHz, one core)
+## Results (measured on the chips, one core)
 
 ### Image classification: a fully binary ResNet-8 ([`benchmarks/conv2d/cnn_cifar_resnet8`](benchmarks/conv2d/cnn_cifar_resnet8/))
 
@@ -70,9 +71,34 @@ Detection binarizes well: every cell answers a yes/no question, and the binary d
 
 ### Dense networks ([`benchmarks/mlp/mlp_fashion`](benchmarks/mlp/mlp_fashion/), [`benchmarks/mlp/mlp_digits`](benchmarks/mlp/mlp_digits/))
 
-Fashion-MNIST, every layer at 1 bit, twice as wide: 86.80 ± 0.36 % (INT8: 87.20 %) with **69 KB of weights against
-242 KB**, and **2.5× faster than INT8 on the ESP32** (16.70 ms against 41.97 ms). These figures are being re-measured
-with the current engine and the corrected validation split (see Methodology).
+Fashion-MNIST, sized for binary (784-128-512-10: a narrow first layer, wide binary layers), against INT8 of the same
+network; 3 seeds, labels only, weights in flash unless stated:
+
+| | **SYMBEX, binary** | INT8 (same network) |
+|---|---|---|
+| Accuracy | 87.47 ± 0.09 % | 89.81 ± 0.11 % (QAT) |
+| ESP32-S3 | **0.42 ms (28× faster)** | 11.7 ms (TFLite Micro) |
+| ESP32-S3, weights in RAM | **0.41 ms (2.1× faster)** | 0.89 ms |
+| ESP32 | **3.6 ms (8.6× faster)** | 31.1 ms |
+| Raspberry Pi Pico 2 | **4.4 ms** (Hazard3) · 4.6 ms (M33); 1.4 ms with the weights in RAM | not measured yet |
+| Flash | **27 KB** | 187 KB |
+| RAM | **4.6 KB** | 6.7 KB |
+
+INT8 is 2.3 points more accurate; SYMBEX wins speed and memory. On the smaller Digits MLP the two tie on the ESP32-S3
+(0.109 against 0.110 ms), SYMBEX is 2-3.3× faster on the ESP32, and it is the only one that runs on an Arduino Uno.
+
+### Activity recognition: binary 1D convolutions ([`benchmarks/conv1d/har_ultracompact`](benchmarks/conv1d/har_ultracompact/))
+
+UniMiB-SHAR (accelerometer, 17 activities), the four networks of the closest prior work (Daghero et al. 2021,
+ultracompactBNN), 3 seeds:
+
+- **Against their binary library, in their own simulated RISC-V environment (GVSoC):** SYMBEX needs **1.07-1.37×
+  fewer instructions** on all four networks, also with their own trained weights.
+- **Against INT8 TFLite Micro, same architectures, weights in flash:** **5.3-10.4× faster** on the ESP32 and
+  **1.47-1.90× faster** on the ESP32-S3, with 2-10× less RAM and 6.5-10× less flash. INT8 is more accurate on these
+  small networks (about 9 points on the large ones).
+- **Where fully binary stops paying (a working theory):** with an 8-bit input like the accelerometer, a first layer
+  with int8 weights is faster and more accurate than a binary one on every board measured.
 
 ### Why it is faster: counting bits against multiplying
 
@@ -104,34 +130,40 @@ against int8 (multiply-accumulate).
   with the same recipe); a resized binary network is compared with INT8 resized the same way.
 - **Independent baseline:** INT8 through the official TensorFlow Lite converter and TensorFlow Lite Micro, in a
   separate environment that imports nothing from SYMBEX.
-- **Measured on the chip:** medians over 1000 inferences (`esp_timer`), one core, 240 MHz; RAM measured on the chip.
+- **Measured on the chip:** medians over 1000 inferences, one core, at the stock clock (240 MHz on the ESP32 chips,
+  150 MHz on the Pico 2); RAM measured on the chip.
 - **Several seeds** for SYMBEX: accuracy as mean ± standard deviation.
-- **Validation split:** model and variant selection must use a validation split carved out of the training data, with
-  the test set evaluated once. A review found places where the test set was used for selection (some CDT runs, the
-  choice of variants in the sizing studies); the fix is being applied and the affected figures re-measured.
+- **Validation split:** every choice (checkpoint, threshold, variant, shape) is made on a validation split carved out
+  of the training data; the test set is evaluated once. A review found places where the test set had been used for
+  selection; they were fixed and the affected figures re-measured (October 2026).
 
 ## Current state and next steps
 
-- **1D convolutions** for sensor data (human activity recognition), compared with the closest prior work: the
-  binary library of Daghero et al. (2021), in their own simulated RISC-V environment (GVSoC) and on real silicon.
-- **More chips:** Arm Cortex-M33 and RISC-V (RP2350).
-- **Distillation** from the official floating-point MLPerf ResNet-8.
+Done in October 2026: 1D convolutions (against Daghero et al. 2021, in GVSoC and on real boards), the Raspberry
+Pi Pico 2 (both cores, Arm Cortex-M33 and Hazard3 RISC-V, exact), and every benchmark re-measured with the current engine
+and, all but FOMO, with the corrected validation split. Next:
+
+- **TFLite Micro INT8 on the Pico 2** (CMSIS-NN on the Cortex-M33), so the Pico 2 rows get their INT8 reference.
+- **The arithmetic of the first layer chosen per chip** (bits or bytes), from measurements, by the CDT.
 - **Energy** has not been measured yet; latency and memory are.
+- **FOMO re-trained** on the new fixed validation split.
 
 ## Repository layout
 
 ```
 Symbex1_PIO/               PlatformIO project
-  lib/lib_symbex/          the C engine (include/, src/, hal/), and tests/run_tests.py (bit-exact tests, 3 HALs)
+  lib/lib_symbex/          the C engine (include/, src/, hal/), and tests/run_tests.py (bit-exact tests, every HAL)
   src/main.cpp             minimal example: a demo network checked against its PC simulation on your board
 tools/
   cdt.py                   the CDT: configuration (TOML) -> train -> export -> validate -> chip
   chip_test.py             runs an exported model on a board: exactness, accuracy, latency per layer, RAM
-  fine_profile.py          time per library function on the chip
-  count_bench.py           raw arithmetic of each chip (binary against int8)
   compiler_core/           the library behind the CDT
   configs/                 example.toml: every option, commented
-benchmarks/                reproducible comparisons against TensorFlow Lite Micro, one folder per task
+  lowbit/                  INT8 / INT4 / INT2 baselines (Brevitas, ESP-NN kernels) for any benchmark
+  dev/                     developer tools: fine_profile.py (time per library function), count_bench.py (raw
+                           arithmetic of each chip), train_bench.py
+benchmarks/                reproducible comparisons against TensorFlow Lite Micro: mlp/, conv1d/, conv2d/, experiments/
+tests/                     Python tests (pytest -q from the root)
 docs/                      documentation (English and Spanish)
 ```
 
@@ -166,5 +198,7 @@ A preprint describing SYMBEX-1 is in preparation; the reference will be added he
 
 Carlos Duarte (Edén) -- Panama -- GitHub: [Eden-sudo](https://github.com/Eden-sudo)
 Obed -- GitHub: [Obed0101](https://github.com/Obed0101) -- test suite, low-bit baselines, validation split review
+Abrahan -- GitHub: [abrahandejesusaparicio-code](https://github.com/abrahandejesusaparicio-code) -- FOMO person
+detection on the classic ESP32
 
 Spanish version: [README.es.md](README.es.md) -- License: see [LICENSE](LICENSE).
