@@ -1,5 +1,5 @@
 """Bit-packing / unpacking roundtrip of every export path:
-    export/plain._pack_rows (+ _filas layouts)   LSB-first 32-bit words, rows padded to `multiplo` words
+    export/plain._pack_rows (+ _engine_rows layouts)   LSB-first 32-bit words, rows padded to `multiple` words
     export/dense._pack                           LSB-first 32-bit words, ceil(n / 32) per row
     export/gated (header)                        MSB-first bytes, weight > 0 -> 1
     export/bitslice._export_layer_to_arrays_v1   k MSB-first bit planes + outlier mask + magnitudes
@@ -13,7 +13,7 @@ import torch
 from compiler_core.export.bitslice import _export_layer_to_arrays_v1, _write_header_v1
 from compiler_core.export.dense import _pack
 from compiler_core.export.gated import export_model_v2_to_h
-from compiler_core.export.plain import _filas, _pack_rows, _padding
+from compiler_core.export.plain import _engine_rows, _pack_rows, _padding
 from compiler_core.methods.dense.bitslice import SymbexVotingPool
 from compiler_core.methods.dense.core import BipolarStepSTE
 from compiler_core.methods.dense.gated import SymbexBlockGatedPool
@@ -29,12 +29,12 @@ def _weights_with_zeros(rng, shape):
 
 
 @pytest.mark.parametrize("n", LENGTHS)
-@pytest.mark.parametrize("multiplo", [1, 4])
-def test_pack_rows_roundtrip_padding_and_word_count(rng, n, multiplo):
+@pytest.mark.parametrize("multiple", [1, 4])
+def test_pack_rows_roundtrip_padding_and_word_count(rng, n, multiple):
     rows = _weights_with_zeros(rng, (5, n))
-    packed, words = _pack_rows(rows, multiplo=multiplo)
-    assert words % multiplo == 0
-    assert words * 32 >= n and (words - multiplo) * 32 < n          # minimal padding
+    packed, words = _pack_rows(rows, multiple=multiple)
+    assert words % multiple == 0
+    assert words * 32 >= n and (words - multiple) * 32 < n          # minimal padding
     assert all(len(r) == words for r in packed)
     bits, pad = unpack_lsb_words(np.array(packed, dtype=np.uint64), n)
     np.testing.assert_array_equal(bits, (rows >= 0).astype(np.int64))
@@ -43,30 +43,30 @@ def test_pack_rows_roundtrip_padding_and_word_count(rng, n, multiplo):
 
 @pytest.mark.parametrize("n", LENGTHS)
 def test_pack_roundtrip_and_agrees_with_pack_rows(rng, n):
-    signos = np.where(_weights_with_zeros(rng, (4, n)) >= 0, 1, -1)
-    packed, words = _pack(signos)
+    signs = np.where(_weights_with_zeros(rng, (4, n)) >= 0, 1, -1)
+    packed, words = _pack(signs)
     assert words == (n + 31) // 32
     assert packed.max() < 2 ** 32
     bits, pad = unpack_lsb_words(packed, n)
-    np.testing.assert_array_equal(2 * bits - 1, signos)
+    np.testing.assert_array_equal(2 * bits - 1, signs)
     assert pad.sum() == 0
-    other, other_words = _pack_rows(signos, multiplo=1)
+    other, other_words = _pack_rows(signs, multiple=1)
     assert other_words == words
     np.testing.assert_array_equal(np.array(other, dtype=np.uint64), packed)
 
 
 @pytest.mark.parametrize("layout", ["hwc", "chw"])
-def test_filas_layout_order_matches_the_engine_window(rng, layout):
+def test_engine_rows_layout_order_matches_the_engine_window(rng, layout):
     out, ic, k = 3, 5, 3
     w = rng.normal(size=(out, ic, k, k))
-    filas = _filas(w, layout)
-    assert filas.shape == (out, ic * k * k)
+    rows = _engine_rows(w, layout)
+    assert rows.shape == (out, ic * k * k)
     for o in range(out):
         for c in range(ic):
             for kh in range(k):
                 for kw in range(k):
                     idx = (kh * k + kw) * ic + c if layout == "hwc" else (c * k + kh) * k + kw
-                    assert filas[o, idx] == w[o, c, kh, kw]
+                    assert rows[o, idx] == w[o, c, kh, kw]
 
 
 # ---------------------------------------------------------------------------------------------------
