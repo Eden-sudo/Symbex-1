@@ -1,7 +1,7 @@
 """Threshold folding: BatchNorm (incl. negative and zero gamma), bias, input normalization, ReLU and the next
 layer's sign activation folded into ONE integer threshold per neuron (export/dense.fold), checked
 bit-for-bit against the float PyTorch model; plus the fixed-point BN folding of the conv path
-(export/plain._fold_bn, validate/plain._aplicar_rprelu)."""
+(export/plain._fold_bn, validate/plain._apply_rprelu)."""
 import os
 import shutil
 
@@ -13,7 +13,7 @@ import torch.nn as nn
 from compiler_core.export import dense
 from compiler_core.export.plain import _fold_bn
 from compiler_core.methods.dense.plain import DensePlain
-from compiler_core.validate.plain import _aplicar_rprelu
+from compiler_core.validate.plain import _apply_rprelu
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIB_SYMBEX = os.path.join(REPO, "Symbex1_PIO", "lib", "lib_symbex")
@@ -186,7 +186,7 @@ def test_fixed_point_bn_rprelu_matches_float_reference(rng):
     raw = rng.integers(-72, 73, size=(ch, 4, 4))
     identity = rng.normal(size=(ch, 4, 4))
 
-    got = _aplicar_rprelu(raw, q(identity), q(gamma), q(zeta), q(slope), escala_q, shift_q, q_act, q_mult)
+    got = _apply_rprelu(raw, q(identity), q(gamma), q(zeta), q(slope), escala_q, shift_q, q_act, q_mult)
 
     g = bn.weight.detach().numpy() / np.sqrt(bn.running_var.numpy() + bn.eps)
     y = (alpha * g)[:, None, None] * raw + (bn.bias.detach().numpy() - bn.running_mean.numpy() * g)[:, None, None]
