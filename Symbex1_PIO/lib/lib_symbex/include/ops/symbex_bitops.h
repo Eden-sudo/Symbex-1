@@ -2,8 +2,8 @@
  * symbex_bitops.h -- low-level, generic bitwise operations,
  * used by ANY spatial layer (conv1d, conv2d, pool...).
  *
- * Migrated from symbex_conv.cpp (the "El Mesero" and "El Ayudante"
- * functions) -- preserved because it handles the GENERAL case of
+ * Migrated from symbex_conv.cpp (its bit-range extraction and line-buffer
+ * helpers) -- preserved because it handles the GENERAL case of
  * arbitrary image widths (unlike symbex_extract_window in conv2d,
  * which assumes a row fits into a single 32-bit word).
  *

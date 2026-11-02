@@ -7,11 +7,9 @@
  * acceleration on the ESP32-S3 (the old symbex_core.h had an unfilled
  * placeholder for that, falling back to __builtin_popcount without PIE).
  *
- * REAL PENDING TASK, not resolved yet: symbex_xnor_popcount does not read
- * memory via pgm_read_dword on AVR -- if weights live in the flash
- * of a real AVR, that support needs to be added to hal/generic
- * before this works correctly there. SYMBEX_READ_W32 is kept here in the
- * meantime, for parts of the code that still read word by word.
+ * SYMBEX_READ_W32 reads one weight word: a normal read on every chip, pgm_read_dword on AVR, where the weights live
+ * in flash (PROGMEM). Every counting function of hal/generic reads its weight argument with it, so weights in the
+ * flash of an AVR work everywhere (this used to be a pending task; it is done).
  */
 
 #ifndef SYMBEX_CORE_H

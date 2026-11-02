@@ -51,7 +51,8 @@ SOURCES = ["src/ops/symbex_and.c", "src/ops/symbex_bitops.c", "src/ops/symbex_bi
            "src/layers/dense/symbex_dense.c", "src/layers/dense/symbex_gated.c",
            "src/layers/conv/symbex_bpr.c", "src/layers/conv/symbex_conv2d.c", "src/layers/conv/symbex_binary_pool.c",
            "src/core/network/symbex_network_dense.c", "src/core/network/symbex_network_conv.c",
-           "src/layers/conv/symbex_bool.c", "src/layers/conv/symbex_bool1d.c"]
+           "src/layers/conv/symbex_bool.c", "src/layers/conv/symbex_bool1d.c",
+           "src/layers/dense/symbex_ternary.c"]
 HALS = {"generic": (["src/hal/generic/symbex_hal_impl.c"], []),
         "esp32s3 (C mode)": (["src/hal/esp32s3/symbex_hal_impl.c"],
                              ["-DCONFIG_IDF_TARGET_ESP32S3", "-DSYMBEX_HAL_TEST_NO_PIE"]),
@@ -1385,6 +1386,45 @@ int main(void) { int a[11]; static uint32_t in[8192], out[8192], w[200 * 320] __
     return n, len(bad), (f"value {bad[0]}: got {got[bad[0]]}, expected {flat[bad[0]]}" if len(bad) else "")
 
 
+def test_ternary(hal, n):
+    exe = build("ternary", """
+int main(void) { int n_in, n_out; static uint32_t inp[72], s[72 * 48], m[72 * 48]; static int32_t out[48];
+  static uint8_t x[2304];
+  while (fread(&n_in, 4, 1, stdin) == 1 && fread(&n_out, 4, 1, stdin) == 1) {
+    int pal = (n_in + 31) / 32;
+    if (fread(inp, 4, pal, stdin) != (size_t)pal || fread(s, 4, n_out * pal, stdin) != (size_t)(n_out * pal) ||
+        fread(m, 4, n_out * pal, stdin) != (size_t)(n_out * pal) || fread(x, 1, n_in, stdin) != (size_t)n_in) return 1;
+    struct SymbexTernaryLayerData L = { (uint16_t)n_in, (uint16_t)n_out, s, m };
+    symbex_ternary_forward(inp, out, &L); for (int j = 0; j < n_out; j++) printf("%d ", out[j]);
+    symbex_ternary_input_u8_mask(x, out, &L); for (int j = 0; j < n_out; j++) printf("%d ", out[j]);
+    printf("\\n"); }
+  return 0; }""", hal)
+    data, exp, total = Chunks(), [], 0
+    for _ in range(n):
+        n_in, n_out = pick(1, 513, _), pick(1, 12, _)
+        pal = (n_in + 31) // 32
+        abits = bits_data(n_in, _)
+        sbits = bits_data((n_out, n_in), _ + 3)
+        mbits = bits_data((n_out, n_in), _ + 5)
+        x = u8_data(n_in, _)
+        inp = words(abits, pal)
+        s = words(sbits, pal)
+        m = words(mbits, pal)                                # padding bits of the mask are 0: they hide the rest
+        if n_in % 32:                                        # garbage in the padding bits of the input and the signs
+            tail = n_in % 32
+            inp[-1] |= np.uint32((int(RNG.integers(0, 2 ** 32)) >> tail) << tail)
+            s[:, -1] |= np.array([(int(RNG.integers(0, 2 ** 32)) >> tail) << tail for _ in range(n_out)],
+                                 dtype=np.uint32)
+        w = (2 * sbits - 1) * mbits                          # weights in {-1, 0, +1}
+        exp.append(np.concatenate([(2 * abits - 1) @ w.T, x @ w.T]))
+        data += i32(n_in, n_out) + inp.tobytes() + s.tobytes() + m.tobytes() + x.astype(np.uint8).tobytes()
+        total += 1
+    got = run(exe, data)
+    flat = np.concatenate(exp)
+    bad = np.nonzero(got != flat)[0]
+    return total, len(bad), (f"value {bad[0]}: got {got[bad[0]]}, expected {flat[bad[0]]}" if len(bad) else "")
+
+
 TESTS = [("hal: popcount32", test_hal_popcount32), ("hal: name", test_hal_name),
          ("hal: xnor_popcount (real bits only)", test_hal_xnor_popcount),
          ("hal: and_popcount", test_hal_and_popcount), ("hal: u8_prepare + u8_sum_bits", test_hal_u8_sum_bits),
@@ -1406,7 +1446,8 @@ TESTS = [("hal: popcount32", test_hal_popcount32), ("hal: name", test_hal_name),
          ("bool: whole random networks, AND and XOR forms (symbex_bool_net_run)", test_bool_net),
          ("hal: xor_popcount_rows, *_rows_n (AND / XOR over the first n words)", test_hal_xor_rows),
          ("bool: per-cell head (FOMO) + grid checksum", test_bool_cell_head),
-         ("bool1d: 1D conv + fused OR pool, binary and uint8 input, AND and XOR forms", test_bool1d)]
+         ("bool1d: 1D conv + fused OR pool, binary and uint8 input, AND and XOR forms", test_bool1d),
+         ("ternary: forward (bits) and input_u8_mask (padding hidden by the mask)", test_ternary)]
 
 
 def main():

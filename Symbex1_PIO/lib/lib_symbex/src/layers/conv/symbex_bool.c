@@ -38,13 +38,13 @@ void symbex_pf_reset(void) {
 int symbex_bool_force_mode = 0;
 
 /* appends the `nbits` bits of a map pixel (src, bits above nbits are 0) to the window at bit `off` (window zeroed);
-   npal = words of the window: nothing is written past it */
-static inline void put_bits(uint32_t* win, const uint32_t* src, int nbits, int off, int npal) {
+   win_words = words of the window: nothing is written past it */
+static inline void put_bits(uint32_t* win, const uint32_t* src, int nbits, int off, int win_words) {
     for (int j = 0; nbits > 0; j++, nbits -= 32, off += 32) {
         const uint32_t v = src[j];
         const int w = off >> 5, sh = off & 31;
         win[w] |= v << sh;
-        if (sh && w + 1 < npal) win[w + 1] |= v >> (32 - sh);
+        if (sh && w + 1 < win_words) win[w + 1] |= v >> (32 - sh);
     }
 }
 
@@ -52,9 +52,9 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
                       uint32_t* window, int32_t* scratch) {
     const int xor_form = symbex_bool_force_mode ? symbex_bool_force_mode == 2 : symbex_hal_prefers_xor();
     const int pin = (L->in_ch + 31) / 32, pout = (L->out_ch + 31) / 32, n_out = L->out_ch;
-    const int k = L->kernel, pad = k / 2, kk = k * k, fila = k * pin;
+    const int k = L->kernel, pad = k / 2, kk = k * k, row_run = k * pin;
     const int cin = L->in_ch, dense = (cin & 31) != 0;   /* channels not a multiple of 32: the window is packed */
-    const int npal = (kk * cin + 31) / 32;               /* words of the window (= kk * pin when not packed) */
+    const int win_words = (kk * cin + 31) / 32;               /* words of the window (= kk * pin when not packed) */
     const int H = L->in_h, W = L->in_w, s = L->stride, st = L->row_words;
     const int32_t* thr = L->thresholds;
     const int16_t* wc = L->weight_counts;
@@ -67,7 +67,7 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
             adj[o] = thr[o] + 2 * tot;
         }
     }
-    for (int i = npal; i < st; i++) window[i] = 0;   /* row padding, once: the copies below never write there */
+    for (int i = win_words; i < st; i++) window[i] = 0;   /* row padding, once: the copies below never write there */
     int invalid[SYMBEX_BOOL_MAX_KK];
     for (int oy = 0; oy < L->out_h; oy++) {
         for (int ox = 0; ox < L->out_w; ox++) {
@@ -96,12 +96,12 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
                 nv = kk;
             } else if (dense) {
                 /* packed: the window is the bits of its k*k pixels one after the other (pixel q at bit q * cin) */
-                for (int i = 0; i < npal; i++) window[i] = 0;
+                for (int i = 0; i < win_words; i++) window[i] = 0;
                 for (int kh = 0; kh < k; kh++) {
                     for (int kw = 0; kw < k; kw++) {
                         const int y = y0 + kh, x = x0 + kw, q = kh * k + kw;
                         if (y >= 0 && y < H && x >= 0 && x < W) {
-                            put_bits(window, &in[(y * W + x) * pin], cin, q * cin, npal);
+                            put_bits(window, &in[(y * W + x) * pin], cin, q * cin, win_words);
                             nv++;
                         } else {
                             invalid[ni++] = q;
@@ -109,12 +109,12 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
                     }
                 }
             } else if (interior) {
-                /* the k rows of the window are k runs of `fila` words of the map: a word loop (memcpy's fixed cost
+                /* the k rows of the window are k runs of `row_run` words of the map: a word loop (memcpy's fixed cost
                    was most of the time for copies this small) */
                 for (int kh = 0; kh < k; kh++) {
                     const uint32_t* src = &in[((y0 + kh) * W + x0) * pin];
-                    uint32_t* dst = &window[kh * fila];
-                    for (int i = 0; i < fila; i++) dst[i] = src[i];
+                    uint32_t* dst = &window[kh * row_run];
+                    for (int i = 0; i < row_run; i++) dst[i] = src[i];
                 }
                 nv = kk;
             } else {
@@ -141,7 +141,7 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
                 /* differences = count(window XOR weights); outside the image the window is 0, so there it counted the
                    weight bits themselves: taken out with the per-pixel weight counts. bit = nbits - 2 d >= thr */
                 PF_T(t_cnt);
-                symbex_xor_popcount_rows_n(window, L->weights, npal, st, n_out, cnt);
+                symbex_xor_popcount_rows_n(window, L->weights, win_words, st, n_out, cnt);
                 PF_ADD(SYMBEX_PF_COUNT, t_cnt);
                 PF_T(t_thr);
                 for (int ow = 0, o = 0; ow < pout; ow++) {
@@ -165,10 +165,10 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
                    - nbits + 2 * (weight bits outside the image) */
                 PF_T(t_pcx);
                 int32_t pcx;
-                symbex_and_popcount_rows_n(window, window, npal, st, 1, &pcx);    /* popcount(window): one call */
+                symbex_and_popcount_rows_n(window, window, win_words, st, 1, &pcx);    /* popcount(window): one call */
                 PF_ADD(SYMBEX_PF_WINDOW_POPCOUNT, t_pcx);
                 PF_T(t_cnt);
-                symbex_and_popcount_rows_n(window, L->weights, npal, st, n_out, cnt);
+                symbex_and_popcount_rows_n(window, L->weights, win_words, st, n_out, cnt);
                 PF_ADD(SYMBEX_PF_COUNT, t_cnt);
                 PF_T(t_thr);
                 const int32_t c0 = 2 * pcx - nbits;
