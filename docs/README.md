@@ -1,5 +1,7 @@
 # SYMBEX-1 documentation
 
+*[Leer en español](README.es.md)*
+
 How SYMBEX-1 works, how to use it and what it measured. The [main README](../README.md) has the summary; these pages
 go into the details.
 
@@ -30,7 +32,8 @@ the same network on the same chip:
 </picture>
 
 The gap depends on the chip and on where the weights are. The ESP32-S3 has a SIMD unit that speeds up INT8, so there
-the gap is smallest when INT8 can use it fully (ResNet-8: 1.33×, the MLP with its weights in RAM: 2.14×); on the classic
-ESP32, without SIMD, SYMBEX is 8.6-11.3× faster, and the INT8 detector does not fit at all. Accuracy is in each
+the gap is smallest when INT8 can use it fully (ResNet-8: 1.33×, the MLP with its weights in RAM: 2.14×), and
+Espressif's ESP-DL library is faster than SYMBEX there (ResNet-8 in 14.8 ms vs 39.2 ms); on the classic ESP32, without
+SIMD, SYMBEX is 8.6-11.3× faster, against ESP-DL too, and the INT8 detector does not fit at all. Accuracy is in each
 benchmark's README. To re-create the charts after a new
 measurement: `python tools/dev/docs_charts.py`.

@@ -28,8 +28,9 @@ Tiene tres partes:
 ## Resultados (medidos en los chips, un núcleo)
 
 Aquí, INT8 es la ruta de despliegue que usa casi todo el mundo: TensorFlow Lite Micro con los kernels optimizados
-ESP-NN de Espressif. No es el INT8 más rápido posible; [docs/results.md](docs/results.md#how-fast-could-int8-be)
-muestra qué está medido más allá de eso y qué falta.
+ESP-NN de Espressif. No es el INT8 más rápido posible: en el ESP32-S3, la librería ESP-DL de Espressif ejecuta
+ResNet-8 en 14.8 ms, 2.6× más rápido que SYMBEX, mientras que en el ESP32 clásico SYMBEX sigue siendo 8-11× más rápido
+que ESP-DL también. [docs/results.es.md](docs/results.es.md#qué-tan-rápido-podría-ser-int8) tiene los números y lo que falta medir.
 
 ### Clasificación de imágenes: una ResNet-8 completamente binaria ([`benchmarks/conv2d/cnn_cifar_resnet8`](benchmarks/conv2d/cnn_cifar_resnet8/))
 

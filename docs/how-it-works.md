@@ -1,5 +1,7 @@
 # How SYMBEX-1 works
 
+*[Leer en español](how-it-works.es.md)*
+
 A neural network spends almost all of its time computing dot products: multiply every input by a weight and add.
 SYMBEX-1 makes the inputs and the weights **one bit** each. A dot product then needs no multiplication at all: it
 becomes **a bit count**, which a microcontroller does with a few logic instructions. This page explains how, step by

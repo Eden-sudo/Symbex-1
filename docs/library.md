@@ -1,5 +1,7 @@
 # lib_symbex: the C engine
 
+*[Leer en español](library.es.md)*
+
 lib_symbex runs the networks the [CDT](cdt.md) exports. It is plain C with no dependencies, the model's memory is
 static, and every model it runs has been checked bit by bit against the CDT's integer simulation. It lives in
 `Symbex1_PIO/lib/lib_symbex/`, and the same sources build for the PC, the ESP32, the ESP32-S3 and the Raspberry Pi Pico 2

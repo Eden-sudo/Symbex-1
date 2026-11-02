@@ -1,5 +1,7 @@
 # The CDT: from a PyTorch model to a checked C header
 
+*[Leer en español](cdt.es.md)*
+
 The CDT (`tools/cdt.py`) is the compiler of SYMBEX-1. It takes a model, the data and the limits of a microcontroller, and
 returns a binary network as a C header for lib_symbex. That header has been checked bit by bit on the PC and, when a
 board is connected, on the chip. One configuration file (`symbex.toml`) describes the whole run, so every result can
