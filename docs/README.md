@@ -15,7 +15,9 @@ The diagrams are written in [Mermaid](https://mermaid.js.org/) inside the pages 
 
 ## At a glance
 
-Fully binary networks against the official INT8 ones (TensorFlow Lite Micro), the same network on the same chip:
+Fully binary networks against the official INT8 ones (TensorFlow Lite Micro with Espressif's ESP-NN kernels, the
+deployment path almost everyone uses, not the fastest INT8 possible: see [Results](results.md#how-fast-could-int8-be)),
+the same network on the same chip:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/speedup_dark.svg">

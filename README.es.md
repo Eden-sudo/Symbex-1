@@ -27,6 +27,10 @@ Tiene tres partes:
 
 ## Resultados (medidos en los chips, un núcleo)
 
+Aquí, INT8 es la ruta de despliegue que usa casi todo el mundo: TensorFlow Lite Micro con los kernels optimizados
+ESP-NN de Espressif. No es el INT8 más rápido posible; [docs/results.md](docs/results.md#how-fast-could-int8-be)
+muestra qué está medido más allá de eso y qué falta.
+
 ### Clasificación de imágenes: una ResNet-8 completamente binaria ([`benchmarks/conv2d/cnn_cifar_resnet8`](benchmarks/conv2d/cnn_cifar_resnet8/))
 
 CIFAR-10, contra la ResNet-8 INT8 oficial de MLPerf Tiny. Todas las capas de la red de SYMBEX son binarias, la primera
