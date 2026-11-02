@@ -12,3 +12,23 @@ go into the details.
 
 The diagrams are written in [Mermaid](https://mermaid.js.org/) inside the pages (GitHub draws them). Charts live in
 [`assets/`](assets/) and are generated from the result files of the benchmarks, so they can always be re-created.
+
+## At a glance
+
+Fully binary networks against the official INT8 ones (TensorFlow Lite Micro), the same network on the same chip:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/speedup_dark.svg">
+  <img alt="SYMBEX speed-up over TensorFlow Lite Micro INT8 per benchmark and chip" src="assets/speedup.svg">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/flash_dark.svg">
+  <img alt="Flash used by each model, SYMBEX vs. INT8" src="assets/flash.svg">
+</picture>
+
+The gap depends on the chip and on where the weights are. The ESP32-S3 has a SIMD unit that speeds up INT8, so there
+the gap is smallest when INT8 can use it fully (ResNet-8: 1.33×, the MLP with its weights in RAM: 2.14×); on the classic
+ESP32, without SIMD, SYMBEX is 8.6-11.3× faster, and the INT8 detector does not fit at all. Accuracy is in each
+benchmark's README. To re-create the charts after a new
+measurement: `python tools/dev/docs_charts.py`.
