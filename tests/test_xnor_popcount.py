@@ -38,11 +38,11 @@ def test_identity_holds_on_words_packed_by_the_dense_exporter(rng, n):
 
 
 @pytest.mark.parametrize("n", LENGTHS)
-@pytest.mark.parametrize("multiplo", [1, 4])
-def test_identity_holds_on_words_packed_by_the_conv_exporter(rng, n, multiplo):
+@pytest.mark.parametrize("multiple", [1, 4])
+def test_identity_holds_on_words_packed_by_the_conv_exporter(rng, n, multiple):
     a, b = _bipolar(rng, (1, n)), _bipolar(rng, (1, n))
-    pa, words = _pack_rows(a, multiplo=multiplo)
-    pb, _ = _pack_rows(b, multiplo=multiplo)
+    pa, words = _pack_rows(a, multiple=multiple)
+    pb, _ = _pack_rows(b, multiple=multiple)
     diff = (np.array(pa[0], dtype=np.uint64) ^ np.array(pb[0], dtype=np.uint64)) & _tail_mask(n, words)
     assert n - 2 * popcount(diff) == int((a * b).sum())
 
