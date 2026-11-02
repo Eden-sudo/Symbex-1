@@ -8,7 +8,7 @@ go into the details.
 | [How it works](how-it-works.md) | Binary networks, counting bits instead of multiplying, folding everything into integer thresholds, bit-exactness |
 | [CDT](cdt.md) | The compiler: from a PyTorch model to a checked C header, on the PC and on the chip |
 | [Library](library.md) | lib_symbex: the layers, the hardware layer of each chip, how to add it to a project |
-| Results *(coming)* | Every benchmark in one place, with its charts |
+| [Results](results.md) | Every benchmark in one place: speed, flash and accuracy against INT8, with the charts |
 
 The diagrams are written in [Mermaid](https://mermaid.js.org/) inside the pages (GitHub draws them). Charts live in
 [`assets/`](assets/) and are generated from the result files of the benchmarks, so they can always be re-created.
