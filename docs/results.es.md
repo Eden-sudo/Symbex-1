@@ -94,7 +94,7 @@ Dónde podría INT8 ir todavía más rápido:
 | Llamar a ESP-NN directamente, sin el intérprete de TFLite | **Medido** en el MLP x1 (784-256-128-10) en el ESP32-S3, pesos en RAM: 0.556 ms en vez de 0.876 ms (1.58× más rápido). SYMBEX x1 corre en 0.525 ms, así que en RAM los dos están cerca (`tools/lowbit`, [mlp_fashion](../benchmarks/mlp/mlp_fashion/README.md)). |
 | Pesos en RAM | **Medido** donde el modelo cabe: el MLP y las redes 1D. En flash, INT8 es lento porque lee 8× más bytes a través de la caché de la flash. La RAM elimina eso, si el chip tiene espacio. |
 | ESP-DL (la otra librería de Espressif, optimizada para el S3) | **Medido** en una comprobación rápida, tabla abajo. En el ESP32-S3 es el INT8 más rápido: más rápido que el motor estándar de SYMBEX en ResNet-8 (el motor vertical le gana con los pesos en flash, y en RAM con su modo compacto con casi la misma RAM), y en el MLP cuando los pesos están en RAM. |
-| CMSIS-NN en el Cortex-M33 de la Pico 2 | **Todavía sin medir** (trabajo futuro). |
+| CMSIS-NN en el Cortex-M33 de la Pico 2 | **Medido** (TFLite Micro con los kernels CMSIS-NN de Arm, DSP activo). No alcanza a SYMBEX: ResNet-8 453.0 ms en flash y 211.4 ms con el modelo en RAM, frente a 74.5 ms de SYMBEX (6.1× / 2.8×); MLP 784-128-512-10 31.35 / 2.89 ms frente a 4.57 / 1.53 ms (6.9× / 1.9×). |
 
 **ESP-DL, comprobación rápida.** ESP-DL v3 (`espressif/esp-dl`, ESP-IDF 6.1), modelos cuantizados a INT8 con `esp-ppq`
 (post-entrenamiento, 512 imágenes de calibración; `target="esp32s3"` en el S3, `"c"` en el ESP32). ResNet-8 usa los
@@ -164,7 +164,8 @@ primera capa int8 es más rápida y más precisa que una binaria (ver el benchma
   rápido que ESP-DL en RAM).
 - **ESP32:** 63.3 ms con los pesos en flash frente a 717.8 ms (11.3×); 59.7 ms con los pesos en RAM.
 - **Pico 2:** 56.1 ms en Hazard3 y 74.5 ms en el M33; en el M33 el modo preparado del motor vertical la ejecuta en
-  57.4 ms (semilla 42, un ranking; [El motor vertical](vertical.es.md#otros-chips-pico-2)).
+  57.4 ms (semilla 42, un ranking; [El motor vertical](vertical.es.md#otros-chips-pico-2)). TFLite Micro INT8 con
+  CMSIS-NN en el M33: 453.0 ms (6.1×), 211.4 ms con el modelo en RAM; en Hazard3, con los kernels de referencia: 5702 ms.
 - **Memoria:** 24.3 KB de flash frente a 96.2 KB, y 15 KB de RAM frente a una arena de 53-80 KB.
 - **Precisión:** 71.3 ± 0.8 % frente a 87.0 %. Con la red dimensionada para binario (16-32-128 / 1-1-2) llega a 73.1 %
   a la misma velocidad.
@@ -212,8 +213,6 @@ primera capa int8 es más rápida y más precisa que una binaria (ver el benchma
 
 ## Trabajo futuro
 
-- TFLite Micro con CMSIS-NN en el Cortex-M33 de la Pico 2, el lado INT8 que todavía les falta a los resultados de la
-  Pico.
 - Energía por inferencia, medida con un medidor de corriente.
 - ESP-DL como referencia INT8 completa (3 semillas, todo el conjunto de test, todos los benchmarks), con sus scripts en
   el repositorio.

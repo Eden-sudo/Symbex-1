@@ -45,7 +45,8 @@ incluida (la imagen entra como un termómetro de bits); 3 semillas de entrenamie
 | Precisión | 71.28 ± 0.81 % | 87.0 % |
 | ESP32-S3 | **39.2 ms (1.33× más rápida)** | 52.0 ms |
 | ESP32 | **59.7 ms (12.0× más rápida)**, pesos en RAM; 63.3 ms en flash | 717.8 ms |
-| Raspberry Pi Pico 2 | **56.1 ms** (Hazard3 RISC-V) · 74.5 ms (Cortex-M33) | todavía sin medir |
+| Raspberry Pi Pico 2, Cortex-M33 | **74.5 ms (6.1× más rápido)** | 453.0 ms (CMSIS-NN) |
+| Raspberry Pi Pico 2, Hazard3 RISC-V | **56.1 ms** | 5702 ms (kernels de referencia, los únicos que TFLite Micro tiene para él) |
 | Flash | **24.3 KB** | 96.2 KB |
 | RAM | **15 KB** | 53-80 KB |
 | Mismo resultado que su referencia en la PC | **100 %** | 98.1 % |
@@ -89,7 +90,8 @@ INT8 de la misma red; 3 semillas, solo etiquetas, pesos en flash salvo que se in
 | ESP32-S3 | **0.42 ms (28× más rápida)** | 11.7 ms (TFLite Micro) |
 | ESP32-S3, pesos en RAM | **0.41 ms (2.1× más rápida)** | 0.89 ms |
 | ESP32 | **3.6 ms (8.6× más rápida)** | 31.1 ms |
-| Raspberry Pi Pico 2 | **4.4 ms** (Hazard3) · 4.6 ms (M33); 1.4 ms con los pesos en RAM | todavía sin medir |
+| Raspberry Pi Pico 2, Cortex-M33 | **4.6 ms (6.9× más rápido)**; 1.5 ms con los pesos en RAM (1.9×) | 31.4 ms (CMSIS-NN); 2.9 ms en RAM |
+| Raspberry Pi Pico 2, Hazard3 | **4.4 ms (8.5× más rápido)**; 1.4 ms con los pesos en RAM (6.8×) | 37.5 ms; 9.6 ms en RAM (kernels de referencia) |
 | Flash | **27 KB** | 187 KB |
 | RAM | **4.6 KB** | 6.7 KB |
 
@@ -152,7 +154,6 @@ Hecho en octubre de 2026: convoluciones 1D (contra Daghero et al. 2021, en GVSoC
 Pico 2 (los dos núcleos, Arm Cortex-M33 y Hazard3 RISC-V, exactos), y todos los benchmarks vueltos a medir con el motor
 actual y, todos menos FOMO, con el split de validación corregido. Lo siguiente:
 
-- **TFLite Micro INT8 en el Pico 2** (CMSIS-NN en el Cortex-M33), para que las filas del Pico 2 tengan su referencia INT8.
 - **La aritmética de la primera capa elegida por chip** (bits o bytes), a partir de mediciones, por el CDT.
 - **La energía** todavía no se ha medido; la latencia y la memoria sí.
 - **FOMO reentrenado** con el nuevo split de validación fijo.

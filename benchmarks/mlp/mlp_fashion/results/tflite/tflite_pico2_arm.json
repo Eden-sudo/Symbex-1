@@ -1,0 +1,12 @@
+{
+ "board": "pico2_arm",
+ "model_ram": false,
+ "n": 1000,
+ "shape": "784-256-128-10",
+ "accuracy": 89.8,
+ "equal_pc": 100.0,
+ "median_ms": 42.3295,
+ "min_ms": 42.217,
+ "arena_kb": 4.86328125,
+ "flash_kb": 242.2265625
+}

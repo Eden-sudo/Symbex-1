@@ -20,15 +20,19 @@ integer simulation on every image.
 |---|---|---|---|
 | **ESP32 (240 MHz)** | **59.7 ms** (lut16, weights in RAM) · **63.3 ms** (lut16, weights in flash) · **71.0 ms** (no table) | 717.8 ms | **12.0× / 11.3× / 10.1× faster** |
 | **ESP32-S3 (240 MHz)** | **39.2 ms** | 52.0 ms | **1.33× faster** |
-| Raspberry Pi Pico 2 (150 MHz) | **56.1 ms** (Hazard3 RISC-V, native popcount) · **74.5 ms** (Cortex-M33, lut16) | not measured yet | |
+| Raspberry Pi Pico 2 (150 MHz), Cortex-M33 | **74.5 ms** (lut16, weights in flash) | 453.0 ms (CMSIS-NN, flash) · 211.4 ms (CMSIS-NN, model in RAM) | **6.1× / 2.8× faster** |
+| Raspberry Pi Pico 2 (150 MHz), Hazard3 RISC-V | **56.1 ms** (native popcount, weights in flash) | 5702 ms (reference kernels, flash; 100 images) | **102× faster** |
 | RAM | **15 KB** (79 KB with the lut16 table; 103 KB with the weights in RAM too) | 53 KB (ESP32) / 80.5 KB (S3) of arena | **3.6× / 5.4× less** (ESP32 no table / S3) |
 | Flash (weights) | **24.3 KB** | 96.2 KB | **4× less** |
 | Same result as the reference on the PC | **100%** (by design) | 98.1% | |
 | CIFAR-10 accuracy (10,000 test images) | 71.3 ± 0.8 % | 87.0 % | |
 
 The three seeds give the same latency to 0.01 ms (42, 43, 44: 70.60 %, 72.18 %, 71.06 %). The chip gives the same class as
-the integer simulation on 100 % of the images on every board. The Pico 2 has no INT8 reference yet (TFLite Micro with
-CMSIS-NN on the M33 is future work).
+the integer simulation on 100 % of the images on every board. On the Pico 2 the INT8 side is TensorFlow Lite Micro built
+from source at a pinned commit: with Arm's CMSIS-NN kernels on the M33 (DSP on) and with the reference kernels on
+Hazard3, the only ones TFLite Micro has for it (so that row shows the gap without vendor kernels, not a tuned INT8).
+SYMBEX is 6.1× faster with both in flash, 2.8× against INT8 with the whole model in RAM. The chip gives the PC
+interpreter's class on 98.1 % of the images, as on the ESP32 boards.
 
 ## Why: what each chip does best
 
@@ -132,6 +136,9 @@ python resnet8_sizing.py --phase width --blocks 1-1-2 --epochs 150
 python resnet8_tflite.py                                                       # INT8: accuracy on the PC
 python resnet8_tflite.py --board s3 --port /dev/ttyUSB0                         # INT8 on the chip
 python resnet8_tflite.py --board esp32 --port /dev/ttyUSB0
+python resnet8_tflite.py --board pico2_arm --port /dev/ttyACM1                  # Pico 2 M33: TFLite Micro + CMSIS-NN
+python resnet8_tflite.py --board pico2_arm --port /dev/ttyACM1 --model-ram
+python resnet8_tflite.py --board pico2_riscv --port /dev/ttyACM1 --images 100   # Hazard3: reference kernels
 ```
 
 Profiles: `python ../../../tools/dev/fine_profile.py runs/w1_s44 --board s3` and `python ../../../tools/dev/count_bench.py --board s3`.
