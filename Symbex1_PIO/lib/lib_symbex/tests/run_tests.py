@@ -126,7 +126,8 @@ def build(name, main_c, hal):
         "static inline void* heap_caps_malloc(size_t n, int c) { (void)c; return malloc(n); }\n")
     cmd = ["gcc", "-std=gnu11", "-O1", "-Wall", "-Wextra", "-Werror=implicit-function-declaration", *(SANITIZE if STRESS else []),
            "-I", os.path.join(LIB, "include"), "-I", stubs, *flags, "-o", exe, src,
-           *[os.path.join(LIB, s) for s in SOURCES + hal_src]]
+           *[os.path.join(LIB, s) for s in SOURCES + hal_src],
+           "-pthread"]                                        # the two-instance test (glibc < 2.34 needs it)
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f"compile error ({name}, {hal}):\n{r.stderr[-1500:]}")
