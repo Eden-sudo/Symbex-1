@@ -13,7 +13,10 @@ with the same recipe. All the rules come from the [methodology](../README.md#met
 
 **What INT8 means here.** The INT8 side is the deployment path almost everyone uses: TensorFlow Lite Micro with
 Espressif's optimized ESP-NN kernels. It is not the fastest INT8 possible: on the ESP32-S3, Espressif's ESP-DL library
-runs ResNet-8 2.6× faster than SYMBEX. [How fast could INT8 be?](#how-fast-could-int8-be) shows what is measured and
+runs ResNet-8 2.6× faster than SYMBEX's standard engine. SYMBEX's vertical engine ([The vertical engine](vertical.md))
+runs it in 10.4 ms, 1.43× faster than ESP-DL with the weights in flash; with the weights in RAM, ESP-DL stays 1.06×
+faster, unless one of the engine's optional modes is used: compact (7.70 ms, 1.27× faster than ESP-DL in RAM, with
+151 KB of RAM against ESP-DL's 147 KB) or prepared (6.44 ms, 1.52× faster, 238 KB of RAM). [How fast could INT8 be?](#how-fast-could-int8-be) shows what is measured and
 what is not.
 
 This page gives the headline of each benchmark. The details, the commands and the raw files are in each benchmark's
@@ -58,7 +61,8 @@ The charts are drawn from the result files by `python tools/dev/docs_charts.py`,
 The gap is set by the chip. The classic ESP32 has no SIMD, and there counting bits is an order of magnitude cheaper
 than 8-bit multiply-accumulate. The ESP32-S3 has a SIMD unit (PIE) that speeds up INT8, so the gap is smaller. Where
 INT8 can use that unit fully, the gap is narrowest: ResNet-8 at 1.33× and the MLP with its weights in RAM at 2.14×.
-There, Espressif's ESP-DL library is faster than SYMBEX (see [How fast could INT8 be?](#how-fast-could-int8-be)).
+There, Espressif's ESP-DL library is faster than SYMBEX's standard engine; on ResNet-8, [the vertical engine](vertical.md)
+beats it with the weights in flash, and in RAM with its optional compact and prepared modes (see [How fast could INT8 be?](#how-fast-could-int8-be)).
 [How it works](how-it-works.md) explains why counting bits is cheaper.
 
 ## How it is measured
@@ -86,7 +90,7 @@ Where INT8 could still go faster:
 |---|---|
 | Calling ESP-NN directly, without the TFLite interpreter | **Measured** on the x1 MLP (784-256-128-10) on the ESP32-S3, weights in RAM: 0.556 ms instead of 0.876 ms (1.58× faster). SYMBEX x1 runs in 0.525 ms, so in RAM the two are close (`tools/lowbit`, [mlp_fashion](../benchmarks/mlp/mlp_fashion/README.md)). |
 | Weights in RAM | **Measured** where the model fits: the MLP, and the 1D networks. In flash, INT8 is slow because it reads 8× more bytes through the flash cache. RAM removes that, if the chip has room. |
-| ESP-DL (Espressif's other library, tuned for the S3) | **Measured** in a quick check, table below. On the ESP32-S3 it is the fastest INT8: faster than SYMBEX on ResNet-8, and on the MLP when the weights are in RAM. |
+| ESP-DL (Espressif's other library, tuned for the S3) | **Measured** in a quick check, table below. On the ESP32-S3 it is the fastest INT8: faster than SYMBEX's standard engine on ResNet-8 (the vertical engine beats it with the weights in flash, and in RAM with its compact mode at about the same RAM), and on the MLP when the weights are in RAM. |
 | CMSIS-NN on the Pico 2's Cortex-M33 | **Not measured yet** (future work). |
 
 **ESP-DL, quick check.** ESP-DL v3 (`espressif/esp-dl`, ESP-IDF 6.1), models quantized to INT8 with `esp-ppq`
@@ -98,7 +102,12 @@ weights in flash (`param_copy = false`); "RAM" copies them to RAM when the model
 | Model | Chip | Weights in | ESP-DL | SYMBEX | TFLite Micro | SYMBEX vs. ESP-DL |
 |---|---|---|---|---|---|---|
 | ResNet-8 | ESP32-S3 | flash | **14.8 ms** | 39.2 ms | 52.0 ms | ESP-DL **2.6× faster** |
-| ResNet-8 | ESP32-S3 | RAM | **9.8 ms** (147 KB of RAM) | — | — | — |
+| ResNet-8, SYMBEX vertical engine | ESP32-S3 | flash | 14.8 ms | **10.4 ms** (63 KB of RAM) | 52.0 ms | SYMBEX **1.43× faster** |
+| ResNet-8, SYMBEX vertical engine | ESP32-S3 | RAM | **9.8 ms** (147 KB of RAM) | 10.4 ms (87 KB of RAM) | — | ESP-DL **1.06× faster** |
+| ResNet-8, SYMBEX vertical engine, compact (optional) | ESP32-S3 | flash | 14.8 ms | **7.70 ms** (151 KB of RAM) | 52.0 ms | SYMBEX **1.92× faster** |
+| ResNet-8, SYMBEX vertical engine, compact (optional) | ESP32-S3 | RAM | 9.8 ms (147 KB of RAM) | **7.70 ms** (175 KB of RAM) | — | SYMBEX **1.27× faster** |
+| ResNet-8, SYMBEX vertical engine, prepared (optional) | ESP32-S3 | flash | 14.8 ms | **6.44 ms** (238 KB of RAM) | 52.0 ms | SYMBEX **2.3× faster** |
+| ResNet-8, SYMBEX vertical engine, prepared (optional) | ESP32-S3 | RAM | 9.8 ms (147 KB of RAM) | **6.44 ms** (262 KB of RAM) | — | SYMBEX **1.52× faster**, with more RAM |
 | ResNet-8 | ESP32 | flash | 712.4 ms | **63.3 ms** | 717.8 ms | SYMBEX **11.3× faster** |
 | ResNet-8 | ESP32 | RAM | 603.4 ms | **59.7 ms** | — | SYMBEX **10.1× faster** |
 | MLP 784-128-512-10 | ESP32-S3 | flash | 11.38 ms | **0.42 ms** | 11.67 ms | SYMBEX **27× faster** |
@@ -110,7 +119,10 @@ Accuracy on those inputs: ResNet-8 86 / 100, the MLP 179 / 200, the same on both
 subset of the test set, not yet a full benchmark with 3 seeds; it is enough to show where ESP-DL stands.
 
 So the headline numbers compare SYMBEX with the INT8 path almost everyone deploys, not with the fastest INT8 possible.
-On the ESP32-S3, ESP-DL is faster than SYMBEX on ResNet-8 (2.6×) and on the MLP with its weights in RAM (1.31×). SYMBEX's clear wins are chips without SIMD (the classic ESP32: 7.8-11.3× faster than ESP-DL
+On the ESP32-S3, ESP-DL is faster than SYMBEX's standard engine on ResNet-8 (2.6×) and on the MLP with its weights in
+RAM (1.31×). [the vertical engine](vertical.md) turns ResNet-8 around with the weights in flash (10.4 ms, 1.43× faster than ESP-DL);
+with the weights in RAM, ESP-DL is still 1.06× faster, unless an optional mode is used: compact (7.70 ms, 1.27× faster
+than ESP-DL with 151 KB of RAM against 147 KB) or prepared (6.44 ms, 1.52× faster, 238 KB). SYMBEX's clear wins are chips without SIMD (the classic ESP32: 7.8-11.3× faster than ESP-DL
 too), weights that stay in flash on dense layers, flash size (4-10× smaller) and RAM.
 
 ## Accuracy: where binary costs
@@ -138,9 +150,14 @@ accurate than a binary one (see the 1D benchmark).
 - The architecture is the same as the official INT8 ResNet-8 of MLPerf Tiny, measured with TFLite Micro on the same
   boards.
 - **ESP32-S3:** 39.2 ms vs 52.0 ms (1.33×). Espressif's ESP-DL runs the same network in 14.8 ms, 2.6× faster than
-  SYMBEX (see [How fast could INT8 be?](#how-fast-could-int8-be)).
+  SYMBEX's standard engine (see [How fast could INT8 be?](#how-fast-could-int8-be)).
+- **ESP32-S3, vertical engine:** the same network and bits in 10.36 ± 0.05 ms (3 seeds), 5.0× faster than TFLite Micro
+  and 1.43× faster than ESP-DL with the weights in flash, 63 KB of RAM ([The vertical engine](vertical.md)). Its
+  optional modes build lists and thresholds once into RAM: compact 7.70 ± 0.05 ms with 151 KB of RAM (1.27× faster than
+  ESP-DL in RAM), prepared 6.44 ± 0.02 ms with 238 KB (8.1× faster than TFLite Micro, 1.52× faster than ESP-DL in RAM).
 - **ESP32:** 63.3 ms with the weights in flash vs 717.8 ms (11.3×); 59.7 ms with the weights in RAM.
-- **Pico 2:** 56.1 ms on Hazard3 and 74.5 ms on the M33.
+- **Pico 2:** 56.1 ms on Hazard3 and 74.5 ms on the M33; on the M33 the vertical engine's prepared mode runs it in
+  57.4 ms (seed 42, a ranking; [The vertical engine](vertical.md#other-chips-pico-2)).
 - **Memory:** 24.3 KB of flash vs 96.2 KB, and 15 KB of RAM vs a 53-80 KB arena.
 - **Accuracy:** 71.3 ± 0.8 % vs 87.0 %. With the network shaped for binary (16-32-128 / 1-1-2) it reaches 73.1 % at the
   same speed.
@@ -191,5 +208,7 @@ accurate than a binary one (see the 1D benchmark).
 - TFLite Micro with CMSIS-NN on the Pico 2's Cortex-M33, the INT8 side the Pico results are still missing.
 - Energy per inference, measured with a current meter.
 - ESP-DL as a full INT8 baseline (3 seeds, the whole test set, every benchmark), with its scripts in the repository.
-- Closing the gap with ESP-DL on the ESP32-S3.
+- Beating ESP-DL on the ESP32-S3 with the weights in RAM with clearly less RAM (default vertical engine: 10.4 ms vs
+  9.8 ms with 63 KB; the compact mode wins at 7.70 ms with about the same RAM, 151 KB against 147 KB), and the
+  vertical engine for the MLP and the 1D networks.
 - FOMO's decision threshold calibrated again on the new validation split.

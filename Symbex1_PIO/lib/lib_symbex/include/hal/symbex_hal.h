@@ -36,6 +36,19 @@
   #endif
 #endif
 
+/* SYMBEX_FAST_CODE: marks the inner loops of an engine (today the vertical one). With -DSYMBEX_CODE_IN_RAM they run
+   from RAM instead of flash: the RP2350 (Pico SDK .time_critical sections) and the ESP32 boards (IRAM). Code read from
+   flash goes through a small cache, so where a loop lands in flash changes its speed (measured on the Pico 2's
+   Hazard3: the same engine at 60 or 70 ms after an unrelated edit); in RAM the time no longer depends on it. Costs the
+   RAM of that code. Elsewhere, or without the flag, it is empty. */
+#if defined(SYMBEX_CODE_IN_RAM) && (defined(PICO_RP2350) || defined(SYMBEX_HAL_TEST_RP2350))
+  #define SYMBEX_FAST_CODE __attribute__((section(".time_critical.symbex")))
+#elif defined(SYMBEX_CODE_IN_RAM) && defined(ESP_PLATFORM)
+  #define SYMBEX_FAST_CODE __attribute__((section(".iram1.symbex")))
+#else
+  #define SYMBEX_FAST_CODE
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

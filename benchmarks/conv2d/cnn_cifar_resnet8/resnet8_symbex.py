@@ -7,6 +7,9 @@ resnet8_symbex.py -- the cnn_cifar_resnet8 benchmark: a fully binary ResNet-8, t
     python resnet8_symbex.py --width 2 --seeds 3                                   # twice the channels
     python resnet8_symbex.py --seeds 3 --board pico2_riscv --port /dev/ttyACM0 --popcount lut16   # Pico 2 (or pico2_arm)
     python resnet8_symbex.py --seeds 3 --board s3 --summary   # the summary from runs measured with tools/chip_test.py
+    python resnet8_symbex.py --seeds 3 --board s3 --summary --engine vertical   # ... measured with --engine vertical
+    python resnet8_symbex.py --seeds 3 --board s3 --summary --engine vertical_prepared   # ... lists prepared in RAM
+    python resnet8_symbex.py --seeds 3 --board s3 --summary --engine vertical_compact    # ... thresholds compact
 
 Run from benchmarks/conv2d/cnn_cifar_resnet8/ (main environment, .venv; a GPU helps). The network (model.py) has the shape of
 the MLPerf Tiny ResNet-8 that resnet8_tflite.py measures in INT8 (--width 1: the same 16-32-64 channels); only what
@@ -19,6 +22,10 @@ on the board), --redo trains it again. Summary: results/symbex_seeds_<board>_<po
 (results/symbex_seeds_pc_w<width>.json without a board; with --epochs, in results/sizing/). --summary runs no CDT: it
 rebuilds the summary from the chip_<board>_<popcount>_<weights>_mask.json files that tools/chip_test.py leaves in each
 run folder (the S3's native USB port: chip_test.py runs/w1_s42 --board s3 --port /dev/ttyACM0 --usb).
+--engine vertical (with --summary): the runs measured with chip_test.py --engine vertical (the vertical engine,
+docs/vertical.md), summarized into results/symbex_seeds_<board>_<popcount>[_ram]_w<width>_vertical.json;
+--engine vertical_prepared the same with its lists and thresholds prepared in RAM (_vertical_prepared.json);
+--engine vertical_compact with the lists prepared and the thresholds compact (_vertical_compact.json).
 """
 import argparse
 import json
@@ -76,11 +83,18 @@ def main():
     ap.add_argument("--redo", action="store_true", help="train again seeds that are already trained")
     ap.add_argument("--summary", action="store_true",
                     help="run no CDT: summarize the runs' chip_<board>_<popcount>_<weights>_mask.json (needs --board)")
+    ap.add_argument("--engine", choices=["standard", "vertical", "vertical_prepared", "vertical_compact"],
+                    default="standard",
+                    help="with --summary: the runs measured with tools/chip_test.py --engine vertical[_prepared|_compact]")
     ap.add_argument("--spec", default="", help='a variant of the sizing study: "16-32-64/2-2-2" = channels / blocks '
                                                'per stage (replaces --width)')
     args = ap.parse_args()
     if args.summary and not args.board:
         sys.exit("[X] --summary needs --board")
+    if args.engine != "standard" and not args.summary:
+        sys.exit(f"[X] --engine {args.engine}: measure with tools/chip_test.py --engine {args.engine}, then summarize "
+                 "with --summary")
+    vert = "" if args.engine == "standard" else "_" + args.engine
     os.chdir(HERE)
     os.makedirs("results", exist_ok=True)
     rows = []
@@ -92,7 +106,7 @@ def main():
         name = f"w{args.width:g}" + (f"_e{args.epochs}" if args.epochs else "")
     for seed in [42 + i for i in range(args.seeds)]:
         out_dir = os.path.join("runs", f"{name}_s{seed}")
-        chip_file = f"chip_{args.board}_{args.popcount}_{args.weights}_mask.json" if args.summary else "chip.json"
+        chip_file = f"chip_{args.board}_{args.popcount}_{args.weights}_mask{vert}.json" if args.summary else "chip.json"
         if args.summary:
             if not os.path.exists(os.path.join(out_dir, chip_file)):
                 print(f"[!] seed {seed}: no {os.path.join(out_dir, chip_file)}: skipped")
@@ -148,9 +162,9 @@ def main():
     tag = f"{args.board}_{args.popcount}{'_ram' if args.weights == 'ram' else ''}" if args.board else "pc"
     folder = os.path.join("results", "sizing") if args.epochs else "results"      # quick --epochs runs: the sizing study
     os.makedirs(folder, exist_ok=True)
-    path = os.path.join(folder, f"symbex_seeds_{tag}_{name}.json")
+    path = os.path.join(folder, f"symbex_seeds_{tag}_{name}{vert}.json")
     json.dump(dict(width=args.width, spec=args.spec or None, board=args.board, weights=args.weights, popcount=args.popcount,
-                   seeds=rows),
+                   engine=args.engine, seeds=rows),
               open(path, "w"), indent=1)
     print(f"    -> {path}")
 

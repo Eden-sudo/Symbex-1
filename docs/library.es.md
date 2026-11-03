@@ -36,7 +36,7 @@ en el ESP32-S3, `src/hal/generic/` en todos los demás (más `src/hal/rp2350/` e
 flowchart TB
     H[model_symbex.h<br/>escrito por el CDT] --> L
     subgraph lib_symbex
-        L[layers/<br/>conv: symbex_bool, symbex_bool1d<br/>dense: symbex_dense, symbex_ternary]
+        L[layers/<br/>conv: symbex_bool, symbex_bool1d, symbex_bool_vertical<br/>dense: symbex_dense, symbex_ternary]
         O[ops/<br/>operaciones de bits, empaquetado, aritmética AND]
         A[hal/<br/>los conteos de bits de cada chip]
         L --> O
@@ -47,7 +47,7 @@ flowchart TB
 
 | Carpeta | Qué contiene |
 |---|---|
-| `include/layers/conv/` | `symbex_bool.h`: redes 2D completamente binarias (entrada termómetro, convoluciones binarias con umbrales enteros, pool OR, atajo OR, clasificador o cabeza de detección por celda, y el ejecutor de la red completa `symbex_bool_net_run`). `symbex_bool1d.h`: convoluciones 1D binarias para series de tiempo, con cualquier número de canales y un pool OR fusionado |
+| `include/layers/conv/` | `symbex_bool.h`: redes 2D completamente binarias (entrada termómetro, convoluciones binarias con umbrales enteros, pool OR, atajo OR, clasificador o cabeza de detección por celda, y el ejecutor de la red completa `symbex_bool_net_run`). `symbex_bool1d.h`: convoluciones 1D binarias para series de tiempo, con cualquier número de canales y un pool OR fusionado. `symbex_bool_vertical.h`: el [motor vertical](vertical.es.md), las mismas redes y los mismos bits contados 128 ventanas a la vez (modos opcionales preparado y compacto) |
 | `include/layers/dense/` | `symbex_dense.h`: capas densas de 1 bit (primera capa uint8, luego bits con un umbral entero por neurona). `symbex_ternary.h`: pesos en {-1, 0, +1} |
 | `include/ops/` | operaciones de bits, empaquetado de bits, la forma AND de los conteos |
 | `include/hal/symbex_hal.h` | la interfaz que implementa cada chip: los conteos de bits y los kernels de la primera capa |
@@ -114,6 +114,7 @@ pesos guardados. Las dos dan los mismos bits.
 | `-DSYMBEX_POPCOUNT_FORCE_NATIVE` | el `__builtin_popcount` del compilador, para un núcleo donde se convierte en una instrucción (el `p.cnt` de PULP) |
 | `-DSYMBEX_POPCOUNT_NO_LUT16` | sin la tabla de 64 KB: devuelve esa RAM en el ESP32 o el M33 |
 | `-DSYMBEX_U8_EXTERNAL` | la aplicación da sus propios kernels de primera capa (ejemplo: `benchmarks/conv1d/har_ultracompact/pulp/`) |
+| `-DSYMBEX_CODE_IN_RAM` | los bucles internos marcados `SYMBEX_FAST_CODE` (hoy los del motor vertical) corren desde RAM: `.time_critical` en el RP2350, IRAM en los chips ESP32 |
 
 `symbex_hal_name()` devuelve como texto el método en uso, útil en los logs.
 

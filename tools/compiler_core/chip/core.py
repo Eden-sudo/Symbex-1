@@ -28,6 +28,7 @@ LIB_SOURCES = {
     "symbex_hal_rp2350.c": ("src", "hal", "rp2350", "symbex_hal_impl.c"),   # Pico 2 first layer (empty elsewhere)
     "symbex_bool.c": ("src", "layers", "conv", "symbex_bool.c"),      # fully binary conv networks (method boolean)
     "symbex_bool1d.c": ("src", "layers", "conv", "symbex_bool1d.c"),  # fully binary 1D conv networks (time series)
+    "symbex_bool_vertical.c": ("src", "layers", "conv", "symbex_bool_vertical.c"),  # the vertical engine (ESP32-S3)
     "symbex_ternary.c": ("src", "layers", "dense", "symbex_ternary.c"),  # ternary dense networks (method ternary)
 }
 

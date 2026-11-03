@@ -18,6 +18,12 @@ Every conv computes raw = sum of +-1 products over the in-image window; BatchNor
     export_and_validate(model, val_ds, out_dir, ...)   header + validation files + the C check on this PC (gcc)
 The header offers the interface of the MLP headers (symbex_mlp_infer, SYMBEX_MLP_N_INPUTS / N_CLASSES / N_STEPS,
 symbex_mlp_steps, SYMBEX_MLP_BYTES_BUFFERS), so firmware/model_test.c and the chip stage measure it unchanged.
+Built with -DSYMBEX_BOOL_VERTICAL, the same header runs the vertical engine (symbex_bool_vertical.h, the fastest on
+the ESP32-S3; docs/vertical.md) on the same data, with the same results: chip_test.py --engine vertical.
+Adding -DSYMBEX_BOOL_VERTICAL_PREPARED (optional) builds its plane lists and thresholds once into RAM: more RAM,
+faster (chip_test.py --engine vertical_prepared). -DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT instead: the lists prepared,
+the thresholds kept compact (one value per output channel and border kind): about half that RAM, a little slower
+(chip_test.py --engine vertical_compact).
 """
 import copy
 import json
@@ -331,6 +337,117 @@ def _c_array(f, ctype, name, values, attr=""):
     f.write("\n};\n")
 
 
+def _vplane_words(ch, h, w):
+    """words of a channel-plane map of the vertical engine (symbex_bool_vertical.h: plane stride + 4 zero words)"""
+    return ch * (((h * w // 32 + 3) & ~3) + 4) + 4
+
+
+def vertical_problem(convs, levels, in_size):
+    """None if the vertical engine runs these layers, else why not (symbex_bool_vertical_check, the same rules)"""
+    if 3 * levels > 32:
+        return "thermometer with more than 32 bits per pixel"
+    if 32 % in_size or in_size * in_size % 32:
+        return "input size (width must divide 32, h * w a multiple of 32)"
+    for c in convs:
+        k, s, h, oh, K = c["k"], c["s"], c["h"], c["oh"], c["k"] * c["k"] * c["cin"]
+        if k not in (1, 3):
+            return "kernel other than 1 x 1 or 3 x 3"
+        if (s == 1 and oh != h) or (s == 2 and (k != 3 or h != 2 * oh)) or s not in (1, 2):
+            return f"stride {s} with kernel {k} ({h} -> {oh})"
+        if 32 % h or 32 % oh or h * h % 32 or oh * oh % 32:
+            return f"map size {h} -> {oh} (width must divide 32, h * w a multiple of 32)"
+        if K % 8 or K >= 2048:
+            return f"k * k * in_ch = {K}: not a multiple of 8 or not below 2048"
+    return None
+
+
+def vertical_work_bytes(convs, blocks, levels, in_size, fc_rw):
+    """bytes of the vertical engine's work block: symbex_bool_vertical_work_bytes (net_sizes + carve), the same sums"""
+    sz = dict(map=_vplane_words(3 * levels, in_size, in_size), phases=0, xq=0, ap=0, km=0, bt=0, ba=0, list=0, tiles=0)
+    for c in convs:
+        nwo = c["oh"] * c["oh"] // 32
+        TL, K = (nwo + 3) // 4, c["k"] * c["k"] * c["cin"]
+        K8 = (K + 8) // 8 * 8
+        for key, v in (("map", _vplane_words(c["cout"], c["oh"], c["oh"])),
+                       ("phases", 4 * _vplane_words(c["cin"], c["oh"], c["oh"]) if c["s"] == 2 else 0),
+                       ("xq", TL * K8), ("ap", TL * 12), ("km", TL * 9), ("bt", TL * 12),
+                       ("ba", ((K8 // 8 + 7) & ~7) + 8), ("list", K + 18), ("tiles", TL)):
+            sz[key] = max(sz[key], v)
+    for ci, si, pool in blocks:
+        if si is not None and pool:
+            c = convs[ci]
+            sz["map"] = max(sz["map"], _vplane_words(c["cin"], c["h"] // 2, c["h"] // 2))
+    last = convs[blocks[-1][0]] if blocks else convs[0]
+    hwc = last["oh"] * last["oh"] * ((last["cout"] + 31) // 32) + fc_rw + 4
+    r16 = lambda b: (b + 15) & ~15
+    shared = max(r16(sz["km"] * 16) + r16(sz["bt"] * 16), r16(sz["phases"] * 4))    # the phases share km and bt
+    return (4 * r16(sz["map"] * 4) + shared + r16(sz["xq"] * 16) + r16(sz["ap"] * 16) + 2 * r16(sz["ba"] * 16) + r16(16 * 16) + r16(15 * 16)
+            + r16(sz["list"] * 2 + 4) + 3 * r16(sz["tiles"]) + r16(sz["tiles"] * 9) + r16(256 * 20) + r16(hwc * 4))
+
+
+def _vertical_tile_types(c, with_kinds=False):
+    """tile types of a conv in the vertical engine: border_kinds in symbex_bool_vertical.c (the tiles of 128 output
+    pixels with the same border-kind masks), the same steps; with_kinds: (tile types, border kinds)"""
+    k, s, H, OH = c["k"], c["s"], c["h"], c["oh"]
+    pad, OW, W = k // 2, OH, H
+    nwo = OH * OW // 32
+    TL = (nwo + 3) // 4
+
+    def valid(o, n):
+        return sum(1 << i for i in range(k) if 0 <= o * s - pad + i < n)
+
+    def kinds(n_out, n_in):
+        vals, cnt = [], []
+        for o in range(n_out):
+            m = valid(o, n_in)
+            if m not in vals:
+                vals.append(m)
+                cnt.append(0)
+            cnt[vals.index(m)] += 1
+        return vals, cnt
+    cv, cc = kinds(OW, W)
+    rv, rc = kinds(OH, H)
+    cmask = [0] * len(cv)
+    for ox in range(OW):
+        for j in range(ox, 32, OW):
+            cmask[cv.index(valid(ox, W))] |= 1 << j
+    nc, NK = len(cv), len(rv) * len(cv)
+    kbase = cc.index(max(cc)) + rc.index(max(rc)) * nc       # the first commonest, as the C
+    rows_per_word, rowbits = 32 // OW, (1 << OW) - 1
+    km = [[[0] * 4 for _ in range(NK)] for _ in range(TL)]
+    for wd in range(4 * TL):
+        t, j = divmod(wd, 4)
+        if wd >= nwo:
+            km[t][kbase][j] = 0xFFFFFFFF
+            continue
+        rbits = [0] * len(rv)
+        for r in range(rows_per_word):
+            rbits[rv.index(valid(wd * rows_per_word + r, H))] |= rowbits << (r * OW)
+        for a in range(len(rv)):
+            for b in range(nc):
+                km[t][a * nc + b][j] = rbits[a] & cmask[b]
+    ntt = len({tuple(tuple(m) for m in tile) for tile in km})
+    return (ntt, NK) if with_kinds else ntt
+
+
+def vertical_prepared_bytes(convs, compact=False):
+    """bytes of the vertical engine's prepared lists and thresholds: symbex_bool_vertical_prepared_bytes (compact:
+    symbex_bool_vertical_prepared_compact_bytes), the same sums (convs in the network's order: stem, then every
+    block's conv and shortcut)"""
+    r16 = lambda b: (b + 15) & ~15
+    total = r16(12 * len(convs))
+    for c in convs:
+        ntt, nk = _vertical_tile_types(c, with_kinds=True)
+        if compact:                          # header, kind masks per tile type, their kinds, the values per channel
+            total += 16 + ntt * nk * 16 + r16(ntt * 10) + r16(c["cout"] * nk * 2)
+        else:
+            total += c["cout"] * ntt * 12 * 16
+        ones = [sum(bin(int(w)).count("1") for w in row) for row in np.asarray(c["rows"]).reshape(c["cout"], -1)]
+        total += r16(sum(2 * (2 + (n + 7) // 8 * 8) for n in ones))
+        total += r16(1 + (c["oh"] * c["oh"] // 32 + 3) // 4)     # NTT and the type of every tile
+    return total
+
+
 def write_header(net, path, in_size=32):
     """model_symbex.h for lib_symbex's symbex_bool_net_run, with the interface of the MLP headers. Returns
     (flash bytes of weights + parameters, RAM bytes of the buffers, step names, layer shapes)."""
@@ -402,6 +519,11 @@ def write_header(net, path, in_size=32):
     max_rw = max(max(c["rw"] for c in convs), 4)
     max_out = max(max(c["cout"] for c in convs), n_cls)
     ram = 4 * (sum(size) + max_rw + 2 * max_out) + (fh * fh if cells else 0)
+    v_why = vertical_problem(convs, net["levels"], in_size)
+    v_bytes = None if v_why else vertical_work_bytes(convs, blocks, net["levels"], in_size, fc_rw)
+    v_ram = None if v_why else v_bytes + 4 * (4 * 4 + 4 + 2 * max_out) + (fh * fh if cells else 0)
+    v_prep = None if v_why else vertical_prepared_bytes(convs)
+    v_prep_c = None if v_why else vertical_prepared_bytes(convs, compact=True)
     guard = "SYMBEX_BOOL_MODEL_H"
     with open(path, "w") as f:
         f.write(f"/* generated by the CDT (compiler_core/export/boolean.py): a fully binary network for lib_symbex's\n"
@@ -428,9 +550,15 @@ def write_header(net, path, in_size=32):
         _c_array(f, "int32_t", "FC_C", fc_cnt)
         _c_array(f, "int32_t", "FC_S", net["fc_scale"])
         _c_array(f, "int32_t", "FC_B", net["fc_bias"])
+        # -DSYMBEX_BOOL_VERTICAL: the vertical engine works in its own block (B_VWORK); the standard engine's maps and
+        # window shrink to a placeholder (symbex_net still points at them)
+        f.write("#if defined(SYMBEX_BOOL_VERTICAL)\n")
+        if v_why:
+            f.write(f"#error \"the vertical engine does not run this network: {v_why}\"\n")
+        f.write("#define SYMBEX_BOOL_MAPW(n) 4\n#else\n#define SYMBEX_BOOL_MAPW(n) (n)\n#endif\n")
         for i in range(4):
-            f.write(f"static uint32_t B_MAP{i}[{size[i]}] __attribute__((aligned(16)));\n")
-        f.write(f"static uint32_t B_WINDOW[{max_rw}] __attribute__((aligned(16)));\n"
+            f.write(f"static uint32_t B_MAP{i}[SYMBEX_BOOL_MAPW({size[i]})] __attribute__((aligned(16)));\n")
+        f.write(f"static uint32_t B_WINDOW[SYMBEX_BOOL_MAPW({max_rw})] __attribute__((aligned(16)));\n"
                 f"static int32_t B_SCRATCH[{2 * max_out}];\n")
         if cells:
             f.write(f"static uint8_t B_CELLS[{fh * fh}];      /* the class of every cell of the {fh} x {fh} grid */\n")
@@ -441,25 +569,55 @@ def write_header(net, path, in_size=32):
                    "NULL, 0, 0};   /* no per-cell head: a classifier */\n\n"))
         f.write(f"#define SYMBEX_MLP_N_INPUTS {in_size * in_size * 3}      /* uint8 RGB, HWC */\n"
                 f"#define SYMBEX_MLP_N_CLASSES {n_cls}\n#define SYMBEX_MLP_N_STEPS {len(steps)}\n"
-                f"#define SYMBEX_MLP_BYTES_BUFFERS {ram}u\n"
                 "static const char* const symbex_mlp_steps[SYMBEX_MLP_N_STEPS] = {\n"
-                + "".join(f"    \"{s}\",\n" for s in steps) + "};\n"
+                + "".join(f"    \"{s}\",\n" for s in steps) + "};\n")
+        if not v_why:
+            f.write(f"#if defined(SYMBEX_BOOL_VERTICAL)   /* the vertical engine: same data, same results */\n"
+                    f"#include \"layers/conv/symbex_bool_vertical.h\"\n"
+                    f"static uint32_t B_VWORK[{v_bytes // 4}] __attribute__((aligned(16)));\n"
+                    f"#if defined(SYMBEX_BOOL_VERTICAL_PREPARED_COMPACT)   /* optional: the lists built once into RAM, the\n"
+                    f"   thresholds compact (symbex_bool_vertical_prepare_compact): {v_prep_c / 1024:.1f} KB more RAM, faster */\n"
+                    f"#define SYMBEX_MLP_BYTES_BUFFERS {v_ram + v_prep_c}u\n"
+                    f"static uint32_t B_VPREP[{v_prep_c // 4}] __attribute__((aligned(16)));\n"
+                    f"#elif defined(SYMBEX_BOOL_VERTICAL_PREPARED)   /* optional: the lists and thresholds built once into RAM\n"
+                    f"   (symbex_bool_vertical_prepare): {v_prep / 1024:.1f} KB more RAM, faster still */\n"
+                    f"#define SYMBEX_MLP_BYTES_BUFFERS {v_ram + v_prep}u\n"
+                    f"static uint32_t B_VPREP[{v_prep // 4}] __attribute__((aligned(16)));\n"
+                    f"#else\n#define SYMBEX_MLP_BYTES_BUFFERS {v_ram}u\n#endif\n"
+                    "static struct SymbexBoolVertical B_V;\nstatic int B_V_READY;\n"
+                    "static inline int symbex_mlp_infer(const uint8_t* x) {\n"
+                    "    if (!B_V_READY) {                        /* once: carve the work block, build the list table */\n"
+                    "        if (symbex_bool_vertical_init(&symbex_net, B_VWORK, sizeof B_VWORK, &B_V)) return -1;\n"
+                    "#if defined(SYMBEX_BOOL_VERTICAL_PREPARED_COMPACT)\n"
+                    "        if (symbex_bool_vertical_prepare_compact(&B_V, B_VPREP, sizeof B_VPREP)) return -1;\n"
+                    "#elif defined(SYMBEX_BOOL_VERTICAL_PREPARED)\n"
+                    "        if (symbex_bool_vertical_prepare(&B_V, B_VPREP, sizeof B_VPREP)) return -1;\n"
+                    "#endif\n"
+                    "        B_V_READY = 1;\n    }\n"
+                    "    return symbex_bool_net_run_vertical(&symbex_net, &B_V, x);\n}\n#else\n")
+        f.write(f"#define SYMBEX_MLP_BYTES_BUFFERS {ram}u\n"
                 "static inline int symbex_mlp_infer(const uint8_t* x) { return symbex_bool_net_run(&symbex_net, x); }\n"
-                f"#endif /* {guard} */\n")
+                + ("" if v_why else "#endif\n") + f"#endif /* {guard} */\n")
     for c in convs:
         shapes.append(dict(cin=c["cin"], cout=c["cout"], k=c["k"], stride=c["s"], h=c["h"], out_h=c["oh"],
                            bit_ops=c["cout"] * c["oh"] * c["oh"] * c["k"] * c["k"] * c["cin"]))
     return flash, ram, steps, shapes
 
 
-def validate_c(header_path, lib_path, x_u8, expected):
-    """gcc on this PC: the header + lib_symbex (symbex_bool.c, the generic HAL) on x_u8; (equal, total, message)"""
+def validate_c(header_path, lib_path, x_u8, expected, vertical=False, prepared=False):
+    """gcc on this PC: the header + lib_symbex (symbex_bool.c, the generic HAL) on x_u8; (equal, total, message).
+    vertical=True: built with -DSYMBEX_BOOL_VERTICAL (the vertical engine, in its portable C form); prepared=True:
+    also -DSYMBEX_BOOL_VERTICAL_PREPARED (its lists and thresholds prepared in RAM); prepared="compact":
+    -DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT (the lists prepared, the thresholds compact)"""
+    pflag = ("-DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT" if prepared == "compact" else "-DSYMBEX_BOOL_VERTICAL_PREPARED")
     from .dense import _TEST_MAIN
     if shutil.which("gcc") is None:
         return None, 0, "gcc not found: the C exactness check was skipped"
     inc = os.path.join(lib_path, "include")
     sources = [os.path.join(lib_path, "src", "layers", "conv", "symbex_bool.c"),
                os.path.join(lib_path, "src", "hal", "generic", "symbex_hal_impl.c")]
+    if vertical:
+        sources.append(os.path.join(lib_path, "src", "layers", "conv", "symbex_bool_vertical.c"))
     for r in [inc] + sources:
         if not os.path.exists(r):
             return None, 0, f"lib_symbex not found at {lib_path} ({r} missing): set [output] lib_path"
@@ -467,8 +625,9 @@ def validate_c(header_path, lib_path, x_u8, expected):
         shutil.copy(header_path, os.path.join(d, "model_symbex.h"))
         open(os.path.join(d, "main.c"), "w").write(_TEST_MAIN)
         exe = os.path.join(d, "check")
-        r = subprocess.run(["gcc", "-O2", "-std=gnu11", "-I", inc, "-I", d, "-o", exe, os.path.join(d, "main.c")] + sources,
-                           capture_output=True, text=True)
+        r = subprocess.run(["gcc", "-O2", "-std=gnu11", "-I", inc, "-I", d, *(["-DSYMBEX_BOOL_VERTICAL"] if vertical else []),
+                            *([pflag] if vertical and prepared else []),
+                            "-o", exe, os.path.join(d, "main.c")] + sources, capture_output=True, text=True)
         if r.returncode != 0:
             return None, 0, "the C did not compile:\n" + r.stderr[-2000:]
         data = os.path.join(d, "x.u8")
@@ -477,6 +636,25 @@ def validate_c(header_path, lib_path, x_u8, expected):
         if r.returncode != 0:
             return None, 0, "the C program failed while running"
         pred_c = np.array([int(v) for v in r.stdout.split()])
+        if vertical:                             # the header's buffers must be the sizes the library asks for, exactly
+            open(os.path.join(d, "sizes.c"), "w").write(
+                "#include <stdio.h>\n#include \"model_symbex.h\"\nint main(void) {\n"
+                "    struct SymbexBoolVertical v;\n"
+                "    if (symbex_bool_vertical_init(&symbex_net, B_VWORK, sizeof B_VWORK, &v)) return 1;\n"
+                "    printf(\"%zu %zu\\n\", symbex_bool_vertical_work_bytes(&symbex_net), sizeof B_VWORK);\n"
+                "#if defined(SYMBEX_BOOL_VERTICAL_PREPARED_COMPACT)\n"
+                "    printf(\"%zu %zu\\n\", symbex_bool_vertical_prepared_compact_bytes(&v), sizeof B_VPREP);\n"
+                "#elif defined(SYMBEX_BOOL_VERTICAL_PREPARED)\n"
+                "    printf(\"%zu %zu\\n\", symbex_bool_vertical_prepared_bytes(&v), sizeof B_VPREP);\n"
+                "#endif\n    return 0;\n}\n")
+            r = subprocess.run(["gcc", "-O2", "-std=gnu11", "-I", inc, "-I", d, "-DSYMBEX_BOOL_VERTICAL",
+                                *([pflag] if prepared else []),
+                                "-o", exe + "_sizes", os.path.join(d, "sizes.c")] + sources, capture_output=True, text=True)
+            r = subprocess.run([exe + "_sizes"], capture_output=True, text=True) if r.returncode == 0 else r
+            pairs = [l.split() for l in r.stdout.strip().splitlines()] if r.returncode == 0 else []
+            if not pairs or any(a != b for a, b in pairs):
+                return None, 0, ("[X] the header's vertical buffers differ from the library's sizes (library, header): "
+                                 f"{pairs or r.stderr[-500:]}")
     return int((pred_c == expected).sum()), len(expected), ""
 
 
@@ -502,6 +680,13 @@ def export_and_validate(model, val_ds, out_dir, lib_path, n_validation=2000):
     header = os.path.join(out_dir, "model_symbex.h")
     flash, ram, steps, shapes = write_header(net, header, x_u8.shape[1])
     equal, total, msg = validate_c(header, lib_path, x_u8, p_sim)
+    with open(header) as f:
+        has_vertical = "symbex_bool_net_run_vertical" in f.read()
+    v_equal, v_total, v_msg = validate_c(header, lib_path, x_u8, p_sim, vertical=True) if has_vertical else (None, 0, "")
+    p_equal, p_total, p_msg = (validate_c(header, lib_path, x_u8, p_sim, vertical=True, prepared=True) if has_vertical
+                               else (None, 0, ""))
+    c_equal, c_total, c_msg = (validate_c(header, lib_path, x_u8, p_sim, vertical=True, prepared="compact")
+                               if has_vertical else (None, 0, ""))
     save_validation(out_dir, x_u8.reshape(len(x_u8), -1), y, p_sim)
     acc_t, acc_s = 100 * (p_torch == y).mean(), 100 * (p_sim == y).mean()
     fid = 100 * (p_sim == p_torch).mean()
@@ -516,7 +701,27 @@ def export_and_validate(model, val_ds, out_dir, lib_path, n_validation=2000):
     else:
         print(f"    EXACTNESS   : {100 * equal / total:.2f}%  (compiled C vs. integer simulation, must be 100%) "
               + ("OK" if equal == total else "[X]"))
+    if not has_vertical:
+        print("    vertical    : not available for this network (see the header's #error)")
+    elif v_equal is None:
+        print(f"    vertical    : not checked ({v_msg})")
+    else:
+        print(f"    vertical    : {100 * v_equal / v_total:.2f}%  (-DSYMBEX_BOOL_VERTICAL, the vertical engine, vs. the "
+              f"integer simulation) " + ("OK" if v_equal == v_total else "[X]"))
+    if has_vertical and p_equal is None:
+        print(f"    prepared    : not checked ({p_msg})")
+    elif has_vertical:
+        print(f"    prepared    : {100 * p_equal / p_total:.2f}%  (+ -DSYMBEX_BOOL_VERTICAL_PREPARED, lists and thresholds "
+              f"prepared in RAM, vs. the integer simulation) " + ("OK" if p_equal == p_total else "[X]"))
+    if has_vertical and c_equal is None:
+        print(f"    compact     : not checked ({c_msg})")
+    elif has_vertical:
+        print(f"    compact     : {100 * c_equal / c_total:.2f}%  (+ -DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT, lists prepared, "
+              f"thresholds compact, vs. the integer simulation) " + ("OK" if c_equal == c_total else "[X]"))
     return dict(method="boolean", header=header, flash_bytes=flash, ram_buffers=ram, steps=steps, layers=shapes,
                 accuracy_torch=acc_t, accuracy_sim=acc_s, fidelity=fid,
                 exactness=None if equal is None else 100 * equal / total, arithmetic="and (HAL rows)",
+                exactness_vertical=None if v_equal is None else 100 * v_equal / v_total,
+                exactness_vertical_prepared=None if p_equal is None else 100 * p_equal / p_total,
+                exactness_vertical_compact=None if c_equal is None else 100 * c_equal / c_total,
                 _x_u8=x_u8.reshape(len(x_u8), -1), _y=y, _pred_sim=p_sim)

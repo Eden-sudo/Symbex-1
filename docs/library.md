@@ -36,7 +36,7 @@ the ESP32-S3, `src/hal/generic/` everywhere else (plus `src/hal/rp2350/` on the 
 flowchart TB
     H[model_symbex.h<br/>written by the CDT] --> L
     subgraph lib_symbex
-        L[layers/<br/>conv: symbex_bool, symbex_bool1d<br/>dense: symbex_dense, symbex_ternary]
+        L[layers/<br/>conv: symbex_bool, symbex_bool1d, symbex_bool_vertical<br/>dense: symbex_dense, symbex_ternary]
         O[ops/<br/>bit operations, packing, AND arithmetic]
         A[hal/<br/>the bit counts of each chip]
         L --> O
@@ -47,7 +47,7 @@ flowchart TB
 
 | Folder | What it holds |
 |---|---|
-| `include/layers/conv/` | `symbex_bool.h`: fully binary 2D networks (thermometer input, binary convolutions with integer thresholds, OR pool, OR shortcut, classifier or per-cell detection head, and the whole-network runner `symbex_bool_net_run`). `symbex_bool1d.h`: binary 1D convolutions for time series, any channel count, with a fused OR pool |
+| `include/layers/conv/` | `symbex_bool.h`: fully binary 2D networks (thermometer input, binary convolutions with integer thresholds, OR pool, OR shortcut, classifier or per-cell detection head, and the whole-network runner `symbex_bool_net_run`). `symbex_bool1d.h`: binary 1D convolutions for time series, any channel count, with a fused OR pool. `symbex_bool_vertical.h`: the [vertical engine](vertical.md), the same networks and bits counted 128 windows at once (optional prepared and compact modes) |
 | `include/layers/dense/` | `symbex_dense.h`: 1-bit dense layers (uint8 first layer, then bits with one integer threshold per neuron). `symbex_ternary.h`: weights in {-1, 0, +1} |
 | `include/ops/` | bit operations, bit packing, the AND form of the counts |
 | `include/hal/symbex_hal.h` | the interface every chip implements: the bit counts and the first-layer kernels |
@@ -114,6 +114,7 @@ counts. Both give the same bits.
 | `-DSYMBEX_POPCOUNT_FORCE_NATIVE` | the compiler's `__builtin_popcount`, for a core where it becomes an instruction (PULP's `p.cnt`) |
 | `-DSYMBEX_POPCOUNT_NO_LUT16` | no 64 KB table: gives that RAM back on the ESP32 or the M33 |
 | `-DSYMBEX_U8_EXTERNAL` | the application provides its own first-layer kernels (example: `benchmarks/conv1d/har_ultracompact/pulp/`) |
+| `-DSYMBEX_CODE_IN_RAM` | the inner loops marked `SYMBEX_FAST_CODE` (today the vertical engine's) run from RAM: `.time_critical` on the RP2350, IRAM on the ESP32 chips |
 
 `symbex_hal_name()` returns the method in use as text, which is useful in logs.
 

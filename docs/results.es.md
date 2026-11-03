@@ -13,7 +13,11 @@ la misma receta. Todas las reglas vienen de la [metodología](../README.es.md#me
 
 **Qué significa INT8 aquí.** El lado INT8 es la ruta de despliegue que usa casi todo el mundo: TensorFlow Lite Micro
 con los kernels optimizados ESP-NN de Espressif. No es el INT8 más rápido posible: en el ESP32-S3, la librería ESP-DL de
-Espressif ejecuta ResNet-8 2.6× más rápido que SYMBEX. [¿Qué tan rápido podría ser INT8?](#qué-tan-rápido-podría-ser-int8)
+Espressif ejecuta ResNet-8 2.6× más rápido que el motor estándar de SYMBEX. El motor vertical de SYMBEX
+([El motor vertical](vertical.es.md)) lo ejecuta en 10.4 ms, 1.43× más rápido que ESP-DL con los pesos en flash; con los
+pesos en RAM, ESP-DL sigue 1.06× más rápido, salvo con uno de los modos opcionales del motor: compacto (7.70 ms, 1.27×
+más rápido que ESP-DL en RAM, con 151 KB de RAM frente a los 147 KB de ESP-DL) o preparado (6.44 ms, 1.52× más rápido,
+238 KB de RAM). [¿Qué tan rápido podría ser INT8?](#qué-tan-rápido-podría-ser-int8)
 muestra qué está medido y qué no.
 
 Esta página da lo principal de cada benchmark. Los detalles, los comandos y los archivos crudos están en el README de
@@ -59,7 +63,8 @@ medición las actualiza.
 La diferencia la marca el chip. El ESP32 clásico no tiene SIMD, y ahí contar bits es un orden de magnitud más barato que
 multiplicar y acumular en 8 bits. El ESP32-S3 tiene una unidad SIMD (PIE) que acelera INT8, así que la diferencia es
 menor. Donde INT8 puede usar esa unidad por completo, la diferencia es la más estrecha: ResNet-8 a 1.33× y el MLP con
-sus pesos en RAM a 2.14×. Ahí, la librería ESP-DL de Espressif es más rápida que SYMBEX (ver
+sus pesos en RAM a 2.14×. Ahí, la librería ESP-DL de Espressif es más rápida que el motor estándar de SYMBEX; en
+ResNet-8, [el motor vertical](vertical.es.md) le gana con los pesos en flash, y en RAM con sus modos opcionales compacto y preparado (ver
 [¿Qué tan rápido podría ser INT8?](#qué-tan-rápido-podría-ser-int8)). [Cómo funciona](how-it-works.es.md) explica por
 qué contar bits es más barato.
 
@@ -88,7 +93,7 @@ Dónde podría INT8 ir todavía más rápido:
 |---|---|
 | Llamar a ESP-NN directamente, sin el intérprete de TFLite | **Medido** en el MLP x1 (784-256-128-10) en el ESP32-S3, pesos en RAM: 0.556 ms en vez de 0.876 ms (1.58× más rápido). SYMBEX x1 corre en 0.525 ms, así que en RAM los dos están cerca (`tools/lowbit`, [mlp_fashion](../benchmarks/mlp/mlp_fashion/README.md)). |
 | Pesos en RAM | **Medido** donde el modelo cabe: el MLP y las redes 1D. En flash, INT8 es lento porque lee 8× más bytes a través de la caché de la flash. La RAM elimina eso, si el chip tiene espacio. |
-| ESP-DL (la otra librería de Espressif, optimizada para el S3) | **Medido** en una comprobación rápida, tabla abajo. En el ESP32-S3 es el INT8 más rápido: más rápido que SYMBEX en ResNet-8, y en el MLP cuando los pesos están en RAM. |
+| ESP-DL (la otra librería de Espressif, optimizada para el S3) | **Medido** en una comprobación rápida, tabla abajo. En el ESP32-S3 es el INT8 más rápido: más rápido que el motor estándar de SYMBEX en ResNet-8 (el motor vertical le gana con los pesos en flash, y en RAM con su modo compacto con casi la misma RAM), y en el MLP cuando los pesos están en RAM. |
 | CMSIS-NN en el Cortex-M33 de la Pico 2 | **Todavía sin medir** (trabajo futuro). |
 
 **ESP-DL, comprobación rápida.** ESP-DL v3 (`espressif/esp-dl`, ESP-IDF 6.1), modelos cuantizados a INT8 con `esp-ppq`
@@ -101,7 +106,12 @@ RAM cuando el modelo se carga.
 | Modelo | Chip | Pesos en | ESP-DL | SYMBEX | TFLite Micro | SYMBEX frente a ESP-DL |
 |---|---|---|---|---|---|---|
 | ResNet-8 | ESP32-S3 | flash | **14.8 ms** | 39.2 ms | 52.0 ms | ESP-DL **2.6× más rápido** |
-| ResNet-8 | ESP32-S3 | RAM | **9.8 ms** (147 KB de RAM) | — | — | — |
+| ResNet-8, motor vertical de SYMBEX | ESP32-S3 | flash | 14.8 ms | **10.4 ms** (63 KB de RAM) | 52.0 ms | SYMBEX **1.43× más rápido** |
+| ResNet-8, motor vertical de SYMBEX | ESP32-S3 | RAM | **9.8 ms** (147 KB de RAM) | 10.4 ms (87 KB de RAM) | — | ESP-DL **1.06× más rápido** |
+| ResNet-8, motor vertical de SYMBEX, compacto (opcional) | ESP32-S3 | flash | 14.8 ms | **7.70 ms** (151 KB de RAM) | 52.0 ms | SYMBEX **1.92× más rápido** |
+| ResNet-8, motor vertical de SYMBEX, compacto (opcional) | ESP32-S3 | RAM | 9.8 ms (147 KB de RAM) | **7.70 ms** (175 KB de RAM) | — | SYMBEX **1.27× más rápido** |
+| ResNet-8, motor vertical de SYMBEX, preparado (opcional) | ESP32-S3 | flash | 14.8 ms | **6.44 ms** (238 KB de RAM) | 52.0 ms | SYMBEX **2.3× más rápido** |
+| ResNet-8, motor vertical de SYMBEX, preparado (opcional) | ESP32-S3 | RAM | 9.8 ms (147 KB de RAM) | **6.44 ms** (262 KB de RAM) | — | SYMBEX **1.52× más rápido**, con más RAM |
 | ResNet-8 | ESP32 | flash | 712.4 ms | **63.3 ms** | 717.8 ms | SYMBEX **11.3× más rápido** |
 | ResNet-8 | ESP32 | RAM | 603.4 ms | **59.7 ms** | — | SYMBEX **10.1× más rápido** |
 | MLP 784-128-512-10 | ESP32-S3 | flash | 11.38 ms | **0.42 ms** | 11.67 ms | SYMBEX **27× más rápido** |
@@ -114,8 +124,11 @@ corrida sobre una parte del conjunto de test, todavía no un benchmark completo 
 está ESP-DL.
 
 Así que los números principales comparan SYMBEX con la ruta INT8 que despliega casi todo el mundo, no con el INT8 más
-rápido posible. En el ESP32-S3, ESP-DL es más rápido que SYMBEX en ResNet-8 (2.6×) y en el MLP con sus pesos en RAM
-(1.31×). Las ventajas claras de SYMBEX son los chips sin SIMD (el ESP32 clásico: 7.8-11.3× más rápido que ESP-DL
+rápido posible. En el ESP32-S3, ESP-DL es más rápido que el motor estándar de SYMBEX en ResNet-8 (2.6×) y en el MLP
+con sus pesos en RAM (1.31×). [El motor vertical](vertical.es.md) le da la vuelta en ResNet-8 con los pesos en flash
+(10.4 ms, 1.43× más rápido que ESP-DL); con los pesos en RAM, ESP-DL sigue 1.06× más rápido, salvo con un modo
+opcional: compacto (7.70 ms, 1.27× más rápido que ESP-DL con 151 KB de RAM frente a 147 KB) o preparado (6.44 ms,
+1.52× más rápido, 238 KB). Las ventajas claras de SYMBEX son los chips sin SIMD (el ESP32 clásico: 7.8-11.3× más rápido que ESP-DL
 también), los pesos que se quedan en flash en capas densas, el tamaño en flash (4-10× menor) y la RAM.
 
 ## Precisión: dónde cuesta lo binario
@@ -143,9 +156,15 @@ primera capa int8 es más rápida y más precisa que una binaria (ver el benchma
 - La arquitectura es la misma que la ResNet-8 INT8 oficial de MLPerf Tiny, medida con TFLite Micro en las mismas
   placas.
 - **ESP32-S3:** 39.2 ms frente a 52.0 ms (1.33×). ESP-DL de Espressif ejecuta la misma red en 14.8 ms, 2.6× más rápido
-  que SYMBEX (ver [¿Qué tan rápido podría ser INT8?](#qué-tan-rápido-podría-ser-int8)).
+  que el motor estándar de SYMBEX (ver [¿Qué tan rápido podría ser INT8?](#qué-tan-rápido-podría-ser-int8)).
+- **ESP32-S3, motor vertical:** la misma red y los mismos bits en 10.36 ± 0.05 ms (3 semillas), 5.0× más rápido que
+  TFLite Micro y 1.43× más rápido que ESP-DL con los pesos en flash, 63 KB de RAM ([El motor vertical](vertical.es.md)).
+  Sus modos opcionales construyen listas y umbrales una vez en RAM: compacto 7.70 ± 0.05 ms con 151 KB de RAM (1.27×
+  más rápido que ESP-DL en RAM), preparado 6.44 ± 0.02 ms con 238 KB (8.1× más rápido que TFLite Micro, 1.52× más
+  rápido que ESP-DL en RAM).
 - **ESP32:** 63.3 ms con los pesos en flash frente a 717.8 ms (11.3×); 59.7 ms con los pesos en RAM.
-- **Pico 2:** 56.1 ms en Hazard3 y 74.5 ms en el M33.
+- **Pico 2:** 56.1 ms en Hazard3 y 74.5 ms en el M33; en el M33 el modo preparado del motor vertical la ejecuta en
+  57.4 ms (semilla 42, un ranking; [El motor vertical](vertical.es.md#otros-chips-pico-2)).
 - **Memoria:** 24.3 KB de flash frente a 96.2 KB, y 15 KB de RAM frente a una arena de 53-80 KB.
 - **Precisión:** 71.3 ± 0.8 % frente a 87.0 %. Con la red dimensionada para binario (16-32-128 / 1-1-2) llega a 73.1 %
   a la misma velocidad.
@@ -198,5 +217,7 @@ primera capa int8 es más rápida y más precisa que una binaria (ver el benchma
 - Energía por inferencia, medida con un medidor de corriente.
 - ESP-DL como referencia INT8 completa (3 semillas, todo el conjunto de test, todos los benchmarks), con sus scripts en
   el repositorio.
-- Cerrar la diferencia con ESP-DL en el ESP32-S3.
+- Ganarle a ESP-DL en el ESP32-S3 con los pesos en RAM usando claramente menos RAM (motor vertical por defecto: 10.4 ms
+  frente a 9.8 ms con 63 KB; el modo compacto gana con 7.70 ms y casi la misma RAM, 151 KB frente a 147 KB), y el
+  motor vertical para el MLP y las redes 1D.
 - Volver a calibrar el umbral de decisión de FOMO sobre el nuevo split de validación.
