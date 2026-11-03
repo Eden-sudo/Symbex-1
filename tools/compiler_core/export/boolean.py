@@ -356,6 +356,8 @@ def vertical_problem(convs, levels, in_size):
             return f"stride {s} with kernel {k} ({h} -> {oh})"
         if 32 % h or 32 % oh or h * h % 32 or oh * oh % 32:
             return f"map size {h} -> {oh} (width must divide 32, h * w a multiple of 32)"
+        if oh * oh > 256 * 128:
+            return f"output map {oh} x {oh} above 32768 pixels (more than 256 tiles of 128)"
         if K % 8 or K >= 2048:
             return f"k * k * in_ch = {K}: not a multiple of 8 or not below 2048"
     return None

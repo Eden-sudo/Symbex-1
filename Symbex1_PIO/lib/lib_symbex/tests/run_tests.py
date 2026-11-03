@@ -1293,6 +1293,10 @@ int main(void) { int hdr[5]; static uint8_t img[32 * 32 * 3];
       const int c = symbex_bool_net_run_vertical(&net, &v, img);
       ok &= c == std_class && memcmp(v.hwc, std_map, (size_t)net.fc_words * 4) == 0;
     }
+    /* the tile cap (tile indices are bytes): an output map of 1024 x 32 (256 tiles of 128) runs, 1056 x 32 is refused */
+    { struct SymbexBoolNet t = net; t.n_blocks = 0; t.in_w = t.stem.in_w = t.stem.out_w = 32;
+      t.in_h = t.stem.in_h = t.stem.out_h = 1024; ok &= symbex_bool_vertical_check(&t) == NULL;
+      t.in_h = t.stem.in_h = t.stem.out_h = 1056; ok &= symbex_bool_vertical_check(&t) != NULL; }
     printf("%d %d\\n", std_class, ok);
     free(prepc); free(prep); free(work); }
   return 0; }""", hal)
@@ -1354,6 +1358,65 @@ int main(void) { int hdr[5]; static uint8_t img[32 * 32 * 3];
     bad = np.nonzero((got != np.array(exp)).reshape(-1, 2).any(1))[0]
     return n, len(bad), (f"network {bad[0]}: got (class, vertical ok) {tuple(got[2 * bad[0]:2 * bad[0] + 2])}, "
                          f"expected {tuple(exp[2 * bad[0]:2 * bad[0] + 2])}" if len(bad) else "")
+
+
+def test_bool_vertical_threads(hal, n):
+    """two vertical-engine instances at the same time (two threads, each its own network of a different shape and its
+    own work block): every run equal to symbex_bool_net_run (nothing of the counting state is shared)"""
+    exe = build("boolvthr", """
+#include <pthread.h>
+static void* kept[128]; static int nkept;          /* every allocation of a pair, freed after it */
+static void* keep(void* p) { if (!p || nkept == 128) exit(5); return kept[nkept++] = p; }
+static uint32_t rnd(uint32_t* s) { *s ^= *s << 13; *s ^= *s >> 17; *s ^= *s << 5; return *s; }
+static void mk(struct SymbexBoolConv* L, int cin, int cout, int H, uint32_t* r) {
+  L->in_ch = cin; L->out_ch = cout; L->kernel = 3; L->stride = 1; L->in_h = L->out_h = H; L->in_w = L->out_w = H;
+  const int K = 9 * cin, nw = (K + 31) / 32; L->row_words = (nw + 3) / 4 * 4;
+  uint32_t* w = keep(aligned_alloc(16, cout * L->row_words * 4)); memset(w, 0, cout * L->row_words * 4);
+  int16_t* c = keep(calloc(cout * 9, 2)); int32_t* t = keep(calloc(cout, 4));
+  for (int o = 0; o < cout; o++) {
+    for (int b = 0; b < K; b++) if (rnd(r) & 1) { w[o * L->row_words + b / 32] |= 1u << (b % 32); c[o * 9 + b / cin]++; }
+    t[o] = (int)(rnd(r) % 61) - 30; }
+  L->weights = w; L->thresholds = t; L->weight_counts = c; }
+struct Job { struct SymbexBoolNet net; struct SymbexBoolBlock B[2]; struct SymbexBoolVertical v; void* work;
+             uint8_t img[32 * 32 * 3]; int std_class; uint32_t* std_map; int bad; };
+static void setup(struct Job* j, int H, int C, uint32_t r) {
+  struct SymbexBoolNet* net = &j->net; memset(net, 0, sizeof *net); j->bad = 0;
+  net->in_h = net->in_w = H; net->levels = 8; mk(&net->stem, 24, C, H, &r);
+  mk(&j->B[0].conv, C, C, H, &r); mk(&j->B[1].conv, C, C, H, &r); j->B[0].shortcut = j->B[1].shortcut = NULL;
+  net->blocks = j->B; net->n_blocks = 2;
+  const int fw = H * H * ((C + 31) / 32); net->n_classes = 10; net->fc_words = fw; net->fc_row_words = (fw + 3) / 4 * 4;
+  net->fc_bits = H * H * C;
+  uint32_t* fcw = keep(aligned_alloc(16, 10 * net->fc_row_words * 4)); memset(fcw, 0, 10 * net->fc_row_words * 4);
+  int32_t *fcc = keep(calloc(10, 4)), *sc = keep(calloc(10, 4)), *bi = keep(calloc(10, 4));
+  for (int o = 0; o < 10; o++) { for (int i = 0; i < fw; i++) { fcw[o * net->fc_row_words + i] = rnd(&r);
+    fcc[o] += __builtin_popcount(fcw[o * net->fc_row_words + i]); } sc[o] = 1 + (int)(rnd(&r) % 100); }
+  net->fc_weights = fcw; net->fc_weight_counts = fcc; net->fc_scale = sc; net->fc_bias = bi;
+  for (int i = 0; i < 4; i++) { net->maps[i] = keep(aligned_alloc(16, 32 * 32 * 2 * 4)); memset(net->maps[i], 0, 32 * 32 * 2 * 4); }
+  net->window = keep(aligned_alloc(16, 64 * 4)); net->scratch = keep(calloc(128, 4));
+  for (int i = 0; i < H * H * 3; i++) j->img[i] = (uint8_t)rnd(&r);
+  const size_t bytes = symbex_bool_vertical_work_bytes(net);
+  j->work = keep(aligned_alloc(16, (bytes + 15) & ~(size_t)15));
+  if (symbex_bool_vertical_init(net, j->work, bytes, &j->v)) exit(4);
+  j->std_class = symbex_bool_net_run(net, j->img);
+  j->std_map = keep(malloc(fw * 4)); memcpy(j->std_map, net->maps[net->n_blocks % 2 ? 0 : 1], fw * 4); }
+static void* worker(void* a) {
+  struct Job* j = a;
+  for (int it = 0; it < 40; it++) {
+    const int c = symbex_bool_net_run_vertical(&j->net, &j->v, j->img);
+    j->bad += c != j->std_class || memcmp(j->v.hwc, j->std_map, (size_t)j->net.fc_words * 4) != 0; }
+  return NULL; }
+int main(void) { uint32_t seed; static struct Job A, B;
+  while (fread(&seed, 4, 1, stdin) == 1) {
+    setup(&A, 32, 32, seed | 1); setup(&B, 16, 64, (seed * 2654435761u) | 1);   /* different K, different work blocks */
+    pthread_t ta, tb; pthread_create(&ta, NULL, worker, &A); pthread_create(&tb, NULL, worker, &B);
+    pthread_join(ta, NULL); pthread_join(tb, NULL);
+    while (nkept) free(kept[--nkept]);
+    printf("%d\\n", A.bad + B.bad); }
+  return 0; }""", hal)
+    cases = max(n // 100, 2)
+    got = run(exe, i32(*RNG.integers(1, 1 << 30, cases)))
+    bad = np.nonzero(got != 0)[0]
+    return cases, len(bad), (f"pair {bad[0]}: {got[bad[0]]} of 80 runs differ" if len(bad) else "")
 
 
 def test_hal_xor_rows(hal, n):
@@ -1575,6 +1638,7 @@ TESTS = [("hal: popcount32", test_hal_popcount32), ("hal: name", test_hal_name),
          ("bool: thermometer, OR pool, OR, integer classifier", test_bool_pieces),
          ("bool: whole random networks, AND and XOR forms (symbex_bool_net_run)", test_bool_net),
          ("bool: vertical engine (built, prepared, compact), whole networks = symbex_bool_net_run (class and final map)", test_bool_net_vertical),
+         ("bool: vertical engine, two instances at the same time (two threads) = symbex_bool_net_run", test_bool_vertical_threads),
          ("hal: xor_popcount_rows, *_rows_n (AND / XOR over the first n words)", test_hal_xor_rows),
          ("bool: per-cell head (FOMO) + grid checksum", test_bool_cell_head),
          ("bool1d: 1D conv + fused OR pool, binary and uint8 input, AND and XOR forms", test_bool1d),

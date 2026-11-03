@@ -21,7 +21,15 @@ typedef struct { uint32_t w[4]; } __attribute__((aligned(16))) vplane_t;
 #define EP 12                       /* planes of the threshold operands (every value < 4096) */
 #define MAX_KINDS 9                 /* border kinds of a 3 x 3 kernel: 3 row kinds x 3 column kinds */
 
-static vplane_t *BA, *BB;           /* the "eights" planes of a count and their next level */
+/* the counting state of one call (on its stack, so that separate instances, tasks or cores never share it): the
+   "eights" planes of a count and their next level (in the instance's work block); the portable code also keeps the
+   running counters here (PIE: in q0..q2) */
+struct VCount {
+    vplane_t *ba, *bb;
+#if !defined(VERT_PIE)
+    vplane_t q[3];
+#endif
+};
 
 /* ================= vertical counting: Harley-Seal carry-save adders on 128-bit planes =================
    The running count of 128 lanes is kept in three planes (ones, twos, fours: q0..q2); every 8 input planes add to
@@ -39,7 +47,8 @@ static vplane_t *BA, *BB;           /* the "eights" planes of a count and their 
 
 /* the planes of a list: the first at p, then p += l[0], l[1]...; 8 planes per group. The deltas are loaded two at a
    time ahead of the loads that use them (the scalar load latency hides behind the adders). */
-SYMBEX_FAST_CODE static void hs_gather(const uint8_t* p, const uint16_t* l, int groups, vplane_t* o) {
+SYMBEX_FAST_CODE static void hs_gather(struct VCount* S, const uint8_t* p, const uint16_t* l, int groups, vplane_t* o) {
+    (void)S;
     uint32_t d0, d1;
     for (int g = 0; g < groups; g++)
         __asm__ __volatile__(
@@ -60,7 +69,8 @@ SYMBEX_FAST_CODE static void hs_gather(const uint8_t* p, const uint16_t* l, int 
             : [p] "+r"(p), [l] "+r"(l), [o] "+r"(o), [d0] "=&r"(d0), [d1] "=&r"(d1) : : "memory");
 }
 /* consecutive planes, 8 per group */
-SYMBEX_FAST_CODE static void hs_contig(const vplane_t* p, int groups, vplane_t* o) {
+SYMBEX_FAST_CODE static void hs_contig(struct VCount* S, const vplane_t* p, int groups, vplane_t* o) {
+    (void)S;
     for (int g = 0; g < groups; g++)
         __asm__ __volatile__(HS8(CL("q3"), CL("q4"), CL("q4"), CL("q5"), CL("q4"), CL("q5"), CL("q5"), CL("q6"))
                              : [p] "+r"(p), [o] "+r"(o) : : "memory");
@@ -71,8 +81,9 @@ static inline void zero_planes(vplane_t* p, int count) {
     __asm__ __volatile__("ee.zero.q q3");
     while (count--) __asm__ __volatile__("ee.vst.128.ip q3, %0, 16" : "+r"(p) : : "memory");
 }
-static inline void zero3(void) { __asm__ __volatile__("ee.zero.q q0 \n\t ee.zero.q q1 \n\t ee.zero.q q2"); }
-static inline void store3(vplane_t* d) {
+static inline void zero3(struct VCount* S) { (void)S; __asm__ __volatile__("ee.zero.q q0 \n\t ee.zero.q q1 \n\t ee.zero.q q2"); }
+static inline void store3(struct VCount* S, vplane_t* d) {
+    (void)S;
     __asm__ __volatile__("ee.vst.128.ip q0, %0, 16 \n\t ee.vst.128.ip q1, %0, 16 \n\t ee.vst.128.ip q2, %0, 16" : "+r"(d) : : "memory");
 }
 /* V = 2 count + (2048 - pcx) + (2048 - E), 12 bit planes each (x = the count planes shifted by one): a carry-save
@@ -90,8 +101,7 @@ SYMBEX_FAST_CODE static void epilogue3(const vplane_t* a, const vplane_t* b, con
                          : [a] "+r"(a), [b] "+r"(b), [x] "+r"(x), [o] "+r"(out) : : "memory");
 }
 #else
-/* the same steps in portable C: the running counters in Q[0..2], the same adder tree as the PIE code */
-static vplane_t Q[3];
+/* the same steps in portable C: the running counters in S->q[0..2], the same adder tree as the PIE code */
 static inline void csa(vplane_t* a, vplane_t* b, const vplane_t* c) {
     for (int w = 0; w < 4; w++) {
         const uint32_t t = a->w[w] ^ b->w[w];
@@ -99,7 +109,7 @@ static inline void csa(vplane_t* a, vplane_t* b, const vplane_t* c) {
         a->w[w] = t ^ c->w[w];
     }
 }
-SYMBEX_FAST_CODE static void hs8(const vplane_t* x0, const vplane_t* x1, const vplane_t* x2, const vplane_t* x3,
+SYMBEX_FAST_CODE static void hs8(vplane_t* Q, const vplane_t* x0, const vplane_t* x1, const vplane_t* x2, const vplane_t* x3,
                                  const vplane_t* x4, const vplane_t* x5, const vplane_t* x6, const vplane_t* x7, vplane_t* o) {
     vplane_t a = *x0, b = *x1, c, d, e, f;
     csa(&Q[0], &a, &b);                          /* a: twos */
@@ -114,19 +124,19 @@ SYMBEX_FAST_CODE static void hs8(const vplane_t* x0, const vplane_t* x1, const v
     csa(&Q[2], &a, &c);                          /* a: eights */
     *o = a;
 }
-SYMBEX_FAST_CODE static void hs_gather(const uint8_t* p, const uint16_t* l, int groups, vplane_t* o) {
+SYMBEX_FAST_CODE static void hs_gather(struct VCount* S, const uint8_t* p, const uint16_t* l, int groups, vplane_t* o) {
     for (int g = 0; g < groups; g++, l += 8, o++) {
         const vplane_t* x[8];
         for (int i = 0; i < 8; i++) { x[i] = (const vplane_t*)p; p += l[i]; }
-        hs8(x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], o);
+        hs8(S->q, x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], o);
     }
 }
-SYMBEX_FAST_CODE static void hs_contig(const vplane_t* p, int groups, vplane_t* o) {
-    for (int g = 0; g < groups; g++, p += 8, o++) hs8(p, p + 1, p + 2, p + 3, p + 4, p + 5, p + 6, p + 7, o);
+SYMBEX_FAST_CODE static void hs_contig(struct VCount* S, const vplane_t* p, int groups, vplane_t* o) {
+    for (int g = 0; g < groups; g++, p += 8, o++) hs8(S->q, p, p + 1, p + 2, p + 3, p + 4, p + 5, p + 6, p + 7, o);
 }
 static inline void zero_planes(vplane_t* p, int count) { if (count > 0) memset(p, 0, (size_t)count * sizeof *p); }
-static inline void zero3(void) { memset(Q, 0, sizeof Q); }
-static inline void store3(vplane_t* d) { d[0] = Q[0]; d[1] = Q[1]; d[2] = Q[2]; }
+static inline void zero3(struct VCount* S) { memset(S->q, 0, sizeof S->q); }
+static inline void store3(struct VCount* S, vplane_t* d) { d[0] = S->q[0]; d[1] = S->q[1]; d[2] = S->q[2]; }
 SYMBEX_FAST_CODE static void epilogue3(const vplane_t* a, const vplane_t* b, const vplane_t* x, vplane_t* out) {
     for (int w = 0; w < 4; w++) {
         uint32_t chain = 0, kin = 0;
@@ -141,17 +151,17 @@ SYMBEX_FAST_CODE static void epilogue3(const vplane_t* a, const vplane_t* b, con
 }
 #endif
 
-/* level 1 already ran (its counters in q0..q2, n eights planes in BA); the eights are counted again level after
+/* level 1 already ran (its counters in q0..q2, n eights planes in S->ba); the eights are counted again level after
    level, each level giving 3 more bits: bits = the count in binary, one plane per bit; planes past the levels are
    cleared up to `need` (the planes the reader uses) */
-SYMBEX_FAST_CODE static void count_finish(int n, vplane_t* bits, int need) {
-    store3(bits);
+SYMBEX_FAST_CODE static void count_finish(struct VCount* S, int n, vplane_t* bits, int need) {
+    store3(S, bits);
     int lvl = 1;
-    vplane_t *src = BA, *dst = BB;
+    vplane_t *src = S->ba, *dst = S->bb;
     while (n > 0) {
         const int g = (n + 7) >> 3;
         zero_planes(src + n, g * 8 - n);
-        zero3(); hs_contig(src, g, dst); store3(bits + 3 * lvl); lvl++;
+        zero3(S); hs_contig(S, src, g, dst); store3(S, bits + 3 * lvl); lvl++;
         if (n < 8) break;
         vplane_t* t = src; src = dst; dst = t; n = g;
     }
@@ -216,6 +226,7 @@ static const char* check_conv(const struct SymbexBoolConv* L) {
     }
     if (!divides32(L->in_w) || !divides32(L->out_w)) return "map width that does not divide 32";
     if (((uint32_t)L->in_h * L->in_w) % 32 || ((uint32_t)L->out_h * L->out_w) % 32) return "map with h * w not a multiple of 32";
+    if ((uint32_t)L->out_h * L->out_w > 256u * 128) return "output map above 32768 pixels (more than 256 tiles of 128)";
     if (K % 8 || K >= 2048) return "k * k * in_ch not a multiple of 8 or not below 2048";
     return NULL;
 }
@@ -463,7 +474,7 @@ static void border_kinds(const struct SymbexBoolConv* L, struct SymbexBoolVertic
         int ty = 0;
         while (ty < NTT && memcmp(&KM[REP[ty] * NK], &KM[t * NK], (size_t)NK * sizeof(vplane_t))) ty++;
         if (ty == NTT) {
-            REP[NTT] = (uint8_t)t; TKN[NTT] = 0;
+            REP[NTT] = (uint8_t)t; TKN[NTT] = 0;            /* t < 256: check_conv caps the tiles */
             for (int k = 0; k < NK; k++) {
                 const vplane_t* m = &KM[t * NK + k];
                 if (k != KBASE && (m->w[0] | m->w[1] | m->w[2] | m->w[3])) TK[NTT * MAX_KINDS + TKN[NTT]++] = (uint8_t)k;
@@ -668,8 +679,8 @@ SYMBEX_FAST_CODE static void shift_all(const struct SymbexBoolConv* L, const uin
 }
 /* step 3 for one tile: the bits of every window (pcx), kept as the planes of 2048 - pcx = ~pcx + 1 with bit 11
    flipped */
-SYMBEX_FAST_CODE static void window_bits(const vplane_t* XQt, int K8, vplane_t* PXB, vplane_t* APt) {
-    zero3(); hs_contig(XQt, K8 / 8, BA); count_finish(K8 / 8, PXB, EP);
+SYMBEX_FAST_CODE static void window_bits(struct VCount* S, const vplane_t* XQt, int K8, vplane_t* PXB, vplane_t* APt) {
+    zero3(S); hs_contig(S, XQt, K8 / 8, S->ba); count_finish(S, K8 / 8, PXB, EP);
     for (int w = 0; w < 4; w++) {
         uint32_t c = ~0u;
         for (int i = 0; i < EP; i++) {
@@ -688,7 +699,7 @@ SYMBEX_FAST_CODE void symbex_bool_vconv(const struct SymbexBoolConv* L, const ui
     const uint32_t psi = symbex_bool_vplane_stride(H, W), pso = symbex_bool_vplane_stride(OH, OW);
     vplane_t *XQ = (vplane_t*)v->xq, *AP = (vplane_t*)v->ap, *BT = (vplane_t*)v->bt;
     vplane_t *CB = (vplane_t*)v->cb, *PXB = (vplane_t*)v->pxb;
-    BA = (vplane_t*)v->ba; BB = (vplane_t*)v->bb;
+    struct VCount S = {.ba = (vplane_t*)v->ba, .bb = (vplane_t*)v->bb};
 
     /* 1. stride 2: the 4 phases (even / odd rows x columns) of every input plane, on the output grid */
     const uint32_t* src = in;
@@ -715,7 +726,7 @@ SYMBEX_FAST_CODE void symbex_bool_vconv(const struct SymbexBoolConv* L, const ui
     for (int t = 0; t < TL; t++) zero_planes(XQ + (size_t)t * K8 + K, K8 - K);
     shift_all(L, src, sps, 0, nwo, XQ, K8);
     /* 3. the bits of every window (pcx) */
-    for (int t = 0; t < TL; t++) window_bits(XQ + (size_t)t * K8, K8, PXB, AP + t * EP);
+    for (int t = 0; t < TL; t++) window_bits(&S, XQ + (size_t)t * K8, K8, PXB, AP + t * EP);
     const int pi = v->prep ? conv_index(v->net, L) : -1;
     if (pi >= 0) {
         /* 4-5 prepared: the tile types, lists and threshold planes read from the prepared block */
@@ -741,9 +752,9 @@ SYMBEX_FAST_CODE void symbex_bool_vconv(const struct SymbexBoolConv* L, const ui
                 bt = BT;
             }
             for (int t = 0; t < TL; t++) {
-                zero3();
-                if (n8) hs_gather((const uint8_t*)(XQ + (size_t)t * K8) + lp[0], lp + 2, n8 / 8, BA);
-                count_finish(n >= 8 ? n8 / 8 : 0, CB + 1, EP - 1);
+                zero3(&S);
+                if (n8) hs_gather(&S, (const uint8_t*)(XQ + (size_t)t * K8) + lp[0], lp + 2, n8 / 8, S.ba);
+                count_finish(&S, n >= 8 ? n8 / 8 : 0, CB + 1, EP - 1);
                 epilogue3(AP + t * EP, bt + tt[1 + t] * EP, CB, po + t);
             }
             lp += 2 + n8;
@@ -764,9 +775,9 @@ SYMBEX_FAST_CODE void symbex_bool_vconv(const struct SymbexBoolConv* L, const ui
         out_thresholds(L, o, &kd, v, BT);
         vplane_t* po = (vplane_t*)PLANE(out, pso, o);
         for (int t = 0; t < TL; t++) {
-            zero3();
-            if (n8) hs_gather((const uint8_t*)(XQ + (size_t)t * K8) + start, v->list, n8 / 8, BA);
-            count_finish(n >= 8 ? n8 / 8 : 0, CB + 1, EP - 1);   /* the epilogue reads CB[0..EP-1] */
+            zero3(&S);
+            if (n8) hs_gather(&S, (const uint8_t*)(XQ + (size_t)t * K8) + start, v->list, n8 / 8, S.ba);
+            count_finish(&S, n >= 8 ? n8 / 8 : 0, CB + 1, EP - 1);   /* the epilogue reads CB[0..EP-1] */
             epilogue3(AP + t * EP, BT + TT[t] * EP, CB, po + t);
         }
     }

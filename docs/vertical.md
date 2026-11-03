@@ -205,9 +205,12 @@ times; on the Pico 2 it removes the dependence on the 16 KB flash cache (see [Ot
 
 Shapes it runs (`symbex_bool_vertical_check` says which part of a network is not): kernels 1×1 and 3×3; stride 1, or
 stride 2 with a 3×3 kernel and an input twice the output; map widths that divide 32 and `h·w` a multiple of 32;
+output maps up to 32768 pixels (256 tiles of 128);
 `k·k·C_in` a multiple of 8 and below 2048; a thermometer of at most 32 bits per pixel. ResNet-8 on CIFAR-10 fits all of
 them. Other chips run the same steps in portable C (correct and exact; the large speed-up comes from the S3's 128-bit
-registers, the Pico 2 is below).
+registers, the Pico 2 is below). Separate instances share nothing (each call keeps its counting state on its own stack
+and work block), so two networks can run at the same time on two cores, or in two tasks (on the S3, two tasks on one
+core also need the RTOS to save the PIE registers on a task switch).
 
 ## Other chips: Pico 2
 

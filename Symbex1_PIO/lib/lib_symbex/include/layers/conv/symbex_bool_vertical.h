@@ -20,10 +20,14 @@
  * symbex_bool_cell_head, the same functions as the standard engine.
  *
  * Shapes it runs (symbex_bool_vertical_check tells which part of a network is not): kernel 1 or 3; stride 1 (same
- * size) or 2 (3 x 3, input = 2 x output); map widths that divide 32 (1, 2, 4, 8, 16, 32) and h * w a multiple of 32;
+ * size) or 2 (3 x 3, input = 2 x output); map widths that divide 32 (1, 2, 4, 8, 16, 32) and h * w a multiple of 32,
+ * output maps up to 32768 pixels (256 tiles of 128);
  * k * k * in_ch a multiple of 8 and below 2048; thermometer with 3 * levels <= 32 bits. Exact: every output bit equals
  * symbex_bool_net_run's (tests/run_tests.py, and chip_test.py --engine vertical on the board).
  * On the ESP32-S3 the counts run on PIE (128-bit logic); elsewhere the same steps in portable C.
+ * Separate instances share nothing: the counting state of a call lives on its stack and in its own work block
+ * (run_tests.py runs two instances at the same time in two threads). On the S3, two tasks on one core also need the
+ * RTOS to save the PIE q registers on a task switch.
  */
 #ifndef SYMBEX_BOOL_VERTICAL_H
 #define SYMBEX_BOOL_VERTICAL_H

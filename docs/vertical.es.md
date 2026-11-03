@@ -210,10 +210,13 @@ en RAM: `.time_critical` en el RP2350, IRAM en los chips ESP32 (4.6 KB de IRAM e
 en el Pico 2 quita la dependencia de la caché de flash de 16 KB (ver [Otros chips](#otros-chips-pico-2)).
 
 Formas que ejecuta (`symbex_bool_vertical_check` dice qué parte de una red no): kernels 1×1 y 3×3; stride 1, o stride 2
-con kernel 3×3 y una entrada del doble de la salida; anchos de mapa que dividen 32 y `h·w` múltiplo de 32; `k·k·C_in`
+con kernel 3×3 y una entrada del doble de la salida; anchos de mapa que dividen 32 y `h·w` múltiplo de 32; mapas de
+salida de hasta 32768 píxeles (256 bloques de 128); `k·k·C_in`
 múltiplo de 8 y menor que 2048; un termómetro de como mucho 32 bits por píxel. ResNet-8 en CIFAR-10 las cumple todas.
 Los demás chips ejecutan los mismos pasos en C portable (correcto y exacto; la gran aceleración viene de los registros de
-128 bits del S3, el Pico 2 está abajo).
+128 bits del S3, el Pico 2 está abajo). Las instancias separadas no comparten nada (cada llamada guarda su estado de
+conteo en su propia pila y su bloque de trabajo), así que dos redes pueden correr a la vez en dos núcleos, o en dos
+tareas (en el S3, dos tareas en un mismo núcleo necesitan además que el RTOS guarde los registros PIE al cambiar de tarea).
 
 ## Otros chips: Pico 2
 
