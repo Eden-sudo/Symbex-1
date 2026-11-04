@@ -232,7 +232,12 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
     medians = np.median(per_step, axis=0) / 1000
     buffers, input_bytes, table, stack_total = ram
     stack_used = None if stack is None else stack_total - stack
-    code_ram = (ram_code_bytes(project_dir) or 0) if code == "ram" else 0
+    code_ram = 0
+    if code == "ram":   # only the build this run flashed says what runs from RAM (--no-upload: unknown, not zero)
+        code_ram = ram_code_bytes(project_dir) if upload else None
+        if code_ram is None and verbose:
+            print("    [!] --code ram: the engine code in RAM is unknown (no build flashed by this run): "
+                  "ram.code_in_ram = null, not in ram.total")
     out = dict(board=board, hal=hal, popcount=popcount, weights=weights, first_layer=first_layer, n=n,
                equal_simulation=100 * float((pred == expected[:n]).mean()),
                accuracy=100 * float((pred == y[:n]).mean()), median_ms=float(np.median(totals)) / 1000,
@@ -241,7 +246,7 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
                ram=dict(buffers=buffers, input_bytes=input_bytes, popcount_table=table, stack_used=stack_used,
                         weights_in_ram=(model_flash or 0) if weights == "ram" else 0, code_in_ram=code_ram,
                         total=buffers + input_bytes + table + (stack_used or 0)
-                        + ((model_flash or 0) if weights == "ram" else 0) + code_ram),
+                        + ((model_flash or 0) if weights == "ram" else 0) + (code_ram or 0)),
                model_flash=model_flash)
     if int8:
         p8 = np.array(pred8)
