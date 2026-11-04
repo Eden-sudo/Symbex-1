@@ -20,7 +20,9 @@ Every conv computes raw = sum of +-1 products over the in-image window; BatchNor
 (weights negated where the BatchNorm scale is negative). The classifier keeps an int32 scale and bias per class
 (2^16 fixed point) and the C picks the first class with the largest int64 logit.
 
-    train(model, train_ds, val_ds, cfg, out_dir)       labels only, Adam + cosine, crop + flip on the GPU
+    train(model, train_ds, val_ds, cfg, out_dir)       labels only, Adam + cosine, crop + flip on the GPU; with
+                                                       [training] binary_optimizer = "bop", Bop for the 1-bit weights
+    binary_weights(model)                              the 1-bit weights of the model (the contract above)
     load_trained(model, out_dir)                       a trained model (model_binarized.pth)
     fold(model) / simulate(net, x_u8)                  the integer network, and its exact simulation
     export_and_validate(model, val_ds, out_dir, ...)   header + validation files + the C check on this PC (gcc)
@@ -80,6 +82,18 @@ def _evaluate(model, loader, dev):
     return 100.0 * hits / total
 
 
+def binary_weights(model):
+    """the 1-bit weights of a boolean model, by the contract above: the stem (unless it is int8), every block's conv
+    and shortcut conv, the classifier or per-cell head"""
+    ws = [] if getattr(model, "stem_kind", "thermometer") == "int8" else [model.stem.weight]
+    for b in model.blocks:
+        ws.append(b.conv.weight)
+        if getattr(b, "changes", False):
+            ws.append(b.ds_conv.weight)
+    ws.append((model.head if hasattr(model, "head") else model.fc).weight)
+    return ws
+
+
 def train(model, train_ds, val_ds, cfg, out_dir, test_ds=None):
     """Trains the network as defined (labels only). Returns dict(model, plan={}, width) like stage_train.
     val_ds (carved out of the training data) is what the training reports while it runs; test_ds, when the data has
@@ -122,12 +136,22 @@ def train(model, train_ds, val_ds, cfg, out_dir, test_ds=None):
         import torch._inductor.config as inductor_config
         inductor_config.compile_threads = min(4, os.cpu_count() or 1)    # the compiler's peak RAM: ~6 GB, not ~24
         step_model = torch.compile(student, mode=None if mode == "default" else mode)
-    opt = torch.optim.Adam(student.parameters(), lr=tr["learning_rate"])
+    bop = None
+    if tr.get("binary_optimizer", "adam") == "bop":  # the 1-bit weights to Bop, everything else (BatchNorms...) Adam
+        from compiler_core.train.bop import Bop
+        bits = binary_weights(student)
+        bop = Bop(bits, tr.get("bop_gamma", 1e-4), tr.get("bop_tau", 1e-8))
+        ids = {id(w) for w in bits}
+        opt = torch.optim.Adam([p for p in student.parameters() if id(p) not in ids], lr=tr["learning_rate"])
+    else:
+        opt = torch.optim.Adam(student.parameters(), lr=tr["learning_rate"])
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, tr["epochs"])
     if tr.get("distill"):
         print("    [!] method 'boolean' trains on the labels only: [training] distill is ignored")
     print(f"\n[3] TRAIN  (method 'boolean': the network as defined, {tr['epochs']} epochs, labels only, Adam "
-          f"lr {tr['learning_rate']} + cosine, crop + flip | {dev}"
+          f"lr {tr['learning_rate']} + cosine"
+          + (f", Bop for the 1-bit weights (gamma {bop.gamma:g}, tau {bop.tau:g})" if bop else "")
+          + f", crop + flip | {dev}"
           + (", data on the GPU" if on_gpu else "") + (f", compile {mode}" if mode and dev.type == "cuda" else "") + ")")
     history, t0 = [], time.time()
     for ep in range(tr["epochs"]):
@@ -135,8 +159,12 @@ def train(model, train_ds, val_ds, cfg, out_dir, test_ds=None):
         for x, y in epoch_batches():
             loss = F.cross_entropy(step_model(_augment(x)), y)
             opt.zero_grad(set_to_none=True)
+            if bop:
+                bop.zero_grad()
             loss.backward()
             opt.step()
+            if bop:                                  # gamma follows the learning rate's cosine
+                bop.step(opt.param_groups[0]["lr"] / tr["learning_rate"])
         sched.step()
         if (ep + 1) % 10 == 0 or ep == tr["epochs"] - 1:
             acc = _evaluate(student, val_l, dev)
@@ -150,6 +178,7 @@ def train(model, train_ds, val_ds, cfg, out_dir, test_ds=None):
     torch.save(student.state_dict(), os.path.join(out_dir, "model_binarized.pth"))
     width = float(getattr(student, "width", 1.0))
     info = dict(method="boolean", width=width, levels=int(student.levels),
+                binary_optimizer="bop" if bop else "adam",
                 stem=getattr(student, "stem_kind", "thermometer"), plan={}, epochs=tr["epochs"],
                 acc_last=history[-1][3], acc_test=acc_test, n_train=len(train_ds), n_validation=len(val_ds),
                 n_test=None if test_ds is None else len(test_ds), history=history)
