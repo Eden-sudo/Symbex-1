@@ -73,6 +73,14 @@ is 1 bit (`--options bin` limits the search to them).
 `compile = "reduce-overhead"`, the training set goes to the GPU once and the training step is replayed as a CUDA graph:
 the binary ResNet-8 trains in 3.0 minutes instead of 8.6, with the same accuracy and the same exactness.
 
+**The first layer of a boolean network** is a thermometer and a binary convolution by default. A model can choose an
+int8 stem instead (`stem_kind = "int8"`, an 8-bit convolution on the centered pixels whose `int8_weights()` give its
+integers: `Int8Conv` in `benchmarks/conv2d/cnn_cifar_resnet8/model.py`). The export folds its BatchNorm and sign into
+one threshold per channel on the integer dot product, writes it as lib_symbex's `symbex_bool_stem_i8`, and checks it
+like every other layer (the C equal to the integer simulation on every image). Use it on chips that multiply bytes in
+SIMD (ESP32-S3, Cortex-M33); on the others the thermometer is faster. The vertical engine runs the thermometer stem only,
+for now.
+
 **Validation and test.** Every choice (the search, the checkpoint) is made on a validation split carved out of the
 training data. `split_seed` fixes it, so every training seed is judged on the same images. The test set is evaluated
 once, at the end, and saved in `train.json` as the reported number.

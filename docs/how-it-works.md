@@ -74,6 +74,15 @@ the threshold of the next layer's binarization.
 - **Thermometer (convolutional networks).** Each color of each pixel becomes `levels` bits: bit `k` is 1 when the
   value is at least `(k + 1) · 256 / (levels + 1)`. With 8 levels a pixel becomes 24 bits and the first layer is binary
   like the rest.
+- **An int8 first layer (optional, convolutional networks).** The first convolution keeps 8-bit weights and reads the
+  pixels directly, centered (`pixel − 128`): one integer dot product per output, and its BatchNorm and sign fold into
+  one threshold on it, `D ≥ T`, as in every other layer. Its output is bits, so the rest of the network does not change.
+  It is more accurate (ResNet-8 on CIFAR-10: 75.6 % against 71.2 % on validation, 3 seeds) and it is faster where the
+  chip multiplies bytes in SIMD (the stem alone: 1.79× on the ESP32-S3, 1.13× on the Pico 2's Cortex-M33), but slower
+  where it does not (0.86× on the ESP32, 0.62× on Hazard3). The whole ResNet-8, 3 seeds, exact on every board: 75.4 %
+  on the test set against 71.3 %, 1.10× faster on the S3 (35.5 against 39.2 ms), 1.03× on the M33, 0.93× on the ESP32
+  and 0.87× on Hazard3 ([the benchmark](../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). The thermometer stays the
+  default.
 - **Bytes directly (dense networks).** The first layer reads the `uint8` values and adds those whose weight is +1 and
   subtracts those whose weight is −1. That is still a sum without multiplications, and the input normalization goes
   into the thresholds.

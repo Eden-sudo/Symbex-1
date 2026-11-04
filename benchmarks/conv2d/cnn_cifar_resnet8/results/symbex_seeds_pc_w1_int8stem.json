@@ -1,0 +1,35 @@
+{
+ "width": 1,
+ "spec": null,
+ "variant": "int8stem",
+ "board": null,
+ "weights": "flash",
+ "popcount": "swar",
+ "engine": "standard",
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 1,
+   "val_accuracy": 75.64,
+   "test_accuracy": 75.43,
+   "flash_kb": 23.9921875,
+   "exactness": 100.0
+  },
+  {
+   "seed": 43,
+   "width": 1,
+   "val_accuracy": 75.12,
+   "test_accuracy": 75.39,
+   "flash_kb": 23.9921875,
+   "exactness": 100.0
+  },
+  {
+   "seed": 44,
+   "width": 1,
+   "val_accuracy": 76.12,
+   "test_accuracy": 75.4,
+   "flash_kb": 23.9921875,
+   "exactness": 100.0
+  }
+ ]
+}

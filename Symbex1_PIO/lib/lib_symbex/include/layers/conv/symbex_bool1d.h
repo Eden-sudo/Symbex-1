@@ -35,8 +35,7 @@ struct SymbexBool1D {
     const int8_t* weights_i8;               /* uint8 layer only, optional: int8 weights instead of the 1-bit rows (a
                                                first layer as in ultracompactBNN): out_ch rows of kernel * in_ch bytes,
                                                byte k * in_ch + c = the weight of step k, channel c; raw = sum of x * w.
-                                               NULL: the 1-bit weights (write it: ESP-IDF builds with
-                                               -Werror=missing-field-initializers) */
+                                               NULL: the 1-bit weights */
 };
 
 /* binary input. window: 2 * row_words words, 16-byte aligned (two windows where the bits are counted inline);

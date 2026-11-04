@@ -1,0 +1,35 @@
+{
+ "board": "pico2_riscv",
+ "hal": "generic: NATIVE popcount, 32-bit words, rp2350 first layer: 8 bit planes + counts",
+ "popcount": "lut16",
+ "weights": "flash",
+ "first_layer": "mask",
+ "n": 1000,
+ "equal_simulation": 100.0,
+ "accuracy": 86.6,
+ "median_ms": 4.413,
+ "min_ms": 4.322,
+ "layers": [
+  {
+   "step": "layer 0: 784 -> 128 (uint8 x 1 bit, AND) + thresholds",
+   "median_ms": 2.961
+  },
+  {
+   "step": "layer 1: 128 -> 512 (1 bit x 1 bit, AND) + thresholds",
+   "median_ms": 1.316
+  },
+  {
+   "step": "layer 2: 512 -> 10 (1 bit x 1 bit, AND) + argmax",
+   "median_ms": 0.1175
+  }
+ ],
+ "ram": {
+  "buffers": 3168,
+  "input_bytes": 784,
+  "popcount_table": 0,
+  "stack_used": 980,
+  "weights_in_ram": 0,
+  "total": 4932
+ },
+ "model_flash": 27936
+}

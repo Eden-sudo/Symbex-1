@@ -30,13 +30,36 @@ cada imagen con la clase que dio la simulación en la PC ("8/8 equal"). Para eje
 Fuera de PlatformIO, compila `src/` con `include/` en la ruta de includes. Solo hace falta una HAL: `src/hal/esp32s3/`
 en el ESP32-S3, `src/hal/generic/` en todos los demás (más `src/hal/rp2350/` en la Pico 2).
 
+## Headers que siguen funcionando cuando la librería crece
+
+Un `model_symbex.h` exportado son datos para la librería: llena sus structs (`SymbexBoolNet`, `SymbexBool1D`,
+`SymbexLayerData`, ...). Un header exportado hoy sigue compilando con versiones posteriores de lib_symbex, sin volver a
+exportarlo, porque la librería y el CDT siguen tres reglas (`include/core/symbex_format.h`):
+
+1. **Un campo nuevo va al final, y 0 / NULL significa el comportamiento de antes.** Ejemplo: `SymbexBoolNet.stem_i8 =
+   NULL` es el stem termómetro, como antes de que existiera el stem int8.
+2. **El CDT escribe cada struct por nombre de campo** (`.stride = 1`), así que un campo que el header no nombra empieza
+   en 0.
+3. **El header silencia `-Wmissing-field-initializers` solo dentro de sí mismo** (`#pragma GCC diagnostic push / pop`).
+   C++ avisa de un campo que falta aunque los demás tengan nombre, y los builds del firmware tratan los avisos como
+   errores.
+
+Un cambio que no puede seguirlas (un campo quitado, renombrado o con otro significado) sube `SYMBEX_FORMAT`. Cada header
+comprueba el formato en que se escribió, y un header que la librería ya no puede leer detiene el build con un `#error`
+que dice que hay que exportarlo de nuevo. `pytest tests/test_header_format.py` compila el header de cada exportador
+actual en C y C++ con `-Wall -Wextra -Werror` y lo compara con la simulación, junto con headers congelados en formatos
+anteriores (`tests/headers/`), así que una rotura aparece antes de subirla.
+
+Los headers exportados antes del formato 1 (noviembre de 2026: campos por posición, sin comprobación de formato) hay
+que exportarlos una vez más.
+
 ## Cómo está organizada
 
 ```mermaid
 flowchart TB
     H[model_symbex.h<br/>escrito por el CDT] --> L
     subgraph lib_symbex
-        L[layers/<br/>conv: symbex_bool, symbex_bool1d<br/>dense: symbex_dense, symbex_ternary]
+        L[layers/<br/>conv: symbex_bool, symbex_bool1d, symbex_bool_vertical<br/>dense: symbex_dense, symbex_ternary]
         O[ops/<br/>operaciones de bits, empaquetado, aritmética AND]
         A[hal/<br/>los conteos de bits de cada chip]
         L --> O
@@ -47,7 +70,7 @@ flowchart TB
 
 | Carpeta | Qué contiene |
 |---|---|
-| `include/layers/conv/` | `symbex_bool.h`: redes 2D completamente binarias (entrada termómetro, convoluciones binarias con umbrales enteros, pool OR, atajo OR, clasificador o cabeza de detección por celda, y el ejecutor de la red completa `symbex_bool_net_run`). `symbex_bool1d.h`: convoluciones 1D binarias para series de tiempo, con cualquier número de canales y un pool OR fusionado |
+| `include/layers/conv/` | `symbex_bool.h`: redes 2D completamente binarias (entrada termómetro u, opcionalmente, una primera capa int8 `symbex_bool_stem_i8`; convoluciones binarias con umbrales enteros, pool OR, atajo OR, clasificador o cabeza de detección por celda, y el ejecutor de la red completa `symbex_bool_net_run`). `symbex_bool1d.h`: convoluciones 1D binarias para series de tiempo, con cualquier número de canales y un pool OR fusionado. `symbex_bool_vertical.h`: el [motor vertical](vertical.es.md), las mismas redes y los mismos bits contados 128 ventanas a la vez (modos opcionales preparado y compacto) |
 | `include/layers/dense/` | `symbex_dense.h`: capas densas de 1 bit (primera capa uint8, luego bits con un umbral entero por neurona). `symbex_ternary.h`: pesos en {-1, 0, +1} |
 | `include/ops/` | operaciones de bits, empaquetado de bits, la forma AND de los conteos |
 | `include/hal/symbex_hal.h` | la interfaz que implementa cada chip: los conteos de bits y los kernels de la primera capa |
@@ -114,6 +137,7 @@ pesos guardados. Las dos dan los mismos bits.
 | `-DSYMBEX_POPCOUNT_FORCE_NATIVE` | el `__builtin_popcount` del compilador, para un núcleo donde se convierte en una instrucción (el `p.cnt` de PULP) |
 | `-DSYMBEX_POPCOUNT_NO_LUT16` | sin la tabla de 64 KB: devuelve esa RAM en el ESP32 o el M33 |
 | `-DSYMBEX_U8_EXTERNAL` | la aplicación da sus propios kernels de primera capa (ejemplo: `benchmarks/conv1d/har_ultracompact/pulp/`) |
+| `-DSYMBEX_CODE_IN_RAM` | los bucles internos marcados `SYMBEX_FAST_CODE` (hoy los del motor vertical) corren desde RAM: `.time_critical` en el RP2350, IRAM en los chips ESP32 |
 
 `symbex_hal_name()` devuelve como texto el método en uso, útil en los logs.
 

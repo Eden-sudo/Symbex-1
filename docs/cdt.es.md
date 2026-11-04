@@ -74,6 +74,14 @@ todas las capas son de 1 bit (`--options bin` limita la búsqueda a ellos).
 como un CUDA graph: la ResNet-8 binaria se entrena en 3.0 minutos en vez de 8.6, con la misma precisión y la misma
 exactitud.
 
+**La primera capa de una red booleana** es, por defecto, un termómetro y una convolución binaria. Un modelo puede elegir
+en su lugar un stem int8 (`stem_kind = "int8"`, una convolución de 8 bits sobre los píxeles centrados cuyo
+`int8_weights()` da sus enteros: `Int8Conv` en `benchmarks/conv2d/cnn_cifar_resnet8/model.py`). La exportación pliega su
+BatchNorm y su signo en un umbral por canal sobre el producto punto entero, lo escribe como `symbex_bool_stem_i8` de
+lib_symbex y lo comprueba como cualquier otra capa (el C igual a la simulación entera en cada imagen). Úsalo en chips
+que multiplican bytes con SIMD (ESP32-S3, Cortex-M33); en los demás el termómetro es más rápido. Por ahora el motor
+vertical solo ejecuta el stem con termómetro.
+
 **Validación y test.** Toda elección (la búsqueda, el checkpoint) se hace sobre un split de validación sacado de los
 datos de entrenamiento. `split_seed` lo fija, así que cada semilla de entrenamiento se juzga sobre las mismas imágenes.
 El conjunto de test se evalúa una sola vez, al final, y se guarda en `train.json` como el número reportado.

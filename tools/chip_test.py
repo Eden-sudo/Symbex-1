@@ -18,13 +18,23 @@ Run from tools/:
     python chip_test.py models/fashion_export --board esp32 --weights ram          # weights in RAM, not flash
     python chip_test.py models/fashion_export --board esp32 --first-layer planes   # first layer with bit planes
     python chip_test.py models/fashion_export --board s3 --port /dev/ttyACM0 --usb # the S3's native USB port
+    python chip_test.py runs/resnet8 --board s3 --engine vertical                   # fully binary conv: vertical engine
+    python chip_test.py runs/resnet8 --board s3 --engine vertical_prepared          # ... lists prepared in RAM (faster)
+    python chip_test.py runs/resnet8 --board s3 --engine vertical_compact           # ... lists prepared, thresholds compact
+    python chip_test.py runs/resnet8 --board pico2_riscv --engine vertical --code ram # ... its inner loops in RAM
     python chip_test.py --kernels --board s3                                        # kernel benchmark only (no model)
     python chip_test.py --kernels --board s3 --weights ram                          # ... with the weights in RAM
 --kernels measures which arithmetic (XNOR + popcount or AND + count) is faster on the chip, with the library's own
 kernels, and saves it as the chip profile the CDT uses with [output] arithmetic = "auto".
 Only for headers exported with the XNOR arithmetic ([output] arithmetic = "xnor"), --first-layer chooses the
 uint8 first-layer kernel; the AND arithmetic (default) has a single one.
-Writes <folder>/chip_<board>_<popcount>_<weights>_<first-layer>.json.
+--engine vertical (fully binary conv headers): the vertical engine (symbex_bool_vertical.h, docs/vertical.md), the
+fastest on the ESP32-S3; same data, same results. --engine vertical_prepared: the same engine with its plane lists
+and thresholds built once into RAM at start (optional: more RAM, faster); --engine vertical_compact: the lists
+prepared, the thresholds compact (about half that RAM, a little slower). --code ram runs the engine's inner loops
+from RAM instead of flash (Pico 2, ESP32 boards): the time no longer depends on where they land in the flash cache.
+Writes <folder>/chip_<board>_<popcount>_<weights>_<first-layer>.json (+ "_vertical" / "_vertical_prepared" / "_vertical_compact",
++ "_coderam").
 Requires: PlatformIO (pio), pyserial, a connected board.
 """
 import argparse
@@ -60,6 +70,12 @@ def main():
     ap.add_argument("--lib-path", default=LIB_PATH, help="lib_symbex folder (default: the one in this repository)")
     ap.add_argument("--no-upload", action="store_true", help="the firmware is already on the board")
     ap.add_argument("--no-int8", action="store_true", help="do not run the INT8 reference even if it was exported")
+    ap.add_argument("--engine", choices=["standard", "vertical", "vertical_prepared", "vertical_compact"], default="standard",
+                    help="fully binary conv headers: the standard engine or the vertical one (fastest on the ESP32-S3); "
+                         "vertical_prepared: its lists and thresholds prepared in RAM (more RAM, faster); "
+                         "vertical_compact: lists prepared, thresholds compact (about half that RAM)")
+    ap.add_argument("--code", choices=["flash", "ram"], default="flash",
+                    help="where the engine's inner loops run (vertical engine): flash (default) or RAM (-DSYMBEX_CODE_IN_RAM)")
     ap.add_argument("--usb", action="store_true",
                     help="through the board's native USB-Serial-JTAG port (ESP32-S3, /dev/ttyACM0) instead of its UART: "
                          "flashing needs no BOOT button, same firmware and results")
@@ -105,10 +121,14 @@ def main():
     try:
         res = measure_on_chip(header, x, y, sim, os.path.join(args.folder, f"chip_{args.board}"), args.lib_path,
                               args.board, args.port, args.baud, args.samples, not args.no_upload, args.popcount, flash,
-                              weights=args.weights, first_layer=args.first_layer, int8=int8, usb=args.usb)
+                              weights=args.weights, first_layer=args.first_layer, int8=int8, usb=args.usb,
+                              engine=args.engine, code=args.code)
+        res["code"] = args.code
     except (RuntimeError, ValueError) as e:
         sys.exit(f"[X] {e}")
-    path = os.path.join(args.folder, f"chip_{args.board}_{args.popcount}_{args.weights}_{args.first_layer}.json")
+    path = os.path.join(args.folder, f"chip_{args.board}_{args.popcount}_{args.weights}_{args.first_layer}"
+                                     + ("" if args.engine == "standard" else "_" + args.engine)
+                                     + ("_coderam" if args.code == "ram" else "") + ".json")
     with open(path, "w") as f:
         json.dump(res, f, indent=1)
     print(f"\n[*] -> {path}")

@@ -77,6 +77,15 @@ y el umbral de binarización de la capa siguiente.
 - **Termómetro (redes convolucionales).** Cada color de cada píxel se convierte en `levels` bits: el bit `k` es 1
   cuando el valor es al menos `(k + 1) · 256 / (levels + 1)`. Con 8 niveles un píxel se convierte en 24 bits y la
   primera capa es binaria como las demás.
+- **Una primera capa int8 (opcional, redes convolucionales).** La primera convolución conserva pesos de 8 bits y lee
+  los píxeles directamente, centrados (`píxel − 128`): un producto punto entero por salida, y su BatchNorm y su signo se
+  pliegan en un umbral sobre él, `D ≥ T`, como en todas las demás capas. Su salida son bits, así que el resto de la red
+  no cambia. Es más precisa (ResNet-8 en CIFAR-10: 75.6 % contra 71.2 % en validación, 3 semillas) y es más rápida donde
+  el chip multiplica bytes con SIMD (el stem solo: 1.79× en el ESP32-S3, 1.13× en el Cortex-M33 del Pico 2), pero más
+  lenta donde no (0.86× en el ESP32, 0.62× en Hazard3). La ResNet-8 completa, 3 semillas, exacta en todas las placas:
+  75.4 % en el conjunto de prueba contra 71.3 %, 1.10× más rápida en el S3 (35.5 contra 39.2 ms), 1.03× en el M33,
+  0.93× en el ESP32 y 0.87× en Hazard3 ([el benchmark](../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). El
+  termómetro sigue siendo la opción por defecto.
 - **Bytes directamente (redes densas).** La primera capa lee los valores `uint8`, suma los que tienen peso +1 y resta
   los que tienen peso −1. Sigue siendo una suma sin multiplicaciones, y la normalización de la entrada va a los
   umbrales.

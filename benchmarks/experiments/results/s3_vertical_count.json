@@ -1,0 +1,278 @@
+{
+ "board": "esp32s3",
+ "mhz": 240,
+ "shapes": [
+  [
+   "dense",
+   1,
+   128,
+   512
+  ],
+  [
+   "dense",
+   1,
+   512,
+   256
+  ],
+  [
+   "conv",
+   128,
+   144,
+   32
+  ],
+  [
+   "conv",
+   128,
+   288,
+   32
+  ],
+  [
+   "conv",
+   128,
+   576,
+   32
+  ]
+ ],
+ "rows": [
+  {
+   "shape": "dense_1x128x512",
+   "method": "pie_swar",
+   "cycles": 36481.6,
+   "exact": 1
+  },
+  {
+   "shape": "dense_1x128x512",
+   "method": "int8",
+   "cycles": 25485.5,
+   "exact": 1
+  },
+  {
+   "shape": "dense_1x128x512",
+   "method": "int8_mac",
+   "cycles": 8093.3,
+   "exact": -1
+  },
+  {
+   "shape": "dense_1x128x512",
+   "method": "vert_out_prep",
+   "cycles": 1535.1,
+   "exact": -1
+  },
+  {
+   "shape": "dense_1x128x512",
+   "method": "vert_out_sum",
+   "cycles": 3727.1,
+   "exact": -1
+  },
+  {
+   "shape": "dense_1x128x512",
+   "method": "vert_out_levels",
+   "cycles": 5111.1,
+   "exact": -1
+  },
+  {
+   "shape": "dense_1x128x512",
+   "method": "vert_out",
+   "cycles": 5975.2,
+   "exact": 1
+  },
+  {
+   "shape": "dense_1x128x512",
+   "method": "vert_out_flash",
+   "cycles": 5975.1,
+   "exact": 1
+  },
+  {
+   "shape": "dense_1x512x256",
+   "method": "pie_swar",
+   "cycles": 39885.3,
+   "exact": 1
+  },
+  {
+   "shape": "dense_1x512x256",
+   "method": "int8",
+   "cycles": 22779.4,
+   "exact": 1
+  },
+  {
+   "shape": "dense_1x512x256",
+   "method": "int8_mac",
+   "cycles": 14061.6,
+   "exact": -1
+  },
+  {
+   "shape": "dense_1x512x256",
+   "method": "vert_out_prep",
+   "cycles": 5142.1,
+   "exact": -1
+  },
+  {
+   "shape": "dense_1x512x256",
+   "method": "vert_out_sum",
+   "cycles": 8860.2,
+   "exact": -1
+  },
+  {
+   "shape": "dense_1x512x256",
+   "method": "vert_out_levels",
+   "cycles": 9656.2,
+   "exact": -1
+  },
+  {
+   "shape": "dense_1x512x256",
+   "method": "vert_out",
+   "cycles": 10096.2,
+   "exact": 1
+  },
+  {
+   "shape": "dense_1x512x256",
+   "method": "vert_out_flash",
+   "cycles": 10096.2,
+   "exact": 1
+  },
+  {
+   "shape": "conv_128x144x32",
+   "method": "pie_swar",
+   "cycles": 409626.8,
+   "exact": 1
+  },
+  {
+   "shape": "conv_128x144x32",
+   "method": "int8",
+   "cycles": 212626.9,
+   "exact": 1
+  },
+  {
+   "shape": "conv_128x144x32",
+   "method": "int8_mac",
+   "cycles": 74023.7,
+   "exact": -1
+  },
+  {
+   "shape": "conv_128x144x32",
+   "method": "vert_pos_prep",
+   "cycles": 2667.1,
+   "exact": -1
+  },
+  {
+   "shape": "conv_128x144x32",
+   "method": "vert_pos_sum",
+   "cycles": 22036.1,
+   "exact": -1
+  },
+  {
+   "shape": "conv_128x144x32",
+   "method": "vert_pos_levels",
+   "cycles": 33449.1,
+   "exact": -1
+  },
+  {
+   "shape": "conv_128x144x32",
+   "method": "vert_pos",
+   "cycles": 40083.0,
+   "exact": 1
+  },
+  {
+   "shape": "conv_128x144x32",
+   "method": "vert_pos_flash",
+   "cycles": 40083.0,
+   "exact": 1
+  },
+  {
+   "shape": "conv_128x288x32",
+   "method": "pie_swar",
+   "cycles": 522756.7,
+   "exact": 1
+  },
+  {
+   "shape": "conv_128x288x32",
+   "method": "int8",
+   "cycles": 272700.7,
+   "exact": 1
+  },
+  {
+   "shape": "conv_128x288x32",
+   "method": "int8_mac",
+   "cycles": 133930.8,
+   "exact": -1
+  },
+  {
+   "shape": "conv_128x288x32",
+   "method": "vert_pos_prep",
+   "cycles": 3607.2,
+   "exact": -1
+  },
+  {
+   "shape": "conv_128x288x32",
+   "method": "vert_pos_sum",
+   "cycles": 39221.2,
+   "exact": -1
+  },
+  {
+   "shape": "conv_128x288x32",
+   "method": "vert_pos_levels",
+   "cycles": 52029.2,
+   "exact": -1
+  },
+  {
+   "shape": "conv_128x288x32",
+   "method": "vert_pos",
+   "cycles": 58642.2,
+   "exact": 1
+  },
+  {
+   "shape": "conv_128x288x32",
+   "method": "vert_pos_flash",
+   "cycles": 58642.2,
+   "exact": 1
+  },
+  {
+   "shape": "conv_128x576x32",
+   "method": "pie_swar",
+   "cycles": 752697.7,
+   "exact": 1
+  },
+  {
+   "shape": "conv_128x576x32",
+   "method": "int8",
+   "cycles": 392559.0,
+   "exact": 1
+  },
+  {
+   "shape": "conv_128x576x32",
+   "method": "int8_mac",
+   "cycles": 253744.4,
+   "exact": -1
+  },
+  {
+   "shape": "conv_128x576x32",
+   "method": "vert_pos_prep",
+   "cycles": 5671.4,
+   "exact": -1
+  },
+  {
+   "shape": "conv_128x576x32",
+   "method": "vert_pos_sum",
+   "cycles": 74630.4,
+   "exact": -1
+  },
+  {
+   "shape": "conv_128x576x32",
+   "method": "vert_pos_levels",
+   "cycles": 89908.4,
+   "exact": -1
+  },
+  {
+   "shape": "conv_128x576x32",
+   "method": "vert_pos",
+   "cycles": 96536.4,
+   "exact": 1
+  },
+  {
+   "shape": "conv_128x576x32",
+   "method": "vert_pos_flash",
+   "cycles": 235081.9,
+   "exact": 1
+  }
+ ]
+}
