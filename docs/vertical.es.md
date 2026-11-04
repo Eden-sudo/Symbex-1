@@ -206,7 +206,7 @@ llega a él. ResNet-8: un bloque de 90 KB en lugar de 179 KB, 7.70 ms en lugar d
 del modo preparado.
 
 **Código en RAM (opcional).** `-DSYMBEX_CODE_IN_RAM` (o `--code ram` en chip_test.py) pone los bucles internos del motor
-en RAM: `.time_critical` en el RP2350, IRAM en los chips ESP32 (4.6 KB de IRAM en el S3). No cambia los tiempos del S3;
+en RAM: `.time_critical` en el RP2350, IRAM en los chips ESP32 (4.9 KB de IRAM en el S3 con ResNet-8; chip_test.py lo suma al total de RAM como `ram.code_in_ram`). No cambia los tiempos del S3;
 en el Pico 2 quita la dependencia de la caché de flash de 16 KB (ver [Otros chips](#otros-chips-pico-2)).
 
 Formas que ejecuta (`symbex_bool_vertical_check` dice qué parte de una red no): kernels 1×1 y 3×3; stride 1, o stride 2

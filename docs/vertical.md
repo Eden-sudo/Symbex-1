@@ -200,7 +200,7 @@ block instead of 179 KB, 7.70 ms instead of 6.44 ms. In C: `symbex_bool_vertical
 `symbex_bool_vertical_prepare_compact`, same rules as the prepared ones.
 
 **Code in RAM (optional).** `-DSYMBEX_CODE_IN_RAM` (or `--code ram` in chip_test.py) puts the engine's inner loops in
-RAM: `.time_critical` on the RP2350, IRAM on the ESP32 chips (4.6 KB of IRAM on the S3). It does not change the S3's
+RAM: `.time_critical` on the RP2350, IRAM on the ESP32 chips (4.9 KB of IRAM on the S3 with ResNet-8; chip_test.py adds it to the RAM total as `ram.code_in_ram`). It does not change the S3's
 times; on the Pico 2 it removes the dependence on the 16 KB flash cache (see [Other chips](#other-chips-pico-2)).
 
 Shapes it runs (`symbex_bool_vertical_check` says which part of a network is not): kernels 1×1 and 3×3; stride 1, or

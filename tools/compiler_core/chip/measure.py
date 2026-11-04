@@ -14,6 +14,55 @@ AVR_BAUD = 115200                          # an ATmega328P at 16 MHz is reliable
 
 
 VERTICAL_ENGINES = ("vertical", "vertical_prepared", "vertical_compact")   # chip_test.py --engine, besides standard
+RAM_CODE_SECTIONS = (".iram1.symbex", ".time_critical.symbex")   # SYMBEX_FAST_CODE with -DSYMBEX_CODE_IN_RAM
+
+
+def _elf32_sections_and_symbols(path):
+    """an ELF32 little-endian file -> ({section index: name}, [(symbol name, section index, size)]). Read here, so no
+    toolchain tool is needed; None for anything else"""
+    import struct
+    data = open(path, "rb").read()
+    if data[:4] != b"\x7fELF" or data[4] != 1 or data[5] != 1:
+        return None
+    shoff, = struct.unpack_from("<I", data, 0x20)
+    shentsize, shnum, shstrndx = struct.unpack_from("<HHH", data, 0x2E)
+    secs = [struct.unpack_from("<IIIIIIIIII", data, shoff + i * shentsize) for i in range(shnum)]
+
+    def text(table, at):
+        return data[table + at:data.index(b"\0", table + at)].decode(errors="replace")
+    names = {i: text(secs[shstrndx][4], sec[0]) for i, sec in enumerate(secs)}
+    symbols = []
+    for sec in secs:
+        if sec[1] != 2:                                                # SHT_SYMTAB
+            continue
+        strtab = secs[sec[6]][4]                                       # sh_link: its string table
+        for off in range(sec[4], sec[4] + sec[5], 16):
+            st_name, _, st_size, _, _, st_shndx = struct.unpack_from("<IIIBBH", data, off)
+            if st_name and st_size:
+                symbols.append((text(strtab, st_name), st_shndx, st_size))
+    return names, symbols
+
+
+def ram_code_bytes(project_dir):
+    """bytes of lib_symbex code the firmware runs from RAM (SYMBEX_FAST_CODE, hal/symbex_hal.h): the functions the
+    object files put in those sections, at their size in the linked firmware.elf (functions the linker dropped do not
+    count; alignment padding and literal pools do not either: ResNet-8 vertical on the S3, 4955 B counted against 5016 B
+    of .iram0.text growth). None if the project was not built."""
+    import glob
+    import os
+    build = glob.glob(os.path.join(project_dir, ".pio", "build", "*", "firmware.elf"))
+    if not build:
+        return None
+    marked = set()
+    for o in glob.glob(os.path.join(os.path.dirname(build[0]), "src", "**", "*.o"), recursive=True):
+        r = _elf32_sections_and_symbols(o)
+        if r:
+            names, symbols = r
+            marked |= {n for n, shndx, _ in symbols if names.get(shndx, "").startswith(RAM_CODE_SECTIONS)}
+    r = _elf32_sections_and_symbols(build[0])
+    if not r:
+        return None
+    return sum(size for n, size in {n: size for n, _, size in r[1] if n in marked}.items())
 
 
 def _build_flags(popcount, weights, first_layer, engine="standard", code="flash"):
@@ -183,15 +232,16 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
     medians = np.median(per_step, axis=0) / 1000
     buffers, input_bytes, table, stack_total = ram
     stack_used = None if stack is None else stack_total - stack
+    code_ram = (ram_code_bytes(project_dir) or 0) if code == "ram" else 0
     out = dict(board=board, hal=hal, popcount=popcount, weights=weights, first_layer=first_layer, n=n,
                equal_simulation=100 * float((pred == expected[:n]).mean()),
                accuracy=100 * float((pred == y[:n]).mean()), median_ms=float(np.median(totals)) / 1000,
                min_ms=float(np.min(totals)) / 1000,
                layers=[dict(step=names.get(i, f"step {i}"), median_ms=float(m)) for i, m in enumerate(medians)],
                ram=dict(buffers=buffers, input_bytes=input_bytes, popcount_table=table, stack_used=stack_used,
-                        weights_in_ram=(model_flash or 0) if weights == "ram" else 0,
+                        weights_in_ram=(model_flash or 0) if weights == "ram" else 0, code_in_ram=code_ram,
                         total=buffers + input_bytes + table + (stack_used or 0)
-                        + ((model_flash or 0) if weights == "ram" else 0)),
+                        + ((model_flash or 0) if weights == "ram" else 0) + code_ram),
                model_flash=model_flash)
     if int8:
         p8 = np.array(pred8)
