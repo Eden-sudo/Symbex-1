@@ -37,10 +37,42 @@ Step B, the recipes (binary network only, --recipe, one or several; each is chos
 --distill: the loss is 0.9 * T^2 * KL(teacher || student at temperature T = 4) + 0.1 * cross-entropy, the teacher the relu
 network of the same seed (trained first: its weights in runs/train_gap/relu_s<seed>.pth). Shown next to the labels-only
 recipe, never instead of it. --epochs other than 150 and --distill add _e<epochs> / _kd to the file names.
+--distill-loss mse | cosine (with --distill): cross-entropy + MSE between the raw logits (no softmax, Real-to-Bin /
+ReActNet style), or cross-entropy + (1 - cosine) between the logit vectors (only their direction); files _kdmse / _kdcos.
+--dead-fix (binary network, the dead-channel study: the stride-2 shortcuts' 1x1 convolutions were nearly constant in
+most channels; none of these changes the network on a chip):
+    or_grad          the OR of a block passes the whole gradient to both branches (torch.maximum gives it only to the
+                     larger one)
+    wstd             weight standardization (IR-Net): every conv's latent weights centered and scaled per output
+                     channel before sign (the bits are sign(w - mean))
+    dead_loss        + sum over the binary maps of mean_c relu(0.09 - p_c (1 - p_c)), p_c = mean of sigmoid(x) per
+                     channel: only channels with < ~10 % or > ~90 % ones are pushed (no torch.compile with it)
+    files _og / _ws / _dl
+--density: train nothing; for the runs these flags name (already trained), the share of ones of every binary map's
+    channels on 2,000 validation images and how many channels are nearly constant (< 10 % or > 90 % ones), written to
+    results/train_gap/density_<run>.json (the binary network's maps in forward order: stem, then per block its 3x3
+    convolution and, in a stride-2 block, the 1x1 shortcut convolution)
 --stem int8: the three networks with the int8 first layer on the pixels (cnn_cifar_resnet8's int8stem variant, its
 starting weights); files <model>_i8_...
 --width 2: twice the channels (32-64-128, BoolResNet8x2): if the binary network's training accuracy rises with width
 and not with better recipes, the limit is the capacity of the 1-bit network, not its training. Files <model>_w2_...
+--last-stage (binary network, x1): where the layer probes see the small network stall (its last stage), two ways to
+spend the same extra binary operations (~2x those of the last stage, +24 % of the network's):
+    wide         the last stage with 96 channels instead of 64 (16-32-96): more weights. Files binary_ls96_...
+    act2         2-bit activations into the last stage: blocks 3-5 output a thermometer of two bits per channel,
+                 a = (sign(z + d) + sign(z - d)) / 2 in {-1, 0, +1} (z the BatchNorm output, d >= 0 learned per channel:
+                 two integer thresholds on a chip, two bit planes, every product still between bits); the OR shortcut
+                 is the maximum of the two (per plane); no extra weights. Files binary_la2_...
+--channels a-b-c[/x-y-z] (binary network, thermometer stem): any channels per stage and blocks per stage (default
+2-2-2), from a fresh initialization saved once in runs/train_gap/; the sizing of the stages. Files
+binary_c<a>-<b>-<c>[_b<x>-<y>-<z>]_... Every JSON records the network's binary operations (products of bits, counted
+layer by layer, 2-bit maps twice), its weights, and its latency PREDICTED on the S3 and the ESP32 (estimates:
+resnet8_sizing.py's count_bench cost curves, calibrated with the measured ResNet-8; the avg shortcut's additions are
+not counted)
+--shortcut2 avg (binary network): the stride-2 blocks' shortcut as in Bi-Real Net: out = sign(BN(conv(x)) + s * avg(x)),
+the 2x2 average of the input bits (an integer 0..4 count on a chip), its channels repeated up to the block's outputs
+(channel j reads input channel j mod C), s learned per channel; no 1x1 conv. On a chip: five integer thresholds per
+channel, one per count (not in lib_symbex). The other blocks keep their OR shortcut. Files ..._sa_...
 Results: results/train_gap/<model>_s<seed>.json (<model>_<recipe>_s<seed>.json for step B). Run from anywhere; env_bench (CUDA) recommended.
 """
 import argparse
@@ -69,7 +101,14 @@ OUT = os.path.join(HERE, "results", "train_gap")
 _binary_sign = resnet8.sign
 STEM = "thermometer"                                       # --stem: the first layer of the three networks
 WIDTH = 1                                                  # --width: channels x1 (16-32-64) or x2 (32-64-128)
+LAST = "x1"                                                # --last-stage: x1, wide (16-32-96), act2 (2-bit maps)
+WIDE_LAST = 96                                             # wide: last-stage channels with ~act2's binary operations
+CHANNELS = None                                            # --channels: (a, b, c) per stage, binary network only
+BLOCKS = (2, 2, 2)                                         # --channels .../x-y-z: blocks per stage
+SHORTCUT2 = "or"                                           # --shortcut2: or (the benchmark's), avg (Bi-Real)
 _record = None                                             # list: the activations' inputs, while it is set
+DEAD_FIX = ""                                              # --dead-fix: or_grad, wstd, dead_loss
+_dead = []                                                 # dead_loss: the binary maps' inputs of the current step
 
 
 def _sign_for(kind, real_weights=False):
@@ -78,7 +117,11 @@ def _sign_for(kind, real_weights=False):
     first step of the twostep recipe)"""
     def act(x):
         if isinstance(x, nn.Parameter):
+            if kind == "binary" and DEAD_FIX == "wstd" and x.dim() == 4:
+                x = (x - x.mean(dim=(1, 2, 3), keepdim=True)) / (x.std(dim=(1, 2, 3), keepdim=True) + 1e-5)
             return _binary_sign(x) if kind == "binary" and not real_weights else x
+        if kind == "binary" and DEAD_FIX == "dead_loss" and x.dim() == 4 and torch.is_grad_enabled():
+            _dead.append(x)
         if _record is not None:
             _record.append(x.detach())
         if kind == "binary":
@@ -87,8 +130,81 @@ def _sign_for(kind, real_weights=False):
     return act
 
 
+class _OrBoth(torch.autograd.Function):
+    """OR of two +-1 maps (their maximum) whose backward gives the whole gradient to both (--dead-fix or_grad)"""
+    @staticmethod
+    def forward(ctx, a, b):
+        return torch.maximum(a, b)
+
+    @staticmethod
+    def backward(ctx, g):
+        return g, g
+
+
+class OrGradBlock(nn.Module):
+    """a Block (OR shortcut) with _OrBoth's backward"""
+    def __init__(self, block):
+        super().__init__()
+        self.block = block
+
+    def forward(self, x):
+        b = self.block
+        return _OrBoth.apply(resnet8.sign(b.bn(b.conv(x))), b.shortcut(x))
+
+
+def _dead_loss():
+    loss = sum(F.relu(0.09 - (p := torch.sigmoid(x).mean(dim=(0, 2, 3))) * (1 - p)).mean() for x in _dead)
+    _dead.clear()
+    return loss
+
+
+class Act2Block(nn.Module):
+    """a Block (OR shortcut) whose output is a thermometer of two bits per channel (see --last-stage act2)"""
+    def __init__(self, block):
+        super().__init__()
+        self.block = block
+        self.delta = nn.Parameter(torch.full((block.bn.num_features,), 0.5))
+
+    def forward(self, x):
+        b = self.block
+        z = b.bn(b.conv(x))
+        d = self.delta.abs().view(1, -1, 1, 1)
+        a = (resnet8.sign(z + d) + resnet8.sign(z - d)) / 2
+        return torch.maximum(a, b.shortcut(x))
+
+
+class AvgShortcutBlock(nn.Module):
+    """a stride-2 Block with Bi-Real's shortcut: sign(BN(conv(x)) + s * avg2x2(x)) (see --shortcut2 avg)"""
+    def __init__(self, block):
+        super().__init__()
+        self.block = block
+        cin, cout = block.conv.in_channels, block.conv.out_channels
+        self.register_buffer("index", torch.arange(cout) % cin)
+        self.scale = nn.Parameter(torch.ones(cout))
+
+    def forward(self, x):
+        b = self.block
+        s = F.avg_pool2d(x, 2)[:, self.index] * self.scale.view(1, -1, 1, 1)
+        return resnet8.sign(b.bn(b.conv(x)) + s)
+
+
 def build(kind):
     resnet8.sign = _sign_for(kind)                         # model.py reads its global sign() at every forward
+    custom = CHANNELS or BLOCKS != (2, 2, 2)
+    if LAST != "x1" or custom or SHORTCUT2 != "or":
+        if kind != "binary" or STEM != "thermometer" or WIDTH != 1 or (custom and LAST != "x1"):
+            raise SystemExit("[X] --last-stage / --channels / --shortcut2: the binary network, thermometer stem, "
+                             "width 1 only; --last-stage not with --channels")
+        if LAST == "wide" or custom:
+            channels = CHANNELS or (tuple(resnet8.BASE_CHANNELS[:2]) + (WIDE_LAST,) if LAST == "wide"
+                                    else tuple(resnet8.BASE_CHANNELS))
+            definition = lambda: resnet8.BoolResNet8(1.0, 8, channels=channels, blocks=BLOCKS)     # noqa: E731
+            net = definition()
+            name = "c" + "-".join(map(str, channels)) + ("" if BLOCKS == (2, 2, 2) else
+                                                         "_b" + "-".join(map(str, BLOCKS)))
+            init = os.path.join(RUNS, f"bool_resnet8_{name}_init.pth")
+            net.load_state_dict(torch.load(resnet8.initial_weights(definition, init), map_location="cpu"))
+            return _with_shortcut2(net)
     net = resnet8.BoolResNet8(float(WIDTH), 8, stem=STEM, shortcut="add" if kind == "relu" else "or")
     if STEM == "int8" and WIDTH != 1:
         raise SystemExit("[X] --stem int8 with --width 2: the benchmark has no such variant")
@@ -100,12 +216,32 @@ def build(kind):
         cls, init = resnet8.BoolResNet8x1, "bool_resnet8_x1_init.pth"
     init = os.path.join(BENCH, "models", init)
     net.load_state_dict(torch.load(resnet8.initial_weights(cls, init), map_location="cpu"))
+    if LAST == "act2":                                     # blocks 3-5: block 3 feeds the last stage
+        net.blocks = nn.Sequential(*[Act2Block(b) if i >= 3 else b for i, b in enumerate(net.blocks)])
+    return _with_shortcut2(net)
+
+
+def _with_shortcut2(net):
+    if SHORTCUT2 == "avg":
+        net.blocks = nn.Sequential(*[AvgShortcutBlock(b) if getattr(b, "stride", 1) == 2 else b for b in net.blocks])
+    if DEAD_FIX == "or_grad":
+        net.blocks = nn.Sequential(*[OrGradBlock(b) if isinstance(b, resnet8.Block) and not b.add else b
+                                     for b in net.blocks])
     return net
 
 
 def tag(kind):
     """the network's name in the file names: <kind> (thermometer stem, x1), <kind>_i8 (--stem int8), <kind>_w2"""
-    return kind + ("_i8" if STEM == "int8" else "") + ("_w2" if WIDTH == 2 else "")
+    last = {"x1": "", "wide": f"_ls{WIDE_LAST}", "act2": "_la2"}[LAST]
+    if CHANNELS:
+        last += "_c" + "-".join(map(str, CHANNELS))
+    if BLOCKS != (2, 2, 2):
+        last += ("" if CHANNELS else "_c" + "-".join(map(str, resnet8.BASE_CHANNELS))) + "_b" + "-".join(map(str, BLOCKS))
+    if SHORTCUT2 == "avg":
+        last += "_sa"
+    if DEAD_FIX:
+        last += {"or_grad": "_og", "wstd": "_ws", "dead_loss": "_dl"}[DEAD_FIX]
+    return kind + ("_i8" if STEM == "int8" else "") + ("_w2" if WIDTH == 2 else "") + last
 
 
 def load_split(seed):
@@ -131,6 +267,61 @@ def _accuracy(net, x, y, bs=1000):
     net.eval()
     hits = sum((net(x[i:i + bs]).argmax(1) == y[i:i + bs]).sum().item() for i in range(0, len(x), bs))
     return 100.0 * hits / len(x)
+
+
+@torch.no_grad()
+def cost(net, layer_list=False):
+    """(binary operations, weights) of one inference: every conv / linear output costs its fan-in, twice when its
+    input is a 2-bit map (act2); the int8 stem counted as binary operations too (only to compare shapes)"""
+    ops, handles, prev2 = [0], [], set()
+    blocks = list(net.blocks)
+    for i, b in enumerate(blocks):                         # a layer reads 2-bit maps when the block before it is Act2
+        if i > 0 and isinstance(blocks[i - 1], Act2Block):
+            inner = b.block if isinstance(b, Act2Block) else b
+            prev2 |= {id(inner.conv)} | ({id(inner.ds_conv)} if inner.changes else set())
+    if blocks and isinstance(blocks[-1], Act2Block):
+        prev2.add(id(net.fc))
+
+    ran = {}
+
+    def hook(m, i, o):
+        per = o[0].numel() if isinstance(m, nn.Conv2d) else o.shape[1]
+        planes = 2 if id(m) in prev2 else 1
+        ops[0] += per * m.weight[0].numel() * planes
+        conv = isinstance(m, nn.Conv2d)
+        ran[id(m)] = dict(k=m.kernel_size[0] if conv else 1, cin=(m.in_channels if conv else m.in_features) * planes,
+                          cout=m.out_channels if conv else m.out_features, out_h=o.shape[-1] if conv else 1,
+                          weights=m.weight.numel())
+    layers = [m for m in net.modules() if isinstance(m, (nn.Conv2d, nn.Linear))]
+    for m in layers:
+        handles.append(m.register_forward_hook(hook))
+    was = net.training
+    net.eval()
+    net(torch.zeros(1, 3, 32, 32, dtype=torch.uint8, device=next(net.parameters()).device))
+    net.train(was)
+    for h in handles:
+        h.remove()
+    if layer_list:
+        return list(ran.values())
+    return ops[0], sum(r["weights"] for r in ran.values())
+
+
+def predicted_ms(net):
+    """{chip: ms} PREDICTED for the standard engine (resnet8_sizing.py's method: count_bench cycles per output,
+    one factor per chip from the measured ResNet-8); None where a profile or a measurement is missing"""
+    try:
+        import resnet8_sizing as sizing
+        out = {}
+        for chip, (_, _, measured) in sizing.CHIPS.items():
+            r = json.load(open(os.path.join(BENCH, "results", measured)))
+            ms = [s["latency_ms"] for s in r["seeds"] if s.get("latency_ms")]
+            curve = sizing.cost_curve(chip)
+            base = cost(resnet8.BoolResNet8(1.0, 8), layer_list=True)
+            factor = (sum(ms) / len(ms)) / (sizing.raw_cycles(base, curve) / 240e3)
+            out[chip] = round(factor * sizing.raw_cycles(cost(net, layer_list=True), curve) / 240e3, 2)
+        return out
+    except (OSError, SystemExit, KeyError, ImportError):
+        return None
 
 
 @torch.no_grad()
@@ -169,9 +360,13 @@ class Bop:
             w.grad = None
 
 
+DISTILL_LOSS = "kl"    # --distill-loss: kl, mse, cosine
+
+
 def recipe_name(recipe, gamma, tau, epochs=150, distill=False):
     name = recipe + (f"_g{gamma:g}_t{tau:g}" if recipe in ("bop", "twostep_bop") else "")
-    return name + (f"_e{epochs}" if epochs != 150 else "") + ("_kd" if distill else "")
+    kd = "_kd" + ({"kl": "", "mse": "mse", "cosine": "cos"}[DISTILL_LOSS])
+    return name + (f"_e{epochs}" if epochs != 150 else "") + (kd if distill else "")
 
 
 def load_teacher(seed, dev):
@@ -217,6 +412,8 @@ def run(kind, seed, epochs, lr, bs, compile_mode, recipe="base", bop_gamma=1e-4,
     latent = [m.weight for m in net.modules() if isinstance(m, (resnet8.BinaryConv, resnet8.BinaryLinear))]
     n_latent = sum(w.numel() for w in latent)
     step_model = net
+    if DEAD_FIX == "dead_loss":
+        compile_mode = ""                                  # the loss reads maps from the forward (a side effect)
     if compile_mode and dev.type == "cuda":
         import torch._inductor.config as inductor_config
         inductor_config.compile_threads = min(4, os.cpu_count() or 1)
@@ -260,10 +457,16 @@ def run(kind, seed, epochs, lr, bs, compile_mode, recipe="base", bop_gamma=1e-4,
             out = step_model(xa)
             if teacher is None:
                 loss = F.cross_entropy(out, ys[idx])
+            elif DISTILL_LOSS == "mse":
+                loss = F.cross_entropy(out, ys[idx]) + F.mse_loss(out, teacher(xa))
+            elif DISTILL_LOSS == "cosine":
+                loss = F.cross_entropy(out, ys[idx]) + (1 - F.cosine_similarity(out, teacher(xa), dim=1)).mean()
             else:
                 kl = F.kl_div(F.log_softmax(out / 4, 1), F.log_softmax(teacher(xa) / 4, 1), log_target=True,
                               reduction="batchmean")
                 loss = 0.9 * 16 * kl + 0.1 * F.cross_entropy(out, ys[idx])
+            if _dead:
+                loss = loss + _dead_loss()
             opt.zero_grad(set_to_none=True)
             if bop:
                 bop.zero_grad()
@@ -301,7 +504,10 @@ def run(kind, seed, epochs, lr, bs, compile_mode, recipe="base", bop_gamma=1e-4,
             print(f"    epoch {ep + 1:3d} | loss {row['loss']:.3f} | train {row['train_acc']:.2f}% | validation "
                   f"{row['val_acc']:.2f}% | ste dead {row['ste_dead']:.3f}{extra} | {(time.time() - t0) / 60:.1f} min")
     last = history[-1]
-    info = dict(model=kind, stem=STEM, width=WIDTH, recipe=name, distill=distill, seed=seed, epochs=epochs, learning_rate=lr, batch_size=bs,
+    ops, weights = cost(net)
+    info = dict(model=kind, stem=STEM, width=WIDTH, last_stage=LAST, channels=list(net.channels),
+                blocks=list(net.blocks_per_stage), shortcut2=SHORTCUT2, binary_ops=ops, weights=weights,
+                predicted_ms=predicted_ms(net) if kind == "binary" else None, recipe=name, distill=distill, seed=seed, epochs=epochs, learning_rate=lr, batch_size=bs,
                 n_train=len(xs),
                 n_validation=len(xv), n_latent_binary=n_latent if kind == "binary" else None,
                 train_acc=last["train_acc"], val_acc=last["val_acc"], history=history,
@@ -314,6 +520,36 @@ def run(kind, seed, epochs, lr, bs, compile_mode, recipe="base", bop_gamma=1e-4,
     torch.save({k: v.cpu() for k, v in net.state_dict().items()}, os.path.join(RUNS, stem + ".pth"))
     print(f"    -> {path} | train {last['train_acc']:.2f}% | validation {last['val_acc']:.2f}%")
     return info
+
+
+@torch.no_grad()
+def density(kind, seeds, name):
+    """--density: per-channel share of ones of the binary maps of the trained runs (see the docstring)"""
+    global _record
+    dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    stem = tag(kind) if name == "base" else f"{tag(kind)}_{name}"
+    per_seed = []
+    for seed in seeds:
+        net = build(kind)
+        net.load_state_dict(torch.load(os.path.join(RUNS, f"{stem}_s{seed}.pth"), map_location="cpu"))
+        net.to(dev).eval()
+        xv, _ = _to_gpu(load_split(seed)[1], dev)
+        _record = []
+        net(xv[:2000])
+        maps = [a for a in _record if a.dim() == 4]
+        _record = None
+        rows = []
+        for a in maps:
+            d = (a >= 0).float().mean(dim=(0, 2, 3))
+            rows.append(dict(channels=len(d), mean_ones=round(float(d.mean()), 4),
+                             nearly_constant=int(((d < 0.1) | (d > 0.9)).sum())))
+        per_seed.append(dict(seed=seed, maps=rows))
+        print(f"    {stem} s{seed}: " + "  ".join(f"L{i} {r['mean_ones']:.2f} ({r['nearly_constant']}/{r['channels']})"
+                                               for i, r in enumerate(rows)))
+    os.makedirs(OUT, exist_ok=True)
+    path = os.path.join(OUT, f"density_{stem}.json")
+    json.dump(dict(run=stem, images=2000, seeds=per_seed), open(path, "w"), indent=1)
+    print(f"    -> {path}")
 
 
 def main():
@@ -329,14 +565,37 @@ def main():
     ap.add_argument("--bop-gamma", type=float, default=1e-4)
     ap.add_argument("--bop-tau", type=float, default=1e-8)
     ap.add_argument("--distill", action="store_true", help="binary network: distill from the relu network of the seed")
+    ap.add_argument("--distill-loss", choices=["kl", "mse", "cosine"], default="kl",
+                    help="with --distill: KL at T = 4 (default), MSE on the raw logits, or 1 - cosine of the logits")
     ap.add_argument("--stem", choices=("thermometer", "int8"), default="thermometer",
                     help="first layer of the three networks: int8 = the benchmark's int8stem variant (files *_i8_*)")
     ap.add_argument("--width", type=int, choices=(1, 2), default=1,
                     help="2: twice the channels (BoolResNet8x2), the capacity check (files *_w2_*)")
+    ap.add_argument("--last-stage", choices=("x1", "wide", "act2"), default="x1",
+                    help="binary network: wide = 96 channels in the last stage, act2 = 2-bit maps into it (docstring)")
+    ap.add_argument("--channels", default="",
+                    help="binary network: channels per stage [/ blocks per stage], e.g. 24-48-96 or 16-48-96/1-2-2")
+    ap.add_argument("--shortcut2", choices=("or", "avg"), default="or",
+                    help="binary network: avg = Bi-Real's average shortcut in the stride-2 blocks (docstring)")
+    ap.add_argument("--dead-fix", choices=("or_grad", "wstd", "dead_loss"), default="",
+                    help="binary network: the dead-channel study (docstring)")
+    ap.add_argument("--density", action="store_true",
+                    help="train nothing: the share of ones per channel of the trained runs (docstring)")
     args = ap.parse_args()
-    global STEM, WIDTH
-    STEM, WIDTH = args.stem, args.width
+    global STEM, WIDTH, LAST, CHANNELS, BLOCKS, SHORTCUT2, DISTILL_LOSS, DEAD_FIX
+    STEM, WIDTH, LAST, SHORTCUT2 = args.stem, args.width, args.last_stage, args.shortcut2
+    DISTILL_LOSS = args.distill_loss
+    DEAD_FIX = args.dead_fix
+    ch, _, bl = args.channels.partition("/")
+    CHANNELS = tuple(int(c) for c in ch.split("-")) if ch else None
+    BLOCKS = tuple(int(b) for b in bl.split("-")) if bl else (2, 2, 2)
     kinds = MODELS if args.model == "all" else (args.model,)
+    if args.density:
+        for kind in kinds:
+            for recipe in (args.recipe if kind == "binary" else ["base"]):
+                density(kind, args.seeds, recipe_name(recipe, args.bop_gamma, args.bop_tau, args.epochs,
+                                                      args.distill and kind == "binary"))
+        return
     done = []
     for seed in args.seeds:
         for kind in kinds:

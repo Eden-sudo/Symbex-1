@@ -21,6 +21,7 @@ and reports accuracy, weight memory and binary operations per inference.
     python pair_bits.py --width 128 --seeds 5
     python pair_bits.py --arch resnet8                   # CIFAR-10, a small binary ResNet (see below)
     python pair_bits.py --pair-on weights                # pairs only in the weights (or: activations)
+    python pair_bits.py --bits 4                         # groups of 4 (or 8) bits instead of pairs
 
 --arch resnet8 (CIFAR-10): stem + 3 stages of one block with two 3x3 convolutions + classifier = 8 layers,
 channels c, 2c, 4c (c = --width, default 16). The input is binary too: every RGB pixel becomes its 24 bit planes
@@ -29,6 +30,9 @@ convolution has its own residual shortcut (Bi-Real style: the additions are inte
 product is between bits); downsampling shortcuts are a 2x2 average plus zero channels (no weights).
 At the same memory a flat network has ~1.41x the channels of a pair one (convolution weights grow with c^2).
 Light augmentation (random flips and shifts, on the GPU), the same for every configuration.
+
+--bits k: every element holds k independent bits instead of 2 (k sets of weight bits, k activation thresholds); a
+layer then costs k x k binary dot products, and the same-memory flat network is searched by weight bits. With --act-scale equal the k activation bits are a thermometer of k + 1 levels; with pow2 a k-bit integer.
 
 Run from benchmarks/experiments/ (main environment, .venv; a GPU is used if there is one). No distillation,
 no tricks: plain training with the straight-through estimator, so the only difference is flat vs pair.
@@ -374,6 +378,7 @@ def main():
                                                  "(flat and pair at each one: accuracy vs binary ops)")
     ap.add_argument("--pair-on", choices=["both", "weights", "activations"], default="both",
                     help="where the pair network has two bits: weights and activations (default), or only one of them")
+    ap.add_argument("--bits", type=int, default=2, help="bits per element of the multi-bit network (default 2: pairs)")
     ap.add_argument("--batch", type=int, default=256)
     args = ap.parse_args()
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -381,7 +386,11 @@ def main():
     ACT_SCALE = args.act_scale
     ENCODE = thermometer if args.input == "thermometer" else bpr
     images = args.arch == "resnet8"
-    pair_k = {"both": (2, 2), "weights": (2, 1), "activations": (1, 2)}[args.pair_on]
+    if args.bits < 2:
+        raise SystemExit("[X] --bits: 2 or more")
+    kb = args.bits
+    pair_k = {"both": (kb, kb), "weights": (kb, 1), "activations": (1, kb)}[args.pair_on]
+    pair = "pair" if kb == 2 else f"{kb} bits"
     if images:
         args.dataset = "cifar10"
     data = load(args.dataset, dev)
@@ -389,28 +398,33 @@ def main():
     if images:
         h = args.width or 16
         wide = int(round(h * 2 ** 0.5))
-        configs = [("flat, channels c", h, 1), (f"flat, channels {wide} (~same memory as pair)", wide, 1),
-                   (f"pair ({args.pair_on}), channels c", h, pair_k)]
+        configs = [("flat, channels c", h, 1), (f"flat, channels {wide} (~same memory as {pair})", wide, 1),
+                   (f"{pair} ({args.pair_on}), channels c", h, pair_k)]
         build = lambda width, k: BinaryResNet8(width, n_classes, k)
         shape = lambda width: f"binary ResNet-8, channels {width}/{2 * width}/{4 * width}, BPR input"
     else:
         h = args.width or 256
         n_in = data[0].shape[1]
         configs = [("flat, width H", h, 1), ("flat, width 2H (same memory as pair)", 2 * h, 1),
-                   (f"pair ({args.pair_on}), width H", h, pair_k)]
+                   (f"{pair} ({args.pair_on}), width H", h, pair_k)]
         build = lambda width, k: BinaryMLP(n_in, width, n_classes, k)
         shape = lambda width: f"{n_in} -> {width} -> {width // 2} -> {n_classes}"
+    if kb != 2:
+        # k bits: the flat network with the same weight bits, searched (pairs keep the 2H / sqrt(2) c of the studies)
+        mem = build(h, pair_k).weight_bits()
+        wide = min(range(h, 2 * kb * h + 1), key=lambda w: abs(build(w, 1).weight_bits() - mem))
+        configs[1] = (f"flat, {'channels' if images else 'width'} {wide} (~same memory as {pair})", wide, 1)
     if args.widths:
         mults = [float(m) for m in args.widths.split(",")]
         configs = []
         for m in mults:
             w = max(2, int(round(h * m)))
-            configs += [(f"flat, x{m:g}", w, 1), (f"pair ({args.pair_on}), x{m:g}", w, pair_k)]
+            configs += [(f"flat, x{m:g}", w, 1), (f"{pair} ({args.pair_on}), x{m:g}", w, pair_k)]
     # a 4th network: flat, as wide as it takes to do the SAME binary operations as the pair one (fair in compute)
     if not args.widths:
         pair_ops = build(h, pair_k).binary_ops()
-        same_ops = min(range(h, 8 * h + 1), key=lambda w: abs(build(w, 1).binary_ops() - pair_ops))
-        configs.append((f"flat, {'channels' if images else 'width'} {same_ops} (~same binary ops as pair)", same_ops, 1))
+        same_ops = min(range(h, 2 * kb * h + 1), key=lambda w: abs(build(w, 1).binary_ops() - pair_ops))
+        configs.append((f"flat, {'channels' if images else 'width'} {same_ops} (~same binary ops as {pair})", same_ops, 1))
     print(f"[*] activations: --act-scale {args.act_scale}" + (f" | input: {args.input}" if images else ""))
     print(f"[*] {args.dataset}: {len(data[1])} training / {len(data[3])} test samples | {dev} | "
           f"{args.epochs} epochs | seeds {args.seeds} | {'c' if images else 'H'} = {h}")
@@ -444,24 +458,26 @@ def main():
         for r in sorted(results, key=lambda r: r["binary_ops"]):
             print(f"    {r['config']:<26}{r['accuracy_last']:>9.2f}%{r['accuracy_last5']:>8.2f}%{r['binary_ops']:>14,}{r['weight_kb']:>11.1f}")
         os.makedirs(os.path.join(HERE, "results"), exist_ok=True)
-        path = os.path.join(HERE, "results", f"pair_bits_{args.arch}_{args.dataset}_{args.pair_on}_{args.act_scale}_sweep.json")
+        path = os.path.join(HERE, "results", f"pair_bits_{args.arch}_{args.dataset}_{args.pair_on}_{args.act_scale}"
+                                             + (f"_k{kb}" if kb != 2 else "") + "_sweep.json")
         json.dump(dict(args=vars(args), results=results), open(path, "w"), indent=1)
         print(f"\n    -> {path}")
         return
     base = results[1] if bits(pair_k)[0] > 1 else results[0]      # same memory: pairs in weights double it
-    print(f"\n    SAME MEMORY (approximately): pair ({results[2]['weight_kb']:.1f} KB) vs flat ({base['weight_kb']:.1f} KB)")
+    print(f"\n    SAME MEMORY (approximately): {pair} ({results[2]['weight_kb']:.1f} KB) vs flat ({base['weight_kb']:.1f} KB)")
     print(f"      accuracy  : {results[2]['accuracy_last']:.2f}% vs {base['accuracy_last']:.2f}%  "
           f"({results[2]['accuracy_last'] - base['accuracy_last']:+.2f} points)")
     print(f"      binary ops: {results[2]['binary_ops'] / base['binary_ops']:.2f}x the flat network's")
     ops = results[3]
-    print(f"\n    SAME BINARY OPS (approximately): pair ({results[2]['binary_ops']:,}) vs flat ({ops['binary_ops']:,})")
+    print(f"\n    SAME BINARY OPS (approximately): {pair} ({results[2]['binary_ops']:,}) vs flat ({ops['binary_ops']:,})")
     print(f"      accuracy  : {results[2]['accuracy_last']:.2f}% vs {ops['accuracy_last']:.2f}%  "
           f"({results[2]['accuracy_last'] - ops['accuracy_last']:+.2f} points)  |  mean of the last 5: "
           f"{results[2]['accuracy_last5']:.2f}% vs {ops['accuracy_last5']:.2f}%")
     print(f"      memory    : {results[2]['weight_kb']:.1f} KB vs {ops['weight_kb']:.1f} KB")
     os.makedirs(os.path.join(HERE, "results"), exist_ok=True)
     path = os.path.join(HERE, "results", f"pair_bits_{args.arch}_{args.dataset}_{args.pair_on}_{args.act_scale}"
-                                         + ("_thermo" if images and args.input == "thermometer" else "") + ".json")
+                                         + ("_thermo" if images and args.input == "thermometer" else "")
+                                         + (f"_k{kb}" if kb != 2 else "") + ".json")
     json.dump(dict(args=vars(args), results=results), open(path, "w"), indent=1)
     print(f"\n    -> {path}")
 
