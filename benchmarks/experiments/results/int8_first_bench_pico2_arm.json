@@ -1,0 +1,89 @@
+{
+ "board": "pico2_arm",
+ "mhz": 150,
+ "reps": "best of 7",
+ "flash": {
+  "mlp_bits": {
+   "us": 1559,
+   "ms": 1.559,
+   "equal_reference": true
+  },
+  "mlp_bits_kernel": {
+   "us": 1425,
+   "ms": 1.425,
+   "equal_reference": true
+  },
+  "mlp_int8": {
+   "us": 10919,
+   "ms": 10.919,
+   "equal_reference": true
+  },
+  "mlp_int8_kernel": {
+   "us": 10921,
+   "ms": 10.921,
+   "equal_reference": true
+  },
+  "stem_bits": {
+   "us": 11124,
+   "ms": 11.124,
+   "equal_reference": true
+  },
+  "stem_int8": {
+   "us": 14226,
+   "ms": 14.226,
+   "equal_reference": true
+  },
+  "stem_therm": {
+   "us": 15637,
+   "ms": 15.637,
+   "equal_reference": true
+  },
+  "stem_therm_conv": {
+   "us": 15391,
+   "ms": 15.391,
+   "equal_reference": true
+  }
+ },
+ "ram": {
+  "mlp_bits": {
+   "us": 1211,
+   "ms": 1.211,
+   "equal_reference": true
+  },
+  "mlp_bits_kernel": {
+   "us": 1130,
+   "ms": 1.13,
+   "equal_reference": true
+  },
+  "mlp_int8": {
+   "us": 1882,
+   "ms": 1.882,
+   "equal_reference": true
+  },
+  "mlp_int8_kernel": {
+   "us": 1870,
+   "ms": 1.87,
+   "equal_reference": true
+  },
+  "stem_bits": {
+   "us": 11130,
+   "ms": 11.13,
+   "equal_reference": true
+  },
+  "stem_int8": {
+   "us": 13721,
+   "ms": 13.721,
+   "equal_reference": true
+  },
+  "stem_therm": {
+   "us": 15471,
+   "ms": 15.471,
+   "equal_reference": true
+  },
+  "stem_therm_conv": {
+   "us": 15336,
+   "ms": 15.336,
+   "equal_reference": true
+  }
+ }
+}

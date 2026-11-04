@@ -124,10 +124,26 @@ Quick, separate tests, each documented in its own docstring:
 |---|---|
 | `pie_conv_bench.py` | the AND + PIE arithmetic of the convolutions on the ESP32-S3 |
 | `pie_swar_bench.py` | a faster way to count bits with the ESP32-S3's multiplier? |
-| `int8_first_bench.py` | does an int8 first layer speed up mlp_fashion and ResNet-8 on the ESP32-S3, as it does conv1d? |
+| `int8_first_bench.py` | does an int8 first layer speed up mlp_fashion and ResNet-8, as it does conv1d? Every board (see below) |
 | `s8_dot_rows_chip_test.py` | is the S3 PIE kernel `symbex_s8_dot_rows` exact at every alignment? (9,792 cases on the chip, weights in RAM and flash: all equal to C) |
 | `poplut_probe.py` | PopLUT (codebook-compressed binary weights) on mlp_fashion: a falsification probe |
 | `gpu_bench.py` | every arithmetic (FP32, TF32, FP16, BF16, INT8, 1 bit) on the CUDA GPU, same matrix product |
+
+## An int8 first layer for ResNet-8 (`int8_first_bench.py`)
+
+ResNet-8's stem alone (32×32, 3×3, 16 channels), random weights, every method checked against plain C on the chip,
+weights in RAM, best of 7 runs (results in `results/int8_first_bench_<board>.json`):
+
+| Chip | thermometer + binary stem | int8 stem | int8 / thermometer | int8 dot products with |
+|---|---|---|---|---|
+| ESP32-S3 | 8.13 ms | **4.55 ms** | **1.79× faster** | PIE, 16 per instruction |
+| Pico 2, Cortex-M33 | 15.47 ms | **13.72 ms** | **1.13× faster** | SMLAD, 2 per instruction |
+| Pico 2, Hazard3 | **11.66 ms** | 18.94 ms | 0.62× | plain C |
+| ESP32 | **13.35 ms** | 15.44 ms | 0.86× (flash: 0.80×) | plain C |
+
+The int8 stem wins only where the chip multiplies bytes in SIMD; it is also more accurate (ResNet-8 on CIFAR-10, 3
+seeds: 75.6 % against 71.2 % on validation). It is now an option of the CDT's `boolean` method and of lib_symbex
+(`symbex_bool_stem_i8`); the whole network with it is measured in `../conv2d/cnn_cifar_resnet8`.
 
 ## Next
 
