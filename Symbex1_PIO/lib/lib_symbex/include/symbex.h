@@ -3,7 +3,8 @@
  * #include "symbex.h" is all an application needs.
  *
  * Layout of the library:
- *   core/     types, shared constants and the network runners (dense and convolutional)
+ *   core/     types, shared constants, the format of exported headers (symbex_format.h) and the network
+ *             runners (dense and convolutional)
  *   hal/      the hardware interface (generic C, ESP32-S3 PIE, RP2350 first-layer kernels): popcount, XNOR and AND
  *             counts
  *   ops/      bit operations, bit packing, 1-bit multiply-accumulate and the AND arithmetic
@@ -15,6 +16,7 @@
 #define SYMBEX_H
 
 /* core */
+#include "core/symbex_format.h"
 #include "core/symbex_types.h"
 #include "core/symbex_core.h"
 #include "core/network/symbex_network_dense.h"

@@ -44,6 +44,8 @@ on every row but one.
 | MLP (Fashion-MNIST, 784-128-512-10) | ESP32 | flash | 3.64 / 31.11 ms | **8.56×** | 27.3 / 187.0 KB | 4.4 / 6.7 KB |
 | ResNet-8 (CIFAR-10) | ESP32-S3 | flash | 39.2 / 52.0 ms | **1.33×** | 24.3 / 96.2 KB | 14.8 / 80.5 KB |
 | ResNet-8 (CIFAR-10) | ESP32 | flash | 63.3 / 717.8 ms | **11.3×** | 24.3 / 96.2 KB | 78.6 / 53.1 KB ¹ |
+| ResNet-8, int8 first layer (optional) ² | ESP32-S3 | flash | 35.5 / 52.0 ms | **1.46×** | 24.0 / 96.2 KB | 14.3 / 80.5 KB |
+| ResNet-8, int8 first layer (optional) ² | ESP32 | flash | 68.1 / 717.8 ms | **10.5×** | 24.0 / 96.2 KB | 78.1 / 53.1 KB ¹ |
 | FOMO person detection (32-32-128) | ESP32-S3 | flash | 126.3 / 256.9 ms | **2.03×** | 41.2 / 236.1 KB | 79.0 / 222.6 KB |
 | FOMO person detection (32-32-128) | ESP32 | flash | 226.3 ms / does not fit | **only SYMBEX runs** | 41.2 / 236.1 KB | 142.8 KB ¹ / does not fit |
 | Activity recognition (1D), 4 networks | ESP32-S3 | flash | 0.49-3.83 / 0.72-7.11 ms | **1.47-1.90×** | 0.7-6.5 / 7.3-42.5 KB | 1.3-2.7 / 2.7-25.5 KB |
@@ -55,6 +57,9 @@ on every row but one.
 - ¹ On the classic ESP32, SYMBEX counts bits with a 64 KB table in RAM, the fastest method there. Without it, ResNet-8
   needs 15 KB of RAM and runs in 71.0 ms (10.1×), and FOMO needs 79 KB and runs in 274.5 ms.
 - The 1D rows are the ranges over Daghero's four networks, from the smallest to the largest.
+- ² The same ResNet-8 with lib_symbex's optional int8 first layer on the pixels instead of the thermometer: 75.4 % on the
+  test set against 71.3 % (3 seeds), faster on the S3 and the Pico 2's M33, slower on the ESP32 and Hazard3
+  ([the benchmark](../benchmarks/conv2d/cnn_cifar_resnet8/README.md#an-int8-first-layer-optional)).
 
 The charts are drawn from the result files by `python tools/dev/docs_charts.py`, so a new measurement updates them.
 

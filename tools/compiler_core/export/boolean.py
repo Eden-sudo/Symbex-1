@@ -5,6 +5,14 @@ The network is trained AS DEFINED (it is already binary: no plan search, no wide
 exported to the library. The model (e.g. benchmarks/conv2d/cnn_cifar_resnet8/model.py, BoolResNet8) must expose:
     levels                    thermometer levels per color of its input encoding
     stem, stem_bn             binary 3x3 conv + BatchNorm (then sign)
+    stem_kind (optional)      "thermometer" (the default) or "int8": then stem is an 8-bit conv on the centered
+                              pixels (pixel - 128) / 128 and stem.int8_weights() gives its integers q (O, 3, k, k) in
+                              -127..127 and per-channel scales s (O,), weight = q * s (model.py's Int8Conv). The chip
+                              runs it as lib_symbex's optional int8 first layer (symbex_bool_stem_i8): one integer
+                              dot product per output and the BatchNorm + sign as one threshold on it. More accurate
+                              (ResNet-8: +4.5 points), faster on chips with int8 SIMD (ESP32-S3, Cortex-M33), slower
+                              on the others (ESP32, Hazard3): benchmarks/experiments/int8_first_bench.py. The vertical
+                              engine runs the thermometer stem only (for now).
     blocks                    Blocks: conv + bn (stride 1 or 2), and, where the shape changes, ds_conv (1x1) + ds_bn
                               after an OR pool when the block has stride 2; out = sign(BN(conv)) OR shortcut
     fc, fc_bn                 binary linear on the flattened final bits (CHW order) + BatchNorm1d
@@ -37,6 +45,8 @@ import time
 import numpy as np
 import torch
 import torch.nn.functional as F
+
+from . import c_header
 
 INT_MIN, INT_MAX = -2 ** 31, 2 ** 31 - 1
 FC_SHIFT = 16
@@ -139,7 +149,8 @@ def train(model, train_ds, val_ds, cfg, out_dir, test_ds=None):
     student = student.cpu().eval()
     torch.save(student.state_dict(), os.path.join(out_dir, "model_binarized.pth"))
     width = float(getattr(student, "width", 1.0))
-    info = dict(method="boolean", width=width, levels=int(student.levels), plan={}, epochs=tr["epochs"],
+    info = dict(method="boolean", width=width, levels=int(student.levels),
+                stem=getattr(student, "stem_kind", "thermometer"), plan={}, epochs=tr["epochs"],
                 acc_last=history[-1][3], acc_test=acc_test, n_train=len(train_ds), n_validation=len(val_ds),
                 n_test=None if test_ds is None else len(test_ds), history=history)
     json.dump(info, open(os.path.join(out_dir, "train.json"), "w"), indent=1)
@@ -213,13 +224,57 @@ def _fold_conv(conv, bn, where="conv", pointwise=False):
     return dict(w=w.numpy(), thr=np.clip(thr, INT_MIN, INT_MAX), k=conv.kernel_size[0], stride=conv.stride[0])
 
 
+def _fold_stem_i8(conv, bn):
+    """int8 stem + BatchNorm + sign -> int8 weights (O, 3, k, k) (rows negated where the BatchNorm scale < 0) and an
+    integer threshold on D = sum of (pixel - 128) * q (zero padding = pixel 128): the float conv is D * s / 128, so
+    BN(D * s / 128) >= 0  <=>  D >= ceil(T * 128 / s)"""
+    _check_conv(conv, "int8 stem")
+    k = conv.kernel_size[0]
+    problems = []
+    if conv.in_channels != 3:
+        problems.append(f"{conv.in_channels} input channels (the int8 stem reads the 3 colors)")
+    if k % 2 == 0 or k > 3:
+        problems.append(f"kernel {k}: the int8 stem runs 1x1 or 3x3 (a window of at most 27 bytes)")
+    if not hasattr(conv, "int8_weights"):
+        problems.append("the stem has no int8_weights() (q, s): see model.py's Int8Conv")
+    if bn.running_mean is None or not bn.affine:
+        problems.append("its BatchNorm needs running statistics and affine parameters")
+    if problems:
+        raise ValueError("boolean export, int8 stem: " + "; ".join(problems))
+    q, s = conv.int8_weights()
+    q, s = q.detach().double().clone(), s.detach().double().flatten()
+    if q.abs().max() > 127 or not torch.equal(q, torch.round(q)) or (s <= 0).any():
+        raise ValueError("boolean export, int8 stem: int8_weights() must give integers in -127..127 and scales > 0")
+    g = bn.weight.detach().double()
+    sd = torch.sqrt(bn.running_var.detach().double() + bn.eps)
+    t = bn.running_mean.detach().double() - bn.bias.detach().double() * sd / torch.where(g == 0, torch.ones_like(g), g)
+    thr = np.empty(len(g), dtype=np.int64)
+    for o in range(len(g)):
+        u = float(t[o]) * 128 / float(s[o])
+        if g[o] == 0:
+            thr[o] = INT_MIN if bn.bias[o] >= 0 else INT_MAX
+        elif g[o] > 0:                                       # D >= U
+            thr[o] = math.ceil(u)
+        else:                                                # D <= U  <=>  (-D) >= -U
+            q[o] = -q[o]
+            thr[o] = math.ceil(-u)
+    return dict(w=q.numpy(), thr=np.clip(thr, INT_MIN, INT_MAX), k=k, stride=conv.stride[0], int8=True)
+
+
 def fold(model, threshold=0.0):
     """the trained BoolResNet8-like model -> integer network (dict of numpy arrays). A model with head / head_bn (a
     per-cell detector, FOMO-style) gets a per-cell head; threshold = the calibrated decision threshold on
     (logit of class 1 - logit of class 0), folded into the integer bias of class 1"""
     model = model.cpu().eval()
-    net = dict(levels=int(model.levels), stem=_fold_conv(model.stem, model.stem_bn, "stem"), blocks=[])
-    if model.stem.in_channels != 3 * net["levels"]:
+    kind = getattr(model, "stem_kind", "thermometer")
+    if kind not in ("thermometer", "int8"):
+        raise ValueError(f"boolean export: stem_kind {kind!r} (thermometer or int8)")
+    if any(getattr(b, "add", False) for b in model.blocks):
+        raise ValueError("boolean export: added shortcuts (shortcut=\"add\") are not in lib_symbex; use OR shortcuts")
+    stem = (_fold_stem_i8(model.stem, model.stem_bn) if kind == "int8"
+            else _fold_conv(model.stem, model.stem_bn, "stem"))
+    net = dict(levels=int(model.levels), stem=stem, blocks=[])
+    if kind == "thermometer" and model.stem.in_channels != 3 * net["levels"]:
         raise ValueError(f"boolean export, stem: {model.stem.in_channels} input channels, the thermometer gives "
                          f"3 x {net['levels']} = {3 * net['levels']}")
     for i, b in enumerate(model.blocks):
@@ -278,8 +333,11 @@ def simulate(net, x_u8, batch=500, device="cpu", return_bits=False):
     preds = []
     for i in range(0, len(x_u8), batch):
         x = torch.as_tensor(np.ascontiguousarray(x_u8[i:i + batch]), device=dev).permute(0, 3, 1, 2).double()
-        x = (x.unsqueeze(2) >= t.view(1, 1, -1, 1, 1)).flatten(1, 2).double() * 2 - 1      # thermometer, +-1
-        x = layer(x, net["stem"])
+        if net["stem"].get("int8"):
+            x = layer(x - 128, net["stem"])                                              # int8 stem: D >= thr
+        else:
+            x = (x.unsqueeze(2) >= t.view(1, 1, -1, 1, 1)).flatten(1, 2).double() * 2 - 1  # thermometer, +-1
+            x = layer(x, net["stem"])
         for b in net["blocks"]:
             y = layer(x, b["conv"])
             if b["shortcut"] is not None:
@@ -466,8 +524,23 @@ def write_header(net, path, in_size=32):
         flash += rows.size * 4 + len(c["thr"]) * 4 + cnt.size * 2
         return len(convs) - 1, out_h
 
-    stem_i, res = add(net["stem"], res)
-    steps.append(f"thermometer ({net['levels']} levels) + stem {convs[stem_i]['cin']}->{convs[stem_i]['cout']} {in_size}x{in_size}")
+    i8 = bool(net["stem"].get("int8"))
+    if i8:      # the int8 stem: rows of k * k * 3 int8 [kh][kw][color], zero padded to a multiple of 4 bytes
+        st = net["stem"]
+        k, s = st["k"], st["stride"]
+        q = st["w"].astype(np.int64).transpose(0, 2, 3, 1).reshape(len(st["w"]), -1)
+        rb = -(-q.shape[1] // 4) * 4
+        i8_rows = np.zeros((len(q), rb), dtype=np.int64)
+        i8_rows[:, :q.shape[1]] = q
+        out_h = (res + 2 * (k // 2) - k) // s + 1
+        convs.append(dict(rows=None, rw=0, cnt=None, thr=st["thr"], cin=3, cout=len(q), k=k, s=s, h=res, oh=out_h,
+                          int8=True, row_bytes=rb, i8_rows=i8_rows))
+        flash += i8_rows.size + len(st["thr"]) * 4
+        stem_i, res = 0, out_h
+        steps.append(f"int8 stem {3}->{len(q)} {in_size}x{in_size}{' s2' if s == 2 else ''}")
+    else:
+        stem_i, res = add(net["stem"], res)
+        steps.append(f"thermometer ({net['levels']} levels) + stem {convs[stem_i]['cin']}->{convs[stem_i]['cout']} {in_size}x{in_size}")
     blocks = []
     for bi, b in enumerate(net["blocks"]):
         h_in = res
@@ -504,7 +577,7 @@ def write_header(net, path, in_size=32):
     # every map buffer as large as what symbex_bool_net_run writes into IT (it rotates 4 buffers): far less RAM than
     # four buffers as large as the largest map (the thermometer input of a 96 x 96 image alone is 36 KB)
     words_of = lambda c, h, ch_: h * h * ((ch_ + 31) // 32)
-    size = [in_size * in_size * ((3 * net["levels"] + 31) // 32), 0, 0, 0]
+    size = [0 if i8 else in_size * in_size * ((3 * net["levels"] + 31) // 32), 0, 0, 0]   # map 0: the thermometer
     size[1] = words_of(None, convs[stem_i]["oh"], convs[stem_i]["cout"])
     x, y, p, s = 1, 0, 2, 3
     for ci, si, pool in blocks:
@@ -518,10 +591,11 @@ def write_header(net, path, in_size=32):
         x, y = y, x
     size[x] = max(size[x], fc_rw if not cells else fh * fh * ppx + fc_rw)   # the head may read a row past the end
     size = [max(-(-v // 4) * 4, 4) for v in size]
-    max_rw = max(max(c["rw"] for c in convs), 4)
+    max_rw = max(max(c["rw"] for c in convs), 8 if i8 else 4)     # the int8 stem's window: 32 bytes
     max_out = max(max(c["cout"] for c in convs), n_cls)
     ram = 4 * (sum(size) + max_rw + 2 * max_out) + (fh * fh if cells else 0)
-    v_why = vertical_problem(convs, net["levels"], in_size)
+    v_why = ("int8 stem (the vertical engine runs the thermometer stem only, for now)" if i8
+             else vertical_problem(convs, net["levels"], in_size))
     v_bytes = None if v_why else vertical_work_bytes(convs, blocks, net["levels"], in_size, fc_rw)
     v_ram = None if v_why else v_bytes + 4 * (4 * 4 + 4 + 2 * max_out) + (fh * fh if cells else 0)
     v_prep = None if v_why else vertical_prepared_bytes(convs)
@@ -531,22 +605,36 @@ def write_header(net, path, in_size=32):
         f.write(f"/* generated by the CDT (compiler_core/export/boolean.py): a fully binary network for lib_symbex's\n"
                 f"   symbex_bool_net_run, with the interface of the MLP headers (symbex_mlp_infer). Do not edit. */\n"
                 f"#ifndef {guard}\n#define {guard}\n#include <stdint.h>\n#include \"layers/conv/symbex_bool.h\"\n"
+                + c_header.prologue() +
                 f"#ifndef SYMBEX_ROM\n#define SYMBEX_ROM const           /* -DSYMBEX_ROM= : weights in RAM */\n#endif\n\n")
         for i, c in enumerate(convs):
+            if c.get("int8"):
+                _c_array(f, "int8_t", f"BI{i}", c["i8_rows"], " __attribute__((aligned(16)))")
+                _c_array(f, "int32_t", f"BT{i}", c["thr"])
+                f.write("static const struct SymbexBoolStemI8 B_STEM_I8 = "
+                        + c_header.struct(out_ch=c['cout'], kernel=c['k'], stride=c['s'], in_h=c['h'], in_w=c['h'],
+                                          out_h=c['oh'], out_w=c['oh'], row_bytes=c['row_bytes'], weights=f"BI{i}",
+                                          thresholds=f"BT{i}") + ";   /* the int8 stem */\n")
+                continue
             _c_array(f, "uint32_t", f"BW{i}", c["rows"], " __attribute__((aligned(16)))")
             _c_array(f, "int32_t", f"BT{i}", c["thr"])
             _c_array(f, "int16_t", f"BC{i}", c["cnt"])
 
         def conv_init(i):
             c = convs[i]
-            return (f"{{{c['cin']}, {c['cout']}, {c['k']}, {c['s']}, {c['h']}, {c['h']}, {c['oh']}, {c['oh']}, {c['rw']}, "
-                    f"BW{i}, BT{i}, BC{i}}}")
+            shapes = dict(in_ch=c['cin'], out_ch=c['cout'], kernel=c['k'], stride=c['s'], in_h=c['h'], in_w=c['h'],
+                          out_h=c['oh'], out_w=c['oh'])
+            if c.get("int8"):                        # only the shapes: the network runs B_STEM_I8 (stem_i8)
+                return c_header.struct(**shapes)
+            return c_header.struct(**shapes, row_words=c['rw'], weights=f"BW{i}", thresholds=f"BT{i}",
+                                   weight_counts=f"BC{i}")
         for bi, (ci, si, pool) in enumerate(blocks):
             if si is not None:
                 f.write(f"static const struct SymbexBoolConv BS{bi} = {conv_init(si)};\n")
         f.write("static const struct SymbexBoolBlock B_BLOCKS[] = {\n")
         for bi, (ci, si, pool) in enumerate(blocks):
-            f.write(f"    {{{conv_init(ci)}, {'&BS' + str(bi) if si is not None else 'NULL'}, {1 if pool else 0}}},\n")
+            f.write("    " + c_header.struct(conv=conv_init(ci), shortcut='&BS' + str(bi) if si is not None else 'NULL',
+                                             shortcut_pool=1 if pool else 0) + ",\n")
         f.write("};\n")
         _c_array(f, "uint32_t", "FC_W", fc_rows, " __attribute__((aligned(16)))")
         _c_array(f, "int32_t", "FC_C", fc_cnt)
@@ -564,11 +652,15 @@ def write_header(net, path, in_size=32):
                 f"static int32_t B_SCRATCH[{2 * max_out}];\n")
         if cells:
             f.write(f"static uint8_t B_CELLS[{fh * fh}];      /* the class of every cell of the {fh} x {fh} grid */\n")
-        f.write(f"static const struct SymbexBoolNet symbex_net = {{{in_size}, {in_size}, {net['levels']}, {conv_init(stem_i)}, "
-                f"B_BLOCKS, {len(blocks)}, FC_W, {fc_rw}, {n_cls}, {fc_bits}, {fc_words}, FC_C, FC_S, FC_B, "
-                f"{{B_MAP0, B_MAP1, B_MAP2, B_MAP3}}, B_WINDOW, B_SCRATCH, "
-                + (f"B_CELLS, {fh}, {fh}}};   /* per-cell head: returns the grid checksum */\n\n" if cells else
-                   "NULL, 0, 0};   /* no per-cell head: a classifier */\n\n"))
+        extra = (dict(cells="B_CELLS", cells_h=fh, cells_w=fh) if cells else {}) | (dict(stem_i8="&B_STEM_I8") if i8 else {})
+        f.write("static const struct SymbexBoolNet symbex_net = "
+                + c_header.struct(in_h=in_size, in_w=in_size, levels=net['levels'], stem=conv_init(stem_i),
+                                  blocks="B_BLOCKS", n_blocks=len(blocks), fc_weights="FC_W", fc_row_words=fc_rw,
+                                  n_classes=n_cls, fc_bits=fc_bits, fc_words=fc_words, fc_weight_counts="FC_C",
+                                  fc_scale="FC_S", fc_bias="FC_B", maps="{B_MAP0, B_MAP1, B_MAP2, B_MAP3}",
+                                  window="B_WINDOW", scratch="B_SCRATCH", **extra)
+                + (";   /* per-cell head: returns the grid checksum */\n\n" if cells else
+                   ";   /* no per-cell head: a classifier */\n\n"))
         f.write(f"#define SYMBEX_MLP_N_INPUTS {in_size * in_size * 3}      /* uint8 RGB, HWC */\n"
                 f"#define SYMBEX_MLP_N_CLASSES {n_cls}\n#define SYMBEX_MLP_N_STEPS {len(steps)}\n"
                 "static const char* const symbex_mlp_steps[SYMBEX_MLP_N_STEPS] = {\n"
@@ -599,10 +691,11 @@ def write_header(net, path, in_size=32):
                     "    return symbex_bool_net_run_vertical(&symbex_net, &B_V, x);\n}\n#else\n")
         f.write(f"#define SYMBEX_MLP_BYTES_BUFFERS {ram}u\n"
                 "static inline int symbex_mlp_infer(const uint8_t* x) { return symbex_bool_net_run(&symbex_net, x); }\n"
-                + ("" if v_why else "#endif\n") + f"#endif /* {guard} */\n")
+                + ("" if v_why else "#endif\n") + c_header.epilogue() + f"#endif /* {guard} */\n")
     for c in convs:
+        ops = c["cout"] * c["oh"] * c["oh"] * c["k"] * c["k"] * c["cin"]
         shapes.append(dict(cin=c["cin"], cout=c["cout"], k=c["k"], stride=c["s"], h=c["h"], out_h=c["oh"],
-                           bit_ops=c["cout"] * c["oh"] * c["oh"] * c["k"] * c["k"] * c["cin"]))
+                           **(dict(int8_macs=ops) if c.get("int8") else dict(bit_ops=ops))))
     return flash, ram, steps, shapes
 
 
@@ -692,8 +785,12 @@ def export_and_validate(model, val_ds, out_dir, lib_path, n_validation=2000):
     save_validation(out_dir, x_u8.reshape(len(x_u8), -1), y, p_sim)
     acc_t, acc_s = 100 * (p_torch == y).mean(), 100 * (p_sim == y).mean()
     fid = 100 * (p_sim == p_torch).mean()
-    print(f"    network     : thermometer {net['levels']} levels -> stem -> {len(net['blocks'])} blocks (conv OR "
-          f"shortcut) -> classifier | every layer 1 bit, no multiplication")
+    if net["stem"].get("int8"):
+        print(f"    network     : int8 stem (pixel - 128, int8 weights) -> {len(net['blocks'])} blocks (conv OR shortcut) "
+              f"-> classifier | every layer after the stem 1 bit")
+    else:
+        print(f"    network     : thermometer {net['levels']} levels -> stem -> {len(net['blocks'])} blocks (conv OR "
+              f"shortcut) -> classifier | every layer 1 bit, no multiplication")
     print(f"    header      : {header}  ({flash / 1024:.1f} KB of weights + thresholds, {ram / 1024:.1f} KB of buffers)")
     print(f"    validation  : {len(x_u8)} samples")
     print(f"    accuracy    : PyTorch {acc_t:.2f}%   integer simulation {acc_s:.2f}%")

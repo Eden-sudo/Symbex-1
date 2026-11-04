@@ -1,9 +1,11 @@
 {
  "width": 1.0,
  "spec": null,
+ "variant": null,
  "board": null,
  "weights": "flash",
  "popcount": "swar",
+ "engine": "standard",
  "seeds": [
   {
    "seed": 42,

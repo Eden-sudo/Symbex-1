@@ -231,6 +231,7 @@ static const char* check_conv(const struct SymbexBoolConv* L) {
     return NULL;
 }
 const char* symbex_bool_vertical_check(const struct SymbexBoolNet* net) {
+    if (net->stem_i8) return "int8 stem (the vertical engine runs the thermometer stem only, for now)";
     if (3 * net->levels > 32) return "thermometer with more than 32 bits per pixel";
     if (!divides32(net->in_w) || ((uint32_t)net->in_h * net->in_w) % 32) return "input size (width must divide 32, h * w a multiple of 32)";
     const char* e = check_conv(&net->stem);

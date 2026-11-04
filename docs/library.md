@@ -30,6 +30,26 @@ against the class the PC simulation gave ("8/8 equal"). To run a real model, cop
 Outside PlatformIO, compile `src/` with `include/` on the include path. Only one HAL is needed: `src/hal/esp32s3/` on
 the ESP32-S3, `src/hal/generic/` everywhere else (plus `src/hal/rp2350/` on the Pico 2).
 
+## Headers that keep working when the library grows
+
+An exported `model_symbex.h` is data for the library: it fills its structs (`SymbexBoolNet`, `SymbexBool1D`,
+`SymbexLayerData`, ...). A header exported today keeps building with later versions of lib_symbex, without exporting it
+again, because the library and the CDT follow three rules (`include/core/symbex_format.h`):
+
+1. **A new field goes last, and 0 / NULL means the behavior before it.** Example: `SymbexBoolNet.stem_i8 = NULL` is the
+   thermometer stem, as before the int8 stem existed.
+2. **The CDT writes every struct by field name** (`.stride = 1`), so a field the header does not name starts at 0.
+3. **The header silences `-Wmissing-field-initializers` inside itself only** (`#pragma GCC diagnostic push / pop`). C++
+   warns about a missing field even when the others are named, and the firmware builds treat warnings as errors.
+
+A change that cannot follow them (a field removed, renamed or given another meaning) raises `SYMBEX_FORMAT`. Each header
+checks the format it was written in, and a header the library can no longer read stops the build with an `#error` that
+says to export it again. `pytest tests/test_header_format.py` builds the header of every current exporter in C and C++
+with `-Wall -Wextra -Werror` and checks it against the simulation, together with headers frozen at earlier formats
+(`tests/headers/`), so a break shows up before it is pushed.
+
+Headers exported before format 1 (November 2026: fields by position, no format check) must be exported once again.
+
 ## How it is organized
 
 ```mermaid
@@ -47,7 +67,7 @@ flowchart TB
 
 | Folder | What it holds |
 |---|---|
-| `include/layers/conv/` | `symbex_bool.h`: fully binary 2D networks (thermometer input, binary convolutions with integer thresholds, OR pool, OR shortcut, classifier or per-cell detection head, and the whole-network runner `symbex_bool_net_run`). `symbex_bool1d.h`: binary 1D convolutions for time series, any channel count, with a fused OR pool. `symbex_bool_vertical.h`: the [vertical engine](vertical.md), the same networks and bits counted 128 windows at once (optional prepared and compact modes) |
+| `include/layers/conv/` | `symbex_bool.h`: fully binary 2D networks (thermometer input or, optionally, an int8 first layer `symbex_bool_stem_i8`; binary convolutions with integer thresholds, OR pool, OR shortcut, classifier or per-cell detection head, and the whole-network runner `symbex_bool_net_run`). `symbex_bool1d.h`: binary 1D convolutions for time series, any channel count, with a fused OR pool. `symbex_bool_vertical.h`: the [vertical engine](vertical.md), the same networks and bits counted 128 windows at once (optional prepared and compact modes) |
 | `include/layers/dense/` | `symbex_dense.h`: 1-bit dense layers (uint8 first layer, then bits with one integer threshold per neuron). `symbex_ternary.h`: weights in {-1, 0, +1} |
 | `include/ops/` | bit operations, bit packing, the AND form of the counts |
 | `include/hal/symbex_hal.h` | the interface every chip implements: the bit counts and the first-layer kernels |

@@ -1,0 +1,47 @@
+{
+ "width": 1,
+ "spec": null,
+ "variant": "int8stem",
+ "board": "s3",
+ "weights": "ram",
+ "popcount": "lut16",
+ "engine": "standard",
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 1,
+   "val_accuracy": 75.64,
+   "test_accuracy": 75.43,
+   "flash_kb": 23.9921875,
+   "exactness": 100.0,
+   "chip_accuracy": 77.4,
+   "latency_ms": 36.752,
+   "equal": 100.0,
+   "ram_kb": 102.34375
+  },
+  {
+   "seed": 43,
+   "width": 1,
+   "val_accuracy": 75.12,
+   "test_accuracy": 75.39,
+   "flash_kb": 23.9921875,
+   "exactness": 100.0,
+   "chip_accuracy": 75.6,
+   "latency_ms": 36.752,
+   "equal": 100.0,
+   "ram_kb": 102.34375
+  },
+  {
+   "seed": 44,
+   "width": 1,
+   "val_accuracy": 76.12,
+   "test_accuracy": 75.4,
+   "flash_kb": 23.9921875,
+   "exactness": 100.0,
+   "chip_accuracy": 76.0,
+   "latency_ms": 36.752,
+   "equal": 100.0,
+   "ram_kb": 102.34375
+  }
+ ]
+}
