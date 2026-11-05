@@ -27,7 +27,8 @@ and measures, on the 5,000 validation images (the test set is never read):
     python layer_probe_study.py --nets binary_bop_g0.0001_t1e-08 --seeds 42
 
 The network's name is train_gap_study.py's file name without _s<seed>: its first word the kind (binary, twin, relu),
-_i8 the int8 stem, _w2 twice the channels. Results: results/layer_probe/<name>_s<seed>.json, and a table of means over
+_i8 the int8 stem, _w2 twice the channels; every setting is read back from its results JSON. Blocks
+that change the shortcut or the activation (_sa, _sp, _sap, _sx, _og, _la2) are refused. Results: results/layer_probe/<name>_s<seed>.json, and a table of means over
 the seeds. Run from anywhere; env_bench (CUDA) recommended (~1-2 min per network).
 """
 import argparse
@@ -48,15 +49,41 @@ OUT = os.path.join(HERE, "results", "layer_probe")
 N_PROBE_TRAIN = 10000
 
 
+DEAD_FIX_TAGS = {"_og": "or_grad", "_ws": "wstd", "_dl": "dead_loss"}
+
+
+def restore_variant(name, seed):
+    """train_gap_study.py's globals as they were when <name>_s<seed> was trained, read from its results JSON (fields
+    missing in older JSONs take their defaults); stops if the rebuilt name differs from <name>"""
+    meta = os.path.join(tg.OUT, f"{name}_s{seed}.json")
+    if not os.path.exists(meta):
+        raise SystemExit(f"[X] {meta} not found: the network's settings come from it")
+    info = json.load(open(meta))
+    kind = info["model"]
+    tg.STEM, tg.WIDTH, tg.LAST = info.get("stem", "thermometer"), info.get("width", 1), info.get("last_stage", "x1")
+    tg.BLOCKS = tuple(info.get("blocks", (2, 2, 2)))
+    tg.CHANNELS = tuple(info["channels"]) if "_c" in name else None
+    tg.SHORTCUT2, tg.SHORTCUT_OP = info.get("shortcut2", "or"), info.get("shortcut_op", "or")
+    tg.PAD, tg.HEAD = info.get("pad", "zero"), info.get("head", "binary")
+    parts = name.split("_")                                # older JSONs lack dead_fix: its tag in the name
+    tg.DEAD_FIX = info.get("dead_fix") or next((v for k, v in DEAD_FIX_TAGS.items() if k[1:] in parts), "")
+    recipe = info.get("recipe", "base")
+    rebuilt = tg.tag(kind) if recipe == "base" else f"{tg.tag(kind)}_{recipe}"
+    if rebuilt != name:
+        raise SystemExit(f"[X] {name}: its JSON rebuilds as {rebuilt}; not probing a different network")
+    return kind
+
+
 def load_net(name, seed, dev):
     """the trained network <name>_s<seed>, its kind; model.py's global sign() set for it"""
-    kind = name.split("_")[0]
-    tg.STEM = "int8" if "_i8" in name else "thermometer"
-    tg.WIDTH = 2 if "_w2" in name else 1
+    kind = restore_variant(name, seed)
     path = os.path.join(tg.RUNS, f"{name}_s{seed}.pth")
     if not os.path.exists(path):
         raise SystemExit(f"[X] {path} not found: train it with train_gap_study.py")
     net = tg.build(kind)                                   # sets resnet8.sign for this kind
+    wrapped = sorted({type(b).__name__ for b in net.blocks if not hasattr(b, "conv")})
+    if wrapped:                                            # they change the shortcut or the activation
+        raise SystemExit(f"[X] {name}: the probes cover the benchmark's blocks only, not {', '.join(wrapped)}")
     net.load_state_dict(torch.load(path, map_location="cpu"))
     return net.to(dev).eval(), kind
 
@@ -68,6 +95,8 @@ def effective_weight(conv, kind):
         q, s = conv.int8_weights()
         return q * s.view(-1, 1, 1, 1)
     if kind == "binary":
+        if tg.DEAD_FIX == "wstd":                          # the forward pass signs the standardized weights
+            w = w - w.mean(dim=(1, 2, 3), keepdim=True)
         return torch.where(w >= 0, 1.0, -1.0)
     return w
 

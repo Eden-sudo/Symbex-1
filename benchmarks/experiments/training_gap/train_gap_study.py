@@ -51,7 +51,9 @@ most channels; none of these changes the network on a chip):
 --density: train nothing; for the runs these flags name (already trained), the share of ones of every binary map's
     channels on 2,000 validation images and how many channels are nearly constant (< 10 % or > 90 % ones), written to
     results/train_gap/density_<run>.json (the binary network's maps in forward order: stem, then per block its 3x3
-    convolution and, in a stride-2 block, the 1x1 shortcut convolution)
+    convolution and, in a stride-2 block, the 1x1 shortcut convolution); per map also the channels nearly off (< 10 %:
+    with the OR they let the shortcut through) and nearly on (> 90 %: they hide it), never / always on over the 2,000
+    images, and how many of its BatchNorm scales are negative
 --stem int8: the three networks with the int8 first layer on the pixels (cnn_cifar_resnet8's int8stem variant, its
 starting weights); files <model>_i8_...
 --width 2: twice the channels (32-64-128, BoolResNet8x2): if the binary network's training accuracy rises with width
@@ -84,6 +86,11 @@ two integer thresholds per channel. Files ..._sap_...
 -a*b): the conv can switch a shortcut bit off as well as on. PC only (lib_symbex fuses the OR). Files ..._sx_...
 --phase2-lr x (twostep, twostep_bop): the learning rate of step 2's fresh Adam (default: --learning-rate). Files
 ..._p2lr<x>_...
+--pad minus|plus: every binary conv pads its border with a -1 / +1 bit instead of leaving it out (0 in +-1, the
+benchmark's). On a chip -1 is the window's 0 bits as they are: no per-pixel correction at the border. Files ..._pm_ / _pp_
+--head int8|pool: the classifier with int8 weights (one scale per class, straight-through rounding) on the final bits
+(int8), or on the count of ones of every channel of the final map (pool: C counts instead of C*H*W bits); the
+classifier's BatchNorm stays. A sum of int8 weights per class on a chip. Files ..._hi8_ / _hpool_...
 Results: results/train_gap/<model>_s<seed>.json (<model>_<recipe>_s<seed>.json for step B). Run from anywhere; env_bench (CUDA) recommended.
 """
 import argparse
@@ -119,6 +126,8 @@ BLOCKS = (2, 2, 2)                                         # --channels .../x-y-
 SHORTCUT2 = "or"                                           # --shortcut2: or (the benchmark's), avg (Bi-Real), pad
 SHORTCUT_OP = "or"                                         # --shortcut-op: or, xor (how a block adds its shortcut)
 PHASE2_LR = 0.0                                            # --phase2-lr: step 2 of twostep (0: the learning rate)
+PAD = "zero"                                               # --pad: zero (the benchmark's), minus, plus
+HEAD = "binary"                                            # --head: binary (the benchmark's), int8, pool
 _record = None                                             # list: the activations' inputs, while it is set
 DEAD_FIX = ""                                              # --dead-fix: or_grad, wstd, dead_loss
 _dead = []                                                 # dead_loss: the binary maps' inputs of the current step
@@ -247,7 +256,7 @@ def build(kind):
                                                          "_b" + "-".join(map(str, BLOCKS)))
             init = os.path.join(RUNS, f"bool_resnet8_{name}_init.pth")
             net.load_state_dict(torch.load(resnet8.initial_weights(definition, init), map_location="cpu"))
-            return _with_shortcut2(net)
+            return _with_pad_head(_with_shortcut2(net))
     net = resnet8.BoolResNet8(float(WIDTH), 8, stem=STEM, shortcut="add" if kind == "relu" else "or")
     if STEM == "int8" and WIDTH != 1:
         raise SystemExit("[X] --stem int8 with --width 2: the benchmark has no such variant")
@@ -261,7 +270,53 @@ def build(kind):
     net.load_state_dict(torch.load(resnet8.initial_weights(cls, init), map_location="cpu"))
     if LAST == "act2":                                     # blocks 3-5: block 3 feeds the last stage
         net.blocks = nn.Sequential(*[Act2Block(b) if i >= 3 else b for i, b in enumerate(net.blocks)])
-    return _with_shortcut2(net)
+    return _with_pad_head(_with_shortcut2(net))
+
+
+def _int8_ste(w):
+    """symmetric int8 weights per output row (scale = max |w| / 127), straight-through"""
+    s = w.abs().amax(1, keepdim=True).clamp_min(1e-8) / 127
+    return w + (torch.round(w / s) * s - w).detach()
+
+
+class Int8Head(nn.Linear):
+    """--head int8: int8 weights on the final bits (a sum of int8 weights per class on a chip)"""
+    def forward(self, x):
+        return F.linear(x, _int8_ste(self.weight))
+
+
+class PoolHead(nn.Module):
+    """--head pool: the count of ones per channel of the final map (0..H*W), then int8 weights per class. Its input
+    is the flattened map (N, C*H*W, channel-major, as BoolResNet8.forward gives it)"""
+    def __init__(self, channels, classes):
+        super().__init__()
+        self.channels = channels
+        self.fc = Int8Head(channels, classes, bias=False)
+
+    def forward(self, x):
+        return self.fc(((x.view(x.shape[0], self.channels, -1) + 1) / 2).sum(-1))
+
+
+def _padded_forward(conv, value):
+    def forward(x):
+        p = conv.padding
+        x = F.pad(x, (p[1], p[1], p[0], p[0]), value=value)
+        return F.conv2d(x, resnet8.sign(conv.weight), None, conv.stride, 0)
+    return forward
+
+
+def _with_pad_head(net):
+    if PAD != "zero":                                  # every binary conv with padding: pad with a bit, -1 or +1
+        for m in net.modules():
+            if isinstance(m, resnet8.BinaryConv) and m.padding != (0, 0):
+                m.forward = _padded_forward(m, -1.0 if PAD == "minus" else 1.0)
+    if HEAD == "int8":
+        head = Int8Head(net.fc.in_features, net.fc.out_features, bias=False)
+        head.weight.data.copy_(net.fc.weight.data)     # the benchmark's starting weights of the classifier
+        net.fc = head
+    elif HEAD == "pool":
+        net.fc = PoolHead(net.channels[-1], net.fc.out_features)
+    return net
 
 
 def _with_shortcut2(net):
@@ -298,6 +353,7 @@ def tag(kind):
         last += "_sap"
     if SHORTCUT_OP == "xor":
         last += "_sx"
+    last += {"zero": "", "minus": "_pm", "plus": "_pp"}[PAD] + {"binary": "", "int8": "_hi8", "pool": "_hpool"}[HEAD]
     if DEAD_FIX:
         last += {"or_grad": "_og", "wstd": "_ws", "dead_loss": "_dl"}[DEAD_FIX]
     return kind + ("_i8" if STEM == "int8" else "") + ("_w2" if WIDTH == 2 else "") + last
@@ -566,7 +622,7 @@ def run(kind, seed, epochs, lr, bs, compile_mode, recipe="base", bop_gamma=1e-4,
     last = history[-1]
     ops, weights = cost(net)
     info = dict(model=kind, stem=STEM, width=WIDTH, last_stage=LAST, channels=list(net.channels),
-                blocks=list(net.blocks_per_stage), shortcut2=SHORTCUT2, shortcut_op=SHORTCUT_OP, phase2_lr=PHASE2_LR or None, binary_ops=ops, weights=weights,
+                blocks=list(net.blocks_per_stage), shortcut2=SHORTCUT2, shortcut_op=SHORTCUT_OP, pad=PAD, head=HEAD, dead_fix=DEAD_FIX or None, phase2_lr=PHASE2_LR or None, binary_ops=ops, weights=weights,
                 predicted_ms=predicted_ms(net) if kind == "binary" else None, recipe=name, distill=distill, seed=seed, epochs=epochs, learning_rate=lr, batch_size=bs,
                 n_train=len(xs),
                 n_validation=len(xv), n_latent_binary=n_latent if kind == "binary" else None,
@@ -598,11 +654,17 @@ def density(kind, seeds, name):
         net(xv[:2000])
         maps = [a for a in _record if a.dim() == 4]
         _record = None
+        bns = [m for m in net.modules() if isinstance(m, nn.BatchNorm2d)]   # the same order as the maps
         rows = []
-        for a in maps:
+        for i, a in enumerate(maps):
             d = (a >= 0).float().mean(dim=(0, 2, 3))
-            rows.append(dict(channels=len(d), mean_ones=round(float(d.mean()), 4),
-                             nearly_constant=int(((d < 0.1) | (d > 0.9)).sum())))
+            r = dict(channels=len(d), mean_ones=round(float(d.mean()), 4),
+                     nearly_constant=int(((d < 0.1) | (d > 0.9)).sum()),
+                     nearly_off=int((d < 0.1).sum()), nearly_on=int((d > 0.9).sum()),
+                     never_on=int((d == 0).sum()), always_on=int((d == 1).sum()))
+            if len(bns) == len(maps):
+                r["gamma_negative"] = int((bns[i].weight < 0).sum())
+            rows.append(r)
         per_seed.append(dict(seed=seed, maps=rows))
         print(f"    {stem} s{seed}: " + "  ".join(f"L{i} {r['mean_ones']:.2f} ({r['nearly_constant']}/{r['channels']})"
                                                for i, r in enumerate(rows)))
@@ -642,13 +704,18 @@ def main():
                     help="binary network: how every block combines conv and shortcut (docstring)")
     ap.add_argument("--phase2-lr", type=float, default=0.0,
                     help="twostep recipes: learning rate of step 2 (default: --learning-rate)")
+    ap.add_argument("--pad", choices=("zero", "minus", "plus"), default="zero",
+                    help="every binary conv's border: zero = left out (the benchmark's), minus / plus = a -1 / +1 bit")
+    ap.add_argument("--head", choices=("binary", "int8", "pool"), default="binary",
+                    help="the classifier: binary weights (the benchmark's), int8 weights on the bits, or int8 weights "
+                         "on the count of ones per channel (docstring)")
     ap.add_argument("--dead-fix", choices=("or_grad", "wstd", "dead_loss"), default="",
                     help="binary network: the dead-channel study (docstring)")
     ap.add_argument("--density", action="store_true",
                     help="train nothing: the share of ones per channel of the trained runs (docstring)")
     args = ap.parse_args()
-    global STEM, WIDTH, LAST, CHANNELS, BLOCKS, SHORTCUT2, SHORTCUT_OP, PHASE2_LR, DISTILL_LOSS, DEAD_FIX
-    SHORTCUT_OP, PHASE2_LR = args.shortcut_op, args.phase2_lr
+    global STEM, WIDTH, LAST, CHANNELS, BLOCKS, SHORTCUT2, SHORTCUT_OP, PHASE2_LR, DISTILL_LOSS, DEAD_FIX, PAD, HEAD
+    SHORTCUT_OP, PHASE2_LR, PAD, HEAD = args.shortcut_op, args.phase2_lr, args.pad, args.head
     STEM, WIDTH, LAST, SHORTCUT2 = args.stem, args.width, args.last_stage, args.shortcut2
     DISTILL_LOSS = args.distill_loss
     DEAD_FIX = args.dead_fix
