@@ -377,17 +377,25 @@ Four more parts of the network, x1 binary, 3 seeds, validation (base 70.00 ± 1.
 
 ### The int8 classifier on the chip (`int8_head_bench.py`), and on the MLP and conv1d
 
+These times are **the classifier alone** (the last layer, which votes the class), not the whole network: an int8
+classifier makes the network more accurate but slower, never faster. The whole ResNet-8 x1 runs in 39.2 ms (S3) /
+59.7 ms (ESP32) with the standard engine and 6.44 ms with the vertical engine (the record, unchanged), of which the
+binary classifier is 0.06 / 0.11 ms. The whole network with an int8 classifier was not measured.
+
 Four ways to run the classifier, random weights at the real shapes, exact against plain C on the chip, µs (best of 7):
 `binary` is lib_symbex's `symbex_bool_classify`; the int8 ways add the weights of every bit (`dense`), only of the
 bits that are 1 (`sparse`, weights stored per bit; the final map of the trained x1 networks has 31 % ones), or run 8
 AND + popcount passes over the weights' bit planes (`planes`).
 
-| ResNet-8 (4,096 bits → 10) | binary | i8_dense | i8_sparse | i8_planes | extra, best int8 |
+| ResNet-8 classifier only (4,096 bits → 10) | binary | i8_dense | i8_sparse | i8_planes | extra, best int8 |
 |---|---|---|---|---|---|
 | ESP32-S3, flash | 60 | 2,858 | **1,063** | 2,814 | +1.0 ms (~2.6 % of 39.2 ms, estimated) |
 | ESP32-S3, RAM | 60 | 1,602 | 488 | **301** | +0.24 ms (~0.6 %) |
 | ESP32, flash | 109 | 4,724 | **2,095** | 3,832 | +2.0 ms (~3.3 % of 59.7 ms) |
 | ESP32, RAM | 109 | 1,613 | **552** | 656 | +0.44 ms (~0.7 %) |
+
+The percentages are estimates (classifier time over the standard-engine network). Over the vertical engine's 10.36 ms
+(default) the same extra would be ~10 % in flash and ~2.3 % in RAM, also estimated.
 
 The small heads (128 bits → 17 or 10 classes) cost 22-48 µs in int8 against 4-10 µs binary, on both chips.
 The same `--head int8` in `small_gap_study.py` (binary networks, 3 seeds, validation):
@@ -401,7 +409,7 @@ The same `--head int8` in `small_gap_study.py` (binary networks, 3 seeds, valida
 | HAR `min`, int8 first layer | 35.79 ± 5.92 | 43.32 ± 3.73 | +7.5 (noisy) | |
 
 - **The int8 classifier pays where the classifier is large:** ResNet-8 reads 4,096 bits and gains 2.8 points for
-  ~1 ms on the S3 (weights in flash) and 35 KB. The MLP's last hidden layer already holds its accuracy (probe 88.1 %),
+  ~1 ms more on the S3 (weights in flash) and 35 KB more (5 → 40 KB; the whole x1 network is 24 KB). The MLP's last hidden layer already holds its accuracy (probe 88.1 %),
   so an int8 head adds nothing there; HAR gains only with the int8 first layer too, steadier rather than higher.
 
 ```
