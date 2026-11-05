@@ -345,11 +345,9 @@ def _with_pad_head(net):
         head = Int8Head(net.fc.in_features, net.fc.out_features, bias=False)
         head.weight.data.copy_(net.fc.weight.data)     # the benchmark's starting weights of the classifier
         net.fc = head
-    elif HEAD == "pool":
-        net.fc = PoolHead(net.channels[-1], net.fc.out_features)
-    elif HEAD in ("pool2", "pool4"):
-        side = math.isqrt(net.fc.in_features // net.channels[-1])
-        net.fc = PoolHead(net.channels[-1], net.fc.out_features, int(HEAD[4:]), side)
+    elif HEAD in ("pool", "pool2", "pool4"):
+        side = math.isqrt(net.fc.in_features // net.channels[-1])   # the exporter reads it (pool: the whole map)
+        net.fc = PoolHead(net.channels[-1], net.fc.out_features, int(HEAD[4:] or 0), side)
     return net
 
 
@@ -693,6 +691,8 @@ def export(kind, seeds, name):
     for seed in seeds:
         net = build(kind)
         net.load_state_dict(torch.load(os.path.join(RUNS, f"{stem}_s{seed}.pth"), map_location="cpu"))
+        net.blocks = nn.Sequential(*[b.block if isinstance(b, OrGradBlock) else b    # or_grad: only the backward
+                                     for b in net.blocks])
         out = os.path.join(RUNS, "export", f"{stem}_s{seed}")
         os.makedirs(out, exist_ok=True)
         print(f"[*] export {stem}_s{seed} -> {out}")
