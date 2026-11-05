@@ -254,7 +254,7 @@ int8 first layer, SYMBEX is still **5.4-10.4× faster than TFLite on the ESP32 a
 ### Does it carry over to the other benchmarks? A quick check
 
 The same question for mlp_fashion and ResNet-8 on the ESP32-S3, with the real library kernels and random weights at the
-real shapes (`benchmarks/experiments/int8_first_bench.py`, results in `experiments/results/int8_first_bench_s3.json`,
+real shapes (`benchmarks/experiments/chip_kernels/int8_first_bench.py`, results in `experiments/chip_kernels/results/int8_first_bench_s3.json`,
 every method equal to a C reference on the chip):
 
 | First layer | today (1-bit weights) | int8 weights | |
@@ -340,7 +340,7 @@ SYMBEX takes any count.
 | `har_lowbit.py` | INT8 / INT4 / INT2 baselines with `tools/lowbit`, from the same float networks |
 | `ucbnn_check.py`, `ucbnn_gvsoc.py` | the single-layer checks and measurements (section "Earlier") |
 | `pulp/Dockerfile` | PULP GCC, PULP SDK and GVSoC (pulp-open) on Ubuntu 22.04 |
-| `../../experiments/int8_first_bench.py` | the quick check of section 3: an int8 first layer for mlp_fashion and ResNet-8 on the S3 |
+| `../../experiments/chip_kernels/int8_first_bench.py` | the quick check of section 3: an int8 first layer for mlp_fashion and ResNet-8 on the S3 |
 
 ## Reproduce
 
@@ -374,7 +374,7 @@ python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s
 python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s42_bytes --board pico2_riscv --port /dev/ttyACM0
 
 # The quick check of section 3 (ESP32-S3)
-python ../../experiments/int8_first_bench.py --port /dev/ttyACM0
+python ../../experiments/chip_kernels/int8_first_bench.py --port /dev/ttyACM0
 ```
 
 Results: `results/` (GVSoC, accuracy, TFLite, lowbit), `runs/<run>/chip_<board>_<popcount>_<weights>_mask.json` (SYMBEX

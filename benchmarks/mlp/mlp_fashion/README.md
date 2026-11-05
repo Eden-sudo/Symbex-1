@@ -282,7 +282,7 @@ On the chip (x1.5, 1,000 images, 100 % equal to the simulation; counting mode `s
 
 ### PopLUT probe: codebook-compressed binary weights (PC only)
 
-`../../experiments/poplut_probe.py` tests whether the 1-bit weights of a trained SYMBEX x2 model can be stored as indices into a small
+`../../experiments/other_probes/poplut_probe.py` tests whether the 1-bit weights of a trained SYMBEX x2 model can be stored as indices into a small
 codebook of 32-bit words (each word: a codebook index plus a complement bit). The codebook is learned by binary
 k-means in Hamming distance, then the rest of the model is fine-tuned for 3 epochs. Base: SYMBEX x2, seed 42, 86.34 %,
 66,880 B of 1-bit weights.
@@ -305,7 +305,7 @@ x2 model was trained before the validation fix (last checkpoint, no selection); 
 the chip; the C lookup kernel does not exist yet.
 
 ```
-python ../../experiments/poplut_probe.py --modelo runs/symbex_local_s42/model_binarized.pth
+python ../../experiments/other_probes/poplut_probe.py --modelo runs/symbex_local_s42/model_binarized.pth
 ```
 
 ## How to reproduce

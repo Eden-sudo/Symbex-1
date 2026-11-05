@@ -1,0 +1,308 @@
+{
+ "run": "binary_i8_hpool2_bop_g0.0001_t1e-08",
+ "seeds": [
+  42,
+  43,
+  44
+ ],
+ "images_per_seed": 1000,
+ "note": "whole ResNet-8 x1 (int8 stem, Bop, pooled 2x2 int8 classifier) on the chip vs the int8-stem record (same flags)",
+ "boards": [
+  {
+   "board": "s3",
+   "popcount": "swar",
+   "weights": "flash",
+   "pool2": {
+    "median_ms": [
+     35.77,
+     35.769,
+     35.769
+    ],
+    "mean": 35.769,
+    "std": 0.0,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 29648,
+    "head_ms": 0.284
+   },
+   "int8stem": {
+    "median_ms": [
+     35.536,
+     35.536,
+     35.536
+    ],
+    "mean": 35.536,
+    "std": 0.0,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 24568,
+    "head_ms": 0.058
+   }
+  },
+  {
+   "board": "s3",
+   "popcount": "swar",
+   "weights": "ram",
+   "pool2": {
+    "median_ms": [
+     35.763,
+     35.763,
+     35.763
+    ],
+    "mean": 35.763,
+    "std": 0.0,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 29648,
+    "head_ms": 0.282
+   },
+   "int8stem": {
+    "median_ms": [
+     35.536,
+     35.536,
+     35.536
+    ],
+    "mean": 35.536,
+    "std": 0.0,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 24568,
+    "head_ms": 0.058
+   }
+  },
+  {
+   "board": "esp32",
+   "popcount": "lut16",
+   "weights": "flash",
+   "pool2": {
+    "median_ms": [
+     69.305,
+     69.311,
+     69.304
+    ],
+    "mean": 69.307,
+    "std": 0.003,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 29648,
+    "head_ms": 1.003
+   },
+   "int8stem": {
+    "median_ms": [
+     68.0755,
+     68.068,
+     68.067
+    ],
+    "mean": 68.07,
+    "std": 0.004,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 24568,
+    "head_ms": 0.345
+   }
+  },
+  {
+   "board": "esp32",
+   "popcount": "lut16",
+   "weights": "ram",
+   "pool2": {
+    "median_ms": [
+     63.977,
+     63.982,
+     63.976
+    ],
+    "mean": 63.978,
+    "std": 0.003,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 29648,
+    "head_ms": 0.562
+   },
+   "int8stem": {
+    "median_ms": [
+     63.521,
+     63.514,
+     63.513
+    ],
+    "mean": 63.516,
+    "std": 0.004,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 24568,
+    "head_ms": 0.109
+   }
+  },
+  {
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "weights": "flash",
+   "pool2": {
+    "median_ms": [
+     73.575,
+     73.574,
+     73.571
+    ],
+    "mean": 73.573,
+    "std": 0.002,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 29648,
+    "head_ms": 2.25
+   },
+   "int8stem": {
+    "median_ms": [
+     72.21,
+     72.2115,
+     72.2135
+    ],
+    "mean": 72.212,
+    "std": 0.001,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 24568,
+    "head_ms": 0.5735
+   }
+  },
+  {
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "weights": "ram",
+   "pool2": {
+    "median_ms": [
+     69.143,
+     69.143,
+     69.143
+    ],
+    "mean": 69.143,
+    "std": 0.0,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 29648,
+    "head_ms": 0.76
+   },
+   "int8stem": {
+    "median_ms": [
+     68.544,
+     68.544,
+     68.544
+    ],
+    "mean": 68.544,
+    "std": 0.0,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 24568,
+    "head_ms": 0.139
+   }
+  },
+  {
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "weights": "flash",
+   "pool2": {
+    "median_ms": [
+     65.5195,
+     65.525,
+     65.521
+    ],
+    "mean": 65.522,
+    "std": 0.002,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 29648,
+    "head_ms": 1.929
+   },
+   "int8stem": {
+    "median_ms": [
+     64.341,
+     64.34,
+     64.342
+    ],
+    "mean": 64.341,
+    "std": 0.001,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 24568,
+    "head_ms": 0.533
+   }
+  },
+  {
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "weights": "ram",
+   "pool2": {
+    "median_ms": [
+     60.161,
+     60.162,
+     60.16
+    ],
+    "mean": 60.161,
+    "std": 0.001,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 29648,
+    "head_ms": 0.549
+   },
+   "int8stem": {
+    "median_ms": [
+     59.449,
+     59.449,
+     59.449
+    ],
+    "mean": 59.449,
+    "std": 0.0,
+    "equal_simulation": [
+     100.0,
+     100.0,
+     100.0
+    ],
+    "model_flash": 24568,
+    "head_ms": 0.089
+   }
+  }
+ ]
+}

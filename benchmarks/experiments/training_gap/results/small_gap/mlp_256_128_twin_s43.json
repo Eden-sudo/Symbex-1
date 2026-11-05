@@ -1,0 +1,60 @@
+{
+ "bench": "mlp",
+ "shape": "mlp_256_128",
+ "kind": "twin",
+ "seed": 43,
+ "epochs": 50,
+ "lr": 0.005,
+ "batch_size": 256,
+ "n_train": 54000,
+ "n_validation": 6000,
+ "train_acc": 100.0,
+ "val_acc": 89.8,
+ "history": [
+  {
+   "epoch": 10,
+   "train_acc": 93.52,
+   "val_acc": 88.15
+  },
+  {
+   "epoch": 20,
+   "train_acc": 96.4,
+   "val_acc": 88.38333333333334
+  },
+  {
+   "epoch": 30,
+   "train_acc": 98.98,
+   "val_acc": 88.86666666666666
+  },
+  {
+   "epoch": 40,
+   "train_acc": 99.9,
+   "val_acc": 89.7
+  },
+  {
+   "epoch": 50,
+   "train_acc": 100.0,
+   "val_acc": 89.8
+  }
+ ],
+ "minutes": 0.31,
+ "probe": {
+  "input": 82.18333125114441,
+  "layer0": 88.7833297252655,
+  "layer1": 89.70000147819519
+ },
+ "layers": {
+  "layer0": {
+   "n_in": 784,
+   "f_real": 393.3924560546875,
+   "f_null": 325.2716979980469,
+   "sig": 0.140625
+  },
+  "layer1": {
+   "n_in": 256,
+   "f_real": 981.38623046875,
+   "f_null": 289.0165710449219,
+   "sig": 0.5625
+  }
+ }
+}

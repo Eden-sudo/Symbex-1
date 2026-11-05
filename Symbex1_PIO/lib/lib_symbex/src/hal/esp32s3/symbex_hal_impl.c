@@ -193,7 +193,7 @@ static inline void load_q6_q7(const uint8_t* q6, const uint8_t* q7) {
 }
 static inline uint32_t read_accx(void) { uint32_t v; __asm__ __volatile__ ("rur.accx_0 %0" : "=r"(v)); return v; }
 
-/* Counting with the multiplier, "pie_swar" (benchmarks/experiments/pie_swar_bench.py: 1.24-1.39x faster than one
+/* Counting with the multiplier, "pie_swar" (benchmarks/experiments/chip_kernels/pie_swar_bench.py: 1.24-1.39x faster than one
    multiply per bit position, and faster than the 64 KB table at every window size). Per 128 bits of (a OP b): count
    inside every byte with vector SWAR -- the bits 4 at a time with the mask 0x11 (every nibble collects its count, at
    most 4), then the two nibbles (at most 8): a byte never passes 68, so ee.vadds.s8, which SATURATES at 127, is exact

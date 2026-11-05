@@ -38,7 +38,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-sys.path.insert(0, os.path.join(ROOT, "benchmarks", "experiments"))
+sys.path.insert(0, os.path.join(ROOT, "benchmarks", "experiments", "chip_kernels"))
 from compiler_core.chip.core import lib_sources  # noqa: E402
 import s3_vertical_count as svc  # noqa: E402  (the Harley-Seal primitives, measured exact there)
 

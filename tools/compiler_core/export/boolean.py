@@ -11,17 +11,20 @@ exported to the library. The model (e.g. benchmarks/conv2d/cnn_cifar_resnet8/mod
                               runs it as lib_symbex's optional int8 first layer (symbex_bool_stem_i8): one integer
                               dot product per output and the BatchNorm + sign as one threshold on it. More accurate
                               (ResNet-8: +4.5 points), faster on chips with int8 SIMD (ESP32-S3, Cortex-M33), slower
-                              on the others (ESP32, Hazard3): benchmarks/experiments/int8_first_bench.py. The vertical
-                              engine runs the thermometer stem only (for now).
+                              on the others (ESP32, Hazard3): benchmarks/experiments/chip_kernels/int8_first_bench.py. The vertical
+                              engine runs it too (its output turned into channel planes).
     blocks                    Blocks: conv + bn (stride 1 or 2), and, where the shape changes, ds_conv (1x1) + ds_bn
                               after an OR pool when the block has stride 2; out = sign(BN(conv)) OR shortcut
     fc, fc_bn                 binary linear on the flattened final bits (CHW order) + BatchNorm1d
+    fc (optional pooled head) a module with window (k; 0 = the whole map), side (of the final map) and int8_weights()
+                              -> q (classes, C * (side / k)^2) in -128..127, CHW order of the counts, and per-class
+                              scales s (classes,): logit = s * (q @ count of ones per k x k window). The chip runs it
+                              as lib_symbex's symbex_bool_pool_head (benchmarks/experiments/training_gap, --head pool2, in both engines)
 Every conv computes raw = sum of +-1 products over the in-image window; BatchNorm + sign fold into raw >= threshold
 (weights negated where the BatchNorm scale is negative). The classifier keeps an int32 scale and bias per class
 (2^16 fixed point) and the C picks the first class with the largest int64 logit.
 
-    train(model, train_ds, val_ds, cfg, out_dir)       labels only, Adam + cosine, crop + flip on the GPU
-    load_trained(model, out_dir)                       a trained model (model_binarized.pth)
+    train / binary_weights / load_trained              the training: train/boolean.py (still importable from here)
     fold(model) / simulate(net, x_u8)                  the integer network, and its exact simulation
     export_and_validate(model, val_ds, out_dir, ...)   header + validation files + the C check on this PC (gcc)
 The header offers the interface of the MLP headers (symbex_mlp_infer, SYMBEX_MLP_N_INPUTS / N_CLASSES / N_STEPS,
@@ -31,142 +34,24 @@ the ESP32-S3; docs/vertical.md) on the same data, with the same results: chip_te
 Adding -DSYMBEX_BOOL_VERTICAL_PREPARED (optional) builds its plane lists and thresholds once into RAM: more RAM,
 faster (chip_test.py --engine vertical_prepared). -DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT instead: the lists prepared,
 the thresholds kept compact (one value per output channel and border kind): about half that RAM, a little slower
-(chip_test.py --engine vertical_compact).
+(chip_test.py --engine vertical_compact). The engine's buffer sizes and limits: export/vertical.py.
 """
-import copy
-import json
 import math
 import os
-import shutil
 import subprocess
-import tempfile
-import time
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-from . import c_header
+from . import c_build, c_header
+from .vertical import vertical_prepared_bytes, vertical_problem, vertical_work_bytes
+from ..train.boolean import _augment, _evaluate, binary_weights, load_trained, train   # noqa: F401 (the old home)
+
+_words, _c_array = c_header.words, c_header.c_array   # the names these helpers had here before c_header.py
 
 INT_MIN, INT_MAX = -2 ** 31, 2 ** 31 - 1
 FC_SHIFT = 16
-
-
-# ---------------------------------------------------------------------------------------------------
-# training
-# ---------------------------------------------------------------------------------------------------
-def _augment(x):
-    """random crop (4 zero pixels of padding, as torchvision's RandomCrop(32, padding=4)) + horizontal flip"""
-    n, _, h, w = x.shape
-    xp = F.pad(x, (4, 4, 4, 4))
-    i = torch.randint(0, 9, (n,), device=x.device)
-    j = torch.randint(0, 9, (n,), device=x.device)
-    rows = (i.view(n, 1) + torch.arange(h, device=x.device).view(1, h))            # n x h
-    cols = (j.view(n, 1) + torch.arange(w, device=x.device).view(1, w))            # n x w
-    out = xp[torch.arange(n, device=x.device).view(n, 1, 1, 1), torch.arange(x.shape[1], device=x.device).view(1, -1, 1, 1),
-             rows.view(n, 1, h, 1), cols.view(n, 1, 1, w)]
-    flip = torch.rand(n, device=x.device) < 0.5
-    out[flip] = out[flip].flip(3)
-    return out
-
-
-@torch.no_grad()
-def _evaluate(model, loader, dev):
-    model.eval()
-    hits = total = 0
-    for x, y in loader:
-        hits += (model(x.to(dev)).argmax(1).cpu() == y).sum().item()
-        total += y.numel()
-    return 100.0 * hits / total
-
-
-def train(model, train_ds, val_ds, cfg, out_dir, test_ds=None):
-    """Trains the network as defined (labels only). Returns dict(model, plan={}, width) like stage_train.
-    val_ds (carved out of the training data) is what the training reports while it runs; test_ds, when the data has
-    one, is evaluated ONCE at the end (nothing is chosen with it) and saved as acc_test in train.json."""
-    from torch.utils.data import DataLoader
-    tr = cfg["training"]
-    dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    torch.manual_seed(tr["seed"])
-    student = copy.deepcopy(model).to(dev)
-    for m in student.modules():
-        if isinstance(m, (torch.nn.BatchNorm1d, torch.nn.BatchNorm2d)):
-            m.momentum = 0.3
-    gen = torch.Generator().manual_seed(tr["seed"])
-    on_gpu = bool(tr.get("data_on_gpu")) and dev.type == "cuda"
-    if on_gpu:                                       # the whole training set on the GPU, converted once
-        xs, ys = [], []
-        for x, y in DataLoader(train_ds, batch_size=1024, num_workers=4):
-            xs.append(x.to(dev))
-            ys.append(y.to(dev))
-        xs, ys = torch.cat(xs), torch.cat(ys)
-        bs = tr["batch_size"]
-
-        def epoch_batches():
-            perm = torch.randperm(len(xs), device=dev, generator=torch.Generator(device=dev).manual_seed(
-                int(torch.randint(0, 2 ** 31 - 1, (1,), generator=gen))))
-            for i in range(0, len(perm) - bs + 1, bs):  # whole batches only (drop_last)
-                idx = perm[i:i + bs]
-                yield xs[idx], ys[idx]
-    else:
-        trl = DataLoader(train_ds, batch_size=tr["batch_size"], shuffle=True, generator=gen, num_workers=4,
-                         persistent_workers=True, drop_last=True, pin_memory=True)
-
-        def epoch_batches():
-            for x, y in trl:
-                yield x.to(dev, non_blocking=True), y.to(dev, non_blocking=True)
-    val_l = DataLoader(val_ds, batch_size=512, num_workers=2, persistent_workers=True)
-    mode = tr.get("compile") or ""
-    step_model = student
-    if mode and dev.type == "cuda":                  # CUDA graphs: the training step recorded once, then replayed
-        import torch._inductor.config as inductor_config
-        inductor_config.compile_threads = min(4, os.cpu_count() or 1)    # the compiler's peak RAM: ~6 GB, not ~24
-        step_model = torch.compile(student, mode=None if mode == "default" else mode)
-    opt = torch.optim.Adam(student.parameters(), lr=tr["learning_rate"])
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, tr["epochs"])
-    if tr.get("distill"):
-        print("    [!] method 'boolean' trains on the labels only: [training] distill is ignored")
-    print(f"\n[3] TRAIN  (method 'boolean': the network as defined, {tr['epochs']} epochs, labels only, Adam "
-          f"lr {tr['learning_rate']} + cosine, crop + flip | {dev}"
-          + (", data on the GPU" if on_gpu else "") + (f", compile {mode}" if mode and dev.type == "cuda" else "") + ")")
-    history, t0 = [], time.time()
-    for ep in range(tr["epochs"]):
-        student.train()
-        for x, y in epoch_batches():
-            loss = F.cross_entropy(step_model(_augment(x)), y)
-            opt.zero_grad(set_to_none=True)
-            loss.backward()
-            opt.step()
-        sched.step()
-        if (ep + 1) % 10 == 0 or ep == tr["epochs"] - 1:
-            acc = _evaluate(student, val_l, dev)
-            history.append([ep + 1, None, None, acc])
-            print(f"    epoch {ep + 1:3d}/{tr['epochs']} | validation {acc:.2f}% | {(time.time() - t0) / 60:.1f} min")
-    acc_test = None
-    if test_ds is not None:                          # held-out test: once, after training, never used to choose
-        acc_test = _evaluate(student, DataLoader(test_ds, batch_size=512, num_workers=2), dev)
-        print(f"    HELD-OUT TEST ({len(test_ds)} samples, not used for any choice): {acc_test:.2f}%")
-    student = student.cpu().eval()
-    torch.save(student.state_dict(), os.path.join(out_dir, "model_binarized.pth"))
-    width = float(getattr(student, "width", 1.0))
-    info = dict(method="boolean", width=width, levels=int(student.levels),
-                stem=getattr(student, "stem_kind", "thermometer"), plan={}, epochs=tr["epochs"],
-                acc_last=history[-1][3], acc_test=acc_test, n_train=len(train_ds), n_validation=len(val_ds),
-                n_test=None if test_ds is None else len(test_ds), history=history)
-    json.dump(info, open(os.path.join(out_dir, "train.json"), "w"), indent=1)
-    print(f"    -> {os.path.join(out_dir, 'model_binarized.pth')} | validation accuracy (last epoch) {info['acc_last']:.2f}%")
-    return dict(model=student, plan={}, width=width)
-
-
-def load_trained(model, out_dir):
-    path = os.path.join(out_dir, "model_binarized.pth")
-    if not os.path.exists(path):
-        raise SystemExit(f"[X] {path} not found: there is no trained model to resume from (run from the train stage)")
-    m = copy.deepcopy(model).cpu()
-    m.load_state_dict(torch.load(path, map_location="cpu"))
-    m.eval()
-    print(f"\n[3] TRAIN  skipped: resumed the trained boolean network from {out_dir}")
-    return dict(model=m, plan={}, width=float(getattr(m, "width", 1.0)))
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -287,6 +172,11 @@ def fold(model, threshold=0.0):
                              f"{b.conv.in_channels} -> {b.conv.out_channels}) but has no shortcut convolution")
         net["blocks"].append(blk)
     lin, bn = (model.head, model.head_bn) if hasattr(model, "head") else (model.fc, model.fc_bn)
+    if hasattr(lin, "int8_weights") and hasattr(lin, "window"):
+        net["pool"] = _fold_pool_head(lin, bn, model.blocks[-1].conv.out_channels if model.blocks else model.stem.out_channels)
+        net["cells"] = False
+        net["fc_scale"], net["fc_bias"] = net["pool"].pop("scale"), net["pool"].pop("bias")
+        return net
     g = bn.weight.detach().double()
     sd = torch.sqrt(bn.running_var.detach().double() + bn.eps)
     a = (g / sd).numpy()
@@ -308,6 +198,41 @@ def fold(model, threshold=0.0):
     net["fc_scale"] = np.round(a * 2 ** FC_SHIFT).astype(np.int64)
     net["fc_bias"] = np.round(c * 2 ** FC_SHIFT).astype(np.int64)
     return net
+
+
+def _fold_pool_head(head, bn, channels):
+    """pooled int8 classifier + BatchNorm1d -> int8 weights q (classes, C, side / k, side / k) and an int32 scale and
+    bias per class: logit = a * s * dot + c, with dot = q . counts. Both share one fixed point, the finest that keeps
+    them below 2^30 (the scales a * s are small: 2^16 alone would round them to a few levels)."""
+    side = int(head.side)
+    k = int(head.window) or side
+    q, s = head.int8_weights()
+    q, s = q.detach().double(), s.detach().double().flatten()
+    problems = []
+    if side % k:
+        problems.append(f"window {k} does not divide the final map side {side}")
+    if k * k > 64:
+        problems.append(f"window {k}: lib_symbex counts up to 8 x 8 windows (SYMBEX_BOOL_POOL_MAX_PLANES 7)")
+    if q.shape[1] != channels * (side // k) ** 2:
+        problems.append(f"{q.shape[1]} weights per class, the final map gives {channels} x {(side // k) ** 2} counts")
+    if q.abs().max() > 128 or (q > 127).any() or not torch.equal(q, torch.round(q)) or (s <= 0).any():
+        problems.append("int8_weights() must give integers in -128..127 and scales > 0")
+    if getattr(head, "bias", None) is not None or getattr(getattr(head, "fc", None), "bias", None) is not None:
+        problems.append("the head adds a bias: use bias=False (its BatchNorm carries the offset)")
+    if bn.running_mean is None or not bn.affine:
+        problems.append("its BatchNorm needs running statistics and affine parameters")
+    if problems:
+        raise ValueError("boolean export, pooled classifier: " + "; ".join(problems))
+    g = bn.weight.detach().double()
+    sd = torch.sqrt(bn.running_var.detach().double() + bn.eps)
+    a = (g / sd * s).numpy()
+    c = (bn.bias.detach().double() - bn.running_mean.detach().double() * g / sd).numpy()
+    big = max(np.abs(a).max(), np.abs(c).max(), 1e-30)
+    shift = min(40, 29 - math.ceil(math.log2(big)))
+    n = len(s)
+    return dict(window=k, side=side, channels=channels, shift=shift,
+                q=q.numpy().astype(np.int64).reshape(n, channels, side // k, side // k),
+                scale=np.round(a * 2.0 ** shift).astype(np.int64), bias=np.round(c * 2.0 ** shift).astype(np.int64))
 
 
 def _grid_checksum(grid):
@@ -346,6 +271,13 @@ def simulate(net, x_u8, batch=500, device="cpu", return_bits=False):
             else:
                 a = x
             x = torch.maximum(y, a)                                                      # OR of bits
+        if net.get("pool"):                                                              # pooled int8 classifier
+            ph = net["pool"]
+            counts = F.avg_pool2d((x + 1) / 2, ph["window"]) * ph["window"] ** 2           # ones per window, exact
+            dot = counts.flatten(1) @ torch.as_tensor(ph["q"].reshape(len(ph["q"]), -1), dtype=torch.float64, device=dev).T
+            logit = dot.cpu().numpy().astype(np.int64) * net["fc_scale"][None] + net["fc_bias"][None]
+            preds.append(np.argmax(logit, axis=1))
+            continue
         if net.get("cells"):                                                             # per cell: (N, classes, h, w)
             raw = torch.einsum("nchw,kc->nkhw", x, torch.as_tensor(net["fc_w"], device=dev)).cpu().numpy().astype(np.int64)
             logit = raw * net["fc_scale"][None, :, None, None] + net["fc_bias"][None, :, None, None]
@@ -364,14 +296,6 @@ def simulate(net, x_u8, batch=500, device="cpu", return_bits=False):
 # ---------------------------------------------------------------------------------------------------
 # the C header
 # ---------------------------------------------------------------------------------------------------
-def _words(bits, n_words):
-    """(..., n) 0/1 -> (..., n_words) uint32, bit i of word i // 32"""
-    bits = np.asarray(bits, dtype=np.uint8)
-    pad = np.zeros(bits.shape[:-1] + (n_words * 32,), dtype=np.uint8)
-    pad[..., :bits.shape[-1]] = bits
-    return np.packbits(pad, axis=-1, bitorder="little").view("<u4").reshape(bits.shape[:-1] + (n_words,))
-
-
 def _conv_arrays(c):
     """weights PACKED as lib_symbex builds its windows: the C bits of kernel pixel q = kh * k + kw start at bit q * C
     of the row (with C a multiple of 32 this is the plain [kh][kw][words] layout); rows padded to a multiple of 4
@@ -382,130 +306,8 @@ def _conv_arrays(c):
     rw = -(-n // 4) * 4
     hwc = w.transpose(0, 2, 3, 1)                                                        # (O, k, k, C)
     rows = np.zeros((o, rw), dtype=np.uint32)
-    rows[:, :n] = _words(hwc.reshape(o, k * k * cin), n)
+    rows[:, :n] = c_header.words(hwc.reshape(o, k * k * cin), n)
     return rows, rw, hwc.reshape(o, k * k, cin).sum(2)
-
-
-def _c_array(f, ctype, name, values, attr=""):
-    values = np.asarray(values).ravel()
-    f.write(f"static SYMBEX_ROM {ctype} {name}[{len(values)}]{attr} = {{")
-    for i, v in enumerate(values):
-        lit = f"0x{int(v):08X}u" if ctype == "uint32_t" else ("(-2147483647-1)" if int(v) == INT_MIN else str(int(v)))
-        f.write(("\n    " if i % 12 == 0 else " ") + lit + ",")
-    f.write("\n};\n")
-
-
-def _vplane_words(ch, h, w):
-    """words of a channel-plane map of the vertical engine (symbex_bool_vertical.h: plane stride + 4 zero words)"""
-    return ch * (((h * w // 32 + 3) & ~3) + 4) + 4
-
-
-def vertical_problem(convs, levels, in_size):
-    """None if the vertical engine runs these layers, else why not (symbex_bool_vertical_check, the same rules)"""
-    if 3 * levels > 32:
-        return "thermometer with more than 32 bits per pixel"
-    if 32 % in_size or in_size * in_size % 32:
-        return "input size (width must divide 32, h * w a multiple of 32)"
-    for c in convs:
-        k, s, h, oh, K = c["k"], c["s"], c["h"], c["oh"], c["k"] * c["k"] * c["cin"]
-        if k not in (1, 3):
-            return "kernel other than 1 x 1 or 3 x 3"
-        if (s == 1 and oh != h) or (s == 2 and (k != 3 or h != 2 * oh)) or s not in (1, 2):
-            return f"stride {s} with kernel {k} ({h} -> {oh})"
-        if 32 % h or 32 % oh or h * h % 32 or oh * oh % 32:
-            return f"map size {h} -> {oh} (width must divide 32, h * w a multiple of 32)"
-        if oh * oh > 256 * 128:
-            return f"output map {oh} x {oh} above 32768 pixels (more than 256 tiles of 128)"
-        if K % 8 or K >= 2048:
-            return f"k * k * in_ch = {K}: not a multiple of 8 or not below 2048"
-    return None
-
-
-def vertical_work_bytes(convs, blocks, levels, in_size, fc_rw):
-    """bytes of the vertical engine's work block: symbex_bool_vertical_work_bytes (net_sizes + carve), the same sums"""
-    sz = dict(map=_vplane_words(3 * levels, in_size, in_size), phases=0, xq=0, ap=0, km=0, bt=0, ba=0, list=0, tiles=0)
-    for c in convs:
-        nwo = c["oh"] * c["oh"] // 32
-        TL, K = (nwo + 3) // 4, c["k"] * c["k"] * c["cin"]
-        K8 = (K + 8) // 8 * 8
-        for key, v in (("map", _vplane_words(c["cout"], c["oh"], c["oh"])),
-                       ("phases", 4 * _vplane_words(c["cin"], c["oh"], c["oh"]) if c["s"] == 2 else 0),
-                       ("xq", TL * K8), ("ap", TL * 12), ("km", TL * 9), ("bt", TL * 12),
-                       ("ba", ((K8 // 8 + 7) & ~7) + 8), ("list", K + 18), ("tiles", TL)):
-            sz[key] = max(sz[key], v)
-    for ci, si, pool in blocks:
-        if si is not None and pool:
-            c = convs[ci]
-            sz["map"] = max(sz["map"], _vplane_words(c["cin"], c["h"] // 2, c["h"] // 2))
-    last = convs[blocks[-1][0]] if blocks else convs[0]
-    hwc = last["oh"] * last["oh"] * ((last["cout"] + 31) // 32) + fc_rw + 4
-    r16 = lambda b: (b + 15) & ~15
-    shared = max(r16(sz["km"] * 16) + r16(sz["bt"] * 16), r16(sz["phases"] * 4))    # the phases share km and bt
-    return (4 * r16(sz["map"] * 4) + shared + r16(sz["xq"] * 16) + r16(sz["ap"] * 16) + 2 * r16(sz["ba"] * 16) + r16(16 * 16) + r16(15 * 16)
-            + r16(sz["list"] * 2 + 4) + 3 * r16(sz["tiles"]) + r16(sz["tiles"] * 9) + r16(256 * 20) + r16(hwc * 4))
-
-
-def _vertical_tile_types(c, with_kinds=False):
-    """tile types of a conv in the vertical engine: border_kinds in symbex_bool_vertical.c (the tiles of 128 output
-    pixels with the same border-kind masks), the same steps; with_kinds: (tile types, border kinds)"""
-    k, s, H, OH = c["k"], c["s"], c["h"], c["oh"]
-    pad, OW, W = k // 2, OH, H
-    nwo = OH * OW // 32
-    TL = (nwo + 3) // 4
-
-    def valid(o, n):
-        return sum(1 << i for i in range(k) if 0 <= o * s - pad + i < n)
-
-    def kinds(n_out, n_in):
-        vals, cnt = [], []
-        for o in range(n_out):
-            m = valid(o, n_in)
-            if m not in vals:
-                vals.append(m)
-                cnt.append(0)
-            cnt[vals.index(m)] += 1
-        return vals, cnt
-    cv, cc = kinds(OW, W)
-    rv, rc = kinds(OH, H)
-    cmask = [0] * len(cv)
-    for ox in range(OW):
-        for j in range(ox, 32, OW):
-            cmask[cv.index(valid(ox, W))] |= 1 << j
-    nc, NK = len(cv), len(rv) * len(cv)
-    kbase = cc.index(max(cc)) + rc.index(max(rc)) * nc       # the first commonest, as the C
-    rows_per_word, rowbits = 32 // OW, (1 << OW) - 1
-    km = [[[0] * 4 for _ in range(NK)] for _ in range(TL)]
-    for wd in range(4 * TL):
-        t, j = divmod(wd, 4)
-        if wd >= nwo:
-            km[t][kbase][j] = 0xFFFFFFFF
-            continue
-        rbits = [0] * len(rv)
-        for r in range(rows_per_word):
-            rbits[rv.index(valid(wd * rows_per_word + r, H))] |= rowbits << (r * OW)
-        for a in range(len(rv)):
-            for b in range(nc):
-                km[t][a * nc + b][j] = rbits[a] & cmask[b]
-    ntt = len({tuple(tuple(m) for m in tile) for tile in km})
-    return (ntt, NK) if with_kinds else ntt
-
-
-def vertical_prepared_bytes(convs, compact=False):
-    """bytes of the vertical engine's prepared lists and thresholds: symbex_bool_vertical_prepared_bytes (compact:
-    symbex_bool_vertical_prepared_compact_bytes), the same sums (convs in the network's order: stem, then every
-    block's conv and shortcut)"""
-    r16 = lambda b: (b + 15) & ~15
-    total = r16(12 * len(convs))
-    for c in convs:
-        ntt, nk = _vertical_tile_types(c, with_kinds=True)
-        if compact:                          # header, kind masks per tile type, their kinds, the values per channel
-            total += 16 + ntt * nk * 16 + r16(ntt * 10) + r16(c["cout"] * nk * 2)
-        else:
-            total += c["cout"] * ntt * 12 * 16
-        ones = [sum(bin(int(w)).count("1") for w in row) for row in np.asarray(c["rows"]).reshape(c["cout"], -1)]
-        total += r16(sum(2 * (2 + (n + 7) // 8 * 8) for n in ones))
-        total += r16(1 + (c["oh"] * c["oh"] // 32 + 3) // 4)     # NTT and the type of every tile
-    return total
 
 
 def write_header(net, path, in_size=32):
@@ -553,27 +355,44 @@ def write_header(net, path, in_size=32):
         steps.append(f"block {bi}: conv {c['cin']}->{c['cout']} {h_in}x{h_in}{' s2' if c['s'] == 2 else ''}"
                      + (" + OR pool + 1x1" if b["pool"] else (" + 1x1" if si is not None else "")) + " | OR")
     cells = bool(net.get("cells"))
-    steps.append("per-cell head" if cells else "classifier")
+    ph = net.get("pool")
+    steps.append(f"pooled int8 classifier {ph['window']}x{ph['window']}" if ph else
+                 "per-cell head" if cells else "classifier")
     last = convs[blocks[-1][0]] if blocks else convs[stem_i]
     ch, fh = last["cout"], last["oh"]
     ppx = (ch + 31) // 32
-    fcw = net["fc_w"] > 0
-    n_cls = fcw.shape[0]
-    if cells:                                                                            # (classes, C): one row per class
+    fcw = net["fc_w"] > 0 if not ph else None
+    n_cls = len(ph["q"]) if ph else fcw.shape[0]
+    if ph:              # weight (window j, channel c) at bit 32 * j * ppx + c of the row; its 8 bit planes
+        if ph["side"] != fh or ph["channels"] != ch:
+            raise ValueError(f"boolean export, pooled classifier: built for {ph['channels']} x {ph['side']}^2, the final "
+                             f"map is {ch} x {fh}^2")
+        n_win = (fh // ph["window"]) ** 2
+        fc_words = n_win * ppx
+        fc_rw = -(-fc_words // 4) * 4
+        q = np.zeros((n_cls, n_win, 32 * ppx), dtype=np.int64)
+        q[:, :, :ch] = ph["q"].reshape(n_cls, ch, n_win).transpose(0, 2, 1)
+        fc_rows = np.zeros((8, n_cls, fc_rw), dtype=np.uint32)
+        for b in range(8):
+            fc_rows[b, :, :fc_words] = c_header.words((((q & 0xFF) >> b) & 1).reshape(n_cls, -1), fc_words)
+        fc_bits, n_planes = 0, int(ph["window"] ** 2).bit_length()
+        fc_cnt = np.zeros(n_cls, dtype=np.int64)
+    elif cells:                                                                            # (classes, C): one row per class
         fc_words = ppx
         fc_rw = -(-ppx // 4) * 4
         fc_rows = np.zeros((n_cls, fc_rw), dtype=np.uint32)
-        fc_rows[:, :ppx] = _words(fcw, ppx)
+        fc_rows[:, :ppx] = c_header.words(fcw, ppx)
         fc_bits = ch
     else:                                                                                # (classes, C*H*W), CHW
         fc_words = fh * fh * ppx
         fc_rw = -(-fc_words // 4) * 4
         hwc = fcw.reshape(n_cls, ch, fh, fh).transpose(0, 2, 3, 1).reshape(n_cls * fh * fh, ch)
         fc_rows = np.zeros((n_cls, fc_rw), dtype=np.uint32)
-        fc_rows[:, :fc_words] = _words(hwc, ppx).reshape(n_cls, fc_words)
+        fc_rows[:, :fc_words] = c_header.words(hwc, ppx).reshape(n_cls, fc_words)
         fc_bits = fh * fh * ch
-    fc_cnt = fcw.sum(1)
-    flash += fc_rows.size * 4 + n_cls * 12
+    if not ph:
+        fc_cnt = fcw.sum(1)
+    flash += fc_rows.size * 4 + n_cls * (8 if ph else 12)
     # every map buffer as large as what symbex_bool_net_run writes into IT (it rotates 4 buffers): far less RAM than
     # four buffers as large as the largest map (the thermometer input of a 96 x 96 image alone is 36 KB)
     words_of = lambda c, h, ch_: h * h * ((ch_ + 31) // 32)
@@ -589,14 +408,17 @@ def write_header(net, path, in_size=32):
             sc = convs[si]
             size[s] = max(size[s], words_of(None, sc["oh"], sc["cout"]))
         x, y = y, x
-    size[x] = max(size[x], fc_rw if not cells else fh * fh * ppx + fc_rw)   # the head may read a row past the end
+    if not ph:
+        size[x] = max(size[x], fc_rw if not cells else fh * fh * ppx + fc_rw)   # the head may read a row past the end
     size = [max(-(-v // 4) * 4, 4) for v in size]
     max_rw = max(max(c["rw"] for c in convs), 8 if i8 else 4)     # the int8 stem's window: 32 bytes
+    if ph:
+        max_rw = max(max_rw, n_planes * fc_rw)                    # the window holds the pooled head's count planes
     max_out = max(max(c["cout"] for c in convs), n_cls)
     ram = 4 * (sum(size) + max_rw + 2 * max_out) + (fh * fh if cells else 0)
-    v_why = ("int8 stem (the vertical engine runs the thermometer stem only, for now)" if i8
-             else vertical_problem(convs, net["levels"], in_size))
-    v_bytes = None if v_why else vertical_work_bytes(convs, blocks, net["levels"], in_size, fc_rw)
+    v_why = vertical_problem(convs, net["levels"], in_size)
+    v_bytes = None if v_why else vertical_work_bytes(convs, blocks, net["levels"], in_size, fc_rw,
+                                                     n_planes * fc_rw if ph else 0)
     v_ram = None if v_why else v_bytes + 4 * (4 * 4 + 4 + 2 * max_out) + (fh * fh if cells else 0)
     v_prep = None if v_why else vertical_prepared_bytes(convs)
     v_prep_c = None if v_why else vertical_prepared_bytes(convs, compact=True)
@@ -609,16 +431,16 @@ def write_header(net, path, in_size=32):
                 f"#ifndef SYMBEX_ROM\n#define SYMBEX_ROM const           /* -DSYMBEX_ROM= : weights in RAM */\n#endif\n\n")
         for i, c in enumerate(convs):
             if c.get("int8"):
-                _c_array(f, "int8_t", f"BI{i}", c["i8_rows"], " __attribute__((aligned(16)))")
-                _c_array(f, "int32_t", f"BT{i}", c["thr"])
+                c_header.c_array(f, "int8_t", f"BI{i}", c["i8_rows"], " __attribute__((aligned(16)))")
+                c_header.c_array(f, "int32_t", f"BT{i}", c["thr"])
                 f.write("static const struct SymbexBoolStemI8 B_STEM_I8 = "
                         + c_header.struct(out_ch=c['cout'], kernel=c['k'], stride=c['s'], in_h=c['h'], in_w=c['h'],
                                           out_h=c['oh'], out_w=c['oh'], row_bytes=c['row_bytes'], weights=f"BI{i}",
                                           thresholds=f"BT{i}") + ";   /* the int8 stem */\n")
                 continue
-            _c_array(f, "uint32_t", f"BW{i}", c["rows"], " __attribute__((aligned(16)))")
-            _c_array(f, "int32_t", f"BT{i}", c["thr"])
-            _c_array(f, "int16_t", f"BC{i}", c["cnt"])
+            c_header.c_array(f, "uint32_t", f"BW{i}", c["rows"], " __attribute__((aligned(16)))")
+            c_header.c_array(f, "int32_t", f"BT{i}", c["thr"])
+            c_header.c_array(f, "int16_t", f"BC{i}", c["cnt"])
 
         def conv_init(i):
             c = convs[i]
@@ -636,10 +458,17 @@ def write_header(net, path, in_size=32):
             f.write("    " + c_header.struct(conv=conv_init(ci), shortcut='&BS' + str(bi) if si is not None else 'NULL',
                                              shortcut_pool=1 if pool else 0) + ",\n")
         f.write("};\n")
-        _c_array(f, "uint32_t", "FC_W", fc_rows, " __attribute__((aligned(16)))")
-        _c_array(f, "int32_t", "FC_C", fc_cnt)
-        _c_array(f, "int32_t", "FC_S", net["fc_scale"])
-        _c_array(f, "int32_t", "FC_B", net["fc_bias"])
+        c_header.c_array(f, "uint32_t", "FC_W", fc_rows.reshape(-1, fc_rw) if ph else fc_rows,
+                         " __attribute__((aligned(16)))")
+        c_header.c_array(f, "int32_t", "FC_C", fc_cnt)
+        c_header.c_array(f, "int32_t", "FC_S", net["fc_scale"])
+        c_header.c_array(f, "int32_t", "FC_B", net["fc_bias"])
+        if ph:
+            f.write("static const struct SymbexBoolPoolHead B_POOL = "
+                    + c_header.struct(window=ph["window"], channels=ch, in_h=fh, in_w=fh, n_classes=n_cls,
+                                      row_words=fc_rw, n_planes=n_planes, weight_planes="FC_W", scale="FC_S",
+                                      bias="FC_B")
+                    + f";   /* the pooled int8 classifier (FC_W: 8 bit planes; scale and bias at 2^{ph['shift']}) */\n")
         # -DSYMBEX_BOOL_VERTICAL: the vertical engine works in its own block (B_VWORK); the standard engine's maps and
         # window shrink to a placeholder (symbex_net still points at them)
         f.write("#if defined(SYMBEX_BOOL_VERTICAL)\n")
@@ -652,7 +481,8 @@ def write_header(net, path, in_size=32):
                 f"static int32_t B_SCRATCH[{2 * max_out}];\n")
         if cells:
             f.write(f"static uint8_t B_CELLS[{fh * fh}];      /* the class of every cell of the {fh} x {fh} grid */\n")
-        extra = (dict(cells="B_CELLS", cells_h=fh, cells_w=fh) if cells else {}) | (dict(stem_i8="&B_STEM_I8") if i8 else {})
+        extra = ((dict(cells="B_CELLS", cells_h=fh, cells_w=fh) if cells else {}) | (dict(stem_i8="&B_STEM_I8") if i8 else {})
+                 | (dict(pool_head="&B_POOL") if ph else {}))
         f.write("static const struct SymbexBoolNet symbex_net = "
                 + c_header.struct(in_h=in_size, in_w=in_size, levels=net['levels'], stem=conv_init(stem_i),
                                   blocks="B_BLOCKS", n_blocks=len(blocks), fc_weights="FC_W", fc_row_words=fc_rw,
@@ -660,6 +490,7 @@ def write_header(net, path, in_size=32):
                                   fc_scale="FC_S", fc_bias="FC_B", maps="{B_MAP0, B_MAP1, B_MAP2, B_MAP3}",
                                   window="B_WINDOW", scratch="B_SCRATCH", **extra)
                 + (";   /* per-cell head: returns the grid checksum */\n\n" if cells else
+                   ";   /* the pooled int8 classifier (B_POOL) */\n\n" if ph else
                    ";   /* no per-cell head: a classifier */\n\n"))
         f.write(f"#define SYMBEX_MLP_N_INPUTS {in_size * in_size * 3}      /* uint8 RGB, HWC */\n"
                 f"#define SYMBEX_MLP_N_CLASSES {n_cls}\n#define SYMBEX_MLP_N_STEPS {len(steps)}\n"
@@ -705,52 +536,33 @@ def validate_c(header_path, lib_path, x_u8, expected, vertical=False, prepared=F
     also -DSYMBEX_BOOL_VERTICAL_PREPARED (its lists and thresholds prepared in RAM); prepared="compact":
     -DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT (the lists prepared, the thresholds compact)"""
     pflag = ("-DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT" if prepared == "compact" else "-DSYMBEX_BOOL_VERTICAL_PREPARED")
-    from .dense import _TEST_MAIN
-    if shutil.which("gcc") is None:
-        return None, 0, "gcc not found: the C exactness check was skipped"
-    inc = os.path.join(lib_path, "include")
-    sources = [os.path.join(lib_path, "src", "layers", "conv", "symbex_bool.c"),
-               os.path.join(lib_path, "src", "hal", "generic", "symbex_hal_impl.c")]
+    sources = ["layers/conv/symbex_bool.c", "hal/generic/symbex_hal_impl.c"]
+    flags = []
     if vertical:
-        sources.append(os.path.join(lib_path, "src", "layers", "conv", "symbex_bool_vertical.c"))
-    for r in [inc] + sources:
-        if not os.path.exists(r):
-            return None, 0, f"lib_symbex not found at {lib_path} ({r} missing): set [output] lib_path"
-    with tempfile.TemporaryDirectory() as d:
-        shutil.copy(header_path, os.path.join(d, "model_symbex.h"))
-        open(os.path.join(d, "main.c"), "w").write(_TEST_MAIN)
-        exe = os.path.join(d, "check")
-        r = subprocess.run(["gcc", "-O2", "-std=gnu11", "-I", inc, "-I", d, *(["-DSYMBEX_BOOL_VERTICAL"] if vertical else []),
-                            *([pflag] if vertical and prepared else []),
-                            "-o", exe, os.path.join(d, "main.c")] + sources, capture_output=True, text=True)
-        if r.returncode != 0:
-            return None, 0, "the C did not compile:\n" + r.stderr[-2000:]
-        data = os.path.join(d, "x.u8")
-        np.ascontiguousarray(x_u8, dtype=np.uint8).tofile(data)
-        r = subprocess.run([exe, data, str(len(x_u8))], capture_output=True, text=True)
-        if r.returncode != 0:
-            return None, 0, "the C program failed while running"
-        pred_c = np.array([int(v) for v in r.stdout.split()])
-        if vertical:                             # the header's buffers must be the sizes the library asks for, exactly
-            open(os.path.join(d, "sizes.c"), "w").write(
-                "#include <stdio.h>\n#include \"model_symbex.h\"\nint main(void) {\n"
-                "    struct SymbexBoolVertical v;\n"
-                "    if (symbex_bool_vertical_init(&symbex_net, B_VWORK, sizeof B_VWORK, &v)) return 1;\n"
-                "    printf(\"%zu %zu\\n\", symbex_bool_vertical_work_bytes(&symbex_net), sizeof B_VWORK);\n"
-                "#if defined(SYMBEX_BOOL_VERTICAL_PREPARED_COMPACT)\n"
-                "    printf(\"%zu %zu\\n\", symbex_bool_vertical_prepared_compact_bytes(&v), sizeof B_VPREP);\n"
-                "#elif defined(SYMBEX_BOOL_VERTICAL_PREPARED)\n"
-                "    printf(\"%zu %zu\\n\", symbex_bool_vertical_prepared_bytes(&v), sizeof B_VPREP);\n"
-                "#endif\n    return 0;\n}\n")
-            r = subprocess.run(["gcc", "-O2", "-std=gnu11", "-I", inc, "-I", d, "-DSYMBEX_BOOL_VERTICAL",
-                                *([pflag] if prepared else []),
-                                "-o", exe + "_sizes", os.path.join(d, "sizes.c")] + sources, capture_output=True, text=True)
-            r = subprocess.run([exe + "_sizes"], capture_output=True, text=True) if r.returncode == 0 else r
-            pairs = [l.split() for l in r.stdout.strip().splitlines()] if r.returncode == 0 else []
-            if not pairs or any(a != b for a, b in pairs):
-                return None, 0, ("[X] the header's vertical buffers differ from the library's sizes (library, header): "
-                                 f"{pairs or r.stderr[-500:]}")
-    return int((pred_c == expected).sum()), len(expected), ""
+        sources.append("layers/conv/symbex_bool_vertical.c")
+        flags = ["-DSYMBEX_BOOL_VERTICAL"] + ([pflag] if prepared else [])
+
+    def sizes_match(build, d):                   # the header's buffers must be the sizes the library asks for, exactly
+        open(os.path.join(d, "sizes.c"), "w").write(
+            "#include <stdio.h>\n#include \"model_symbex.h\"\nint main(void) {\n"
+            "    struct SymbexBoolVertical v;\n"
+            "    if (symbex_bool_vertical_init(&symbex_net, B_VWORK, sizeof B_VWORK, &v)) return 1;\n"
+            "    printf(\"%zu %zu\\n\", symbex_bool_vertical_work_bytes(&symbex_net), sizeof B_VWORK);\n"
+            "#if defined(SYMBEX_BOOL_VERTICAL_PREPARED_COMPACT)\n"
+            "    printf(\"%zu %zu\\n\", symbex_bool_vertical_prepared_compact_bytes(&v), sizeof B_VPREP);\n"
+            "#elif defined(SYMBEX_BOOL_VERTICAL_PREPARED)\n"
+            "    printf(\"%zu %zu\\n\", symbex_bool_vertical_prepared_bytes(&v), sizeof B_VPREP);\n"
+            "#endif\n    return 0;\n}\n")
+        err = build("sizes.c", "check_sizes")
+        r = subprocess.run([os.path.join(d, "check_sizes")], capture_output=True, text=True) if err is None else None
+        pairs = [l.split() for l in r.stdout.strip().splitlines()] if r is not None and r.returncode == 0 else []
+        if not pairs or any(a != b for a, b in pairs):
+            return ("[X] the header's vertical buffers differ from the library's sizes (library, header): "
+                    f"{pairs or (err or '')[-500:]}")
+        return ""
+
+    return c_build.check(header_path, lib_path, x_u8, expected, sources, flags=flags,
+                         after=sizes_match if vertical else None)
 
 
 def _val_u8(val_ds, n):

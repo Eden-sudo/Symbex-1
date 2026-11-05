@@ -82,7 +82,8 @@ DEFAULTS = {
     "target": {"budget": 0.25, "tolerance": 0.99, "options": ["bin", 2, 4, 8], "max_accuracy_drop": 2.0,
                "search_epochs": 5, "widths": [1.0, 1.5, 2.0]},
     "training": {"epochs": 150, "distill": True, "temperature": 4.0, "alpha": 0.85, "learning_rate": 1e-3,
-                 "batch_size": 256, "checkpoint": "last", "seed": 42, "data_on_gpu": False, "compile": ""},
+                 "batch_size": 256, "checkpoint": "last", "seed": 42, "data_on_gpu": False, "compile": "",
+                 "binary_optimizer": "adam", "bop_gamma": 1e-4, "bop_tau": 1e-8},
     "output": {"directory": "", "verbose": True, "lib_path": "../Symbex1_PIO/lib/lib_symbex",
                "validation_samples": 2000, "arithmetic": "auto", "int8_reference": False},
     "chip": {"board": "", "port": "/dev/ttyUSB0", "baud": 921600, "samples": 1000, "upload": True,
@@ -235,6 +236,12 @@ def validate_config(cfg):
         errors.append("[training] epochs and batch_size must be >= 1")
     if not (0 <= tr["alpha"] <= 1):
         errors.append("[training] alpha must be in [0, 1]")
+    if tr["binary_optimizer"] not in ("adam", "bop"):
+        errors.append("[training] binary_optimizer must be \"adam\" (default) or \"bop\"")
+    elif tr["binary_optimizer"] == "bop" and m["method"] != "boolean":
+        errors.append("[training] binary_optimizer = \"bop\" is only for method \"boolean\"")
+    if not (0 < tr["bop_gamma"] <= 1) or tr["bop_tau"] < 0:
+        errors.append("[training] bop_gamma must be in (0, 1] and bop_tau >= 0")
     if errors:
         sys.exit("[X] Configuration errors:\n    " + "\n    ".join(errors))
 
@@ -603,7 +610,7 @@ def _predictions(model, val_l, dev):
 
 def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp", test=None):
     if cfg["model"]["method"] == "boolean":
-        from compiler_core.export import boolean
+        from compiler_core.train import boolean
         return boolean.train(model, train, val, cfg, out_dir, test)
     import torch
     from torch.utils.data import DataLoader
@@ -981,7 +988,7 @@ def _option(v):
 
 def load_trained(model, train, estimate_res, cfg, out_dir):
     if cfg["model"]["method"] == "boolean":
-        from compiler_core.export import boolean
+        from compiler_core.train import boolean
         return boolean.load_trained(model, out_dir)
     """Rebuilds the trained binarized model from out_dir (train.json + model_binarized.pth), without training:
     the original model, widened as the search chose, binarized with the chosen plan, with the saved weights."""
