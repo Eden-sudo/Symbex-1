@@ -1,0 +1,115 @@
+{
+ "board": "s3",
+ "mhz": 240,
+ "reps": "best of 7",
+ "stages": [
+  {
+   "name": "s2",
+   "in_ch": 16,
+   "out_ch": 32,
+   "in_hw": 32
+  },
+  {
+   "name": "s3",
+   "in_ch": 32,
+   "out_ch": 64,
+   "in_hw": 16
+  }
+ ],
+ "flash": {
+  "conv_s2": {
+   "cycles": 835786,
+   "ms": 3.4824,
+   "equal_reference": true
+  },
+  "or1x1_s2": {
+   "cycles": 1361925,
+   "ms": 5.6747,
+   "equal_reference": true
+  },
+  "pad_s2": {
+   "cycles": 847541,
+   "ms": 3.5314,
+   "equal_reference": true
+  },
+  "addpool_s2": {
+   "cycles": 917830,
+   "ms": 3.8243,
+   "equal_reference": true
+  },
+  "conv_s3": {
+   "cycles": 507992,
+   "ms": 2.1166,
+   "equal_reference": true
+  },
+  "or1x1_s3": {
+   "cycles": 754664,
+   "ms": 3.1444,
+   "equal_reference": true
+  },
+  "pad_s3": {
+   "cycles": 511083,
+   "ms": 2.1295,
+   "equal_reference": true
+  },
+  "addpool_s3": {
+   "cycles": 549021,
+   "ms": 2.2876,
+   "equal_reference": true
+  },
+  "both_blocks_ms": {
+   "conv": 5.5991,
+   "or1x1": 8.8191,
+   "pad": 5.6609,
+   "addpool": 6.1119
+  }
+ },
+ "ram": {
+  "conv_s2": {
+   "cycles": 835786,
+   "ms": 3.4824,
+   "equal_reference": true
+  },
+  "or1x1_s2": {
+   "cycles": 1361883,
+   "ms": 5.6745,
+   "equal_reference": true
+  },
+  "pad_s2": {
+   "cycles": 847541,
+   "ms": 3.5314,
+   "equal_reference": true
+  },
+  "addpool_s2": {
+   "cycles": 917830,
+   "ms": 3.8243,
+   "equal_reference": true
+  },
+  "conv_s3": {
+   "cycles": 507992,
+   "ms": 2.1166,
+   "equal_reference": true
+  },
+  "or1x1_s3": {
+   "cycles": 754664,
+   "ms": 3.1444,
+   "equal_reference": true
+  },
+  "pad_s3": {
+   "cycles": 511083,
+   "ms": 2.1295,
+   "equal_reference": true
+  },
+  "addpool_s3": {
+   "cycles": 549021,
+   "ms": 2.2876,
+   "equal_reference": true
+  },
+  "both_blocks_ms": {
+   "conv": 5.5991,
+   "or1x1": 8.8189,
+   "pad": 5.6609,
+   "addpool": 6.1119
+  }
+ }
+}
