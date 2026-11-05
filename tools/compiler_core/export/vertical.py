@@ -6,6 +6,8 @@ library's own numbers.
     vertical_problem(convs, levels, in_size)        None if the engine runs these layers, else why not
     vertical_work_bytes(...)                        bytes of its work block
     vertical_prepared_bytes(convs, compact=False)   bytes of its prepared lists and thresholds
+An int8 stem (a conv with int8=True, first in convs) runs as in the standard engine, its output turned into planes;
+a pooled int8 classifier (pool_planes > 0) runs on the final map in HWC, its count planes after it.
 """
 import numpy as np
 
@@ -15,12 +17,23 @@ def _vplane_words(ch, h, w):
     return ch * (((h * w // 32 + 3) & ~3) + 4) + 4
 
 
+def _hwc_words(ch, h, w):
+    """words of an HWC map in the vertical engine's hwc buffer, rounded up to 4 (hwc_words in the C)"""
+    return (h * w * ((ch + 31) // 32) + 3) & ~3
+
+
 def vertical_problem(convs, levels, in_size):
     """None if the vertical engine runs these layers, else why not (symbex_bool_vertical_check, the same rules)"""
-    if 3 * levels > 32:
-        return "thermometer with more than 32 bits per pixel"
-    if 32 % in_size or in_size * in_size % 32:
-        return "input size (width must divide 32, h * w a multiple of 32)"
+    if convs and convs[0].get("int8"):             # the int8 stem: only its output must suit the planes
+        oh = convs[0]["oh"]
+        if 32 % oh or oh * oh % 32:
+            return "int8 stem output size (width must divide 32, h * w a multiple of 32)"
+        convs = convs[1:]
+    else:
+        if 3 * levels > 32:
+            return "thermometer with more than 32 bits per pixel"
+        if 32 % in_size or in_size * in_size % 32:
+            return "input size (width must divide 32, h * w a multiple of 32)"
     for c in convs:
         k, s, h, oh, K = c["k"], c["s"], c["h"], c["oh"], c["k"] * c["k"] * c["cin"]
         if k not in (1, 3):
@@ -36,10 +49,16 @@ def vertical_problem(convs, levels, in_size):
     return None
 
 
-def vertical_work_bytes(convs, blocks, levels, in_size, fc_rw):
-    """bytes of the vertical engine's work block: symbex_bool_vertical_work_bytes (net_sizes + carve), the same sums"""
+def vertical_work_bytes(convs, blocks, levels, in_size, fc_rw, pool_planes=0):
+    """bytes of the vertical engine's work block: symbex_bool_vertical_work_bytes (net_sizes + carve), the same sums.
+    pool_planes: the pooled int8 classifier's count planes (n_planes * its row words), 0 without it"""
     sz = dict(map=_vplane_words(3 * levels, in_size, in_size), phases=0, xq=0, ap=0, km=0, bt=0, ba=0, list=0, tiles=0)
-    for c in convs:
+    hwc = 0
+    if convs and convs[0].get("int8"):             # its output planes, its HWC output and the 32-byte window
+        st = convs[0]
+        sz["map"] = _vplane_words(st["cout"], st["oh"], st["oh"])
+        hwc = _hwc_words(st["cout"], st["oh"], st["oh"]) + 8
+    for c in (convs[1:] if convs and convs[0].get("int8") else convs):
         nwo = c["oh"] * c["oh"] // 32
         TL, K = (nwo + 3) // 4, c["k"] * c["k"] * c["cin"]
         K8 = (K + 8) // 8 * 8
@@ -53,7 +72,9 @@ def vertical_work_bytes(convs, blocks, levels, in_size, fc_rw):
             c = convs[ci]
             sz["map"] = max(sz["map"], _vplane_words(c["cin"], c["h"] // 2, c["h"] // 2))
     last = convs[blocks[-1][0]] if blocks else convs[0]
-    hwc = last["oh"] * last["oh"] * ((last["cout"] + 31) // 32) + fc_rw + 4
+    hwc = max(hwc, last["oh"] * last["oh"] * ((last["cout"] + 31) // 32) + fc_rw + 4)
+    if pool_planes:
+        hwc = max(hwc, _hwc_words(last["cout"], last["oh"], last["oh"]) + pool_planes)
     r16 = lambda b: (b + 15) & ~15
     shared = max(r16(sz["km"] * 16) + r16(sz["bt"] * 16), r16(sz["phases"] * 4))    # the phases share km and bt
     return (4 * r16(sz["map"] * 4) + shared + r16(sz["xq"] * 16) + r16(sz["ap"] * 16) + 2 * r16(sz["ba"] * 16) + r16(16 * 16) + r16(15 * 16)
@@ -112,6 +133,8 @@ def vertical_prepared_bytes(convs, compact=False):
     r16 = lambda b: (b + 15) & ~15
     total = r16(12 * len(convs))
     for c in convs:
+        if c.get("int8"):                          # the int8 stem has no lists (its directory entry stays 0)
+            continue
         ntt, nk = _vertical_tile_types(c, with_kinds=True)
         if compact:                          # header, kind masks per tile type, their kinds, the values per channel
             total += 16 + ntt * nk * 16 + r16(ntt * 10) + r16(c["cout"] * nk * 2)

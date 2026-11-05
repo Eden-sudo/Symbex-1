@@ -16,13 +16,16 @@
  *     threshold  out bit = 2 count - pcx >= E: E is one value per output channel and border kind (the windows that
  *                lose the same kernel pixels at the image border), built on the chip from the exported thresholds
  *                and per-pixel weight counts; a bit-sliced 3-operand add gives the 128 output bits at once
- * The head (classifier or per-cell head) runs on the final map converted back to HWC: symbex_bool_classify /
- * symbex_bool_cell_head, the same functions as the standard engine.
+ * The head (classifier, pooled int8 classifier or per-cell head) runs on the final map converted back to HWC:
+ * symbex_bool_classify / symbex_bool_pool_head / symbex_bool_cell_head, the same functions as the standard engine.
+ * An int8 stem (stem_i8) runs as in the standard engine (symbex_bool_stem_i8, into the HWC buffer), its output then
+ * turned into channel planes (symbex_bool_vstem_i8): the blocks after it run vertically.
  *
  * Shapes it runs (symbex_bool_vertical_check tells which part of a network is not): kernel 1 or 3; stride 1 (same
  * size) or 2 (3 x 3, input = 2 x output); map widths that divide 32 (1, 2, 4, 8, 16, 32) and h * w a multiple of 32,
  * output maps up to 32768 pixels (256 tiles of 128);
- * k * k * in_ch a multiple of 8 and below 2048; thermometer with 3 * levels <= 32 bits. Exact: every output bit equals
+ * k * k * in_ch a multiple of 8 and below 2048; thermometer with 3 * levels <= 32 bits (an int8 stem: its output
+ * width divides 32 and h * w is a multiple of 32). Exact: every output bit equals
  * symbex_bool_net_run's (tests/run_tests.py, and chip_test.py --engine vertical on the board).
  * On the ESP32-S3 the counts run on PIE (128-bit logic); elsewhere the same steps in portable C.
  * Separate instances share nothing: the counting state of a call lives on its stack and in its own work block
@@ -82,6 +85,9 @@ int symbex_bool_vertical_prepare_compact(struct SymbexBoolVertical* v, void* buf
 
 /* the pieces of a network, on channel-plane maps */
 void symbex_bool_vthermometer(const uint8_t* img, uint16_t h, uint16_t w, uint8_t levels, uint32_t* out);
+/* the int8 stem (net->stem_i8) on the image: symbex_bool_stem_i8 into v->hwc, then its channel planes into out */
+void symbex_bool_vstem_i8(const struct SymbexBoolNet* net, const uint8_t* img, uint32_t* out,
+                          struct SymbexBoolVertical* v);
 void symbex_bool_vconv(const struct SymbexBoolConv* layer, const uint32_t* in, uint32_t* out,
                        struct SymbexBoolVertical* v);
 void symbex_bool_vor_pool(const uint32_t* in, uint32_t* out, uint16_t ch, uint16_t h, uint16_t w);
@@ -92,13 +98,17 @@ int symbex_bool_vhead(const struct SymbexBoolNet* net, const uint32_t* map, uint
 
 /* the whole network on one uint8 RGB image (HWC), the same result as symbex_bool_net_run(net, img). v: from
    symbex_bool_vertical_init. Static inline, as symbex_bool_net_run, so that the firmware's SYMBEX_MARK(k) times the
-   same steps: 0 start, 1 thermometer + stem, 2 + i after block i, 2 + n_blocks after the head. */
+   same steps: 0 start, 1 thermometer + stem (or the int8 stem), 2 + i after block i, 2 + n_blocks after the head. */
 static inline int symbex_bool_net_run_vertical(const struct SymbexBoolNet* net, struct SymbexBoolVertical* v,
                                                const uint8_t* img) {
     SYMBEX_MARK(0);
     uint32_t* const* m = v->maps;
-    symbex_bool_vthermometer(img, net->in_h, net->in_w, net->levels, m[0]);
-    symbex_bool_vconv(&net->stem, m[0], m[1], v);
+    if (net->stem_i8) {
+        symbex_bool_vstem_i8(net, img, m[1], v);
+    } else {
+        symbex_bool_vthermometer(img, net->in_h, net->in_w, net->levels, m[0]);
+        symbex_bool_vconv(&net->stem, m[0], m[1], v);
+    }
     SYMBEX_MARK(1);
     int x = 1, y = 0, p = 2, s = 3;
     const struct SymbexBoolConv* last = &net->stem;

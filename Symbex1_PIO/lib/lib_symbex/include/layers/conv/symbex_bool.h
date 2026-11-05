@@ -26,6 +26,9 @@
  *     symbex_bool_or        OR of two maps (the shortcut of a block)
  *     symbex_bool_classify  binary weights on the final bits, an int32 scale and bias per class (fixed point,
  *                           int64 products), the first class with the largest logit
+ *     symbex_bool_pool_head OPTIONAL classifier in its place: the count of ones per k x k window of every channel,
+ *                           int8 weights on those counts, the same int32 scale and bias per class. More accurate
+ *                           (ResNet-8 2x2 windows: +2-3 points, benchmarks/experiments/training_gap), 2 KB more flash
  *     symbex_bool_net_run   the whole network: thermometer, stem, blocks (conv OR shortcut), classifier. It is
  *                           static inline so that SYMBEX_MARK(k) of the firmware times every step (as in the MLPs).
  *
@@ -107,6 +110,29 @@ void symbex_bool_cell_head(const uint32_t* map, uint16_t h, uint16_t w, uint16_t
                            uint16_t row_words, uint16_t n_classes, const int32_t* scale, const int32_t* bias,
                            int32_t* scratch, uint8_t* out);
 
+/* the optional int8 classifier on pooled counts: the final map (in_h x in_w x channels, HWC bits) is cut into k x k
+   windows; count[j][c] = ones of channel c in window j (0..k*k), windows row by row. Then
+       dot_o = sum over j, c of weight[o][j][c] * count[j][c]     class = the first o with the largest
+       scale[o] * dot_o + bias[o] (int64)
+   The counts are built bit-sliced (n_planes = bit length of k * k words per 32 channels, window j at words
+   j * PPX .. j * PPX + PPX - 1 of every plane, PPX = ceil(channels / 32)), and the weights are stored as their 8 bit
+   planes (two's complement): dot_o = sum over count plane p, weight plane q of
+   (q == 7 ? -128 : 1 << q) * 2^p * count(count plane p AND weight plane q), with the HAL's symbex_and_popcount_rows. */
+#define SYMBEX_BOOL_POOL_MAX_PLANES 7        /* windows up to 8 x 8 (counts 0..64) */
+struct SymbexBoolPoolHead {
+    uint16_t window, channels, in_h, in_w;   /* in_h and in_w multiples of window */
+    uint16_t n_classes;
+    uint16_t row_words;                      /* words per plane row: (in_h / k) * (in_w / k) * PPX, rounded up to 4 */
+    uint8_t n_planes;                        /* bit length of window^2 */
+    const uint32_t* weight_planes;           /* 8 planes x n_classes rows x row_words: bit q of the int8 weight of
+                                                (window j, channel c) at bit 32 * j * PPX + c of the row; zero padded */
+    const int32_t *scale, *bias;
+};
+
+/* map: the final map (HWC bits); counts: n_planes * row_words words, 16-byte aligned; scratch: 2 * n_classes int32 */
+int symbex_bool_pool_head(const struct SymbexBoolPoolHead* head, const uint32_t* map, uint32_t* counts,
+                          int32_t* scratch);
+
 /* a checksum of the class grid (FNV-1a over the bytes, 31 bits): what the chip reports per image for a detector, so
    that the exactness check against the simulation covers every cell */
 static inline int symbex_bool_grid_checksum(const uint8_t* cells, uint32_t n) {
@@ -145,6 +171,9 @@ struct SymbexBoolNet {
        symbex_bool_stem_i8 on the image instead of thermometer + stem (stem then only gives the shapes: in_ch 3,
        out_ch, kernel, stride, sizes; no weights). maps[0] is not used then. */
     const struct SymbexBoolStemI8* stem_i8;
+    /* optional int8 classifier on pooled counts (NULL: the binary classifier fc_*; not with cells): with it the network
+       runs symbex_bool_pool_head on the final map, with window as its counts buffer (the exporter sizes it) */
+    const struct SymbexBoolPoolHead* pool_head;
 };
 
 #ifdef SYMBEX_FINE_PROFILE
@@ -195,7 +224,9 @@ static inline int symbex_bool_net_run(const struct SymbexBoolNet* net, const uin
         SYMBEX_MARK(2 + i);
     }
     int c;
-    if (net->cells) {
+    if (net->pool_head) {
+        c = symbex_bool_pool_head(net->pool_head, m[x], net->window, net->scratch);
+    } else if (net->cells) {
         symbex_bool_cell_head(m[x], net->cells_h, net->cells_w, (uint16_t)net->fc_bits, net->fc_weights, net->fc_row_words,
                               net->n_classes, net->fc_scale, net->fc_bias, net->scratch, net->cells);
         c = symbex_bool_grid_checksum(net->cells, (uint32_t)net->cells_h * net->cells_w);

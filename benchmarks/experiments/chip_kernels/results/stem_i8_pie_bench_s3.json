@@ -1,0 +1,86 @@
+{
+ "board": "s3",
+ "mhz": 240,
+ "reps": "best of 7",
+ "shapes": [
+  [
+   "resnet8",
+   32,
+   16,
+   3,
+   1
+  ],
+  [
+   "s2_c40",
+   32,
+   40,
+   3,
+   2
+  ],
+  [
+   "w48_c24",
+   48,
+   24,
+   3,
+   1
+  ]
+ ],
+ "flash": {
+  "probe_layout_ok": true,
+  "cases": {
+   "resnet8": {
+    "lib_cycles": 1004643,
+    "new_cycles": 175230,
+    "lib_equal": true,
+    "new_equal": true,
+    "refused": false,
+    "ones": 8190
+   },
+   "s2_c40": {
+    "lib_cycles": 515162,
+    "new_cycles": 204830,
+    "lib_equal": true,
+    "new_equal": true,
+    "refused": false,
+    "ones": 5120
+   },
+   "w48_c24": {
+    "lib_cycles": 3035171,
+    "new_cycles": 737501,
+    "lib_equal": true,
+    "new_equal": true,
+    "refused": false,
+    "ones": 27657
+   }
+  }
+ },
+ "ram": {
+  "probe_layout_ok": true,
+  "cases": {
+   "resnet8": {
+    "lib_cycles": 1004643,
+    "new_cycles": 175230,
+    "lib_equal": true,
+    "new_equal": true,
+    "refused": false,
+    "ones": 8190
+   },
+   "s2_c40": {
+    "lib_cycles": 515162,
+    "new_cycles": 204830,
+    "lib_equal": true,
+    "new_equal": true,
+    "refused": false,
+    "ones": 5120
+   },
+   "w48_c24": {
+    "lib_cycles": 3035193,
+    "new_cycles": 737501,
+    "lib_equal": true,
+    "new_equal": true,
+    "refused": false,
+    "ones": 27657
+   }
+  }
+ }
+}

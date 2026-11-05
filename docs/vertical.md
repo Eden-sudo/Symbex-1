@@ -240,6 +240,20 @@ seed 42, 1000 images, every one 100 % equal to the simulation (one seed: a ranki
   RAM; boards with less RAM keep the default mode.
 - **Flash:** the same 24 KB of model data, plus the engine's code.
 
+## The int8 stem and the pooled int8 classifier (Nov 5)
+
+The vertical engine also runs networks with an int8 stem (`stem_i8`: the standard engine's kernel, its output turned
+into channel planes with `transpose32`) and with the pooled int8 classifier (`pool_head`: run on the final map in
+HWC, its count planes after it). Same results bit by bit (run_tests.py, and the chip). ResNet-8 x1 with Bop, S3,
+weights in flash, 3 seeds (details: benchmarks/experiments/training_gap):
+
+| Network | validation | default | compact | prepared |
+|---|---|---|---|---|
+| thermometer + pooled classifier | 73.72 % | 10.67 ms | 7.92 ms | 6.74 ms |
+| int8 stem + pooled classifier | 77.48 % | 13.37 ms | 10.84 ms | 9.78 ms |
+
+The int8 stem takes 4.5 ms here, more than the thermometer path (1.9 ms): on this engine it costs speed.
+
 ## Future work
 
 - **Weights in RAM with less RAM than ESP-DL:** the default engine is 1.06× slower than ESP-DL there (10.4 ms vs

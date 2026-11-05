@@ -78,8 +78,14 @@ int8 stem instead (`stem_kind = "int8"`, an 8-bit convolution on the centered pi
 integers: `Int8Conv` in `benchmarks/conv2d/cnn_cifar_resnet8/model.py`). The export folds its BatchNorm and sign into
 one threshold per channel on the integer dot product, writes it as lib_symbex's `symbex_bool_stem_i8`, and checks it
 like every other layer (the C equal to the integer simulation on every image). Use it on chips that multiply bytes in
-SIMD (ESP32-S3, Cortex-M33); on the others the thermometer is faster. The vertical engine runs the thermometer stem only,
-for now.
+SIMD (ESP32-S3, Cortex-M33); on the others the thermometer is faster. Both engines run it (the vertical one turns its
+output into channel planes).
+
+**The classifier of a boolean network** is binary by default. The exporter also takes a pooled int8 classifier (a
+module with `window`, `side` and `int8_weights()`: int8 weights on the count of ones per k × k window of the last map)
+and writes it as lib_symbex's `symbex_bool_pool_head`; on ResNet-8 it is as accurate as an int8 classifier on every
+bit for a quarter of its weights. It is trained in `benchmarks/experiments/training_gap` (`--head pool2`), not yet
+from `symbex.toml`.
 
 **Validation and test.** Every choice (the search, the checkpoint) is made on a validation split carved out of the
 training data. `split_seed` fixes it, so every training seed is judged on the same images. The test set is evaluated

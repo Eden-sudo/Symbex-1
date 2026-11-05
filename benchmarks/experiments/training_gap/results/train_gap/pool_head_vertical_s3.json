@@ -1,0 +1,142 @@
+{
+ "note": "whole ResNet-8 x1 with the pooled 2x2 int8 classifier (Bop), vertical engine on the ESP32-S3, weights in flash, popcount swar, 1000 images per seed",
+ "seeds": [
+  42,
+  43,
+  44
+ ],
+ "runs": [
+  {
+   "run": "binary_hpool2_bop_g0.0001_t1e-08",
+   "stem": "thermometer",
+   "engine": "vertical",
+   "median_ms": [
+    10.626,
+    10.669,
+    10.706
+   ],
+   "mean": 10.667,
+   "std": 0.04,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "ram_kb": [
+    62.49,
+    62.49,
+    62.49
+   ]
+  },
+  {
+   "run": "binary_hpool2_bop_g0.0001_t1e-08",
+   "stem": "thermometer",
+   "engine": "vertical_compact",
+   "median_ms": [
+    7.879,
+    7.923,
+    7.954
+   ],
+   "mean": 7.919,
+   "std": 0.038,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "ram_kb": [
+    150.88,
+    151.27,
+    151.18
+   ]
+  },
+  {
+   "run": "binary_hpool2_bop_g0.0001_t1e-08",
+   "stem": "thermometer",
+   "engine": "vertical_prepared",
+   "median_ms": [
+    6.721,
+    6.752,
+    6.76
+   ],
+   "mean": 6.744,
+   "std": 0.021,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "ram_kb": [
+    238.16,
+    238.55,
+    238.45
+   ]
+  },
+  {
+   "run": "binary_i8_hpool2_bop_g0.0001_t1e-08",
+   "stem": "int8",
+   "engine": "vertical",
+   "median_ms": [
+    13.351,
+    13.421,
+    13.35
+   ],
+   "mean": 13.374,
+   "std": 0.041,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "ram_kb": [
+    51.55,
+    51.55,
+    51.55
+   ]
+  },
+  {
+   "run": "binary_i8_hpool2_bop_g0.0001_t1e-08",
+   "stem": "int8",
+   "engine": "vertical_compact",
+   "median_ms": [
+    10.813,
+    10.882,
+    10.812
+   ],
+   "mean": 10.836,
+   "std": 0.04,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "ram_kb": [
+    135.35,
+    135.58,
+    135.36
+   ]
+  },
+  {
+   "run": "binary_i8_hpool2_bop_g0.0001_t1e-08",
+   "stem": "int8",
+   "engine": "vertical_prepared",
+   "median_ms": [
+    9.778,
+    9.794,
+    9.763
+   ],
+   "mean": 9.778,
+   "std": 0.016,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "ram_kb": [
+    214.36,
+    214.6,
+    214.38
+   ]
+  }
+ ]
+}
