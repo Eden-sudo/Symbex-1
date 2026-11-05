@@ -205,6 +205,8 @@ def _fold_pool_head(head, bn, channels):
     bias per class: logit = a * s * dot + c, with dot = q . counts. Both share one fixed point, the finest that keeps
     them below 2^30 (the scales a * s are small: 2^16 alone would round them to a few levels)."""
     side = int(head.side)
+    if side <= 0:
+        raise ValueError("boolean export, pooled classifier: its side (the final map's) is not set")
     k = int(head.window) or side
     q, s = head.int8_weights()
     q, s = q.detach().double(), s.detach().double().flatten()
