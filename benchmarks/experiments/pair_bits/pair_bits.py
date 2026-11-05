@@ -34,7 +34,7 @@ Light augmentation (random flips and shifts, on the GPU), the same for every con
 --bits k: every element holds k independent bits instead of 2 (k sets of weight bits, k activation thresholds); a
 layer then costs k x k binary dot products, and the same-memory flat network is searched by weight bits. With --act-scale equal the k activation bits are a thermometer of k + 1 levels; with pow2 a k-bit integer.
 
-Run from benchmarks/experiments/ (main environment, .venv; a GPU is used if there is one). No distillation,
+Run from benchmarks/experiments/pair_bits/ (main environment, .venv; a GPU is used if there is one). No distillation,
 no tricks: plain training with the straight-through estimator, so the only difference is flat vs pair.
 Writes results/pair_bits_<dataset>.json.
 """
@@ -292,7 +292,7 @@ def augment(x_u8, gen):
 def load(dataset, dev):
     if dataset == "cifar10":
         import torchvision
-        root = os.path.join(HERE, "..", "data", "cifar10")
+        root = os.path.join(HERE, "..", "..", "data", "cifar10")
         tr = torchvision.datasets.CIFAR10(root, train=True, download=True)
         te = torchvision.datasets.CIFAR10(root, train=False, download=True)
         to = lambda d: torch.tensor(d.data).permute(0, 3, 1, 2).contiguous()          # uint8 (N, 3, 32, 32)
@@ -308,7 +308,7 @@ def load(dataset, dev):
         xtr, ytr, xte, yte = xs[tr], ys[tr], xs[te], ys[te]
     else:
         import torchvision
-        root = os.path.join(HERE, "..", "data", "fashionmnist")
+        root = os.path.join(HERE, "..", "..", "data", "fashionmnist")
         tr = torchvision.datasets.FashionMNIST(root, train=True, download=True)
         te = torchvision.datasets.FashionMNIST(root, train=False, download=True)
         xtr, ytr = tr.data.float().div(255).flatten(1), tr.targets

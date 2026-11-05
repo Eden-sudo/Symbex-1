@@ -49,7 +49,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from layer_probe_study import activation, f_ratio, probe                 # noqa: E402
 
-BENCH = os.path.normpath(os.path.join(HERE, ".."))
+BENCH = os.path.normpath(os.path.join(HERE, "..", ".."))
 OUT = os.path.join(HERE, "results", "small_gap")
 RUNS = os.path.join(HERE, "runs", "small_gap")
 KINDS = ("binary", "twin", "relu")

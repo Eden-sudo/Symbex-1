@@ -11,7 +11,7 @@ exported to the library. The model (e.g. benchmarks/conv2d/cnn_cifar_resnet8/mod
                               runs it as lib_symbex's optional int8 first layer (symbex_bool_stem_i8): one integer
                               dot product per output and the BatchNorm + sign as one threshold on it. More accurate
                               (ResNet-8: +4.5 points), faster on chips with int8 SIMD (ESP32-S3, Cortex-M33), slower
-                              on the others (ESP32, Hazard3): benchmarks/experiments/int8_first_bench.py. The vertical
+                              on the others (ESP32, Hazard3): benchmarks/experiments/chip_kernels/int8_first_bench.py. The vertical
                               engine runs the thermometer stem only (for now).
     blocks                    Blocks: conv + bn (stride 1 or 2), and, where the shape changes, ds_conv (1x1) + ds_bn
                               after an OR pool when the block has stride 2; out = sign(BN(conv)) OR shortcut

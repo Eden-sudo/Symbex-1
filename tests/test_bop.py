@@ -1,6 +1,6 @@
 """Bop, the optimizer for the 1-bit weights of method "boolean" (compiler_core/train/bop.py, [training]
 binary_optimizer = "bop"): when a weight flips, which weights it owns, and that boolean.train uses it end to end
-(a few CPU steps on random images; the accuracy is measured by benchmarks/experiments/train_gap_study.py, not here).
+(a few CPU steps on random images; the accuracy is measured by benchmarks/experiments/training_gap/train_gap_study.py, not here).
 """
 import importlib.util
 import os

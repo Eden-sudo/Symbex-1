@@ -143,7 +143,7 @@ size of the thermometer's). Measured on every board, 3 seeds, 1,000 images, the 
 
 The stem alone explains it: on the S3 the int8 stem takes 4.19 ms against 7.84 ms for the thermometer and its binary
 stem (8-bit SIMD multiplies 16 bytes per instruction); the M33 has 2-way multiply-accumulate (SMLAD), 15.1 against
-17.7 ms; the ESP32 and Hazard3 have no SIMD, 18.6 against 14.0 ms and 20.0 against 12.7 ms. `../../experiments`
+17.7 ms; the ESP32 and Hazard3 have no SIMD, 18.6 against 14.0 ms and 20.0 against 12.7 ms. `../../experiments/chip_kernels`
 (`int8_first_bench.py`) measures the stem alone with random weights and gives the same picture.
 
 **When to use it:** always for accuracy; on the S3 and the M33 it is also faster. On the ESP32 and Hazard3 it costs

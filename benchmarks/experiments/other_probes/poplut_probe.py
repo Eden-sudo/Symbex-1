@@ -46,7 +46,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-FASHION_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mlp", "mlp_fashion"))
+FASHION_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "mlp", "mlp_fashion"))
 # this probe lives in benchmarks/experiments/ and works on mlp_fashion: run it from benchmarks/mlp/mlp_fashion/
 sys.path.insert(0, os.path.join(FASHION_DIR, "..", "..", "..", "tools"))
 sys.path.insert(0, FASHION_DIR)

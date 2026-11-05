@@ -73,6 +73,17 @@ not counted)
 the 2x2 average of the input bits (an integer 0..4 count on a chip), its channels repeated up to the block's outputs
 (channel j reads input channel j mod C), s learned per channel; no 1x1 conv. On a chip: five integer thresholds per
 channel, one per count (not in lib_symbex). The other blocks keep their OR shortcut. Files ..._sa_...
+--shortcut2 pad (binary network): ResNet's option A in the stride-2 blocks: no 1x1 conv; the shortcut is the input
+OR-pooled 2x2 (as the 1x1's input now), its channels padded up to the block's outputs with bit 0 (-1 in the +-1
+maps: the neutral of OR and XOR), so out = conv OR x for the first C_in channels and the conv alone for the new ones.
+Fewer weights and operations than the benchmark's shortcut. Files ..._sp_...
+--shortcut2 addpool (binary network): avg's shortcut with the 2x2 OR-pool (one bit) instead of the 2x2 average (a
+count): out = sign(BN(conv(x)) + s * orpool(x)); which of avg's two changes (the count, the addition) helps. On a chip:
+two integer thresholds per channel. Files ..._sap_...
+--shortcut-op xor (binary network): every block combines its conv and its shortcut with XOR instead of OR (in +-1:
+-a*b): the conv can switch a shortcut bit off as well as on. PC only (lib_symbex fuses the OR). Files ..._sx_...
+--phase2-lr x (twostep, twostep_bop): the learning rate of step 2's fresh Adam (default: --learning-rate). Files
+..._p2lr<x>_...
 Results: results/train_gap/<model>_s<seed>.json (<model>_<recipe>_s<seed>.json for step B). Run from anywhere; env_bench (CUDA) recommended.
 """
 import argparse
@@ -86,7 +97,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
+REPO = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
 BENCH = os.path.join(REPO, "benchmarks", "conv2d", "cnn_cifar_resnet8")
 sys.path.insert(0, BENCH)
 sys.path.insert(0, os.path.join(REPO, "tools"))
@@ -105,7 +116,9 @@ LAST = "x1"                                                # --last-stage: x1, w
 WIDE_LAST = 96                                             # wide: last-stage channels with ~act2's binary operations
 CHANNELS = None                                            # --channels: (a, b, c) per stage, binary network only
 BLOCKS = (2, 2, 2)                                         # --channels .../x-y-z: blocks per stage
-SHORTCUT2 = "or"                                           # --shortcut2: or (the benchmark's), avg (Bi-Real)
+SHORTCUT2 = "or"                                           # --shortcut2: or (the benchmark's), avg (Bi-Real), pad
+SHORTCUT_OP = "or"                                         # --shortcut-op: or, xor (how a block adds its shortcut)
+PHASE2_LR = 0.0                                            # --phase2-lr: step 2 of twostep (0: the learning rate)
 _record = None                                             # list: the activations' inputs, while it is set
 DEAD_FIX = ""                                              # --dead-fix: or_grad, wstd, dead_loss
 _dead = []                                                 # dead_loss: the binary maps' inputs of the current step
@@ -175,23 +188,53 @@ class Act2Block(nn.Module):
 
 class AvgShortcutBlock(nn.Module):
     """a stride-2 Block with Bi-Real's shortcut: sign(BN(conv(x)) + s * avg2x2(x)) (see --shortcut2 avg)"""
-    def __init__(self, block):
+    def __init__(self, block, pool=F.avg_pool2d):
         super().__init__()
-        self.block = block
+        self.block, self.pool = block, pool
         cin, cout = block.conv.in_channels, block.conv.out_channels
         self.register_buffer("index", torch.arange(cout) % cin)
         self.scale = nn.Parameter(torch.ones(cout))
 
     def forward(self, x):
         b = self.block
-        s = F.avg_pool2d(x, 2)[:, self.index] * self.scale.view(1, -1, 1, 1)
+        s = self.pool(x, 2)[:, self.index] * self.scale.view(1, -1, 1, 1)
         return resnet8.sign(b.bn(b.conv(x)) + s)
+
+
+def _combine(a, b):
+    """a block's conv bits with its shortcut bits, both +-1: OR (their maximum) or XOR (-a*b, --shortcut-op)"""
+    return -a * b if SHORTCUT_OP == "xor" else torch.maximum(a, b)
+
+
+class PadShortcutBlock(nn.Module):
+    """a stride-2 Block with ResNet's option A shortcut: OR-pool 2x2, channels padded with bit 0 (see --shortcut2 pad)"""
+    def __init__(self, block):
+        super().__init__()
+        self.block = block
+        self.extra = block.conv.out_channels - block.conv.in_channels
+
+    def forward(self, x):
+        b = self.block
+        s = F.max_pool2d(x, 2)
+        s = F.pad(s, (0, 0, 0, 0, 0, self.extra), value=-1.0)    # bit 0 in +-1: neutral of OR and XOR
+        return _combine(resnet8.sign(b.bn(b.conv(x))), s)
+
+
+class XorBlock(nn.Module):
+    """a Block whose conv and shortcut are combined by XOR (see --shortcut-op xor)"""
+    def __init__(self, block):
+        super().__init__()
+        self.block = block
+
+    def forward(self, x):
+        b = self.block
+        return _combine(resnet8.sign(b.bn(b.conv(x))), b.shortcut(x))
 
 
 def build(kind):
     resnet8.sign = _sign_for(kind)                         # model.py reads its global sign() at every forward
     custom = CHANNELS or BLOCKS != (2, 2, 2)
-    if LAST != "x1" or custom or SHORTCUT2 != "or":
+    if LAST != "x1" or custom or SHORTCUT2 != "or" or SHORTCUT_OP != "or":
         if kind != "binary" or STEM != "thermometer" or WIDTH != 1 or (custom and LAST != "x1"):
             raise SystemExit("[X] --last-stage / --channels / --shortcut2: the binary network, thermometer stem, "
                              "width 1 only; --last-stage not with --channels")
@@ -224,6 +267,16 @@ def build(kind):
 def _with_shortcut2(net):
     if SHORTCUT2 == "avg":
         net.blocks = nn.Sequential(*[AvgShortcutBlock(b) if getattr(b, "stride", 1) == 2 else b for b in net.blocks])
+    if SHORTCUT2 == "addpool":                         # avg's block with the OR-pool (max of +-1) instead
+        net.blocks = nn.Sequential(*[AvgShortcutBlock(b, F.max_pool2d) if getattr(b, "stride", 1) == 2 else b
+                                     for b in net.blocks])
+    if SHORTCUT2 == "pad":
+        net.blocks = nn.Sequential(*[PadShortcutBlock(b) if getattr(b, "stride", 1) == 2 else b for b in net.blocks])
+    if SHORTCUT_OP == "xor":
+        if DEAD_FIX == "or_grad" or LAST == "act2":
+            raise SystemExit("[X] --shortcut-op xor: not with --dead-fix or_grad or --last-stage act2")
+        net.blocks = nn.Sequential(*[XorBlock(b) if isinstance(b, resnet8.Block) and not b.add else b
+                                     for b in net.blocks])
     if DEAD_FIX == "or_grad":
         net.blocks = nn.Sequential(*[OrGradBlock(b) if isinstance(b, resnet8.Block) and not b.add else b
                                      for b in net.blocks])
@@ -239,6 +292,12 @@ def tag(kind):
         last += ("" if CHANNELS else "_c" + "-".join(map(str, resnet8.BASE_CHANNELS))) + "_b" + "-".join(map(str, BLOCKS))
     if SHORTCUT2 == "avg":
         last += "_sa"
+    if SHORTCUT2 == "pad":
+        last += "_sp"
+    if SHORTCUT2 == "addpool":
+        last += "_sap"
+    if SHORTCUT_OP == "xor":
+        last += "_sx"
     if DEAD_FIX:
         last += {"or_grad": "_og", "wstd": "_ws", "dead_loss": "_dl"}[DEAD_FIX]
     return kind + ("_i8" if STEM == "int8" else "") + ("_w2" if WIDTH == 2 else "") + last
@@ -365,6 +424,7 @@ DISTILL_LOSS = "kl"    # --distill-loss: kl, mse, cosine
 
 def recipe_name(recipe, gamma, tau, epochs=150, distill=False):
     name = recipe + (f"_g{gamma:g}_t{tau:g}" if recipe in ("bop", "twostep_bop") else "")
+    name += f"_p2lr{PHASE2_LR:g}" if PHASE2_LR and recipe in ("twostep", "twostep_bop") else ""
     kd = "_kd" + ({"kl": "", "mse": "mse", "cosine": "cos"}[DISTILL_LOSS])
     return name + (f"_e{epochs}" if epochs != 150 else "") + (kd if distill else "")
 
@@ -424,9 +484,9 @@ def run(kind, seed, epochs, lr, bs, compile_mode, recipe="base", bop_gamma=1e-4,
     phase_epochs = epochs // 2 if two_steps else epochs
     teacher = load_teacher(seed, dev) if distill else None
 
-    def new_optimizer(n_epochs):
+    def new_optimizer(n_epochs, rate=lr):
         params = [p for p in net.parameters() if id(p) not in ids] if bop else net.parameters()
-        o = torch.optim.Adam(params, lr=lr)
+        o = torch.optim.Adam(params, lr=rate)
         return o, torch.optim.lr_scheduler.CosineAnnealingLR(o, n_epochs)
 
     if two_steps:                                          # step 1: binary activations, real weights
@@ -442,7 +502,7 @@ def run(kind, seed, epochs, lr, bs, compile_mode, recipe="base", bop_gamma=1e-4,
             resnet8.sign = _sign_for(kind)
             if recipe == "twostep_bop":                    # the 1-bit weights to Bop, from the signs of step 1
                 bop = Bop(latent, bop_gamma, bop_tau)
-            opt, sched = new_optimizer(epochs - phase_epochs)
+            opt, sched = new_optimizer(epochs - phase_epochs, PHASE2_LR or lr)
         net.train()
         lr_now = opt.param_groups[0]["lr"]
         start = [w.detach() >= 0 for w in latent]
@@ -506,7 +566,7 @@ def run(kind, seed, epochs, lr, bs, compile_mode, recipe="base", bop_gamma=1e-4,
     last = history[-1]
     ops, weights = cost(net)
     info = dict(model=kind, stem=STEM, width=WIDTH, last_stage=LAST, channels=list(net.channels),
-                blocks=list(net.blocks_per_stage), shortcut2=SHORTCUT2, binary_ops=ops, weights=weights,
+                blocks=list(net.blocks_per_stage), shortcut2=SHORTCUT2, shortcut_op=SHORTCUT_OP, phase2_lr=PHASE2_LR or None, binary_ops=ops, weights=weights,
                 predicted_ms=predicted_ms(net) if kind == "binary" else None, recipe=name, distill=distill, seed=seed, epochs=epochs, learning_rate=lr, batch_size=bs,
                 n_train=len(xs),
                 n_validation=len(xv), n_latent_binary=n_latent if kind == "binary" else None,
@@ -575,14 +635,20 @@ def main():
                     help="binary network: wide = 96 channels in the last stage, act2 = 2-bit maps into it (docstring)")
     ap.add_argument("--channels", default="",
                     help="binary network: channels per stage [/ blocks per stage], e.g. 24-48-96 or 16-48-96/1-2-2")
-    ap.add_argument("--shortcut2", choices=("or", "avg"), default="or",
-                    help="binary network: avg = Bi-Real's average shortcut in the stride-2 blocks (docstring)")
+    ap.add_argument("--shortcut2", choices=("or", "avg", "pad", "addpool"), default="or",
+                    help="binary network: avg = Bi-Real's average shortcut in the stride-2 blocks, pad = ResNet's "
+                         "option A (no 1x1 conv), addpool = avg with the OR-pool (docstring)")
+    ap.add_argument("--shortcut-op", choices=("or", "xor"), default="or",
+                    help="binary network: how every block combines conv and shortcut (docstring)")
+    ap.add_argument("--phase2-lr", type=float, default=0.0,
+                    help="twostep recipes: learning rate of step 2 (default: --learning-rate)")
     ap.add_argument("--dead-fix", choices=("or_grad", "wstd", "dead_loss"), default="",
                     help="binary network: the dead-channel study (docstring)")
     ap.add_argument("--density", action="store_true",
                     help="train nothing: the share of ones per channel of the trained runs (docstring)")
     args = ap.parse_args()
-    global STEM, WIDTH, LAST, CHANNELS, BLOCKS, SHORTCUT2, DISTILL_LOSS, DEAD_FIX
+    global STEM, WIDTH, LAST, CHANNELS, BLOCKS, SHORTCUT2, SHORTCUT_OP, PHASE2_LR, DISTILL_LOSS, DEAD_FIX
+    SHORTCUT_OP, PHASE2_LR = args.shortcut_op, args.phase2_lr
     STEM, WIDTH, LAST, SHORTCUT2 = args.stem, args.width, args.last_stage, args.shortcut2
     DISTILL_LOSS = args.distill_loss
     DEAD_FIX = args.dead_fix

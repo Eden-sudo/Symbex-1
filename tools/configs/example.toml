@@ -143,7 +143,7 @@ compile = ""          # "reduce-overhead": CUDA graphs through torch.compile (th
 # (Bop, Helwegen et al. 2019: no latent weights, a weight flips when the averaged gradient pushes against its sign
 # by more than bop_tau; the other parameters stay with Adam). Binary ResNet-8, 3 seeds, validation:
 # Adam 70.00 +- 1.12 %, Bop 72.49 +- 0.51 %; with the int8 stem 75.39 / 76.08 %; with twice the channels no gain
-# (80.81 / 80.52 %): it helps most when the network is small (benchmarks/experiments/train_gap_study.py).
+# (80.81 / 80.52 %): it helps most when the network is small (benchmarks/experiments/training_gap/train_gap_study.py).
 binary_optimizer = "adam"
 bop_gamma = 1e-4      # averaging rate of the gradient (follows the learning rate's cosine)
 bop_tau   = 1e-8      # flip threshold

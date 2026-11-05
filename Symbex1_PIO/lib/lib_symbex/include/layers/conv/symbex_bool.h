@@ -21,7 +21,7 @@
  *                           centered pixels (pixel - 128), one integer threshold per channel -> the same output bits.
  *                           More accurate (ResNet-8: +4.5 points); faster where the chip multiplies int8 in SIMD
  *                           (ESP32-S3 PIE, Cortex-M33 DSP), slower where it does not (ESP32, Hazard3): see
- *                           benchmarks/experiments/int8_first_bench.py
+ *                           benchmarks/experiments/chip_kernels/int8_first_bench.py
  *     symbex_bool_or_pool   2x2 pooling of bits = OR of the 4 pixels (max of +-1)
  *     symbex_bool_or        OR of two maps (the shortcut of a block)
  *     symbex_bool_classify  binary weights on the final bits, an int32 scale and bias per class (fixed point,

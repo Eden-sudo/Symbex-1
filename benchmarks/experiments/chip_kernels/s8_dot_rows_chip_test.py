@@ -22,7 +22,7 @@ import time
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(os.path.dirname(HERE))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 LIB = os.path.join(ROOT, "Symbex1_PIO", "lib", "lib_symbex")
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 from compiler_core.chip.core import flash, open_port  # noqa: E402

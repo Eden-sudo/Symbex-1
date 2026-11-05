@@ -3,7 +3,7 @@ bop.py -- Bop (Helwegen et al. 2019, "Latent Weights Do Not Exist"), an optimize
 
 A binary weight has no magnitude that matters: only its sign reaches the forward pass. Adam on a "latent" real weight
 makes the signs oscillate (the binary ResNet-8 of cnn_cifar_resnet8: a weight changes sign ~7.5 times per epoch for each
-time it really moves, benchmarks/experiments/train_gap_study.py). Bop keeps no latent weight: an exponential moving
+time it really moves, benchmarks/experiments/training_gap/train_gap_study.py). Bop keeps no latent weight: an exponential moving
 average m of each weight's gradient, and the weight flips only when m is larger than a threshold tau and pushes
 against its current sign.
 

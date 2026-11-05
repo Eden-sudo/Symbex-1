@@ -1,7 +1,7 @@
 r"""
 patch_and_pie.py -- boolean engine v9: the AND + PIE arithmetic on the ESP32-S3 (symbex_bool.py, convul_symbex_v3/).
 
-benchmarks/experiments/pie_conv_bench.py measured it on this network's three conv shapes: 1.36x, 1.44x and 1.49x faster
+benchmarks/experiments/chip_kernels/pie_conv_bench.py measured it on this network's three conv shapes: 1.36x, 1.44x and 1.49x faster
 than XOR + lut16 (the same results). What changes:
   1. one header for every board: weight rows padded with zeros to 16 bytes (the PIE loads); the ESP32 and x86 keep
      XOR + popcount over the real words only, the padding is never read
@@ -81,7 +81,7 @@ AND_HELPERS = r'''#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(FORCE_AND_C)
 /* ---- AND arithmetic (v9): differences = popcount(window) + popcount(valid weights) - 2 * count(window AND weights) ----
  * ESP32-S3: the AND count with the PIE unit, 128 bits per AND, counted with the SIMD multiplier (ee.vmulas.u8.accx:
  * bit k of each of the 16 bytes, times 1, summed in ACCX); measured 1.36-1.49x faster than XOR + lut16 on this network's
- * layers (benchmarks/experiments/pie_conv_bench.py). FORCE_AND_C: the same arithmetic in plain C (to check it on a PC).
+ * layers (benchmarks/experiments/chip_kernels/pie_conv_bench.py). FORCE_AND_C: the same arithmetic in plain C (to check it on a PC).
  * The window is copied once per position to an aligned buffer, padded with zeros to the weight row stride. */
 static uint32_t ven_and[MAX_VENTANA + 4] __attribute__((aligned(16)));
 #if defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(FORCE_AND_C)
