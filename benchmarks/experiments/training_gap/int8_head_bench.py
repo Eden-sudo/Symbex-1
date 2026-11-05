@@ -195,7 +195,7 @@ static void m_pool_planes(void) {
     for (int p = 0; p < np; p++)
         for (int q = 0; q < 8; q++) {
             symbex_and_popcount_rows(cplanes + p * rw, P->wpl + q * plane, (uint16_t)rw, (uint16_t)C, cnt);
-            for (int o = 0; o < C; o++) s[o] += (q == 7 ? -128 * cnt[o] : cnt[o] << q) << p;
+            for (int o = 0; o < C; o++) s[o] += (q == 7 ? -128 * cnt[o] : cnt[o] * (1 << q)) * (1 << p);
         }
     for (int o = 0; o < C; o++) logit[o] = s[o];
     cls = argmax32(logit, C);

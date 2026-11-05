@@ -676,6 +676,17 @@ def export(kind, seeds, name):
     """--export: the trained runs through the CDT's boolean exporter (fold, simulation, header, the C check on this PC)
     into runs/train_gap/export/<run>_s<seed>, the folder tools/chip_test.py measures. Train nothing."""
     from compiler_core.export import boolean as bexport
+    unsupported = [what for what, bad in (
+        (f"model {kind} (only binary runs on the chip)", kind != "binary"),
+        (f"--pad {PAD} (the exporter pads with zeros)", PAD != "zero"),
+        (f"--head {HEAD} (an int8 classifier without pooling; use binary, pool, pool2 or pool4)", HEAD == "int8"),
+        (f"--shortcut2 {SHORTCUT2} (lib_symbex runs the OR pool + 1x1 shortcut)", SHORTCUT2 != "or"),
+        (f"--shortcut-op {SHORTCUT_OP} (lib_symbex ORs the shortcut)", SHORTCUT_OP != "or"),
+        (f"--last-stage {LAST} (2-bit maps are not in lib_symbex)", LAST == "act2"),
+        (f"--dead-fix {DEAD_FIX} (it changes the weights' signs at every forward)", DEAD_FIX == "wstd"))
+        if bad]
+    if unsupported:                                        # the exporter would fold a different network: refuse
+        raise SystemExit("[X] --export: not what the boolean exporter runs: " + "; ".join(unsupported))
     stem = tag(kind) if name == "base" else f"{tag(kind)}_{name}"
     lib = os.path.join(REPO, "Symbex1_PIO", "lib", "lib_symbex")
     rows = []
@@ -833,7 +844,7 @@ def main():
                                                       args.distill and kind == "binary"))
         return
     if args.export:
-        for kind in kinds:
+        for kind in [k for k in kinds if k == "binary"] or kinds:       # --model all: the binary one; twin / relu refused
             for recipe in (args.recipe if kind == "binary" else ["base"]):
                 export(kind, args.seeds, recipe_name(recipe, args.bop_gamma, args.bop_tau, args.epochs,
                                                      args.distill and kind == "binary"))
