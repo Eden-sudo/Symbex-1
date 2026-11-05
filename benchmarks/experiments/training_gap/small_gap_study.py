@@ -29,7 +29,8 @@ Then, on the validation data, as layer_probe_study.py does for ResNet-8:
                  class-selective (F ratio of the mean activation per sample) than every shuffle
     flip         binary only: 1 % of the first layer's output bits flipped; share of bits changed in every later
                  layer, share of predictions changed
-Results: results/small_gap/<bench>_<shape>_<kind>_s<seed>.json; weights: runs/small_gap/ (gitignored). A shape
+--head int8: the output layer with int8 weights (one scale per class, straight-through rounding), its input bits
+unchanged; the shape gets _hi8. Results: results/small_gap/<bench>_<shape>_<kind>_s<seed>.json; weights: runs/small_gap/ (gitignored). A shape
 already trained is measured again from its weights (--retrain to train it again).
 """
 import argparse
@@ -90,9 +91,9 @@ def int8_weights(w):
 class Stack(nn.Module):
     """a feed-forward stack: layers of (conv1d | linear, BatchNorm, activation, optional max pool), then a linear
     output with its BatchNorm. kind: binary / twin / relu (see the docstring)"""
-    def __init__(self, kind, layers, n_in, classes, first="binary"):
+    def __init__(self, kind, layers, n_in, classes, first="binary", head="binary"):
         super().__init__()
-        self.kind, self.first = kind, first
+        self.kind, self.first, self.head = kind, first, head
         self.ops, self.bns, self.pools, self.conv = nn.ModuleList(), nn.ModuleList(), [], []
         for op in layers:
             if op[0] == "pool":
@@ -113,7 +114,7 @@ class Stack(nn.Module):
     def weight(self, i):
         """the weights layer i uses (i = len(ops): the output layer)"""
         w = self.out.weight if i == len(self.ops) else self.ops[i].weight
-        if i == 0 and self.first == "int8":
+        if (i == 0 and self.first == "int8") or (i == len(self.ops) and self.head == "int8"):
             return int8_weights(w)
         return ste_sign(w) if self.kind == "binary" else w
 
@@ -273,9 +274,10 @@ def measure(net, split, seed, shuffles, dev):
 def run(kind, args, setup, dev):
     layers, n_in, classes, split, shape = setup
     split = tuple(t.to(dev) for t in split)
+    shape += "_hi8" if args.head == "int8" else ""
     name = f"{shape}_{kind}_s{args.seed}"
     torch.manual_seed(args.seed)                           # the starting weights depend on the seed only
-    net = Stack(kind, layers, n_in, classes, args.first).to(dev)
+    net = Stack(kind, layers, n_in, classes, args.first, args.head).to(dev)
     path = os.path.join(RUNS, name + ".pth")
     out = os.path.join(OUT, name + ".json")
     if os.path.exists(path) and os.path.exists(out) and not args.retrain:
@@ -285,7 +287,7 @@ def run(kind, args, setup, dev):
         history, minutes = train(net, split, args.seed, args.epochs, args.lr, args.batch_size, dev)
         os.makedirs(RUNS, exist_ok=True)
         torch.save(net.state_dict(), path)
-        info = dict(bench=args.bench, shape=shape, kind=kind, seed=args.seed, epochs=args.epochs, lr=args.lr,
+        info = dict(bench=args.bench, shape=shape, head=args.head, kind=kind, seed=args.seed, epochs=args.epochs, lr=args.lr,
                     batch_size=args.batch_size, n_train=len(split[0]), n_validation=len(split[2]),
                     train_acc=history[-1]["train_acc"], val_acc=history[-1]["val_acc"], history=history, minutes=minutes)
     info.update(measure(net, split, args.seed, args.shuffles, dev))
@@ -326,6 +328,8 @@ def main():
     ap.add_argument("--bench", choices=("har", "mlp"), required=True)
     ap.add_argument("--arch", default="max", help="har: model.py's ARCHS (min, max10, max5, max)")
     ap.add_argument("--first", choices=("binary", "int8"), default="binary", help="har: the first layer's weights")
+    ap.add_argument("--head", choices=("binary", "int8"), default="binary",
+                    help="the output layer's weights: binary (the benchmarks') or int8 (its input stays binary)")
     ap.add_argument("--hidden", type=int, nargs=2, default=[256, 128], help="mlp: the two hidden widths")
     ap.add_argument("--kinds", nargs="+", choices=KINDS, default=list(KINDS))
     ap.add_argument("--seeds", "--seed", type=int, nargs="+", default=[42])

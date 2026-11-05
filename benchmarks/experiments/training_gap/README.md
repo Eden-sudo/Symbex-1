@@ -373,13 +373,43 @@ Four more parts of the network, x1 binary, 3 seeds, validation (base 70.00 ± 1.
 - **Padding does not matter:** the chip's zero padding (border pixels left out of the count) is as good as −1 or +1.
 - **The int8 classifier is the one that helps, but it is not free:** it reads the whole last map (64 × 8 × 8 = 4,096
   bits → 10 classes), so its weights grow from 5 KB to 40 KB, against 24 KB of flash for the whole x1 network today.
-  Its chip time is not measured yet. Pooling first (64 counts) is tiny but loses 2.9 points: the classifier needs
-  where in the image a feature is.
+  Pooling first (64 counts) is tiny but loses 2.9 points: the classifier needs where in the image a feature is.
+
+### The int8 classifier on the chip (`int8_head_bench.py`), and on the MLP and conv1d
+
+Four ways to run the classifier, random weights at the real shapes, exact against plain C on the chip, µs (best of 7):
+`binary` is lib_symbex's `symbex_bool_classify`; the int8 ways add the weights of every bit (`dense`), only of the
+bits that are 1 (`sparse`, weights stored per bit; the final map of the trained x1 networks has 31 % ones), or run 8
+AND + popcount passes over the weights' bit planes (`planes`).
+
+| ResNet-8 (4,096 bits → 10) | binary | i8_dense | i8_sparse | i8_planes | extra, best int8 |
+|---|---|---|---|---|---|
+| ESP32-S3, flash | 60 | 2,858 | **1,063** | 2,814 | +1.0 ms (~2.6 % of 39.2 ms, estimated) |
+| ESP32-S3, RAM | 60 | 1,602 | 488 | **301** | +0.24 ms (~0.6 %) |
+| ESP32, flash | 109 | 4,724 | **2,095** | 3,832 | +2.0 ms (~3.3 % of 59.7 ms) |
+| ESP32, RAM | 109 | 1,613 | **552** | 656 | +0.44 ms (~0.7 %) |
+
+The small heads (128 bits → 17 or 10 classes) cost 22-48 µs in int8 against 4-10 µs binary, on both chips.
+The same `--head int8` in `small_gap_study.py` (binary networks, 3 seeds, validation):
+
+| Network | binary head | int8 head | Δ | head weights |
+|---|---|---|---|---|
+| MLP 256-128 | 88.64 ± 0.13 | 88.79 ± 0.11 | +0.2 | 160 B → 1.3 KB |
+| HAR `max` | 67.48 ± 1.34 | 66.63 ± 1.36 | −0.9 | 272 B → 2.2 KB |
+| HAR `max`, int8 first layer | 67.17 ± 2.51 | 68.90 ± 0.29 | +1.7 | |
+| HAR `min` | 40.82 ± 5.18 | 40.93 ± 2.92 | +0.1 | 60 B → 476 B |
+| HAR `min`, int8 first layer | 35.79 ± 5.92 | 43.32 ± 3.73 | +7.5 (noisy) | |
+
+- **The int8 classifier pays where the classifier is large:** ResNet-8 reads 4,096 bits and gains 2.8 points for
+  ~1 ms on the S3 (weights in flash) and 35 KB. The MLP's last hidden layer already holds its accuracy (probe 88.1 %),
+  so an int8 head adds nothing there; HAR gains only with the int8 first layer too, steadier rather than higher.
 
 ```
 python train_gap_study.py --model binary --pad minus --seeds 42 43 44                 # plus
 python train_gap_study.py --model binary --head int8 --seeds 42 43 44                 # pool
 python train_gap_study.py --model binary --density --seeds 42 43 44                   # + --channels 16-48-96/1-3-3
+python small_gap_study.py --bench har --arch max --first int8 --head int8 --kinds binary --seeds 42 43 44
+python int8_head_bench.py --port /dev/serial/by-id/usb-Espressif_USB_JTAG_...   # --board esp32 --port /dev/ttyUSB0
 ```
 
 ## Where accuracy stands, and how we got here
@@ -402,8 +432,8 @@ The path of this study, each step answering the question the previous one raised
 7. **Is the OR the problem, and is the 1×1 needed?** XOR is worse (−7.5). Without the 1×1 (option A), x1 keeps its
    accuracy and gets faster, but 1-3-3 loses 2 points. Adding the OR-pooled bit to the threshold (addpool) gives
    +1.5, nearly all of avg's gain. Bop and twostep still do not combine, at any τ.
-8. **The rest of the block?** Padding, block order and BatchNorm give nothing; an int8 classifier gives +2.8, at
-   35 KB more weights.
+8. **The rest of the block?** Padding, block order and BatchNorm give nothing; an int8 classifier gives +2.8 on
+   ResNet-8 (~1 ms, 35 KB more), nothing on the MLP or HAR, whose classifiers are small.
 
 What is left, as measured: against the INT8 MLPerf model (87.0 %) the best binary ResNet-8 is ~10 points behind
 (76.8 % with 1-3-3, 75.4 % with the int8 stem at x1's cost). Binary networks win where the arithmetic is the limit
@@ -418,8 +448,8 @@ Open, if you want to help:
   +1.5 on x1 and ~7 % faster on the S3 (estimated from the measured blocks). The one architecture change with
   evidence behind it; avg (five thresholds) adds
   +0.4 more, inside the noise.
-- **The int8 classifier on the chip, and on the MLP and conv1d:** +2.8 on ResNet-8 x1; its speed, a smaller
-  version (fewer input bits) and the other networks are not measured.
+- **The int8 classifier in `lib_symbex` for ResNet-8:** +2.8 on x1 for ~1 ms on the S3 and 35 KB (measured apart);
+  a smaller one (fewer input bits) and with 1-3-3 or the int8 stem not tried.
 - **The int8 stem with `--spec`** (1-3-3 + int8 stem): both gains measured apart, not together.
 - **Bop with the benchmark's own pipeline and test images:** measured here on validation only.
 - **A stronger `dead_loss`, or another way to use the shortcut path** across the stride.
