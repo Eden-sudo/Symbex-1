@@ -22,6 +22,24 @@
    "ones": 0.5
   }
  ],
+ "pools": [
+  {
+   "name": "resnet8_pool2",
+   "window": 2,
+   "side": 8,
+   "channels": 64,
+   "classes": 10,
+   "ones": 0.31
+  },
+  {
+   "name": "resnet8_pool4",
+   "window": 4,
+   "side": 8,
+   "channels": 64,
+   "classes": 10,
+   "ones": 0.31
+  }
+ ],
  "flash": {
   "resnet8_binary": {
    "cycles": 26070,
@@ -29,18 +47,18 @@
    "equal_reference": true
   },
   "resnet8_i8_dense": {
-   "cycles": 1133820,
-   "us": 4724.25,
+   "cycles": 1150563,
+   "us": 4794.01,
    "equal_reference": true
   },
   "resnet8_i8_sparse": {
-   "cycles": 502770,
-   "us": 2094.88,
+   "cycles": 490473,
+   "us": 2043.64,
    "equal_reference": true
   },
   "resnet8_i8_planes": {
-   "cycles": 919572,
-   "us": 3831.55,
+   "cycles": 950835,
+   "us": 3961.81,
    "equal_reference": true
   },
   "har_max_binary": {
@@ -81,6 +99,26 @@
   "mlp_i8_planes": {
    "cycles": 8746,
    "us": 36.44,
+   "equal_reference": true
+  },
+  "resnet8_pool2_count": {
+   "cycles": 181828,
+   "us": 757.62,
+   "equal_reference": true
+  },
+  "resnet8_pool2_planes": {
+   "cycles": 134663,
+   "us": 561.1,
+   "equal_reference": true
+  },
+  "resnet8_pool4_count": {
+   "cycles": 72634,
+   "us": 302.64,
+   "equal_reference": true
+  },
+  "resnet8_pool4_planes": {
+   "cycles": 74691,
+   "us": 311.21,
    "equal_reference": true
   }
  },
@@ -143,6 +181,26 @@
   "mlp_i8_planes": {
    "cycles": 8737,
    "us": 36.4,
+   "equal_reference": true
+  },
+  "resnet8_pool2_count": {
+   "cycles": 171588,
+   "us": 714.95,
+   "equal_reference": true
+  },
+  "resnet8_pool2_planes": {
+   "cycles": 134663,
+   "us": 561.1,
+   "equal_reference": true
+  },
+  "resnet8_pool4_count": {
+   "cycles": 70074,
+   "us": 291.98,
+   "equal_reference": true
+  },
+  "resnet8_pool4_planes": {
+   "cycles": 74691,
+   "us": 311.21,
    "equal_reference": true
   }
  }
