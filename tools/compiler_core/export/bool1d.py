@@ -235,9 +235,10 @@ def write_header(net, path, in_len, in_ch, first_bytes=False):
 def validate_c(header_path, lib_path, x_u8, expected, native_popcount=False, extra_sources=(), defines=()):
     """gcc on this PC: the header + lib_symbex (symbex_bool1d.c, symbex_bool.c, the generic HAL) on x_u8 (N, inputs).
     native_popcount: -mpopcnt, so the 1D layers take their inline two-window path. extra_sources / defines: more C
-    files and -D flags (e.g. an application's own first-layer kernels with -DSYMBEX_U8_EXTERNAL).
+    files (relative to the working directory, or absolute) and -D flags (e.g. an application's own first-layer
+    kernels with -DSYMBEX_U8_EXTERNAL).
     Returns (equal, total, message)."""
     return c_build.check(header_path, lib_path, x_u8, expected,
                          sources=["layers/conv/symbex_bool1d.c", "layers/conv/symbex_bool.c",
-                                  "hal/generic/symbex_hal_impl.c", *extra_sources],
+                                  "hal/generic/symbex_hal_impl.c", *(os.path.abspath(s) for s in extra_sources)],
                          flags=(["-mpopcnt"] if native_popcount else []) + [f"-D{d}" for d in defines])

@@ -44,6 +44,8 @@ from . import c_build, c_header
 from .vertical import vertical_prepared_bytes, vertical_problem, vertical_work_bytes
 from ..train.boolean import _augment, _evaluate, binary_weights, load_trained, train   # noqa: F401 (the old home)
 
+_words, _c_array = c_header.words, c_header.c_array   # the names these helpers had here before c_header.py
+
 INT_MIN, INT_MAX = -2 ** 31, 2 ** 31 - 1
 FC_SHIFT = 16
 
