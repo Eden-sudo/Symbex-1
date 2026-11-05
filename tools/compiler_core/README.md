@@ -26,11 +26,15 @@ this PC and checked against the simulation.
 
 | File | Method | |
 |---|---|---|
-| `boolean.py` | `boolean`: fully binary convolutional networks (thermometer input, OR shortcuts, classifier or per-cell head); also its training loop | current |
+| `boolean.py` | `boolean`: fully binary convolutional networks (thermometer or int8 input, OR shortcuts, classifier or per-cell head) | current |
+| `vertical.py` | the vertical engine's buffer sizes and limits, as lib_symbex computes them (used by `boolean.py`) | current |
+| `bool1d.py` | `boolean` 1D convolutions (time series), binary or int8 first layer | current |
 | `dense.py` | `plain` dense networks (MLPs at 1 bit) | current |
 | `ternary.py` | `ternary` dense networks (weights in {-1, 0, +1}) | current |
 | `int8_reference.py` | the INT8 version of the original model, with TFLite's integer arithmetic (an optional reference) | current |
 | `report.py` | the before / after table every exporter prints | current |
+| `c_header.py` | what every header shares: the format check, structs by field name, bit packing (`words`) and C arrays (`c_array`) | current |
+| `c_build.py` | the C check on this PC, ONE for every exporter: gcc with lib_symbex, the test program, equal to the simulation | current |
 | `plain.py`, `conv.py` | binarized ResNets for the first v3 engine (int8 first layer, fixed-point BatchNorm) | earlier versions |
 | `gated.py`, `bitslice.py` | the block-gated and multi-bit dense methods of v2 | earlier versions |
 
@@ -60,6 +64,8 @@ first; the final decision is made by accuracy, in the train stage.
 |---|---|---|
 | `standard.py` | cross-entropy with the straight-through gradient of the binary layers, the BatchNorm fix, checkpoints, the input bit quantizer | current |
 | `distillation.py` | optional: the original model teaches the binary one (soft outputs + labels) | current |
+| `boolean.py` | method `boolean`: the network trained as defined, labels only, crop + flip on the GPU | current |
+| `bop.py` | Bop, the optimizer for 1-bit weights (`[training] binary_optimizer = "bop"`) | current |
 | `attention.py` | reserved: binary attention needs something else (not implemented) | — |
 
 ## validate/ — independent checks
@@ -69,5 +75,5 @@ first; the final decision is made by accuracy, in the train stage.
 | `ternary.py` | the ternary engine's packed-word simulator against a plain numpy integer reference | current |
 | `plain.py` | the bit-exact simulator of the first v3 convolutional engine | earlier versions |
 
-The current exporters check their C themselves (`validate_c` in each one); the library itself is tested by
+The current exporters check their C themselves (`validate_c` in each one, all through `export/c_build.py`); the library itself is tested by
 `Symbex1_PIO/lib/lib_symbex/tests/run_tests.py`, and the Python side by `pytest` from the repository root.

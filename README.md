@@ -27,6 +27,13 @@ It has three parts:
 
 ## Results (measured on the chips, one core)
 
+INT8 here is the deployment path almost everyone uses: TensorFlow Lite Micro with Espressif's optimized ESP-NN
+kernels. It is not the fastest INT8 possible: on the ESP32-S3, Espressif's ESP-DL library runs ResNet-8 in 14.8 ms,
+2.6× faster than SYMBEX's standard engine. SYMBEX's [vertical engine](docs/vertical.md) runs it in 10.4 ms, 1.43× faster
+than ESP-DL with the weights in flash; with its optional compact mode, 7.70 ms with 151 KB of RAM, it is also 1.27×
+faster than ESP-DL with its weights in RAM (147 KB there), and 6.44 ms with the prepared mode (238 KB), while on the classic ESP32 SYMBEX stays 8-11× faster than ESP-DL too.
+[docs/results.md](docs/results.md#how-fast-could-int8-be) has the numbers and what is not measured yet.
+
 ### Image classification: a fully binary ResNet-8 ([`benchmarks/conv2d/cnn_cifar_resnet8`](benchmarks/conv2d/cnn_cifar_resnet8/))
 
 CIFAR-10, against the official INT8 ResNet-8 of MLPerf Tiny. Every layer of the SYMBEX network is binary, the first
@@ -37,7 +44,8 @@ one included (the image enters as a thermometer of bits); 3 training seeds, labe
 | Accuracy | 71.28 ± 0.81 % | 87.0 % |
 | ESP32-S3 | **39.2 ms (1.33× faster)** | 52.0 ms |
 | ESP32 | **59.7 ms (12.0× faster)**, weights in RAM; 63.3 ms in flash | 717.8 ms |
-| Raspberry Pi Pico 2 | **56.1 ms** (Hazard3 RISC-V) · 74.5 ms (Cortex-M33) | not measured yet |
+| Raspberry Pi Pico 2, Cortex-M33 | **74.5 ms (6.1× faster)** | 453.0 ms (CMSIS-NN) |
+| Raspberry Pi Pico 2, Hazard3 RISC-V | **56.1 ms** | 5702 ms (reference kernels, the only ones TFLite Micro has for it) |
 | Flash | **24.3 KB** | 96.2 KB |
 | RAM | **15 KB** | 53-80 KB |
 | Same result as its PC reference | **100 %** | 98.1 % |
@@ -80,7 +88,8 @@ network; 3 seeds, labels only, weights in flash unless stated:
 | ESP32-S3 | **0.42 ms (28× faster)** | 11.7 ms (TFLite Micro) |
 | ESP32-S3, weights in RAM | **0.41 ms (2.1× faster)** | 0.89 ms |
 | ESP32 | **3.6 ms (8.6× faster)** | 31.1 ms |
-| Raspberry Pi Pico 2 | **4.4 ms** (Hazard3) · 4.6 ms (M33); 1.4 ms with the weights in RAM | not measured yet |
+| Raspberry Pi Pico 2, Cortex-M33 | **4.6 ms (6.9× faster)**; 1.5 ms with the weights in RAM (1.9×) | 31.4 ms (CMSIS-NN); 2.9 ms in RAM |
+| Raspberry Pi Pico 2, Hazard3 | **4.4 ms (8.5× faster)**; 1.4 ms with the weights in RAM (6.8×) | 37.5 ms; 9.6 ms in RAM (reference kernels) |
 | Flash | **27 KB** | 187 KB |
 | RAM | **4.6 KB** | 6.7 KB |
 
@@ -143,7 +152,6 @@ Done in October 2026: 1D convolutions (against Daghero et al. 2021, in GVSoC and
 Pi Pico 2 (both cores, Arm Cortex-M33 and Hazard3 RISC-V, exact), and every benchmark re-measured with the current engine
 and, all but FOMO, with the corrected validation split. Next:
 
-- **TFLite Micro INT8 on the Pico 2** (CMSIS-NN on the Cortex-M33), so the Pico 2 rows get their INT8 reference.
 - **The arithmetic of the first layer chosen per chip** (bits or bytes), from measurements, by the CDT.
 - **Energy** has not been measured yet; latency and memory are.
 - **FOMO re-trained** on the new fixed validation split.

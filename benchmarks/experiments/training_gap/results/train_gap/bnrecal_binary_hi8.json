@@ -1,0 +1,40 @@
+{
+ "run": "binary_hi8",
+ "n_train": 45000,
+ "n_validation": 5000,
+ "batch_size": 128,
+ "seeds": [
+  {
+   "seed": 42,
+   "val_acc": 72.98,
+   "val_acc_clean": 72.24,
+   "val_acc_augmented": 73.46
+  },
+  {
+   "seed": 43,
+   "val_acc": 72.72,
+   "val_acc_clean": 71.66,
+   "val_acc_augmented": 73.0
+  },
+  {
+   "seed": 44,
+   "val_acc": 72.82,
+   "val_acc_clean": 73.98,
+   "val_acc_augmented": 73.54
+  }
+ ],
+ "summary": {
+  "val_acc": {
+   "mean": 72.84,
+   "std": 0.131
+  },
+  "val_acc_clean": {
+   "mean": 72.627,
+   "std": 1.207
+  },
+  "val_acc_augmented": {
+   "mean": 73.333,
+   "std": 0.291
+  }
+ }
+}

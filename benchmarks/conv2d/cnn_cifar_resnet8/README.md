@@ -6,7 +6,7 @@ TensorFlow Lite Micro on the same boards. The SYMBEX network has **the same arch
 
 | | MLPerf Tiny ResNet-8 | SYMBEX binary ResNet-8 |
 |---|---|---|
-| Input | 8-bit pixels | thermometer: 8 bits per color (FracBNN) |
+| Input | 8-bit pixels | thermometer: 8 bits per color (FracBNN); optionally an int8 first layer on the pixels (below) |
 | Weights and activations | 8 bits | **1 bit** |
 | Shortcuts | sum | OR of bits |
 | Arithmetic on the chip | 8-bit multiply-accumulate | **counting bits: no multiplication at all** |
@@ -20,15 +20,19 @@ integer simulation on every image.
 |---|---|---|---|
 | **ESP32 (240 MHz)** | **59.7 ms** (lut16, weights in RAM) · **63.3 ms** (lut16, weights in flash) · **71.0 ms** (no table) | 717.8 ms | **12.0× / 11.3× / 10.1× faster** |
 | **ESP32-S3 (240 MHz)** | **39.2 ms** | 52.0 ms | **1.33× faster** |
-| Raspberry Pi Pico 2 (150 MHz) | **56.1 ms** (Hazard3 RISC-V, native popcount) · **74.5 ms** (Cortex-M33, lut16) | not measured yet | |
+| Raspberry Pi Pico 2 (150 MHz), Cortex-M33 | **74.5 ms** (lut16, weights in flash) | 453.0 ms (CMSIS-NN, flash) · 211.4 ms (CMSIS-NN, model in RAM) | **6.1× / 2.8× faster** |
+| Raspberry Pi Pico 2 (150 MHz), Hazard3 RISC-V | **56.1 ms** (native popcount, weights in flash) | 5702 ms (reference kernels, flash; 100 images) | **102× faster** |
 | RAM | **15 KB** (79 KB with the lut16 table; 103 KB with the weights in RAM too) | 53 KB (ESP32) / 80.5 KB (S3) of arena | **3.6× / 5.4× less** (ESP32 no table / S3) |
 | Flash (weights) | **24.3 KB** | 96.2 KB | **4× less** |
 | Same result as the reference on the PC | **100%** (by design) | 98.1% | |
 | CIFAR-10 accuracy (10,000 test images) | 71.3 ± 0.8 % | 87.0 % | |
 
 The three seeds give the same latency to 0.01 ms (42, 43, 44: 70.60 %, 72.18 %, 71.06 %). The chip gives the same class as
-the integer simulation on 100 % of the images on every board. The Pico 2 has no INT8 reference yet (TFLite Micro with
-CMSIS-NN on the M33 is future work).
+the integer simulation on 100 % of the images on every board. On the Pico 2 the INT8 side is TensorFlow Lite Micro built
+from source at a pinned commit: with Arm's CMSIS-NN kernels on the M33 (DSP on) and with the reference kernels on
+Hazard3, the only ones TFLite Micro has for it (so that row shows the gap without vendor kernels, not a tuned INT8).
+SYMBEX is 6.1× faster with both in flash, 2.8× against INT8 with the whole model in RAM. The chip gives the PC
+interpreter's class on 98.1 % of the images, as on the ESP32 boards.
 
 ## Why: what each chip does best
 
@@ -112,6 +116,41 @@ ResNet-8 shape in the same time, with less RAM; 16-64-128 / 1-1-2 gains 3.2 poin
   flash cache keeps: in flash its last block takes 43 ms, in RAM 21 ms (the whole network: 88.8 against 60.9 ms). With the
   weights in RAM, 16-32-128 runs at the speed of the ResNet-8 shape with 1.8 points more.
 
+## An int8 first layer (optional)
+
+The thermometer turns every pixel into 8 bits before a binary stem. lib_symbex can instead run the first layer on the
+8-bit pixels themselves: int8 weights, a multiply-accumulate per pixel and one integer threshold per channel
+(`symbex_bool_stem_i8`), and every layer after it stays binary. It is an option of the `boolean` method; the
+thermometer stays the default. Same network otherwise, same recipe (150 epochs, labels only, seeds 42, 43, 44, the
+validation split carved out of the training data):
+
+| First layer | Validation | Test (10,000 images) | Flash |
+|---|---|---|---|
+| thermometer + binary stem | 71.17 ± 0.32 % | 71.34 ± 0.89 % | 24.3 KB |
+| **int8 stem** | **75.63 ± 0.50 %** | **75.41 ± 0.02 %** | **24.0 KB** |
+
+**4.1 points more accurate**, with slightly less flash and RAM (14.3 against 14.8 KB on the S3: its output map has the
+size of the thermometer's). Measured on every board, 3 seeds, 1,000 images, the chip equal to the integer simulation on 100 % of them
+(thermometer: seed 42, measured the same day; latency does not depend on the seed, 0.01 ms apart):
+
+| Chip | Thermometer | int8 stem | int8 stem vs thermometer | int8 stem vs MLPerf INT8 |
+|---|---|---|---|---|
+| **ESP32-S3** (swar, flash or RAM) | 39.19 ms | **35.54 ms** | **1.10× faster** | **1.46× faster** (52.0 ms) |
+| ESP32-S3 (lut16, flash or RAM) | 40.70 ms | 36.75 ms | 1.11× faster | |
+| Pico 2 Cortex-M33 (lut16, flash / RAM) | 74.58 / 69.62 ms | 72.21 / 68.54 ms | 1.03× / 1.02× faster | 6.3× / 3.1× faster |
+| ESP32 (lut16, flash / RAM) | 63.25 / 59.74 ms | 68.07 / 63.52 ms | 0.93× / 0.94× (slower) | 10.5× / 11.3× faster |
+| Pico 2 Hazard3 (native popcount, flash / RAM) | 56.15 / 52.55 ms | 64.34 / 59.45 ms | 0.87× / 0.88× (slower) | 89× faster |
+
+The stem alone explains it: on the S3 the int8 stem takes 4.19 ms against 7.84 ms for the thermometer and its binary
+stem (8-bit SIMD multiplies 16 bytes per instruction); the M33 has 2-way multiply-accumulate (SMLAD), 15.1 against
+17.7 ms; the ESP32 and Hazard3 have no SIMD, 18.6 against 14.0 ms and 20.0 against 12.7 ms. `../../experiments/chip_kernels`
+(`int8_first_bench.py`) measures the stem alone with random weights and gives the same picture.
+
+**When to use it:** always for accuracy; on the S3 and the M33 it is also faster. On the ESP32 and Hazard3 it costs
+5-8 ms (7-15 %) for the 4 points. Shortcuts stay OR: added shortcuts, tried in the same study, were less accurate
+(69.58 % alone, 72.34 % with the int8 stem, test) and are not in lib_symbex. The vertical engine (`docs/vertical.md`)
+runs the thermometer stem only, for now.
+
 ## Reproduce
 
 From this folder (environment `env_bench`, with PyTorch on CUDA and TensorFlow):
@@ -127,11 +166,18 @@ python resnet8_symbex.py --width 1 --seeds 3 --board pico2_riscv --port /dev/tty
 python resnet8_symbex.py --width 1 --seeds 3 --board pico2_arm --port /dev/ttyACM0 --popcount lut16     # Pico 2 (M33)
 python ../../../tools/chip_test.py runs/w1_s42 --board s3 --port /dev/ttyACM0 --usb   # a trained seed, the S3's native USB
 python resnet8_symbex.py --width 1 --seeds 3 --board s3 --summary              # summary of the chip_test.py runs
+python resnet8_symbex.py --variant int8stem --seeds 3                          # the int8 stem: train + export (PC)
+python resnet8_symbex.py --variant int8stem --seeds 3 --board s3 --port /dev/ttyACM0   # ... on a board
+python resnet8_symbex.py --variant base --seeds 3                              # the stem / shortcut study:
+python resnet8_symbex.py --variant add --seeds 3                               #   base | int8stem | add | int8stem_add
 python resnet8_sizing.py --phase depth --epochs 150                            # the sizing study
 python resnet8_sizing.py --phase width --blocks 1-1-2 --epochs 150
 python resnet8_tflite.py                                                       # INT8: accuracy on the PC
 python resnet8_tflite.py --board s3 --port /dev/ttyUSB0                         # INT8 on the chip
 python resnet8_tflite.py --board esp32 --port /dev/ttyUSB0
+python resnet8_tflite.py --board pico2_arm --port /dev/ttyACM1                  # Pico 2 M33: TFLite Micro + CMSIS-NN
+python resnet8_tflite.py --board pico2_arm --port /dev/ttyACM1 --model-ram
+python resnet8_tflite.py --board pico2_riscv --port /dev/ttyACM1 --images 100   # Hazard3: reference kernels
 ```
 
 Profiles: `python ../../../tools/dev/fine_profile.py runs/w1_s44 --board s3` and `python ../../../tools/dev/count_bench.py --board s3`.
@@ -140,7 +186,7 @@ Profiles: `python ../../../tools/dev/fine_profile.py runs/w1_s44 --board s3` and
 |---|---|
 | `model.py` | the binary ResNet-8 with any channels and blocks per stage, the thermometer, CIFAR-10 |
 | `symbex.toml` | the CDT configuration (method `boolean`, 150 epochs, labels only) |
-| `resnet8_symbex.py` | the CDT per seed and per board; summary in `results/symbex_seeds_<board>_<popcount>_w1.json` (`--summary`: from runs measured with `tools/chip_test.py`; older summaries in `results/earlier/`) |
+| `resnet8_symbex.py` | the CDT per seed and per board; summary in `results/symbex_seeds_<board>_<popcount>_w1.json` (`..._w1_int8stem.json` with `--variant int8stem`) (`--summary`: from runs measured with `tools/chip_test.py`; older summaries in `results/earlier/`) |
 | `resnet8_tflite.py` | the official MLPerf Tiny INT8 model, on the PC and with TFLite Micro on the boards |
 | `resnet8_train.py` | evaluates a trained model on its own (`--check`) |
 | `resnet8_sizing.py` | the sizing study: variants, predicted latency, Pareto front (`results/sizing.json`; every variant's quick training in `results/sizing/`) |

@@ -1,0 +1,46 @@
+{
+ "width": 1,
+ "spec": null,
+ "board": "s3",
+ "weights": "ram",
+ "popcount": "swar",
+ "engine": "vertical_compact",
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 1,
+   "val_accuracy": null,
+   "test_accuracy": 70.6,
+   "flash_kb": 24.3359375,
+   "exactness": 100.0,
+   "chip_accuracy": 71.5,
+   "latency_ms": 7.7065,
+   "equal": 100.0,
+   "ram_kb": 174.91796875
+  },
+  {
+   "seed": 43,
+   "width": 1,
+   "val_accuracy": null,
+   "test_accuracy": 72.18,
+   "flash_kb": 24.3359375,
+   "exactness": 100.0,
+   "chip_accuracy": 72.2,
+   "latency_ms": 7.7535,
+   "equal": 100.0,
+   "ram_kb": 175.19921875
+  },
+  {
+   "seed": 44,
+   "width": 1,
+   "val_accuracy": null,
+   "test_accuracy": 71.06,
+   "flash_kb": 24.3359375,
+   "exactness": 100.0,
+   "chip_accuracy": 70.89999999999999,
+   "latency_ms": 7.642,
+   "equal": 100.0,
+   "ram_kb": 175.15234375
+  }
+ ]
+}

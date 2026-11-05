@@ -1,0 +1,40 @@
+{
+ "run": "binary_i8_sap_hpool2_bop_g0.0001_t1e-08",
+ "n_train": 45000,
+ "n_validation": 5000,
+ "batch_size": 128,
+ "seeds": [
+  {
+   "seed": 42,
+   "val_acc": 76.72,
+   "val_acc_clean": 75.2,
+   "val_acc_augmented": 76.74
+  },
+  {
+   "seed": 43,
+   "val_acc": 77.04,
+   "val_acc_clean": 75.6,
+   "val_acc_augmented": 77.1
+  },
+  {
+   "seed": 44,
+   "val_acc": 76.92,
+   "val_acc_clean": 75.72,
+   "val_acc_augmented": 77.22
+  }
+ ],
+ "summary": {
+  "val_acc": {
+   "mean": 76.893,
+   "std": 0.162
+  },
+  "val_acc_clean": {
+   "mean": 75.507,
+   "std": 0.272
+  },
+  "val_acc_augmented": {
+   "mean": 77.02,
+   "std": 0.25
+  }
+ }
+}

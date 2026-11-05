@@ -1,0 +1,156 @@
+{
+ "run": "binary_og",
+ "images": 2000,
+ "seeds": [
+  {
+   "seed": 42,
+   "maps": [
+    {
+     "channels": 16,
+     "mean_ones": 0.4064,
+     "nearly_constant": 0
+    },
+    {
+     "channels": 16,
+     "mean_ones": 0.3245,
+     "nearly_constant": 1
+    },
+    {
+     "channels": 16,
+     "mean_ones": 0.3213,
+     "nearly_constant": 0
+    },
+    {
+     "channels": 32,
+     "mean_ones": 0.4684,
+     "nearly_constant": 0
+    },
+    {
+     "channels": 32,
+     "mean_ones": 0.38,
+     "nearly_constant": 6
+    },
+    {
+     "channels": 32,
+     "mean_ones": 0.3383,
+     "nearly_constant": 0
+    },
+    {
+     "channels": 64,
+     "mean_ones": 0.5292,
+     "nearly_constant": 0
+    },
+    {
+     "channels": 64,
+     "mean_ones": 0.5779,
+     "nearly_constant": 3
+    },
+    {
+     "channels": 64,
+     "mean_ones": 0.5386,
+     "nearly_constant": 0
+    }
+   ]
+  },
+  {
+   "seed": 43,
+   "maps": [
+    {
+     "channels": 16,
+     "mean_ones": 0.5271,
+     "nearly_constant": 2
+    },
+    {
+     "channels": 16,
+     "mean_ones": 0.3296,
+     "nearly_constant": 2
+    },
+    {
+     "channels": 16,
+     "mean_ones": 0.3331,
+     "nearly_constant": 2
+    },
+    {
+     "channels": 32,
+     "mean_ones": 0.4313,
+     "nearly_constant": 1
+    },
+    {
+     "channels": 32,
+     "mean_ones": 0.4303,
+     "nearly_constant": 6
+    },
+    {
+     "channels": 32,
+     "mean_ones": 0.3796,
+     "nearly_constant": 0
+    },
+    {
+     "channels": 64,
+     "mean_ones": 0.5693,
+     "nearly_constant": 0
+    },
+    {
+     "channels": 64,
+     "mean_ones": 0.5515,
+     "nearly_constant": 8
+    },
+    {
+     "channels": 64,
+     "mean_ones": 0.5726,
+     "nearly_constant": 0
+    }
+   ]
+  },
+  {
+   "seed": 44,
+   "maps": [
+    {
+     "channels": 16,
+     "mean_ones": 0.4911,
+     "nearly_constant": 1
+    },
+    {
+     "channels": 16,
+     "mean_ones": 0.4492,
+     "nearly_constant": 0
+    },
+    {
+     "channels": 16,
+     "mean_ones": 0.3409,
+     "nearly_constant": 1
+    },
+    {
+     "channels": 32,
+     "mean_ones": 0.4227,
+     "nearly_constant": 1
+    },
+    {
+     "channels": 32,
+     "mean_ones": 0.3315,
+     "nearly_constant": 7
+    },
+    {
+     "channels": 32,
+     "mean_ones": 0.3095,
+     "nearly_constant": 1
+    },
+    {
+     "channels": 64,
+     "mean_ones": 0.548,
+     "nearly_constant": 0
+    },
+    {
+     "channels": 64,
+     "mean_ones": 0.5308,
+     "nearly_constant": 2
+    },
+    {
+     "channels": 64,
+     "mean_ones": 0.5439,
+     "nearly_constant": 0
+    }
+   ]
+  }
+ ]
+}

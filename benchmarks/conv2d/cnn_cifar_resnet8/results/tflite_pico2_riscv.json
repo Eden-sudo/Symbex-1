@@ -1,0 +1,11 @@
+{
+ "board": "pico2_riscv",
+ "images": 100,
+ "equal_to_pc": 96.0,
+ "accuracy": 88.0,
+ "latency_ms": 5701.8835,
+ "latency_min_ms": 5701.138,
+ "model_kb": 96.1875,
+ "arena_kb": 53.08984375,
+ "model_in_ram": false
+}

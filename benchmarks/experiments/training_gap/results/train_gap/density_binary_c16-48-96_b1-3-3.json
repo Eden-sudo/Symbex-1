@@ -1,0 +1,321 @@
+{
+ "run": "binary_c16-48-96_b1-3-3",
+ "images": 2000,
+ "seeds": [
+  {
+   "seed": 42,
+   "maps": [
+    {
+     "channels": 16,
+     "mean_ones": 0.3442,
+     "nearly_constant": 0,
+     "nearly_off": 0,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 16,
+     "mean_ones": 0.215,
+     "nearly_constant": 5,
+     "nearly_off": 5,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 48,
+     "mean_ones": 0.127,
+     "nearly_constant": 22,
+     "nearly_off": 22,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 48,
+     "mean_ones": 0.0445,
+     "nearly_constant": 40,
+     "nearly_off": 40,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 48,
+     "mean_ones": 0.1387,
+     "nearly_constant": 25,
+     "nearly_off": 25,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 48,
+     "mean_ones": 0.2269,
+     "nearly_constant": 2,
+     "nearly_off": 2,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 96,
+     "mean_ones": 0.0996,
+     "nearly_constant": 63,
+     "nearly_off": 63,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 96,
+     "mean_ones": 0.033,
+     "nearly_constant": 89,
+     "nearly_off": 89,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 96,
+     "mean_ones": 0.0955,
+     "nearly_constant": 69,
+     "nearly_off": 69,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 96,
+     "mean_ones": 0.1838,
+     "nearly_constant": 4,
+     "nearly_off": 4,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    }
+   ]
+  },
+  {
+   "seed": 43,
+   "maps": [
+    {
+     "channels": 16,
+     "mean_ones": 0.3398,
+     "nearly_constant": 0,
+     "nearly_off": 0,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 16,
+     "mean_ones": 0.2476,
+     "nearly_constant": 3,
+     "nearly_off": 3,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 48,
+     "mean_ones": 0.1413,
+     "nearly_constant": 24,
+     "nearly_off": 24,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 48,
+     "mean_ones": 0.0573,
+     "nearly_constant": 37,
+     "nearly_off": 37,
+     "nearly_on": 0,
+     "never_on": 1,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 48,
+     "mean_ones": 0.1432,
+     "nearly_constant": 27,
+     "nearly_off": 27,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 48,
+     "mean_ones": 0.2483,
+     "nearly_constant": 2,
+     "nearly_off": 2,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 96,
+     "mean_ones": 0.1019,
+     "nearly_constant": 57,
+     "nearly_off": 57,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 96,
+     "mean_ones": 0.0356,
+     "nearly_constant": 90,
+     "nearly_off": 90,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 96,
+     "mean_ones": 0.0947,
+     "nearly_constant": 64,
+     "nearly_off": 64,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 96,
+     "mean_ones": 0.1592,
+     "nearly_constant": 8,
+     "nearly_off": 8,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    }
+   ]
+  },
+  {
+   "seed": 44,
+   "maps": [
+    {
+     "channels": 16,
+     "mean_ones": 0.2984,
+     "nearly_constant": 0,
+     "nearly_off": 0,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 16,
+     "mean_ones": 0.1946,
+     "nearly_constant": 7,
+     "nearly_off": 7,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 48,
+     "mean_ones": 0.1359,
+     "nearly_constant": 24,
+     "nearly_off": 24,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 48,
+     "mean_ones": 0.0564,
+     "nearly_constant": 38,
+     "nearly_off": 38,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 48,
+     "mean_ones": 0.1477,
+     "nearly_constant": 18,
+     "nearly_off": 18,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 48,
+     "mean_ones": 0.2381,
+     "nearly_constant": 7,
+     "nearly_off": 7,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 96,
+     "mean_ones": 0.1066,
+     "nearly_constant": 61,
+     "nearly_off": 61,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 96,
+     "mean_ones": 0.0379,
+     "nearly_constant": 89,
+     "nearly_off": 89,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 96,
+     "mean_ones": 0.0951,
+     "nearly_constant": 65,
+     "nearly_off": 65,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    },
+    {
+     "channels": 96,
+     "mean_ones": 0.1853,
+     "nearly_constant": 2,
+     "nearly_off": 2,
+     "nearly_on": 0,
+     "never_on": 0,
+     "always_on": 0,
+     "gamma_negative": 0
+    }
+   ]
+  }
+ ]
+}

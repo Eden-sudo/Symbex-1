@@ -5,13 +5,16 @@ fashion_tflite.py -- mlp_fashion benchmark, official INT8 side (TensorFlow Lite)
     python fashion_tflite.py --board esp32      # ... and measure it on the board with TensorFlow Lite Micro
     python fashion_tflite.py --table-only       # only the comparison table, from results/tflite/ (no board)
     python fashion_tflite.py --shape 128-512 --board s3 --port /dev/ttyACM0 --usb   # INT8 of the binary-sized MLP
+    python fashion_tflite.py --shape 128-512 --board pico2_arm --port /dev/ttyACM1    # Pico 2 M33, TFLite Micro + CMSIS-NN
 --no-upload assumes the TFLite firmware is still on the board: after running the SYMBEX side (which flashes
 its own firmware), measure without --no-upload, or just print the table with --table-only.
 
 Run from benchmarks/mlp/mlp_fashion/ with the benchmark environment (env_bench: TensorFlow + PyTorch CPU,
 see ../../README.md). Nothing here uses the SYMBEX library or the CDT: the INT8 model is produced by the
 official TFLite converter and runs on the chip with the official TFLite Micro (esp-tflite-micro, which
-uses Espressif's ESP-NN kernels).
+uses Espressif's ESP-NN kernels). On the Raspberry Pi Pico 2 (RP2350, Arduino-Pico core) it is TensorFlow Lite
+Micro at a pinned commit, built from source: Arm's CMSIS-NN kernels on the Cortex-M33 (pico2_arm, DSP on), the
+reference kernels on Hazard3 (pico2_riscv: TFLite Micro has no optimized kernels for it).
 
 Steps:
   1. load the SAME original FP32 model as the SYMBEX side (models/fashion_mlp.pth) and rebuild it in Keras:
@@ -38,7 +41,12 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MEAN, STD = 0.2860, 0.3530
-BOARDS = {"esp32": "esp32dev", "s3": "esp32-s3-devkitc-1"}
+BOARDS = {"esp32": "esp32dev", "s3": "esp32-s3-devkitc-1", "pico2_arm": "rpipico2", "pico2_riscv": "rpipico2"}
+MHZ = {"esp32": 240, "s3": 240, "pico2_arm": 150, "pico2_riscv": 150}
+# TensorFlow Lite Micro for the Pico 2: built from the official repository at this commit (Nov 3, 2026)
+TFLM_REPO = "https://github.com/tensorflow/tflite-micro"
+TFLM_COMMIT = "85c6999a1f0032f64f3b0002431a357b451275c4"
+TFLM_DIR = os.path.join(HERE, "..", "..", "data", "tflm_pico")
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -205,7 +213,159 @@ extern "C" void app_main(void) {
 """
 
 
+MAIN_TFLM_PICO = r"""
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <cmath>
+#include "tensorflow/lite/micro/micro_interpreter.h"
+#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
+#include "tensorflow/lite/micro/schema/schema_generated.h"
+#include "model_tflite.h"
+#include <Arduino.h>   /* after TFLite Micro: its abs / round macros (RISC-V build) break TFLite Micro's templates */
+
+static uint8_t arena[ARENA_KB * 1024] __attribute__((aligned(16)));
+static uint8_t x[N_INPUTS];
+static int8_t q8[256];
+
+static void read_exact(uint8_t* d, size_t n) {
+    size_t r = 0;
+    while (r < n) { int k = Serial.read(); if (k >= 0) d[r++] = (uint8_t)k; }
+}
+
+static void halt(const char* msg) {
+    while (true) { Serial.printf("\nERROR:%s\n", msg); delay(1000); }
+}
+
+void setup() {
+    Serial.begin(BAUD_RATE);
+#ifdef MODEL_IN_RAM
+    /* copy the whole .tflite (weights included) to RAM: no flash (XIP cache) misses */
+    uint8_t* copy_buf = (uint8_t*)aligned_alloc(16, (g_model_len + 15) & ~(size_t)15);
+    if (!copy_buf) halt("no RAM for the model copy");
+    memcpy(copy_buf, g_model, g_model_len);
+    const tflite::Model* model = tflite::GetModel(copy_buf);
+#else
+    const tflite::Model* model = tflite::GetModel(g_model);
+#endif
+    static tflite::MicroMutableOpResolver<6> ops;
+    ops.AddFullyConnected(); ops.AddReshape(); ops.AddQuantize(); ops.AddDequantize(); ops.AddSoftmax(); ops.AddRelu();
+    static tflite::MicroInterpreter it(model, ops, arena, sizeof arena);
+    if (it.AllocateTensors() != kTfLiteOk) halt("AllocateTensors failed");
+    TfLiteTensor* inp = it.input(0);
+    TfLiteTensor* out = it.output(0);
+    for (int p = 0; p < 256; p++) {
+        float q = roundf((p / 255.0f) / inp->params.scale) + inp->params.zero_point;
+        q8[p] = (int8_t)(q < -128 ? -128 : (q > 127 ? 127 : q));
+    }
+    while (true) {                                    /* the host sends 0x55 when it listens, 0xA5 + image to run */
+        uint8_t mark = 0;
+        read_exact(&mark, 1);
+        if (mark == 0x55) {
+            Serial.printf("\nTFLITE ready | arena used %u bytes\n", (unsigned)it.arena_used_bytes());
+            continue;
+        }
+        if (mark != 0xA5) continue;
+        read_exact(x, sizeof x);
+        uint32_t t0 = micros();
+        for (int i = 0; i < N_INPUTS; i++) inp->data.int8[i] = q8[x[i]];
+        it.Invoke();
+        int c = 0;
+        for (int j = 1; j < N_CLASSES; j++) if (out->data.int8[j] > out->data.int8[c]) c = j;
+        uint32_t t1 = micros();
+        Serial.printf("T:%d,%lu\n", c, (unsigned long)(t1 - t0));
+    }
+}
+
+void loop() {}
+"""
+
+
+def pico_tflm_tree(board):
+    """TensorFlow Lite Micro source tree for the Pico 2, generated once in benchmarks/data/tflm_pico/ with the
+    official create_tflm_tree.py at TFLM_COMMIT: CMSIS-NN kernels for pico2_arm (Cortex-M33), the reference kernels
+    for pico2_riscv. Two fixes for the Arduino-Pico core: flatbuffers skips <cstdint> when ARDUINO is defined
+    (base.h patched to always include it), and the CMSIS-NN tree takes the generic debug_log.cc / micro_time.cc
+    (the cortex_m_generic ones expect a semihosting / SysTick setup; this firmware times with micros())."""
+    cmsis = board == "pico2_arm"
+    tree = os.path.abspath(os.path.join(TFLM_DIR, "tree_cmsis_nn" if cmsis else "tree_reference"))
+    if os.path.exists(os.path.join(tree, "library.json")):
+        return tree
+    repo = os.path.abspath(os.path.join(TFLM_DIR, "tflite-micro"))
+    run = lambda cmd: subprocess.run(cmd, cwd=repo, check=True)
+    if not os.path.isdir(os.path.join(repo, ".git")):
+        print(f"[*] downloading TensorFlow Lite Micro {TFLM_COMMIT[:10]} (once)")
+        os.makedirs(repo, exist_ok=True)
+        run(["git", "init", "-q"])
+        run(["git", "remote", "add", "origin", TFLM_REPO])
+    run(["git", "fetch", "-q", "--depth", "1", "origin", TFLM_COMMIT])
+    run(["git", "checkout", "-q", TFLM_COMMIT])
+    print(f"[*] generating the TFLite Micro tree ({'CMSIS-NN' if cmsis else 'reference'} kernels; the first time it "
+          "downloads its third-party code)")
+    if os.path.isdir(tree):
+        shutil.rmtree(tree)
+    cmd = [sys.executable, "tensorflow/lite/micro/tools/project_generation/create_tflm_tree.py"]
+    if cmsis:
+        cmd.append("--makefile_options=TARGET=cortex_m_generic TARGET_ARCH=cortex-m33 OPTIMIZED_KERNEL_DIR=cmsis_nn")
+    run(cmd + [tree])
+    micro = os.path.join(tree, "tensorflow", "lite", "micro")
+    if cmsis:
+        shutil.rmtree(os.path.join(micro, "cortex_m_generic"), ignore_errors=True)
+        for f in ("debug_log.cc", "micro_time.cc"):
+            shutil.copy(os.path.join(repo, "tensorflow", "lite", "micro", f), os.path.join(micro, f))
+    base_h = os.path.join(tree, "third_party", "flatbuffers", "include", "flatbuffers", "base.h")
+    text = open(base_h).read()
+    old = "#ifndef ARDUINO\n#include <cstdint>\n#endif\n"
+    if text.count(old) != 1:
+        sys.exit(f"[X] {base_h}: the <cstdint> guard changed, update pico_tflm_tree()")
+    open(base_h, "w").write(text.replace(old, "#include <cstdint>\n"))
+    flags = ["-I.", "-Ithird_party/flatbuffers/include", "-Ithird_party/gemmlowp", "-Ithird_party/kissfft",
+             "-Ithird_party/ruy"]
+    if cmsis:
+        flags += ["-Ithird_party/cmsis_nn", "-Ithird_party/cmsis_nn/Include", "-Ithird_party/cmsis/CMSIS/Core/Include",
+                  "-DCMSIS_NN"]
+    flags += ["-DTF_LITE_STATIC_MEMORY", "-DTF_LITE_DISABLE_X86_NEON", "-O2", "-Wno-unused-parameter"]
+    json.dump({"name": "tflm", "version": "0.0.0",
+               "build": {"flags": flags, "includeDir": ".", "srcDir": ".",
+                         "srcFilter": ["+<*>", "-<signal/>", "-<third_party/kissfft/>",
+                                       "-<tensorflow/lite/micro/test_helper*>"]}},
+              open(os.path.join(tree, "library.json"), "w"), indent=1)
+    return tree
+
+
+def tflm_project_pico(project_dir, tflite, board, port, baud, arena_kb, n_inputs, n_classes, model_ram=False):
+    """PlatformIO project for the Pico 2 (Arduino-Pico core, as compiler_core/chip/core.py builds SYMBEX): the
+    TFLite Micro tree of pico_tflm_tree() as a library, src/main.cc = MAIN_TFLM_PICO (the same resolver and
+    input-table lines as MAIN_TFLM, which the other benchmarks' scripts replace), -O2, upload with picotool."""
+    tree = pico_tflm_tree(board)
+    src = os.path.join(project_dir, "src")
+    os.makedirs(src, exist_ok=True)
+    w = lambda r, t: open(os.path.join(project_dir, r), "w").write(t)
+    w("platformio.ini", f"[env:{board}]\nplatform = raspberrypi\nboard = {BOARDS[board]}\nframework = arduino\n"
+                        f"board_build.core = earlephilhower\nupload_protocol = picotool\nupload_port = {port}\n"
+                        + ("board_build.mcu = rp2350-riscv\n" if board == "pico2_riscv" else "")
+                        + f"lib_deps = symlink://{tree}\nlib_ldf_mode = deep+\n"
+                        f"build_flags = -O2 -I{tree} -I{tree}/third_party/flatbuffers/include "
+                        f"-I{tree}/third_party/gemmlowp -DTF_LITE_STATIC_MEMORY\nbuild_unflags = -Os\n")
+    model_sources(w, tflite)
+    w("src/main.cc", f"#define BAUD_RATE {baud}\n#define ARENA_KB {arena_kb}\n#define N_INPUTS {n_inputs}\n"
+                     f"#define N_CLASSES {n_classes}\n" + ("#define MODEL_IN_RAM 1\n" if model_ram else "")
+                     + MAIN_TFLM_PICO)
+
+
+def model_sources(w, tflite):
+    """src/model_tflite.h / .cc: the .tflite as a const array (in flash), 16-byte aligned"""
+    w("src/model_tflite.h", "#pragma once\n#include <cstddef>\nextern const unsigned char g_model[];\n"
+                             "extern const size_t g_model_len;\n")
+    lines = ['#include "model_tflite.h"', "alignas(16) const unsigned char g_model[] = {"]
+    lines += ["  " + ", ".join(f"0x{b:02x}" for b in tflite[i:i + 16]) + "," for i in range(0, len(tflite), 16)]
+    lines += ["};", f"const size_t g_model_len = {len(tflite)};"]
+    w("src/model_tflite.cc", "\n".join(lines) + "\n")
+
+
 def tflm_project(project_dir, tflite, board, port, baud, arena_kb, n_inputs, n_classes, model_ram=False, usb=False):
+    if board.startswith("pico2"):
+        return tflm_project_pico(project_dir, tflite, board, port, baud, arena_kb, n_inputs, n_classes, model_ram)
     src = os.path.join(project_dir, "src")
     os.makedirs(src, exist_ok=True)
     for f in os.listdir(project_dir):
@@ -223,12 +383,7 @@ def tflm_project(project_dir, tflite, board, port, baud, arena_kb, n_inputs, n_c
                         f"project({os.path.basename(os.path.abspath(project_dir))})\n")
     w("src/CMakeLists.txt", 'idf_component_register(SRCS "main.cc" "model_tflite.cc" INCLUDE_DIRS ".")\n')
     w("src/idf_component.yml", 'dependencies:\n  espressif/esp-tflite-micro: "*"\n')
-    w("src/model_tflite.h", "#pragma once\n#include <cstddef>\nextern const unsigned char g_model[];\n"
-                             "extern const size_t g_model_len;\n")
-    lines = ['#include "model_tflite.h"', "alignas(16) const unsigned char g_model[] = {"]
-    lines += ["  " + ", ".join(f"0x{b:02x}" for b in tflite[i:i + 16]) + "," for i in range(0, len(tflite), 16)]
-    lines += ["};", f"const size_t g_model_len = {len(tflite)};"]
-    w("src/model_tflite.cc", "\n".join(lines) + "\n")
+    model_sources(w, tflite)
     w("src/main.cc", f"#define BAUD_RATE {baud}\n#define ARENA_KB {arena_kb}\n#define N_INPUTS {n_inputs}\n"
                      f"#define N_CLASSES {n_classes}\n" + ("#define MODEL_IN_RAM 1\n" if model_ram else "")
                      + ("#define USB_SERIAL_JTAG 1\n" if usb else "") + MAIN_TFLM)
@@ -236,26 +391,42 @@ def tflm_project(project_dir, tflite, board, port, baud, arena_kb, n_inputs, n_c
 
 def measure_chip(project_dir, board, port, baud, x_u8, upload, usb=False):
     import serial
+    pico = board.startswith("pico2")
     if upload:
         if shutil.which("pio") is None:
             sys.exit("[X] PlatformIO (pio) not found in this environment: pip install platformio")
         print(f"[*] building and flashing {BOARDS[board]} (TFLite Micro; the first build downloads it)...")
         if subprocess.run(["pio", "run", "-d", project_dir, "--target", "upload"]).returncode != 0:
             sys.exit("[X] build or upload failed")
-    s = serial.Serial()
-    s.port, s.baudrate, s.timeout = port, baud, 1
-    s.dtr = False
-    s.rts = False
-    s.open()
-    s.reset_input_buffer()
-    if usb:                                              # native USB: opening the port resets the chip
-        time.sleep(1.5)
+    if pico:                                             # its USB port re-enumerates after flashing: wait for it
+        t0 = time.time()
+        while True:
+            try:
+                s = serial.Serial(port, baud, timeout=1)
+                break
+            except (serial.SerialException, OSError):
+                if time.time() - t0 > 30:
+                    sys.exit(f"[X] {port} did not come back after flashing")
+                time.sleep(0.5)
+        time.sleep(1.0)
         s.reset_input_buffer()
         s.write(b"\x55")
+        usb = True                                       # the same 0x55 handshake as the S3's native USB
     else:
-        s.rts = True
-        time.sleep(0.15)
+        s = serial.Serial()
+        s.port, s.baudrate, s.timeout = port, baud, 1
+        s.dtr = False
         s.rts = False
+        s.open()
+        s.reset_input_buffer()
+        if usb:                                          # native USB: opening the port resets the chip
+            time.sleep(1.5)
+            s.reset_input_buffer()
+            s.write(b"\x55")
+        else:
+            s.rts = True
+            time.sleep(0.15)
+            s.rts = False
     arena, t0, warned = None, time.time(), False
     while True:
         l = s.readline().decode(errors="replace").strip()
@@ -274,7 +445,7 @@ def measure_chip(project_dir, board, port, baud, x_u8, upload, usb=False):
     pred, times = [], []
     for i in range(len(x_u8)):
         s.write(bytes([0xA5]) + np.ascontiguousarray(x_u8[i], dtype=np.uint8).tobytes())
-        deadline = time.time() + 10
+        deadline = time.time() + 30                      # the reference kernels on Hazard3 take seconds per image
         while True:
             l = s.readline().decode(errors="replace").strip()
             if l.startswith("T:"):
@@ -313,7 +484,7 @@ def final_table(r_tfl, board):
     for place in ("flash", "ram"):
         if place not in tflite and not symbex[place]:
             continue
-        print(f"\n    {titles[place]}  --  {board}, 240 MHz, one core")
+        print(f"\n    {titles[place]}  --  {board}, {MHZ[board]} MHz, one core")
         print(f"    {'model':<44}{'accuracy':>9}{'latency ms':>12}{'vs TFLite':>11}{'flash KB':>10}{'RAM KB':>9}")
         print("    " + "-" * 95)
         ref = tflite.get(place)
