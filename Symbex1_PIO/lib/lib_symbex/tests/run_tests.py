@@ -1233,8 +1233,9 @@ int main(void) { int hdr[5]; static uint8_t img[16 * 16 * 3];
 def test_bool_stem_i8(hal, n):
     """the optional int8 first layer (symbex_bool_stem_i8): random images, 1x1 / 3x3, strides 1 / 2, any size and
     channel count, output bits against numpy (dot of pixel - 128 with the int8 weights, zero padding, >= threshold);
-    then the same layer as a network's stem (symbex_bool_net_run with stem_i8, a classifier on its bits) and
-    symbex_bool_vertical_check must refuse it"""
+    then the same layer as a network's stem (symbex_bool_net_run with stem_i8, a classifier on its bits); the
+    vertical engine must give the same class where it runs the shape (output width divides 32, h * w a multiple of
+    32) and refuse the rest"""
     exe = build("boolstemi8", """
 static int8_t W8[96 * 28] __attribute__((aligned(16))); static int32_t T[96], FCW_I[16], FCS[16], FCB[16];
 static uint32_t OUT[24 * 24 * 3 + 1], M[4][24 * 24 * 3 + 1], WIN[8] __attribute__((aligned(16))), FCW[16 * 1728];
@@ -1264,7 +1265,17 @@ int main(void) { int a[7];
     net.fc_weights = FCW; net.fc_weight_counts = FCW_I; net.fc_scale = FCS; net.fc_bias = FCB;
     for (int i = 0; i < 4; i++) { memset(M[i], 0x5A, sizeof M[i]); net.maps[i] = M[i]; }
     net.window = WIN; net.scratch = SCR;
-    printf("%d %d\\n", symbex_bool_net_run(&net, img), symbex_bool_vertical_check(&net) != NULL);
+    const int refused = symbex_bool_vertical_check(&net) != NULL;
+    int vcls = -1;
+    if (!refused) {
+      const size_t wb = symbex_bool_vertical_work_bytes(&net);
+      void* work = aligned_alloc(16, (wb + 15) & ~(size_t)15);
+      struct SymbexBoolVertical v;
+      if (!work || symbex_bool_vertical_init(&net, work, wb, &v)) return 3;
+      vcls = symbex_bool_net_run_vertical(&net, &v, img);
+      free(work);
+    }
+    printf("%d %d %d\\n", symbex_bool_net_run(&net, img), refused, vcls);
   }
   return 0; }""", hal)
     data, exp = Chunks(), []
@@ -1304,7 +1315,8 @@ int main(void) { int a[7];
         bias = RNG.integers(-(1 << 20), 1 << 20, nc)
         raw = (2 * fbits.reshape(nc, -1) - 1) @ (2 * bits.reshape(-1) - 1)
         cls = int(np.argmax(scale.astype(np.int64) * raw + bias))
-        exp.append(list(words_.astype(np.int64)) + [0x5A5A5A5A, cls, 1])
+        vref = not (32 % ow == 0 and (oh * ow) % 32 == 0)
+        exp.append(list(words_.astype(np.int64)) + [0x5A5A5A5A, cls, int(vref), -1 if vref else cls])
         data += (i32(cout, k, s, h, w, rb, nc) + img.astype(np.uint8).tobytes() + wrows.tobytes()
                  + thr.astype(np.int32).tobytes() + fw.tobytes() + cnt.astype(np.int32).tobytes()
                  + scale.astype(np.int32).tobytes() + bias.astype(np.int32).tobytes())
@@ -1323,9 +1335,11 @@ int main(void) { int a[7];
 def test_bool_net_vertical(hal, n):
     """the vertical engine (symbex_bool_net_run_vertical) on whole random networks of the shapes it runs: the same
     class as symbex_bool_net_run and the numpy reference, and the same final map, bit by bit; then again with the
-    prepared lists and thresholds (symbex_bool_vertical_prepare), and with the compact ones (prepare_compact)"""
+    prepared lists and thresholds (symbex_bool_vertical_prepare), and with the compact ones (prepare_compact).
+    Every second network has an int8 stem (stem_i8) instead of thermometer + binary stem, every other pair a pooled
+    int8 classifier (pool_head) instead of the binary one"""
     exe = build("boolnetv", """
-static uint32_t pool32[1 << 17] __attribute__((aligned(16))); static size_t np32;
+static uint32_t pool32[1 << 19] __attribute__((aligned(16))); static size_t np32;   /* pooled head: 8 x 10 x 2048 */
 static int32_t poolI[1 << 15]; static size_t nI; static int16_t pool16[1 << 15]; static size_t n16;
 static uint32_t* take_w(int n) { uint32_t* p = &pool32[np32]; if (fread(p, 4, n, stdin) != (size_t)n) exit(2); np32 += (n + 3) / 4 * 4; return p; }
 static int32_t* take_i(int n) { int32_t* p = &poolI[nI]; if (fread(p, 4, n, stdin) != (size_t)n) exit(2); nI += n; return p; }
@@ -1334,22 +1348,45 @@ static void read_conv(struct SymbexBoolConv* L) { int a[8]; if (fread(a, 4, 8, s
   L->in_ch = a[0]; L->out_ch = a[1]; L->kernel = a[2]; L->stride = a[3]; L->in_h = a[4]; L->in_w = a[5];
   L->out_h = (a[4] + 2 * (a[2] / 2) - a[2]) / a[3] + 1; L->out_w = (a[5] + 2 * (a[2] / 2) - a[2]) / a[3] + 1;
   L->row_words = a[6]; L->weights = take_w(a[1] * a[6]); L->thresholds = take_i(a[1]); L->weight_counts = take_c(a[1] * a[2] * a[2]); (void)a[7]; }
-static uint32_t M[4][32 * 32 * 2] __attribute__((aligned(16))), WIN[128] __attribute__((aligned(16))); static int32_t SCR[512];
+static uint32_t M[4][32 * 32 * 2] __attribute__((aligned(16))), WIN[4096] __attribute__((aligned(16)));   /* the pooled head's count planes too */ static int32_t SCR[512];
 static struct SymbexBoolBlock B[8]; static struct SymbexBoolConv SC[8];
+static int8_t W8[64 * 28] __attribute__((aligned(16))); static int32_t T8[64], PSC[16], PBI[16];
 int main(void) { int hdr[5]; static uint8_t img[32 * 32 * 3];
   while (fread(hdr, 4, 5, stdin) == 5) {
     np32 = nI = n16 = 0;
     struct SymbexBoolNet net; memset(&net, 0, sizeof net);
     net.in_h = (uint16_t)hdr[0]; net.in_w = (uint16_t)hdr[1]; net.levels = (uint8_t)hdr[2]; net.n_blocks = (uint16_t)hdr[3];
     if (fread(img, 1, hdr[0] * hdr[1] * 3, stdin) != (size_t)(hdr[0] * hdr[1] * 3)) return 2;
-    read_conv(&net.stem);
+    struct SymbexBoolStemI8 st8;
+    if (hdr[4] & 1) {                            /* the int8 stem (3 x 3, stride 1), its output dims in net.stem */
+      int a[2]; if (fread(a, 4, 2, stdin) != 2) return 2;
+      if (fread(W8, 1, a[0] * 28, stdin) != (size_t)(a[0] * 28) || fread(T8, 4, a[0], stdin) != (size_t)a[0]) return 2;
+      const struct SymbexBoolStemI8 s0 = {(uint16_t)a[0], 3, 1, (uint16_t)hdr[0], (uint16_t)hdr[1], (uint16_t)hdr[0],
+                                          (uint16_t)hdr[1], 28, W8, T8};
+      st8 = s0; net.stem_i8 = &st8;
+      net.stem.in_ch = 3; net.stem.out_ch = (uint16_t)a[0]; net.stem.kernel = 3; net.stem.stride = 1;
+      net.stem.in_h = net.stem.out_h = (uint16_t)hdr[0]; net.stem.in_w = net.stem.out_w = (uint16_t)hdr[1];
+    } else {
+      read_conv(&net.stem);
+    }
     for (int i = 0; i < net.n_blocks; i++) { int f[2]; if (fread(f, 4, 2, stdin) != 2) return 2;
       read_conv(&B[i].conv); B[i].shortcut = NULL; B[i].shortcut_pool = (uint8_t)f[1];
       if (f[0]) { read_conv(&SC[i]); B[i].shortcut = &SC[i]; } }
     net.blocks = B;
     int fc[4]; if (fread(fc, 4, 4, stdin) != 4) return 2;
-    net.n_classes = (uint16_t)fc[0]; net.fc_words = (uint16_t)fc[1]; net.fc_row_words = (uint16_t)fc[2]; net.fc_bits = (uint32_t)fc[3];
-    net.fc_weights = take_w(fc[0] * fc[2]); net.fc_weight_counts = take_i(fc[0]); net.fc_scale = take_i(fc[0]); net.fc_bias = take_i(fc[0]);
+    net.n_classes = (uint16_t)fc[0]; net.fc_words = (uint16_t)fc[1];
+    struct SymbexBoolPoolHead ph;
+    if (hdr[4] & 2) {                            /* the pooled int8 classifier: fc[2] = window, fc[3] = row words */
+      const struct SymbexBoolConv* last = &B[net.n_blocks - 1].conv;
+      int np = 0; while ((fc[2] * fc[2]) >> np) np++;
+      const struct SymbexBoolPoolHead p0 = {(uint16_t)fc[2], last->out_ch, last->out_h, last->out_w, (uint16_t)fc[0],
+                                            (uint16_t)fc[3], (uint8_t)np, take_w(8 * fc[0] * fc[3]), PSC, PBI};
+      ph = p0; net.pool_head = &ph;
+      if (fread(PSC, 4, fc[0], stdin) != (size_t)fc[0] || fread(PBI, 4, fc[0], stdin) != (size_t)fc[0]) return 2;
+    } else {
+      net.fc_row_words = (uint16_t)fc[2]; net.fc_bits = (uint32_t)fc[3];
+      net.fc_weights = take_w(fc[0] * fc[2]); net.fc_weight_counts = take_i(fc[0]); net.fc_scale = take_i(fc[0]); net.fc_bias = take_i(fc[0]);
+    }
     for (int i = 0; i < 4; i++) { memset(M[i], 0x5A, sizeof M[i]); net.maps[i] = M[i]; }
     net.window = WIN; net.scratch = SCR;
     const char* why = symbex_bool_vertical_check(&net);
@@ -1387,7 +1424,7 @@ int main(void) { int hdr[5]; static uint8_t img[32 * 32 * 3];
       ok &= c == std_class && memcmp(v.hwc, std_map, (size_t)net.fc_words * 4) == 0;
     }
     /* the tile cap (tile indices are bytes): an output map of 1024 x 32 (256 tiles of 128) runs, 1056 x 32 is refused */
-    { struct SymbexBoolNet t = net; t.n_blocks = 0; t.in_w = t.stem.in_w = t.stem.out_w = 32;
+    { struct SymbexBoolNet t = net; t.n_blocks = 0; t.stem_i8 = NULL; t.stem.in_ch = (uint16_t)(3 * t.levels); t.in_w = t.stem.in_w = t.stem.out_w = 32;
       t.in_h = t.stem.in_h = t.stem.out_h = 1024; ok &= symbex_bool_vertical_check(&t) == NULL;
       t.in_h = t.stem.in_h = t.stem.out_h = 1056; ok &= symbex_bool_vertical_check(&t) != NULL; }
     printf("%d %d\\n", std_class, ok);
@@ -1405,16 +1442,28 @@ int main(void) { int hdr[5]; static uint8_t img[32 * 32 * 3];
                 + cnts.astype(np.int32).tobytes()), wb, thr
 
     for c_ in range(n):
+        flags = c_ % 4                                       # bit 0: int8 stem, bit 1: pooled int8 classifier
         size = int(RNG.choice([8, 16, 32]))
         lv = 8                                               # k * k * 3 * levels a multiple of 8
         c0 = int(RNG.choice([8, 16, 24]))
         img = u8_data(size * size * 3, c_).reshape(size, size, 3)
-        thr_t = (np.arange(lv) + 1) * 256 // (lv + 1)
-        x = (img[:, :, :, None] >= thr_t[None, None, None, :]).reshape(size, size, 3 * lv).astype(np.int64)
-        blob, wb, thr = conv_bytes(3 * lv, c0, 3, 1, size, size, c_)
+        if flags & 1:
+            wt8 = RNG.integers(-128, 128, (c0, 3, 3, 3))
+            thr8 = RNG.integers(-20000, 20001, c0)
+            wrows = np.zeros((c0, 28), dtype=np.int8)
+            wrows[:, :27] = wt8.reshape(c0, -1)
+            xp = np.zeros((size + 2, size + 2, 3), dtype=np.int64)
+            xp[1:-1, 1:-1] = img.astype(np.int64) - 128
+            win = np.stack([xp[dy:dy + size, dx:dx + size] for dy in range(3) for dx in range(3)], 2).reshape(size, size, 27)
+            x = (win @ wt8.reshape(c0, -1).T >= thr8).astype(np.int64)
+            body = i32(c0, 3) + wrows.tobytes() + thr8.astype(np.int32).tobytes()
+        else:
+            thr_t = (np.arange(lv) + 1) * 256 // (lv + 1)
+            x = (img[:, :, :, None] >= thr_t[None, None, None, :]).reshape(size, size, 3 * lv).astype(np.int64)
+            blob, wb, thr = conv_bytes(3 * lv, c0, 3, 1, size, size, c_)
+            body = blob
+            x = bool_conv_ref(x, wb, thr, 3, 1)
         n_blocks = int(RNG.integers(1, 5))
-        body = blob
-        x = bool_conv_ref(x, wb, thr, 3, 1)
         ch, h = c0, size
         for i in range(n_blocks):
             mode = int(RNG.integers(0, 3)) if h >= 16 else int(RNG.choice([0, 2]))   # the output keeps h * w >= 32
@@ -1435,6 +1484,24 @@ int main(void) { int hdr[5]; static uint8_t img[32 * 32 * 3];
             ch, h = cout, y.shape[0]
         pp = (ch + 31) // 32
         fwords = h * h * pp
+        if flags & 2:                                        # the pooled int8 classifier, k x k windows
+            k = int(RNG.choice([kk for kk in (1, 2, 4) if h % kk == 0]))
+            nwin = (h // k) ** 2
+            rw = -(-(nwin * pp) // 4) * 4
+            counts = x.reshape(h // k, k, h // k, k, ch).sum((1, 3)).reshape(nwin, ch)
+            wt = RNG.integers(-128, 128, (10, nwin, ch))
+            planes = np.zeros((8, 10, rw), dtype=np.uint32)
+            for q in range(8):
+                padded = np.zeros((10, nwin, 32 * pp), dtype=np.int64)
+                padded[:, :, :ch] = ((wt & 0xFF) >> q) & 1
+                planes[q, :, :nwin * pp] = words(padded.reshape(10, -1), nwin * pp)
+            scale = RNG.integers(1, 1 << 12, 10)
+            bias = RNG.integers(-(1 << 24), 1 << 24, 10)
+            dot = (wt.reshape(10, -1) * counts.reshape(-1)[None]).sum(1)
+            exp += [int(np.argmax(scale.astype(np.int64) * dot + bias)), 1]
+            data += i32(size, size, lv, n_blocks, flags) + img.astype(np.uint8).tobytes() + body \
+                + i32(10, fwords, k, rw) + planes.tobytes() + scale.astype(np.int32).tobytes() + bias.astype(np.int32).tobytes()
+            continue
         rw = -(-fwords // 4) * 4
         fbits = RNG.integers(0, 2, (10, h, h, ch))
         fw = np.zeros((10, rw), dtype=np.uint32)
@@ -1445,7 +1512,7 @@ int main(void) { int hdr[5]; static uint8_t img[32 * 32 * 3];
         bias = RNG.integers(-(1 << 20), 1 << 20, 10)
         raw = (2 * fbits.reshape(10, -1) - 1) @ (2 * x.reshape(-1) - 1)
         exp += [int(np.argmax(scale.astype(np.int64) * raw + bias)), 1]   # the class, then vertical == standard
-        data += i32(size, size, lv, n_blocks, 0) + img.astype(np.uint8).tobytes() + body + i32(10, fwords, rw, h * h * ch) \
+        data += i32(size, size, lv, n_blocks, flags) + img.astype(np.uint8).tobytes() + body + i32(10, fwords, rw, h * h * ch) \
             + fw.tobytes() + cnt.astype(np.int32).tobytes() + scale.astype(np.int32).tobytes() + bias.astype(np.int32).tobytes()
     got = run(exe, data)
     bad = np.nonzero((got != np.array(exp)).reshape(-1, 2).any(1))[0]
@@ -1597,6 +1664,64 @@ int main(void) { int a[5]; static uint32_t m[24 * 24 * 4], w[16 * 8] __attribute
     return n, len(bad), (f"value {bad[0]}: got {got[bad[0]]}, expected {flat[bad[0]]}" if len(bad) else "")
 
 
+def test_bool_pool_head(hal, n):
+    """symbex_bool_pool_head (int8 weights on the ones per k x k window) against numpy: windows 1..8 (1..7 count
+    planes), any channel count (bits above it are 0), weights -128..127, ties (the first class wins)"""
+    exe = build("poolhead", """
+#include "layers/conv/symbex_bool.h"
+int main(void) { int a[6]; static uint32_t m[32 * 32 * 4], w[8 * 16 * 256] __attribute__((aligned(16)));
+  static uint32_t counts[7 * 256] __attribute__((aligned(16))); static int32_t sc[16], bi[16], scr[32];
+  while (fread(a, 4, 6, stdin) == 6) {
+    int k = a[0], h = a[1], wd = a[2], ch = a[3], nc = a[4], rw = a[5], pp = (ch + 31) / 32, np = 0;
+    while ((k * k) >> np) np++;
+    if (fread(m, 4, h * wd * pp, stdin) != (size_t)(h * wd * pp) || fread(w, 4, 8 * nc * rw, stdin) != (size_t)(8 * nc * rw) ||
+        fread(sc, 4, nc, stdin) != (size_t)nc || fread(bi, 4, nc, stdin) != (size_t)nc) return 1;
+    const struct SymbexBoolPoolHead hd = {(uint16_t)k, (uint16_t)ch, (uint16_t)h, (uint16_t)wd, (uint16_t)nc,
+                                          (uint16_t)rw, (uint8_t)np, w, sc, bi};
+    printf("%d\\n", symbex_bool_pool_head(&hd, m, counts, scr)); }
+  return 0; }""", hal)
+    data, exp = Chunks(), []
+    for c in range(n):
+        k = int(RNG.choice([1, 2, 2, 3, 4, 8]))
+        nwy, nwx = int(RNG.integers(1, 32 // k + 1)), int(RNG.integers(1, 32 // k + 1))
+        ch = int(RNG.choice([8, 16, 31, 32, 33, 64, 100, 128]))
+        pp = (ch + 31) // 32
+        while nwy * nwx * pp > 256:
+            nwy = max(1, nwy // 2)
+            nwx = max(1, nwx - 1)
+        h, w = nwy * k, nwx * k
+        nc = int(RNG.integers(2, 17))
+        rw = -(-(nwy * nwx * pp) // 4) * 4
+        bits = bits_data((h, w, ch), c)
+        counts = bits.reshape(nwy, k, nwx, k, ch).sum((1, 3)).reshape(nwy * nwx, ch)
+        wt = RNG.integers(-128, 128, (nc, nwy * nwx, ch))
+        if c % 7 == 0:
+            wt[:, :, :] = RNG.choice([-128, 127])                   # the extremes
+        dot = (wt.reshape(nc, -1) * counts.reshape(-1)[None]).sum(1)
+        planes = np.zeros((8, nc, rw), dtype=np.uint32)
+        for q in range(8):
+            b = ((wt & 0xFF) >> q) & 1                                 # (nc, windows, ch)
+            padded = np.zeros((nc, nwy * nwx, 32 * pp), dtype=np.int64)
+            padded[:, :, :ch] = b
+            planes[q, :, :nwy * nwx * pp] = words(padded.reshape(nc, -1), nwy * nwx * pp)
+        scale = RNG.integers(1, 1 << 12, nc)
+        bias = RNG.integers(-(1 << 24), 1 << 24, nc)
+        if c % 5 == 0:
+            scale[:] = scale[0]
+            bias[:] = bias[0]
+            wt[1:] = wt[0]
+            dot[:] = dot[0]                                           # ties: the first class wins
+            for q in range(8):
+                planes[q, 1:] = planes[q, 0]
+        exp.append(int(np.argmax(scale.astype(np.int64) * dot + bias)))
+        data += i32(k, h, w, ch, nc, rw) + hwc_words(bits, pp).astype(np.uint32).tobytes() + planes.tobytes() \
+            + scale.astype(np.int32).tobytes() + bias.astype(np.int32).tobytes()
+    got = run(exe, data)
+    exp = np.array(exp)
+    bad = np.nonzero(got != exp)[0]
+    return n, len(bad), (f"case {bad[0]}: got {got[bad[0]]}, expected {exp[bad[0]]}" if len(bad) else "")
+
+
 def bool1d_case(c, u8, i8=False):
     """one random 1D layer: (sizes, input, weights, thresholds, expected output words, int8 weights or None).
     i8: the uint8 layer with int8 weights (weights_i8) instead of the 1-bit rows."""
@@ -1730,11 +1855,12 @@ TESTS = [("hal: popcount32", test_hal_popcount32), ("hal: name", test_hal_name),
          ("bool: conv with integer thresholds, AND and XOR forms (borders, strides, 1x1 / 3x3)", test_bool_conv),
          ("bool: thermometer, OR pool, OR, integer classifier", test_bool_pieces),
          ("bool: whole random networks, AND and XOR forms (symbex_bool_net_run)", test_bool_net),
-         ("bool: int8 stem (borders, strides, 1x1 / 3x3), as a network's stem; the vertical engine refuses it", test_bool_stem_i8),
+         ("bool: int8 stem (borders, strides, 1x1 / 3x3), as a network's stem, standard and vertical engines", test_bool_stem_i8),
          ("bool: vertical engine (built, prepared, compact), whole networks = symbex_bool_net_run (class and final map)", test_bool_net_vertical),
          ("bool: vertical engine, two instances at the same time (two threads) = symbex_bool_net_run", test_bool_vertical_threads),
          ("hal: xor_popcount_rows, *_rows_n (AND / XOR over the first n words)", test_hal_xor_rows),
          ("bool: per-cell head (FOMO) + grid checksum", test_bool_cell_head),
+         ("bool: pooled int8 classifier (count planes x weight planes, windows 1..8, ties)", test_bool_pool_head),
          ("bool1d: 1D conv + fused OR pool, binary and uint8 input, AND and XOR forms", test_bool1d),
          ("ternary: forward (bits) and input_u8_mask (padding hidden by the mask)", test_ternary)]
 

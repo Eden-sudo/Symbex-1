@@ -247,6 +247,20 @@ semillas):
   interna del ESP32-S3; las placas con menos RAM se quedan con el modo por defecto.
 - **Flash:** los mismos 24 KB de datos del modelo, más el código del motor.
 
+## El stem int8 y el clasificador int8 con pooling (5 nov)
+
+El motor vertical también ejecuta redes con stem int8 (`stem_i8`: el kernel del motor estándar, su salida convertida en
+planos de canal con `transpose32`) y con el clasificador int8 con pooling (`pool_head`: corre sobre el mapa final en
+HWC, sus planos de cuentas después). Los mismos resultados bit a bit (run_tests.py, y en el chip). ResNet-8 x1 con
+Bop, S3, pesos en flash, 3 semillas (detalles: benchmarks/experiments/training_gap):
+
+| Red | validación | por defecto | compacto | preparado |
+|---|---|---|---|---|
+| termómetro + clasificador con pooling | 73.72 % | 10.67 ms | 7.92 ms | 6.74 ms |
+| stem int8 + clasificador con pooling | 77.48 % | 13.37 ms | 10.84 ms | 9.78 ms |
+
+Aquí el stem int8 tarda 4.5 ms, más que el camino del termómetro (1.9 ms): en este motor cuesta velocidad.
+
 ## Trabajo futuro
 
 - **Pesos en RAM con menos RAM que ESP-DL:** ahí el motor por defecto es 1.06× más lento que ESP-DL (10.4 ms frente a

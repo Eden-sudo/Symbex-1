@@ -12,10 +12,14 @@ exported to the library. The model (e.g. benchmarks/conv2d/cnn_cifar_resnet8/mod
                               dot product per output and the BatchNorm + sign as one threshold on it. More accurate
                               (ResNet-8: +4.5 points), faster on chips with int8 SIMD (ESP32-S3, Cortex-M33), slower
                               on the others (ESP32, Hazard3): benchmarks/experiments/chip_kernels/int8_first_bench.py. The vertical
-                              engine runs the thermometer stem only (for now).
+                              engine runs it too (its output turned into channel planes).
     blocks                    Blocks: conv + bn (stride 1 or 2), and, where the shape changes, ds_conv (1x1) + ds_bn
                               after an OR pool when the block has stride 2; out = sign(BN(conv)) OR shortcut
     fc, fc_bn                 binary linear on the flattened final bits (CHW order) + BatchNorm1d
+    fc (optional pooled head) a module with window (k; 0 = the whole map), side (of the final map) and int8_weights()
+                              -> q (classes, C * (side / k)^2) in -128..127, CHW order of the counts, and per-class
+                              scales s (classes,): logit = s * (q @ count of ones per k x k window). The chip runs it
+                              as lib_symbex's symbex_bool_pool_head (benchmarks/experiments/training_gap, --head pool2, in both engines)
 Every conv computes raw = sum of +-1 products over the in-image window; BatchNorm + sign fold into raw >= threshold
 (weights negated where the BatchNorm scale is negative). The classifier keeps an int32 scale and bias per class
 (2^16 fixed point) and the C picks the first class with the largest int64 logit.
@@ -168,6 +172,11 @@ def fold(model, threshold=0.0):
                              f"{b.conv.in_channels} -> {b.conv.out_channels}) but has no shortcut convolution")
         net["blocks"].append(blk)
     lin, bn = (model.head, model.head_bn) if hasattr(model, "head") else (model.fc, model.fc_bn)
+    if hasattr(lin, "int8_weights") and hasattr(lin, "window"):
+        net["pool"] = _fold_pool_head(lin, bn, model.blocks[-1].conv.out_channels if model.blocks else model.stem.out_channels)
+        net["cells"] = False
+        net["fc_scale"], net["fc_bias"] = net["pool"].pop("scale"), net["pool"].pop("bias")
+        return net
     g = bn.weight.detach().double()
     sd = torch.sqrt(bn.running_var.detach().double() + bn.eps)
     a = (g / sd).numpy()
@@ -189,6 +198,41 @@ def fold(model, threshold=0.0):
     net["fc_scale"] = np.round(a * 2 ** FC_SHIFT).astype(np.int64)
     net["fc_bias"] = np.round(c * 2 ** FC_SHIFT).astype(np.int64)
     return net
+
+
+def _fold_pool_head(head, bn, channels):
+    """pooled int8 classifier + BatchNorm1d -> int8 weights q (classes, C, side / k, side / k) and an int32 scale and
+    bias per class: logit = a * s * dot + c, with dot = q . counts. Both share one fixed point, the finest that keeps
+    them below 2^30 (the scales a * s are small: 2^16 alone would round them to a few levels)."""
+    side = int(head.side)
+    k = int(head.window) or side
+    q, s = head.int8_weights()
+    q, s = q.detach().double(), s.detach().double().flatten()
+    problems = []
+    if side % k:
+        problems.append(f"window {k} does not divide the final map side {side}")
+    if k * k > 64:
+        problems.append(f"window {k}: lib_symbex counts up to 8 x 8 windows (SYMBEX_BOOL_POOL_MAX_PLANES 7)")
+    if q.shape[1] != channels * (side // k) ** 2:
+        problems.append(f"{q.shape[1]} weights per class, the final map gives {channels} x {(side // k) ** 2} counts")
+    if q.abs().max() > 128 or (q > 127).any() or not torch.equal(q, torch.round(q)) or (s <= 0).any():
+        problems.append("int8_weights() must give integers in -128..127 and scales > 0")
+    if getattr(head, "bias", None) is not None or getattr(getattr(head, "fc", None), "bias", None) is not None:
+        problems.append("the head adds a bias: use bias=False (its BatchNorm carries the offset)")
+    if bn.running_mean is None or not bn.affine:
+        problems.append("its BatchNorm needs running statistics and affine parameters")
+    if problems:
+        raise ValueError("boolean export, pooled classifier: " + "; ".join(problems))
+    g = bn.weight.detach().double()
+    sd = torch.sqrt(bn.running_var.detach().double() + bn.eps)
+    a = (g / sd * s).numpy()
+    c = (bn.bias.detach().double() - bn.running_mean.detach().double() * g / sd).numpy()
+    big = max(np.abs(a).max(), np.abs(c).max(), 1e-30)
+    shift = min(40, 29 - math.ceil(math.log2(big)))
+    n = len(s)
+    return dict(window=k, side=side, channels=channels, shift=shift,
+                q=q.numpy().astype(np.int64).reshape(n, channels, side // k, side // k),
+                scale=np.round(a * 2.0 ** shift).astype(np.int64), bias=np.round(c * 2.0 ** shift).astype(np.int64))
 
 
 def _grid_checksum(grid):
@@ -227,6 +271,13 @@ def simulate(net, x_u8, batch=500, device="cpu", return_bits=False):
             else:
                 a = x
             x = torch.maximum(y, a)                                                      # OR of bits
+        if net.get("pool"):                                                              # pooled int8 classifier
+            ph = net["pool"]
+            counts = F.avg_pool2d((x + 1) / 2, ph["window"]) * ph["window"] ** 2           # ones per window, exact
+            dot = counts.flatten(1) @ torch.as_tensor(ph["q"].reshape(len(ph["q"]), -1), dtype=torch.float64, device=dev).T
+            logit = dot.cpu().numpy().astype(np.int64) * net["fc_scale"][None] + net["fc_bias"][None]
+            preds.append(np.argmax(logit, axis=1))
+            continue
         if net.get("cells"):                                                             # per cell: (N, classes, h, w)
             raw = torch.einsum("nchw,kc->nkhw", x, torch.as_tensor(net["fc_w"], device=dev)).cpu().numpy().astype(np.int64)
             logit = raw * net["fc_scale"][None, :, None, None] + net["fc_bias"][None, :, None, None]
@@ -304,13 +355,29 @@ def write_header(net, path, in_size=32):
         steps.append(f"block {bi}: conv {c['cin']}->{c['cout']} {h_in}x{h_in}{' s2' if c['s'] == 2 else ''}"
                      + (" + OR pool + 1x1" if b["pool"] else (" + 1x1" if si is not None else "")) + " | OR")
     cells = bool(net.get("cells"))
-    steps.append("per-cell head" if cells else "classifier")
+    ph = net.get("pool")
+    steps.append(f"pooled int8 classifier {ph['window']}x{ph['window']}" if ph else
+                 "per-cell head" if cells else "classifier")
     last = convs[blocks[-1][0]] if blocks else convs[stem_i]
     ch, fh = last["cout"], last["oh"]
     ppx = (ch + 31) // 32
-    fcw = net["fc_w"] > 0
-    n_cls = fcw.shape[0]
-    if cells:                                                                            # (classes, C): one row per class
+    fcw = net["fc_w"] > 0 if not ph else None
+    n_cls = len(ph["q"]) if ph else fcw.shape[0]
+    if ph:              # weight (window j, channel c) at bit 32 * j * ppx + c of the row; its 8 bit planes
+        if ph["side"] != fh or ph["channels"] != ch:
+            raise ValueError(f"boolean export, pooled classifier: built for {ph['channels']} x {ph['side']}^2, the final "
+                             f"map is {ch} x {fh}^2")
+        n_win = (fh // ph["window"]) ** 2
+        fc_words = n_win * ppx
+        fc_rw = -(-fc_words // 4) * 4
+        q = np.zeros((n_cls, n_win, 32 * ppx), dtype=np.int64)
+        q[:, :, :ch] = ph["q"].reshape(n_cls, ch, n_win).transpose(0, 2, 1)
+        fc_rows = np.zeros((8, n_cls, fc_rw), dtype=np.uint32)
+        for b in range(8):
+            fc_rows[b, :, :fc_words] = c_header.words((((q & 0xFF) >> b) & 1).reshape(n_cls, -1), fc_words)
+        fc_bits, n_planes = 0, int(ph["window"] ** 2).bit_length()
+        fc_cnt = np.zeros(n_cls, dtype=np.int64)
+    elif cells:                                                                            # (classes, C): one row per class
         fc_words = ppx
         fc_rw = -(-ppx // 4) * 4
         fc_rows = np.zeros((n_cls, fc_rw), dtype=np.uint32)
@@ -323,8 +390,9 @@ def write_header(net, path, in_size=32):
         fc_rows = np.zeros((n_cls, fc_rw), dtype=np.uint32)
         fc_rows[:, :fc_words] = c_header.words(hwc, ppx).reshape(n_cls, fc_words)
         fc_bits = fh * fh * ch
-    fc_cnt = fcw.sum(1)
-    flash += fc_rows.size * 4 + n_cls * 12
+    if not ph:
+        fc_cnt = fcw.sum(1)
+    flash += fc_rows.size * 4 + n_cls * (8 if ph else 12)
     # every map buffer as large as what symbex_bool_net_run writes into IT (it rotates 4 buffers): far less RAM than
     # four buffers as large as the largest map (the thermometer input of a 96 x 96 image alone is 36 KB)
     words_of = lambda c, h, ch_: h * h * ((ch_ + 31) // 32)
@@ -340,14 +408,17 @@ def write_header(net, path, in_size=32):
             sc = convs[si]
             size[s] = max(size[s], words_of(None, sc["oh"], sc["cout"]))
         x, y = y, x
-    size[x] = max(size[x], fc_rw if not cells else fh * fh * ppx + fc_rw)   # the head may read a row past the end
+    if not ph:
+        size[x] = max(size[x], fc_rw if not cells else fh * fh * ppx + fc_rw)   # the head may read a row past the end
     size = [max(-(-v // 4) * 4, 4) for v in size]
     max_rw = max(max(c["rw"] for c in convs), 8 if i8 else 4)     # the int8 stem's window: 32 bytes
+    if ph:
+        max_rw = max(max_rw, n_planes * fc_rw)                    # the window holds the pooled head's count planes
     max_out = max(max(c["cout"] for c in convs), n_cls)
     ram = 4 * (sum(size) + max_rw + 2 * max_out) + (fh * fh if cells else 0)
-    v_why = ("int8 stem (the vertical engine runs the thermometer stem only, for now)" if i8
-             else vertical_problem(convs, net["levels"], in_size))
-    v_bytes = None if v_why else vertical_work_bytes(convs, blocks, net["levels"], in_size, fc_rw)
+    v_why = vertical_problem(convs, net["levels"], in_size)
+    v_bytes = None if v_why else vertical_work_bytes(convs, blocks, net["levels"], in_size, fc_rw,
+                                                     n_planes * fc_rw if ph else 0)
     v_ram = None if v_why else v_bytes + 4 * (4 * 4 + 4 + 2 * max_out) + (fh * fh if cells else 0)
     v_prep = None if v_why else vertical_prepared_bytes(convs)
     v_prep_c = None if v_why else vertical_prepared_bytes(convs, compact=True)
@@ -387,10 +458,17 @@ def write_header(net, path, in_size=32):
             f.write("    " + c_header.struct(conv=conv_init(ci), shortcut='&BS' + str(bi) if si is not None else 'NULL',
                                              shortcut_pool=1 if pool else 0) + ",\n")
         f.write("};\n")
-        c_header.c_array(f, "uint32_t", "FC_W", fc_rows, " __attribute__((aligned(16)))")
+        c_header.c_array(f, "uint32_t", "FC_W", fc_rows.reshape(-1, fc_rw) if ph else fc_rows,
+                         " __attribute__((aligned(16)))")
         c_header.c_array(f, "int32_t", "FC_C", fc_cnt)
         c_header.c_array(f, "int32_t", "FC_S", net["fc_scale"])
         c_header.c_array(f, "int32_t", "FC_B", net["fc_bias"])
+        if ph:
+            f.write("static const struct SymbexBoolPoolHead B_POOL = "
+                    + c_header.struct(window=ph["window"], channels=ch, in_h=fh, in_w=fh, n_classes=n_cls,
+                                      row_words=fc_rw, n_planes=n_planes, weight_planes="FC_W", scale="FC_S",
+                                      bias="FC_B")
+                    + f";   /* the pooled int8 classifier (FC_W: 8 bit planes; scale and bias at 2^{ph['shift']}) */\n")
         # -DSYMBEX_BOOL_VERTICAL: the vertical engine works in its own block (B_VWORK); the standard engine's maps and
         # window shrink to a placeholder (symbex_net still points at them)
         f.write("#if defined(SYMBEX_BOOL_VERTICAL)\n")
@@ -403,7 +481,8 @@ def write_header(net, path, in_size=32):
                 f"static int32_t B_SCRATCH[{2 * max_out}];\n")
         if cells:
             f.write(f"static uint8_t B_CELLS[{fh * fh}];      /* the class of every cell of the {fh} x {fh} grid */\n")
-        extra = (dict(cells="B_CELLS", cells_h=fh, cells_w=fh) if cells else {}) | (dict(stem_i8="&B_STEM_I8") if i8 else {})
+        extra = ((dict(cells="B_CELLS", cells_h=fh, cells_w=fh) if cells else {}) | (dict(stem_i8="&B_STEM_I8") if i8 else {})
+                 | (dict(pool_head="&B_POOL") if ph else {}))
         f.write("static const struct SymbexBoolNet symbex_net = "
                 + c_header.struct(in_h=in_size, in_w=in_size, levels=net['levels'], stem=conv_init(stem_i),
                                   blocks="B_BLOCKS", n_blocks=len(blocks), fc_weights="FC_W", fc_row_words=fc_rw,
@@ -411,6 +490,7 @@ def write_header(net, path, in_size=32):
                                   fc_scale="FC_S", fc_bias="FC_B", maps="{B_MAP0, B_MAP1, B_MAP2, B_MAP3}",
                                   window="B_WINDOW", scratch="B_SCRATCH", **extra)
                 + (";   /* per-cell head: returns the grid checksum */\n\n" if cells else
+                   ";   /* the pooled int8 classifier (B_POOL) */\n\n" if ph else
                    ";   /* no per-cell head: a classifier */\n\n"))
         f.write(f"#define SYMBEX_MLP_N_INPUTS {in_size * in_size * 3}      /* uint8 RGB, HWC */\n"
                 f"#define SYMBEX_MLP_N_CLASSES {n_cls}\n#define SYMBEX_MLP_N_STEPS {len(steps)}\n"

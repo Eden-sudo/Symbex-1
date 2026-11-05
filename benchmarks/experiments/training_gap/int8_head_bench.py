@@ -17,7 +17,17 @@ Four ways:
     i8_planes   int8 weights as 8 bit planes: 8 AND + popcount passes (lib_symbex's symbex_and_popcount_rows), the
                 planes weighted 1, 2, ..., 64 and -128 (two's complement)
 Every way is checked on the chip against a plain C reference from the definition (the int8 ways: every logit equal;
-binary: the same class), otherwise the times are not trusted. Times: best of 7 runs, CPU cycles at 240 MHz.
+binary: the same class), otherwise the times are not trusted.
+The pooled int8 classifiers of train_gap_study.py --head pool2 / pool4, ResNet-8's final map (64 channels x 8 x 8, the
+library's layout: per pixel 2 words of channel bits, 31 % ones):
+    resnet8_pool2 / resnet8_pool4   the ones of every channel counted per 2 x 2 / 4 x 4 window (0..4 / 0..16), then
+                                    int8 weights on the counts: 64 x 4 x 4 = 1,024 / 64 x 2 x 2 = 256 inputs per class
+                                    (10 / 2.5 KB, against 40 KB for the int8 classifier on every bit). Two ways:
+        _count      plain C: a count per bit, then one multiply-add per input
+        _planes     the counts bit-sliced (32 channels per word, 3 / 5 count planes), the int8 weights as 8 bit planes:
+                    AND + popcount per (count plane, weight plane) pair (symbex_and_popcount_rows), weighted 2^p * 2^q
+                    (-128 for the sign plane)
+    Checked: every logit equal to the ones numpy computed on the PC. Times: best of 7 runs, CPU cycles at 240 MHz.
 Results: results/int8_head_bench_<board>.json (weights in flash and in RAM).
 """
 import argparse
@@ -38,6 +48,8 @@ RESET = {"s3": "pico", "esp32": "rts"}   # s3: its USB port comes back after fla
 # (name, input bits, classes, share of ones in the input)
 SHAPES = (("resnet8", 4096, 10, 0.31), ("har_max", 128, 17, 0.5), ("mlp", 128, 10, 0.5))
 METHODS = ("binary", "i8_dense", "i8_sparse", "i8_planes")
+# (name, window, side, channels, classes, share of ones): the pooled int8 classifiers
+POOLS = (("resnet8_pool2", 2, 8, 64, 10, 0.31), ("resnet8_pool4", 4, 8, 64, 10, 0.31))
 
 FIRMWARE = r"""
 #include <stdio.h>
@@ -45,6 +57,8 @@ FIRMWARE = r"""
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_cpu.h"
+#include "esp_heap_caps.h"
+#include <string.h>
 #include "layers/conv/symbex_bool.h"
 #include "hal/symbex_hal.h"
 #include "bench_data.h"
@@ -62,6 +76,26 @@ struct Head {
     const int32_t* w8sum;                    /* sum of row o */
 };
 HEADS_TABLE
+struct Pool {
+    const char* name;
+    int window, side, channels, classes, n_in;
+    const uint32_t* x;                       /* side x side pixels, channels / 32 words each */
+    const int8_t* w;                         /* classes x n_in, input (window, channel) = window * channels + channel */
+    const int32_t* ref;                      /* the logits, computed on the PC */
+    int n_planes, row_words;                 /* count planes (counts 0..window^2), words per plane row */
+    const uint32_t* wpl;                     /* 8 x classes x row_words: bit q of every int8 weight */
+};
+POOLS_TABLE
+static const struct Pool* P;
+static struct Pool pools_run[N_POOLS];       /* POOLS with the input map (and, weights in RAM, the weights) in RAM */
+static const void* to_ram(const void* src, int bytes) {   /* the heap: the static DRAM is full on the classic ESP32 */
+    void* d = heap_caps_aligned_alloc(16, bytes, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
+    if (d == NULL) { printf("[X] no RAM for %d bytes\n", bytes); return src; }
+    memcpy(d, src, bytes);
+    return d;
+}
+static uint8_t counts[1024];
+static uint32_t cplanes[5 * 32] __attribute__((aligned(16)));   /* the S3 HAL takes its SIMD path on 16-byte aligned buffers */
 static const struct Head* H;
 static int32_t scratch[MAXC], logit[MAXC], cnt[MAXC], ref[MAXC];
 static int cls;
@@ -115,6 +149,58 @@ static void m_i8_planes(void) {
 static void (*const FUNCS[4])(void) = {m_binary, m_i8_dense, m_i8_sparse, m_i8_planes};
 static const char* const NAMES[4] = {"binary", "i8_dense", "i8_sparse", "i8_planes"};
 
+static void m_pool(void) {
+    const int k = P->window, nw = P->side / k, C = P->channels, cw = C / 32, n = P->n_in;
+    for (int wy = 0; wy < nw; wy++)
+        for (int wx = 0; wx < nw; wx++) {
+            uint8_t* c = counts + (wy * nw + wx) * C;
+            for (int i = 0; i < C; i++) c[i] = 0;
+            for (int dy = 0; dy < k; dy++)
+                for (int dx = 0; dx < k; dx++) {
+                    const uint32_t* px = P->x + ((wy * k + dy) * P->side + wx * k + dx) * cw;
+                    for (int j = 0; j < cw; j++) {
+                        const uint32_t v = px[j];
+                        for (int b = 0; b < 32; b++) c[32 * j + b] += (v >> b) & 1u;
+                    }
+                }
+        }
+    for (int o = 0; o < P->classes; o++) {
+        const int8_t* w = P->w + o * n;
+        int32_t s = 0;
+        for (int i = 0; i < n; i++) s += (int32_t)w[i] * counts[i];
+        logit[o] = s;
+    }
+    cls = argmax32(logit, P->classes);
+}
+
+static void m_pool_planes(void) {
+    const int k = P->window, nw = P->side / k, cw = P->channels / 32, rw = P->row_words, np = P->n_planes;
+    const int C = P->classes, plane = C * rw;
+    for (int i = 0; i < np * rw; i++) cplanes[i] = 0;
+    for (int wy = 0; wy < nw; wy++)
+        for (int wx = 0; wx < nw; wx++)
+            for (int j = 0; j < cw; j++) {
+                const int at = (wy * nw + wx) * cw + j;
+                for (int dy = 0; dy < k; dy++)
+                    for (int dx = 0; dx < k; dx++) {
+                        uint32_t carry = P->x[((wy * k + dy) * P->side + wx * k + dx) * cw + j];
+                        for (int p = 0; p < np && carry; p++) {     /* add one bit to the bit-sliced counter */
+                            const uint32_t c = cplanes[p * rw + at];
+                            cplanes[p * rw + at] = c ^ carry;
+                            carry &= c;
+                        }
+                    }
+            }
+    int32_t s[MAXC] = {0};
+    for (int p = 0; p < np; p++)
+        for (int q = 0; q < 8; q++) {
+            symbex_and_popcount_rows(cplanes + p * rw, P->wpl + q * plane, (uint16_t)rw, (uint16_t)C, cnt);
+            for (int o = 0; o < C; o++) s[o] += (q == 7 ? -128 * cnt[o] : cnt[o] << q) << p;
+        }
+    for (int o = 0; o < C; o++) logit[o] = s[o];
+    cls = argmax32(logit, C);
+}
+
 static int bit(const uint32_t* v, int i) { return (v[i >> 5] >> (i & 31)) & 1u; }
 /* from the definitions: int8 logits sum w * x (x = +-1); binary logits scale * (agreements - disagreements) + bias */
 static int check(int method) {
@@ -150,6 +236,15 @@ static uint32_t best(void (*f)(void)) {
 }
 
 void app_main(void) {
+    for (int p = 0; p < N_POOLS; p++) {
+        const struct Pool* q = &POOLS[p];
+        pools_run[p] = *q;
+        pools_run[p].x = to_ram(q->x, q->side * q->side * q->channels / 8);
+        if (POOLS_IN_RAM) {
+            pools_run[p].w = to_ram(q->w, q->classes * q->n_in);
+            pools_run[p].wpl = to_ram(q->wpl, 8 * q->classes * q->row_words * 4);
+        }
+    }
     for (;;) {
         printf("HEAD BENCH ready (%s)\n", WEIGHTS_WHERE);
         for (int h = 0; h < N_HEADS; h++) {
@@ -157,6 +252,16 @@ void app_main(void) {
             for (int m = 0; m < 4; m++) {
                 const uint32_t c = best(FUNCS[m]);
                 printf("R:%s_%s|%lu|%d\n", H->name, NAMES[m], (unsigned long)c, check(m));
+            }
+        }
+        for (int p = 0; p < N_POOLS; p++) {
+            P = &pools_run[p];
+            for (int m = 0; m < 2; m++) {
+                for (int o = 0; o < P->classes; o++) logit[o] = 0;
+                const uint32_t c = best(m ? m_pool_planes : m_pool);
+                int ok = cls == argmax32(P->ref, P->classes);
+                for (int o = 0; o < P->classes; o++) ok &= logit[o] == P->ref[o];
+                printf("R:%s_%s|%lu|%d\n", P->name, m ? "planes" : "count", (unsigned long)c, ok);
             }
         }
         printf("DONE\n");
@@ -189,14 +294,38 @@ def head_arrays(rng, name, n_bits, classes, ones):
     return text, row
 
 
+def pool_arrays(rng, name, window, side, channels, classes, ones):
+    """the C arrays of one pooled classifier, its logits computed here, and its line of the POOLS table"""
+    bits = (rng.random((side, side, channels)) < ones).astype(np.int64)
+    nw = side // window
+    counts = bits.reshape(nw, window, nw, window, channels).sum((1, 3)).reshape(-1)   # (window, channel)
+    w = rng.integers(-127, 128, (classes, len(counts)))
+    p = name.upper()
+    row_words = -(-(-(-len(counts) // 32)) // 4) * 4
+    planes = np.concatenate([((w & 0xFF) >> b) & 1 for b in range(8)]).astype(np.uint8)
+    n_planes = int(window * window).bit_length()          # counts 0..window^2
+    text = (c_array("uint32_t", f"{p}_X", pack(bits.reshape(side * side, channels), channels // 32), False)
+            + c_array("int8_t", f"{p}_W", w, True) + c_array("int32_t", f"{p}_REF", w @ counts, True)
+            + c_array("uint32_t", f"{p}_WPL", pack(planes, row_words), True))
+    row = (f'    {{"{name}", {window}, {side}, {channels}, {classes}, {len(counts)}, {p}_X, {p}_W, {p}_REF, '
+           f"{n_planes}, {row_words}, {p}_WPL}},")
+    return text, row
+
+
 def write_data(path, weights):
     rng = np.random.default_rng(2026)
     texts, rows = zip(*(head_arrays(rng, *s) for s in SHAPES))
+    rng = np.random.default_rng(2027)                      # its own generator: the heads' data stay as before
+    ptexts, prows = zip(*(pool_arrays(rng, *s) for s in POOLS))
     with open(path, "w") as f:
         f.write(f"#pragma once\n#define ROM {'const' if weights == 'flash' else ''}\n"
                 f"#define WEIGHTS_WHERE \"weights in {weights}\"\n#define N_HEADS {len(SHAPES)}\n" + "".join(texts)
                 + "#define HEADS_TABLE static const struct Head HEADS[N_HEADS] = { \\\n"
-                + " \\\n".join(rows) + " \\\n};\n")
+                + " \\\n".join(rows) + " \\\n};\n"
+                + f"#define N_POOLS {len(POOLS)}\n#define POOLS_IN_RAM {int(weights == 'ram')}\n"
+                + "".join(ptexts).replace("static ROM ", "static const ").replace("static uint32_t", "static const uint32_t")
+                + "#define POOLS_TABLE static const struct Pool POOLS[N_POOLS] = { \\\n"
+                + " \\\n".join(prows) + " \\\n};\n")
 
 
 def write_project(project, port, weights, board):
@@ -266,7 +395,8 @@ def main():
         print(f"  {'shape / method':<22}{'cycles':>10}{'us':>9}  equal to the reference")
         for name, (cyc, ok) in rows.items():
             print(f"  {name:<22}{cyc:>10}{cyc / 240:>9.1f}  {'OK' if ok else 'NO'}")
-        missing = sorted({f"{shape}_{method}" for shape, *_ in SHAPES for method in METHODS} - set(rows))
+        missing = sorted(({f"{shape}_{method}" for shape, *_ in SHAPES for method in METHODS}
+                          | {f"{name}_{m}" for name, *_ in POOLS for m in ("count", "planes")}) - set(rows))
         if missing:                                        # a lost serial line must not make a short result file
             sys.exit(f"[X] no result for {', '.join(missing)}: the times are not trusted")
         if not all(ok for _, ok in rows.values()):
@@ -277,7 +407,9 @@ def main():
     path = os.path.join(HERE, "results", f"int8_head_bench_{a.board}.json")
     with open(path, "w") as f:
         json.dump(dict(board=a.board, mhz=240, reps="best of 7",
-                       shapes=[dict(name=n, bits=b, classes=c, ones=p) for n, b, c, p in SHAPES], **out), f, indent=1)
+                       shapes=[dict(name=n, bits=b, classes=c, ones=p) for n, b, c, p in SHAPES],
+                       pools=[dict(name=n, window=k, side=s, channels=ch, classes=c, ones=p)
+                              for n, k, s, ch, c, p in POOLS], **out), f, indent=1)
     print(f"[*] -> {path}")
 
 

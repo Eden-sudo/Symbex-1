@@ -1,6 +1,6 @@
 """Exported headers keep working when lib_symbex grows (the rules of core/symbex_format.h).
 
-Every current exporter (boolean with the thermometer stem, the int8 stem and a per-cell head; bool1d with a binary and
+Every current exporter (boolean with the thermometer stem, the int8 stem, a per-cell head and a pooled int8 head; bool1d with a binary and
 an int8 first layer; dense AND and XNOR; ternary) writes a header that must:
   - fill every library struct by field name (.field = value), never by position;
   - build in C (gcc -std=gnu11) and in C++ (g++ -std=gnu++17, the Pico and Arduino firmware) with
@@ -53,7 +53,7 @@ def _bool_conv(rng, cout, cin, k, stride, spread):
                 k=k, stride=stride)
 
 
-def _boolean(path, stem, cells=False, seed=0):
+def _boolean(path, stem, cells=False, seed=0, pool=0):
     """8x8 images: stem -> 8 channels, a block 8 -> 8, a block 8 -> 16 with stride 2, a 1x1 shortcut and the OR pool"""
     rng = np.random.default_rng(seed)
     levels = 2
@@ -69,6 +69,9 @@ def _boolean(path, stem, cells=False, seed=0):
                fc_w=_signs(rng, classes, 16 if cells else 16 * 4 * 4),
                fc_scale=rng.integers(1, 2 ** 16, classes).astype(np.int64),
                fc_bias=rng.integers(-2 ** 20, 2 ** 20, classes).astype(np.int64))
+    if pool:                                    # the pooled int8 classifier on the 16 x 4 x 4 final map
+        net["pool"] = dict(window=pool, side=4, channels=16, shift=16,
+                           q=rng.integers(-128, 128, (classes, 16, 4 // pool, 4 // pool)).astype(np.int64))
     boolean.write_header(net, path, in_size=8)
     x = rng.integers(0, 256, (N, 8, 8, 3)).astype(np.uint8)
     return x.reshape(N, -1), boolean.simulate(net, x)
@@ -112,6 +115,7 @@ def _ternary(path, seed=0):
 CASES = {"boolean_thermometer": lambda p: _boolean(p, "thermometer"),
          "boolean_int8_stem": lambda p: _boolean(p, "int8"),
          "boolean_cells": lambda p: _boolean(p, "thermometer", cells=True),
+         "boolean_pool_head": lambda p: _boolean(p, "int8", pool=2),
          "bool1d_binary": lambda p: _bool1d(p, "binary"),
          "bool1d_int8": lambda p: _bool1d(p, "int8"),
          "dense_and": lambda p: _dense(p, "and"),
