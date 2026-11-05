@@ -9,7 +9,7 @@ import pytest
 import torch
 from torch.utils.data import TensorDataset
 
-from compiler_core.export import boolean
+from compiler_core.train import boolean
 from compiler_core.train.bop import MAGNITUDE, Bop
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

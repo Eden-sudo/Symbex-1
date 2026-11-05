@@ -109,7 +109,7 @@ BENCH = os.path.join(REPO, "benchmarks", "conv2d", "cnn_cifar_resnet8")
 sys.path.insert(0, BENCH)
 sys.path.insert(0, os.path.join(REPO, "tools"))
 import model as resnet8                                    # noqa: E402
-from compiler_core.export.boolean import _augment          # noqa: E402
+from compiler_core.train.boolean import _augment           # noqa: E402
 
 MODELS = ("binary", "twin", "relu")
 RECIPES = ("base", "clip", "bop", "twostep", "twostep_bop")

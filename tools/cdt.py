@@ -610,7 +610,7 @@ def _predictions(model, val_l, dev):
 
 def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp", test=None):
     if cfg["model"]["method"] == "boolean":
-        from compiler_core.export import boolean
+        from compiler_core.train import boolean
         return boolean.train(model, train, val, cfg, out_dir, test)
     import torch
     from torch.utils.data import DataLoader
@@ -988,7 +988,7 @@ def _option(v):
 
 def load_trained(model, train, estimate_res, cfg, out_dir):
     if cfg["model"]["method"] == "boolean":
-        from compiler_core.export import boolean
+        from compiler_core.train import boolean
         return boolean.load_trained(model, out_dir)
     """Rebuilds the trained binarized model from out_dir (train.json + model_binarized.pth), without training:
     the original model, widened as the search chose, binarized with the chosen plan, with the saved weights."""

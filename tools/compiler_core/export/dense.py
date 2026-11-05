@@ -26,15 +26,12 @@ costs) and EXACTNESS (integer simulation vs. compiled C: must be 100%, otherwise
 """
 import math
 import os
-import shutil
-import subprocess
-import tempfile
 
 import numpy as np
 import torch
 import torch.nn as nn
 
-from . import c_header
+from . import c_build, c_header
 
 Q_ACT, Q_MULT = 16, 30
 INT32_MIN, INT32_MAX = -2 ** 31, 2 ** 31 - 1
@@ -385,54 +382,13 @@ def _write_header_and(layers, path, name):
 # ---------------------------------------------------------------------------------------------------
 # 5. exactness of the compiled C on this PC
 # ---------------------------------------------------------------------------------------------------
-_TEST_MAIN = r"""
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include "model_symbex.h"
-int main(int argc, char** argv) {
-    if (argc < 3) return 2;
-    FILE* f = fopen(argv[1], "rb");
-    int n = atoi(argv[2]);
-    static uint8_t x[SYMBEX_MLP_N_INPUTS];
-    for (int i = 0; i < n; i++) {
-        if (fread(x, 1, SYMBEX_MLP_N_INPUTS, f) != SYMBEX_MLP_N_INPUTS) return 1;
-        printf("%d\n", symbex_mlp_infer(x));
-    }
-    fclose(f);
-    return 0;
-}
-"""
+_TEST_MAIN = c_build.TEST_MAIN        # the name other scripts import
 
 
 def validate_c(header_path, lib_path, x_u8, expected):
     """Compiles the header + lib_symbex with gcc and runs it on x_u8. Returns (equal, total, message)."""
-    if shutil.which("gcc") is None:
-        return None, 0, "gcc not found: the C exactness check was skipped"
-    inc = os.path.join(lib_path, "include")
-    sources = [os.path.join(lib_path, "src", "layers", "dense", "symbex_dense.c"),
-               os.path.join(lib_path, "src", "ops", "symbex_and.c"),
-               os.path.join(lib_path, "src", "hal", "generic", "symbex_hal_impl.c")]
-    for r in [inc] + sources:
-        if not os.path.exists(r):
-            return None, 0, f"lib_symbex not found at {lib_path} ({r} missing): set [output] lib_path"
-    with tempfile.TemporaryDirectory() as d:
-        shutil.copy(header_path, os.path.join(d, "model_symbex.h"))
-        with open(os.path.join(d, "main.c"), "w") as f:
-            f.write(_TEST_MAIN)
-        exe = os.path.join(d, "prueba")
-        r = subprocess.run(["gcc", "-O2", "-std=c99", "-I", inc, "-I", d, "-o", exe, os.path.join(d, "main.c")]
-                           + sources, capture_output=True, text=True)
-        if r.returncode != 0:
-            return None, 0, "the C did not compile:\n" + r.stderr[-2000:]
-        data = os.path.join(d, "x.u8")
-        np.ascontiguousarray(x_u8, dtype=np.uint8).tofile(data)
-        r = subprocess.run([exe, data, str(len(x_u8))], capture_output=True, text=True)
-        if r.returncode != 0:
-            return None, 0, "the C program failed while running"
-        pred_c = np.array([int(v) for v in r.stdout.split()])
-    equal = int((pred_c == expected).sum())
-    return equal, len(expected), ""
+    return c_build.check(header_path, lib_path, x_u8, expected, std="c99",
+                         sources=["layers/dense/symbex_dense.c", "ops/symbex_and.c", "hal/generic/symbex_hal_impl.c"])
 
 
 # ---------------------------------------------------------------------------------------------------
