@@ -1,0 +1,149 @@
+{
+ "board": "esp32",
+ "mhz": 240,
+ "reps": "best of 7",
+ "shapes": [
+  {
+   "name": "resnet8",
+   "bits": 4096,
+   "classes": 10,
+   "ones": 0.31
+  },
+  {
+   "name": "har_max",
+   "bits": 128,
+   "classes": 17,
+   "ones": 0.5
+  },
+  {
+   "name": "mlp",
+   "bits": 128,
+   "classes": 10,
+   "ones": 0.5
+  }
+ ],
+ "flash": {
+  "resnet8_binary": {
+   "cycles": 26070,
+   "us": 108.62,
+   "equal_reference": true
+  },
+  "resnet8_i8_dense": {
+   "cycles": 1133820,
+   "us": 4724.25,
+   "equal_reference": true
+  },
+  "resnet8_i8_sparse": {
+   "cycles": 502770,
+   "us": 2094.88,
+   "equal_reference": true
+  },
+  "resnet8_i8_planes": {
+   "cycles": 919572,
+   "us": 3831.55,
+   "equal_reference": true
+  },
+  "har_max_binary": {
+   "cycles": 2357,
+   "us": 9.82,
+   "equal_reference": true
+  },
+  "har_max_i8_dense": {
+   "cycles": 21338,
+   "us": 88.91,
+   "equal_reference": true
+  },
+  "har_max_i8_sparse": {
+   "cycles": 11532,
+   "us": 48.05,
+   "equal_reference": true
+  },
+  "har_max_i8_planes": {
+   "cycles": 14372,
+   "us": 59.88,
+   "equal_reference": true
+  },
+  "mlp_binary": {
+   "cycles": 1517,
+   "us": 6.32,
+   "equal_reference": true
+  },
+  "mlp_i8_dense": {
+   "cycles": 12569,
+   "us": 52.37,
+   "equal_reference": true
+  },
+  "mlp_i8_sparse": {
+   "cycles": 7718,
+   "us": 32.16,
+   "equal_reference": true
+  },
+  "mlp_i8_planes": {
+   "cycles": 8746,
+   "us": 36.44,
+   "equal_reference": true
+  }
+ },
+ "ram": {
+  "resnet8_binary": {
+   "cycles": 26050,
+   "us": 108.54,
+   "equal_reference": true
+  },
+  "resnet8_i8_dense": {
+   "cycles": 387037,
+   "us": 1612.65,
+   "equal_reference": true
+  },
+  "resnet8_i8_sparse": {
+   "cycles": 132578,
+   "us": 552.41,
+   "equal_reference": true
+  },
+  "resnet8_i8_planes": {
+   "cycles": 157535,
+   "us": 656.4,
+   "equal_reference": true
+  },
+  "har_max_binary": {
+   "cycles": 2323,
+   "us": 9.68,
+   "equal_reference": true
+  },
+  "har_max_i8_dense": {
+   "cycles": 21321,
+   "us": 88.84,
+   "equal_reference": true
+  },
+  "har_max_i8_sparse": {
+   "cycles": 10461,
+   "us": 43.59,
+   "equal_reference": true
+  },
+  "har_max_i8_planes": {
+   "cycles": 14356,
+   "us": 59.82,
+   "equal_reference": true
+  },
+  "mlp_binary": {
+   "cycles": 1497,
+   "us": 6.24,
+   "equal_reference": true
+  },
+  "mlp_i8_dense": {
+   "cycles": 12559,
+   "us": 52.33,
+   "equal_reference": true
+  },
+  "mlp_i8_sparse": {
+   "cycles": 7068,
+   "us": 29.45,
+   "equal_reference": true
+  },
+  "mlp_i8_planes": {
+   "cycles": 8737,
+   "us": 36.4,
+   "equal_reference": true
+  }
+ }
+}
