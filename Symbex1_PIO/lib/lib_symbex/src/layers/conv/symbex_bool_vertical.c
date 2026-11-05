@@ -231,11 +231,16 @@ static const char* check_conv(const struct SymbexBoolConv* L) {
     return NULL;
 }
 const char* symbex_bool_vertical_check(const struct SymbexBoolNet* net) {
-    if (net->stem_i8) return "int8 stem (the vertical engine runs the thermometer stem only, for now)";
-    if (3 * net->levels > 32) return "thermometer with more than 32 bits per pixel";
-    if (!divides32(net->in_w) || ((uint32_t)net->in_h * net->in_w) % 32) return "input size (width must divide 32, h * w a multiple of 32)";
-    const char* e = check_conv(&net->stem);
-    if (e) return e;
+    const char* e = NULL;
+    if (net->stem_i8) {                          /* the standard int8 stem, its HWC output turned into planes */
+        const struct SymbexBoolStemI8* s = net->stem_i8;
+        if (!divides32(s->out_w) || ((uint32_t)s->out_h * s->out_w) % 32)
+            return "int8 stem output size (width must divide 32, h * w a multiple of 32)";
+    } else {
+        if (3 * net->levels > 32) return "thermometer with more than 32 bits per pixel";
+        if (!divides32(net->in_w) || ((uint32_t)net->in_h * net->in_w) % 32) return "input size (width must divide 32, h * w a multiple of 32)";
+        if ((e = check_conv(&net->stem))) return e;
+    }
     for (uint16_t i = 0; i < net->n_blocks; i++) {
         const struct SymbexBoolBlock* b = &net->blocks[i];
         if ((e = check_conv(&b->conv))) return e;
@@ -245,6 +250,8 @@ const char* symbex_bool_vertical_check(const struct SymbexBoolNet* net) {
 }
 
 static uint32_t map_words(int ch, int h, int w) { return (uint32_t)ch * symbex_bool_vplane_stride(h, w) + 4; }
+/* words of an HWC map in v->hwc, rounded up to 4 (what follows it stays 16-byte aligned) */
+static uint32_t hwc_words(int ch, int h, int w) { return ((uint32_t)h * w * ((ch + 31) / 32) + 3) & ~3u; }
 struct Sizes { uint32_t map, phases, xq, ap, km, bt, ba, list, tiles, hwc; };
 static void conv_sizes(const struct SymbexBoolConv* L, struct Sizes* s) {
     const uint32_t nwo = (uint32_t)L->out_h * L->out_w / 32, TL = (nwo + 3) / 4;
@@ -257,8 +264,14 @@ static void conv_sizes(const struct SymbexBoolConv* L, struct Sizes* s) {
 }
 static void net_sizes(const struct SymbexBoolNet* net, struct Sizes* s) {
     memset(s, 0, sizeof *s);
-    UP(map, map_words(3 * net->levels, net->in_h, net->in_w));
-    conv_sizes(&net->stem, s);
+    if (net->stem_i8) {                          /* its output map, its HWC copy and the 32-byte window after it */
+        const struct SymbexBoolStemI8* st = net->stem_i8;
+        UP(map, map_words(st->out_ch, st->out_h, st->out_w));
+        UP(hwc, hwc_words(st->out_ch, st->out_h, st->out_w) + SYMBEX_BOOL_STEM_I8_WINDOW / 4);
+    } else {
+        UP(map, map_words(3 * net->levels, net->in_h, net->in_w));
+        conv_sizes(&net->stem, s);
+    }
     const struct SymbexBoolConv* last = &net->stem;
     for (uint16_t i = 0; i < net->n_blocks; i++) {
         const struct SymbexBoolBlock* b = &net->blocks[i];
@@ -271,6 +284,8 @@ static void net_sizes(const struct SymbexBoolNet* net, struct Sizes* s) {
     }
     const uint32_t ppx = (last->out_ch + 31) / 32;
     UP(hwc, (uint32_t)last->out_h * last->out_w * ppx + net->fc_row_words + 4);
+    if (net->pool_head)                          /* the pooled head's count planes after the final map */
+        UP(hwc, hwc_words(last->out_ch, last->out_h, last->out_w) + (uint32_t)net->pool_head->n_planes * net->pool_head->row_words);
 #undef UP
 }
 /* the work block in order (16-byte pieces); with base NULL only the size */
@@ -582,7 +597,8 @@ static size_t prepare_walk(struct SymbexBoolVertical* v, uint8_t* base, int comp
     const int nconv = n_convs(net);
     size_t off = ((size_t)12 * nconv + 15) & ~(size_t)15;
     const ListByte* lt = (const ListByte*)v->list_table;
-    for (int ci = 0; ci < nconv; ci++) {
+    if (base && net->stem_i8) memset(base, 0, 12);  /* the int8 stem has no lists: dir entry 0 stays 0, unused */
+    for (int ci = net->stem_i8 ? 1 : 0; ci < nconv; ci++) {
         const struct SymbexBoolConv* L = conv_at(net, ci);
         const int K = L->kernel * L->kernel * L->in_ch;
         struct Kinds kd;
@@ -804,6 +820,8 @@ SYMBEX_FAST_CODE int symbex_bool_vhead(const struct SymbexBoolNet* net, const ui
             uint32_t* dst = hwc + (size_t)i * 32 * ppx + g;
             for (int px = 0; px < 32; px++) dst[(size_t)px * ppx] = a[px];
         }
+    if (net->pool_head)
+        return symbex_bool_pool_head(net->pool_head, hwc, hwc + hwc_words(ch, h, w), net->scratch);
     if (net->cells) {
         symbex_bool_cell_head(hwc, net->cells_h, net->cells_w, (uint16_t)net->fc_bits, net->fc_weights, net->fc_row_words,
                               net->n_classes, net->fc_scale, net->fc_bias, net->scratch, net->cells);
@@ -811,4 +829,21 @@ SYMBEX_FAST_CODE int symbex_bool_vhead(const struct SymbexBoolNet* net, const ui
     }
     return symbex_bool_classify(hwc, net->fc_words, net->fc_bits, net->fc_weights, net->fc_row_words,
                                 net->n_classes, net->fc_weight_counts, net->fc_scale, net->fc_bias, net->scratch);
+}
+
+SYMBEX_FAST_CODE void symbex_bool_vstem_i8(const struct SymbexBoolNet* net, const uint8_t* img, uint32_t* out,
+                                           struct SymbexBoolVertical* v) {
+    const struct SymbexBoolStemI8* s = net->stem_i8;
+    const uint32_t ps = symbex_bool_vplane_stride(s->out_h, s->out_w), n = (uint32_t)s->out_h * s->out_w;
+    const uint32_t ppx = (s->out_ch + 31) / 32;
+    uint32_t* hwc = v->hwc;
+    symbex_bool_stem_i8(s, img, hwc, (int8_t*)(void*)(hwc + hwc_words(s->out_ch, s->out_h, s->out_w)), net->scratch);
+    memset(out, 0, map_words(s->out_ch, s->out_h, s->out_w) * 4);
+    uint32_t a[32];                              /* HWC -> planes: 32 pixels x 32 channels at a time, transposed */
+    for (uint32_t g = 0; g < ppx; g++)
+        for (uint32_t i = 0; i < n / 32; i++) {
+            for (int px = 0; px < 32; px++) a[px] = hwc[(size_t)(i * 32 + px) * ppx + g];
+            transpose32(a);
+            for (uint32_t j = 0; j < 32 && g * 32 + j < s->out_ch; j++) PLANE(out, ps, g * 32 + j)[i] = a[j];
+        }
 }

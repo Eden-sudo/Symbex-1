@@ -91,10 +91,26 @@ benchmark's). On a chip -1 is the window's 0 bits as they are: no per-pixel corr
 --head int8|pool: the classifier with int8 weights (one scale per class, straight-through rounding) on the final bits
 (int8), or on the count of ones of every channel of the final map (pool: C counts instead of C*H*W bits); the
 classifier's BatchNorm stays. A sum of int8 weights per class on a chip. Files ..._hi8_ / _hpool_...
+--head pool2|pool4: as pool, the count of ones per 2x2 / 4x4 window of every channel (x1: 64 x 4 x 4 / 64 x 2 x 2
+inputs, 10 / 2.5 KB of int8 weights instead of int8's 40 KB). Files ..._hpool2_ / _hpool4_...
+--stem int8 combines with --shortcut2 / --shortcut-op (the combined recipe: --stem int8 --recipe bop --shortcut2
+addpool --head int8).
+--recalibrate-bn: train nothing; for the runs these flags name (already trained), every BatchNorm's running mean and
+    variance computed again with the weights frozen: reset, momentum None (a plain average, not the training's 0.3, which
+    keeps mostly the last few batches), one pass over the 45,000 training images in train mode, batch 128, no gradient.
+    Once on the images as they are (clean) and once with the training's crop + flip (augmented). Only the statistics
+    change, so on a chip it is the same network with other integer thresholds. Validation accuracy before / after,
+    results/train_gap/bnrecal_<run>.json.
+--export: train nothing; the runs these flags name go through the CDT's boolean exporter (export/boolean.py: fold,
+    integer simulation, header, the compiled C checked on this PC) into runs/train_gap/export/<run>_s<seed>, the folder
+    tools/chip_test.py measures (only what lib_symbex runs: no added shortcuts, binary / pool2 / pool4 heads):
+        python train_gap_study.py --model binary --stem int8 --recipe bop --head pool2 --export
 Results: results/train_gap/<model>_s<seed>.json (<model>_<recipe>_s<seed>.json for step B). Run from anywhere; env_bench (CUDA) recommended.
 """
 import argparse
+import copy
 import json
+import math
 import os
 import sys
 import time
@@ -109,7 +125,7 @@ BENCH = os.path.join(REPO, "benchmarks", "conv2d", "cnn_cifar_resnet8")
 sys.path.insert(0, BENCH)
 sys.path.insert(0, os.path.join(REPO, "tools"))
 import model as resnet8                                    # noqa: E402
-from compiler_core.export.boolean import _augment          # noqa: E402
+from compiler_core.train.boolean import _augment           # noqa: E402
 
 MODELS = ("binary", "twin", "relu")
 RECIPES = ("base", "clip", "bop", "twostep", "twostep_bop")
@@ -244,9 +260,10 @@ def build(kind):
     resnet8.sign = _sign_for(kind)                         # model.py reads its global sign() at every forward
     custom = CHANNELS or BLOCKS != (2, 2, 2)
     if LAST != "x1" or custom or SHORTCUT2 != "or" or SHORTCUT_OP != "or":
-        if kind != "binary" or STEM != "thermometer" or WIDTH != 1 or (custom and LAST != "x1"):
-            raise SystemExit("[X] --last-stage / --channels / --shortcut2: the binary network, thermometer stem, "
-                             "width 1 only; --last-stage not with --channels")
+        if (kind != "binary" or WIDTH != 1 or (custom and LAST != "x1")
+                or (STEM != "thermometer" and (LAST != "x1" or custom))):
+            raise SystemExit("[X] --last-stage / --channels / --shortcut2: the binary network, width 1 only; "
+                             "--last-stage not with --channels; --stem int8 only with --shortcut2 / --shortcut-op")
         if LAST == "wide" or custom:
             channels = CHANNELS or (tuple(resnet8.BASE_CHANNELS[:2]) + (WIDE_LAST,) if LAST == "wide"
                                     else tuple(resnet8.BASE_CHANNELS))
@@ -287,14 +304,28 @@ class Int8Head(nn.Linear):
 
 class PoolHead(nn.Module):
     """--head pool: the count of ones per channel of the final map (0..H*W), then int8 weights per class. Its input
-    is the flattened map (N, C*H*W, channel-major, as BoolResNet8.forward gives it)"""
-    def __init__(self, channels, classes):
+    is the flattened map (N, C*H*W, channel-major, as BoolResNet8.forward gives it).
+    window k (--head pool2 / pool4): the count of ones per k x k window instead (0..k*k), C*(H/k)*(W/k) inputs"""
+    def __init__(self, channels, classes, window=0, side=0):
         super().__init__()
-        self.channels = channels
-        self.fc = Int8Head(channels, classes, bias=False)
+        self.channels, self.window, self.side = channels, window, side
+        n_in = channels if window == 0 else channels * (side // window) ** 2
+        self.fc = Int8Head(n_in, classes, bias=False)
 
     def forward(self, x):
-        return self.fc(((x.view(x.shape[0], self.channels, -1) + 1) / 2).sum(-1))
+        bits = (x + 1) / 2
+        if self.window == 0:
+            return self.fc(bits.view(x.shape[0], self.channels, -1).sum(-1))
+        maps = bits.view(x.shape[0], self.channels, self.side, self.side)
+        counts = F.avg_pool2d(maps, self.window) * self.window ** 2
+        return self.fc(counts.flatten(1))
+
+    def int8_weights(self):
+        """what the CDT's boolean exporter folds (export/boolean.py, symbex_bool_pool_head): integers q (classes, inputs)
+        in -127..127 and per-class scales s, the weights the forward uses = q * s"""
+        w = self.fc.weight.detach()
+        s = w.abs().amax(1, keepdim=True).clamp_min(1e-8) / 127
+        return torch.round(w / s), s.flatten()
 
 
 def _padded_forward(conv, value):
@@ -316,6 +347,9 @@ def _with_pad_head(net):
         net.fc = head
     elif HEAD == "pool":
         net.fc = PoolHead(net.channels[-1], net.fc.out_features)
+    elif HEAD in ("pool2", "pool4"):
+        side = math.isqrt(net.fc.in_features // net.channels[-1])
+        net.fc = PoolHead(net.channels[-1], net.fc.out_features, int(HEAD[4:]), side)
     return net
 
 
@@ -353,7 +387,7 @@ def tag(kind):
         last += "_sap"
     if SHORTCUT_OP == "xor":
         last += "_sx"
-    last += {"zero": "", "minus": "_pm", "plus": "_pp"}[PAD] + {"binary": "", "int8": "_hi8", "pool": "_hpool"}[HEAD]
+    last += {"zero": "", "minus": "_pm", "plus": "_pp"}[PAD] + {"binary": "", "int8": "_hi8", "pool": "_hpool", "pool2": "_hpool2", "pool4": "_hpool4"}[HEAD]
     if DEAD_FIX:
         last += {"or_grad": "_og", "wstd": "_ws", "dead_loss": "_dl"}[DEAD_FIX]
     return kind + ("_i8" if STEM == "int8" else "") + ("_w2" if WIDTH == 2 else "") + last
@@ -638,6 +672,40 @@ def run(kind, seed, epochs, lr, bs, compile_mode, recipe="base", bop_gamma=1e-4,
     return info
 
 
+def export(kind, seeds, name):
+    """--export: the trained runs through the CDT's boolean exporter (fold, simulation, header, the C check on this PC)
+    into runs/train_gap/export/<run>_s<seed>, the folder tools/chip_test.py measures. Train nothing."""
+    from compiler_core.export import boolean as bexport
+    unsupported = [what for what, bad in (
+        (f"model {kind} (only binary runs on the chip)", kind != "binary"),
+        (f"--pad {PAD} (the exporter pads with zeros)", PAD != "zero"),
+        (f"--head {HEAD} (an int8 classifier without pooling; use binary, pool, pool2 or pool4)", HEAD == "int8"),
+        (f"--shortcut2 {SHORTCUT2} (lib_symbex runs the OR pool + 1x1 shortcut)", SHORTCUT2 != "or"),
+        (f"--shortcut-op {SHORTCUT_OP} (lib_symbex ORs the shortcut)", SHORTCUT_OP != "or"),
+        (f"--last-stage {LAST} (2-bit maps are not in lib_symbex)", LAST == "act2"),
+        (f"--dead-fix {DEAD_FIX} (it changes the weights' signs at every forward)", DEAD_FIX == "wstd"))
+        if bad]
+    if unsupported:                                        # the exporter would fold a different network: refuse
+        raise SystemExit("[X] --export: not what the boolean exporter runs: " + "; ".join(unsupported))
+    stem = tag(kind) if name == "base" else f"{tag(kind)}_{name}"
+    lib = os.path.join(REPO, "Symbex1_PIO", "lib", "lib_symbex")
+    rows = []
+    for seed in seeds:
+        net = build(kind)
+        net.load_state_dict(torch.load(os.path.join(RUNS, f"{stem}_s{seed}.pth"), map_location="cpu"))
+        out = os.path.join(RUNS, "export", f"{stem}_s{seed}")
+        os.makedirs(out, exist_ok=True)
+        print(f"[*] export {stem}_s{seed} -> {out}")
+        r = bexport.export_and_validate(net.cpu().eval(), load_split(seed)[1], out, lib)
+        rows.append((seed, r))
+        json.dump({k: v for k, v in r.items() if not k.startswith("_")}, open(os.path.join(out, "export.json"), "w"),
+                  indent=1)
+    print("\nseed  PyTorch %  simulation %  fidelity %  C exact %  flash KB")
+    for seed, r in rows:
+        print(f"{seed:4d}  {r['accuracy_torch']:9.2f}  {r['accuracy_sim']:12.2f}  {r['fidelity']:10.2f}  "
+              f"{r['exactness'] if r['exactness'] is not None else float('nan'):9.2f}  {r['flash_bytes'] / 1024:8.1f}")
+
+
 @torch.no_grad()
 def density(kind, seeds, name):
     """--density: per-channel share of ones of the binary maps of the trained runs (see the docstring)"""
@@ -674,6 +742,48 @@ def density(kind, seeds, name):
     print(f"    -> {path}")
 
 
+@torch.no_grad()
+def recalibrate_bn(kind, seeds, name):
+    """--recalibrate-bn: the BatchNorm statistics of the trained runs computed again, weights frozen (docstring)"""
+    dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    stem = tag(kind) if name == "base" else f"{tag(kind)}_{name}"
+    per_seed = []
+    for seed in seeds:
+        net = build(kind)
+        net.load_state_dict(torch.load(os.path.join(RUNS, f"{stem}_s{seed}.pth"), map_location="cpu"))
+        net.to(dev)
+        train, val = load_split(seed)
+        xs, _ = _to_gpu(train, dev)
+        xv, yv = _to_gpu(val, dev)
+        trained = copy.deepcopy(net.state_dict())
+        row = dict(seed=seed, val_acc=_accuracy(net, xv, yv))
+        for mode in ("clean", "augmented"):
+            net.load_state_dict(trained)
+            for m in net.modules():
+                if isinstance(m, nn.modules.batchnorm._BatchNorm):
+                    m.reset_running_stats()
+                    m.momentum = None                      # a plain average over every batch
+            torch.manual_seed(seed)
+            order = torch.randperm(len(xs), device=dev)
+            net.train()
+            for i in range(0, len(xs), 128):
+                xb = xs[order[i:i + 128]]
+                net(_augment(xb) if mode == "augmented" else xb)
+            row[f"val_acc_{mode}"] = _accuracy(net, xv, yv)
+        per_seed.append(row)
+        print(f"    {stem} s{seed}: validation {row['val_acc']:.2f}% -> clean {row['val_acc_clean']:.2f}% | "
+              f"augmented {row['val_acc_augmented']:.2f}%")
+    summary = {}
+    for k in ("val_acc", "val_acc_clean", "val_acc_augmented"):
+        v = torch.tensor([r[k] for r in per_seed], dtype=torch.float64)
+        summary[k] = dict(mean=round(v.mean().item(), 3), std=round(v.std().item(), 3) if len(v) > 1 else 0.0)
+    os.makedirs(OUT, exist_ok=True)
+    path = os.path.join(OUT, f"bnrecal_{stem}.json")
+    json.dump(dict(run=stem, n_train=len(xs), n_validation=len(xv), batch_size=128, seeds=per_seed, summary=summary),
+              open(path, "w"), indent=1)
+    print("    " + "  ".join(f"{k} {s['mean']:.2f} +- {s['std']:.2f}" for k, s in summary.items()) + f"\n    -> {path}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     ap.add_argument("--model", choices=MODELS + ("all",), default="all")
@@ -706,13 +816,17 @@ def main():
                     help="twostep recipes: learning rate of step 2 (default: --learning-rate)")
     ap.add_argument("--pad", choices=("zero", "minus", "plus"), default="zero",
                     help="every binary conv's border: zero = left out (the benchmark's), minus / plus = a -1 / +1 bit")
-    ap.add_argument("--head", choices=("binary", "int8", "pool"), default="binary",
+    ap.add_argument("--head", choices=("binary", "int8", "pool", "pool2", "pool4"), default="binary",
                     help="the classifier: binary weights (the benchmark's), int8 weights on the bits, or int8 weights "
                          "on the count of ones per channel (docstring)")
     ap.add_argument("--dead-fix", choices=("or_grad", "wstd", "dead_loss"), default="",
                     help="binary network: the dead-channel study (docstring)")
     ap.add_argument("--density", action="store_true",
                     help="train nothing: the share of ones per channel of the trained runs (docstring)")
+    ap.add_argument("--export", action="store_true",
+                    help="train nothing: the trained runs exported for the chip with the CDT's boolean exporter (docstring)")
+    ap.add_argument("--recalibrate-bn", action="store_true",
+                    help="train nothing: the trained runs' BatchNorm statistics computed again, weights frozen (docstring)")
     args = ap.parse_args()
     global STEM, WIDTH, LAST, CHANNELS, BLOCKS, SHORTCUT2, SHORTCUT_OP, PHASE2_LR, DISTILL_LOSS, DEAD_FIX, PAD, HEAD
     SHORTCUT_OP, PHASE2_LR, PAD, HEAD = args.shortcut_op, args.phase2_lr, args.pad, args.head
@@ -728,6 +842,18 @@ def main():
             for recipe in (args.recipe if kind == "binary" else ["base"]):
                 density(kind, args.seeds, recipe_name(recipe, args.bop_gamma, args.bop_tau, args.epochs,
                                                       args.distill and kind == "binary"))
+        return
+    if args.export:
+        for kind in [k for k in kinds if k == "binary"] or kinds:       # --model all: the binary one; twin / relu refused
+            for recipe in (args.recipe if kind == "binary" else ["base"]):
+                export(kind, args.seeds, recipe_name(recipe, args.bop_gamma, args.bop_tau, args.epochs,
+                                                     args.distill and kind == "binary"))
+        return
+    if args.recalibrate_bn:
+        for kind in kinds:
+            for recipe in (args.recipe if kind == "binary" else ["base"]):
+                recalibrate_bn(kind, args.seeds, recipe_name(recipe, args.bop_gamma, args.bop_tau, args.epochs,
+                                                             args.distill and kind == "binary"))
         return
     done = []
     for seed in args.seeds:

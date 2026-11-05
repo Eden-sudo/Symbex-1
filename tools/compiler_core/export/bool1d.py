@@ -20,16 +20,13 @@ On the chip the input is uint8 = int8 + 128; the offset folds into the first thr
 """
 import math
 import os
-import shutil
-import subprocess
-import tempfile
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-from . import c_header
-from .boolean import FC_SHIFT, INT_MAX, INT_MIN, _c_array, _words
+from . import c_build, c_header
+from .boolean import FC_SHIFT, INT_MAX, INT_MIN
 
 INPUT_SCALE = 127                                 # the model divides the int8 input by this before its first conv
 
@@ -126,7 +123,7 @@ def _rows(w):
     n = -(-bits.shape[1] // 32)
     rw = -(-n // 4) * 4
     rows = np.zeros((len(w), rw), dtype=np.uint32)
-    rows[:, :n] = _words(bits, n)
+    rows[:, :n] = c_header.words(bits, n)
     return rows, rw, bits.sum(1)
 
 
@@ -173,7 +170,7 @@ def write_header(net, path, in_len, in_ch, first_bytes=False):
     fc_words = -(-fc_bits // 32)
     fc_rw = -(-fc_words // 4) * 4
     fc_rows = np.zeros((n_cls, fc_rw), dtype=np.uint32)
-    fc_rows[:, :fc_words] = _words(fcw, fc_words)
+    fc_rows[:, :fc_words] = c_header.words(fcw, fc_words)
     flash += fc_rows.size * 4 + n_cls * 12
     steps.append("classifier")
     out_words = [-(-c["oh"] * c["cout"] // 32) + 1 for c in convs]
@@ -194,21 +191,21 @@ def write_header(net, path, in_len, in_ch, first_bytes=False):
                 f"#ifndef SYMBEX_ROM\n#define SYMBEX_ROM const           /* -DSYMBEX_ROM= : weights in RAM */\n#endif\n\n")
         for i, c in enumerate(convs):
             if c["w8"] is not None:
-                _c_array(f, "int8_t", f"W{i}", c["w8"], " __attribute__((aligned(16)))")
+                c_header.c_array(f, "int8_t", f"W{i}", c["w8"], " __attribute__((aligned(16)))")
             else:
-                _c_array(f, "uint32_t", f"W{i}", c["rows"], " __attribute__((aligned(16)))")
-            _c_array(f, "int32_t", f"T{i}", c["thr"])
+                c_header.c_array(f, "uint32_t", f"W{i}", c["rows"], " __attribute__((aligned(16)))")
+            c_header.c_array(f, "int32_t", f"T{i}", c["thr"])
             if i:
-                _c_array(f, "int32_t", f"C{i}", c["cnt"])
+                c_header.c_array(f, "int32_t", f"C{i}", c["cnt"])
             wb, w8 = ("NULL", f"W{i}") if c["w8"] is not None else (f"W{i}", "NULL")
             f.write(f"static const struct SymbexBool1D L{i} = "
                     + c_header.struct(in_ch=c['cin'], out_ch=c['cout'], kernel=c['k'], stride=c['s'], pool=c['p'],
                                       in_len=c['h'], out_len=c['oh'], row_words=c['rw'], weights=wb, thresholds=f"T{i}",
                                       weight_counts='NULL' if i == 0 else f'C{i}', weights_i8=w8) + ";\n")
-        _c_array(f, "uint32_t", "FC_W", fc_rows, " __attribute__((aligned(16)))")
-        _c_array(f, "int32_t", "FC_C", fcw.sum(1))
-        _c_array(f, "int32_t", "FC_S", net["fc_scale"])
-        _c_array(f, "int32_t", "FC_B", net["fc_bias"])
+        c_header.c_array(f, "uint32_t", "FC_W", fc_rows, " __attribute__((aligned(16)))")
+        c_header.c_array(f, "int32_t", "FC_C", fcw.sum(1))
+        c_header.c_array(f, "int32_t", "FC_S", net["fc_scale"])
+        c_header.c_array(f, "int32_t", "FC_B", net["fc_bias"])
         f.write("".join(f"static uint32_t {m}[{pingpong}] __attribute__((aligned(16)));\n" for m in ("M_A", "M_B")[:n_pingpong])
                 + f"static uint32_t M_F[{final}] __attribute__((aligned(16)));   /* the last map: only its layer writes it */\n"
                 f"static uint32_t B_WINDOW[{2 * max_rw}] __attribute__((aligned(16)));\n"
@@ -238,31 +235,10 @@ def write_header(net, path, in_len, in_ch, first_bytes=False):
 def validate_c(header_path, lib_path, x_u8, expected, native_popcount=False, extra_sources=(), defines=()):
     """gcc on this PC: the header + lib_symbex (symbex_bool1d.c, symbex_bool.c, the generic HAL) on x_u8 (N, inputs).
     native_popcount: -mpopcnt, so the 1D layers take their inline two-window path. extra_sources / defines: more C
-    files and -D flags (e.g. an application's own first-layer kernels with -DSYMBEX_U8_EXTERNAL).
+    files (relative to the working directory, or absolute) and -D flags (e.g. an application's own first-layer
+    kernels with -DSYMBEX_U8_EXTERNAL).
     Returns (equal, total, message)."""
-    from .dense import _TEST_MAIN
-    if shutil.which("gcc") is None:
-        return None, 0, "gcc not found: the C exactness check was skipped"
-    inc = os.path.join(lib_path, "include")
-    sources = [os.path.join(lib_path, "src", "layers", "conv", f) for f in ("symbex_bool1d.c", "symbex_bool.c")]
-    sources.append(os.path.join(lib_path, "src", "hal", "generic", "symbex_hal_impl.c"))
-    sources += list(extra_sources)
-    for r in [inc] + sources:
-        if not os.path.exists(r):
-            return None, 0, f"lib_symbex not found at {lib_path} ({r} missing)"
-    with tempfile.TemporaryDirectory() as d:
-        shutil.copy(header_path, os.path.join(d, "model_symbex.h"))
-        open(os.path.join(d, "main.c"), "w").write(_TEST_MAIN)
-        exe = os.path.join(d, "check")
-        r = subprocess.run(["gcc", "-O2", "-std=gnu11"] + (["-mpopcnt"] if native_popcount else [])
-                           + [f"-D{d}" for d in defines] + ["-I", inc, "-I", d, "-o", exe, os.path.join(d, "main.c")] + sources,
-                           capture_output=True, text=True)
-        if r.returncode != 0:
-            return None, 0, "the C did not compile:\n" + r.stderr[-2000:]
-        data = os.path.join(d, "x.u8")
-        np.ascontiguousarray(x_u8, dtype=np.uint8).tofile(data)
-        r = subprocess.run([exe, data, str(len(x_u8))], capture_output=True, text=True)
-        if r.returncode != 0:
-            return None, 0, "the C program failed while running"
-        pred_c = np.array([int(v) for v in r.stdout.split()])
-    return int((pred_c == expected).sum()), len(expected), ""
+    return c_build.check(header_path, lib_path, x_u8, expected,
+                         sources=["layers/conv/symbex_bool1d.c", "layers/conv/symbex_bool.c",
+                                  "hal/generic/symbex_hal_impl.c", *(os.path.abspath(s) for s in extra_sources)],
+                         flags=(["-mpopcnt"] if native_popcount else []) + [f"-D{d}" for d in defines])

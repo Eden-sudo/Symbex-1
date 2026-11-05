@@ -79,8 +79,14 @@ en su lugar un stem int8 (`stem_kind = "int8"`, una convolución de 8 bits sobre
 `int8_weights()` da sus enteros: `Int8Conv` en `benchmarks/conv2d/cnn_cifar_resnet8/model.py`). La exportación pliega su
 BatchNorm y su signo en un umbral por canal sobre el producto punto entero, lo escribe como `symbex_bool_stem_i8` de
 lib_symbex y lo comprueba como cualquier otra capa (el C igual a la simulación entera en cada imagen). Úsalo en chips
-que multiplican bytes con SIMD (ESP32-S3, Cortex-M33); en los demás el termómetro es más rápido. Por ahora el motor
-vertical solo ejecuta el stem con termómetro.
+que multiplican bytes con SIMD (ESP32-S3, Cortex-M33); en los demás el termómetro es más rápido. Los dos motores lo
+ejecutan (el vertical convierte su salida en planos de canal).
+
+**El clasificador de una red booleana** es binario por defecto. El exportador también acepta un clasificador int8 con
+pooling (un módulo con `window`, `side` e `int8_weights()`: pesos int8 sobre la cuenta de unos de cada ventana k × k
+del último mapa) y lo escribe como `symbex_bool_pool_head` de lib_symbex; en ResNet-8 es tan preciso como un
+clasificador int8 sobre todos los bits con la cuarta parte de sus pesos. Se entrena en
+`benchmarks/experiments/training_gap` (`--head pool2`), todavía no desde `symbex.toml`.
 
 **Validación y test.** Toda elección (la búsqueda, el checkpoint) se hace sobre un split de validación sacado de los
 datos de entrenamiento. `split_seed` lo fija, así que cada semilla de entrenamiento se juzga sobre las mismas imágenes.

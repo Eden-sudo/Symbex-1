@@ -1,0 +1,40 @@
+{
+ "run": "binary_hpool4",
+ "n_train": 45000,
+ "n_validation": 5000,
+ "batch_size": 128,
+ "seeds": [
+  {
+   "seed": 42,
+   "val_acc": 70.94,
+   "val_acc_clean": 71.28,
+   "val_acc_augmented": 72.04
+  },
+  {
+   "seed": 43,
+   "val_acc": 70.42,
+   "val_acc_clean": 70.2,
+   "val_acc_augmented": 71.52
+  },
+  {
+   "seed": 44,
+   "val_acc": 72.2,
+   "val_acc_clean": 70.24,
+   "val_acc_augmented": 72.04
+  }
+ ],
+ "summary": {
+  "val_acc": {
+   "mean": 71.187,
+   "std": 0.915
+  },
+  "val_acc_clean": {
+   "mean": 70.573,
+   "std": 0.612
+  },
+  "val_acc_augmented": {
+   "mean": 71.867,
+   "std": 0.3
+  }
+ }
+}

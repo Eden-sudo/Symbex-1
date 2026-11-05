@@ -67,7 +67,7 @@ flowchart TB
 
 | Folder | What it holds |
 |---|---|
-| `include/layers/conv/` | `symbex_bool.h`: fully binary 2D networks (thermometer input or, optionally, an int8 first layer `symbex_bool_stem_i8`; binary convolutions with integer thresholds, OR pool, OR shortcut, classifier or per-cell detection head, and the whole-network runner `symbex_bool_net_run`). `symbex_bool1d.h`: binary 1D convolutions for time series, any channel count, with a fused OR pool. `symbex_bool_vertical.h`: the [vertical engine](vertical.md), the same networks and bits counted 128 windows at once (optional prepared and compact modes) |
+| `include/layers/conv/` | `symbex_bool.h`: fully binary 2D networks (thermometer input or, optionally, an int8 first layer `symbex_bool_stem_i8`; binary convolutions with integer thresholds, OR pool, OR shortcut, binary classifier, pooled int8 classifier `symbex_bool_pool_head` (int8 weights on the ones per k × k window) or per-cell detection head, and the whole-network runner `symbex_bool_net_run`). `symbex_bool1d.h`: binary 1D convolutions for time series, any channel count, with a fused OR pool. `symbex_bool_vertical.h`: the [vertical engine](vertical.md), the same networks and bits counted 128 windows at once (optional prepared and compact modes; the int8 stem and the pooled classifier run as in the standard engine) |
 | `include/layers/dense/` | `symbex_dense.h`: 1-bit dense layers (uint8 first layer, then bits with one integer threshold per neuron). `symbex_ternary.h`: weights in {-1, 0, +1} |
 | `include/ops/` | bit operations, bit packing, the AND form of the counts |
 | `include/hal/symbex_hal.h` | the interface every chip implements: the bit counts and the first-layer kernels |

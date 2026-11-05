@@ -406,3 +406,43 @@ int symbex_bool_classify(const uint32_t* bits, uint16_t n_words, uint32_t n_bits
     PF_ADD(SYMBEX_PF_CLASSIFY, t_all);
     return best;
 }
+
+int symbex_bool_pool_head(const struct SymbexBoolPoolHead* head, const uint32_t* map, uint32_t* counts,
+                          int32_t* scratch) {
+    PF_T(t_all);
+    const int k = head->window, ppx = (head->channels + 31) / 32, rw = head->row_words, np = head->n_planes;
+    const int nwy = head->in_h / k, nwx = head->in_w / k, nc = head->n_classes;
+    memset(counts, 0, (size_t)np * rw * 4);
+    for (int wy = 0; wy < nwy; wy++)                 /* bit-sliced counters: add each pixel's word to its window's */
+        for (int wx = 0; wx < nwx; wx++)
+            for (int dy = 0; dy < k; dy++)
+                for (int dx = 0; dx < k; dx++) {
+                    const uint32_t* px = map + ((size_t)(wy * k + dy) * head->in_w + wx * k + dx) * ppx;
+                    uint32_t* at = counts + (wy * nwx + wx) * ppx;
+                    for (int j = 0; j < ppx; j++) {
+                        uint32_t carry = px[j];
+                        for (int p = 0; p < np && carry; p++) {
+                            const uint32_t c = at[p * rw + j];
+                            at[p * rw + j] = c ^ carry;
+                            carry &= c;
+                        }
+                    }
+                }
+    int32_t* cnt = scratch;
+    int32_t* dot = scratch + nc;
+    for (int o = 0; o < nc; o++) dot[o] = 0;
+    for (int p = 0; p < np; p++)
+        for (int q = 0; q < 8; q++) {
+            symbex_and_popcount_rows(counts + p * rw, head->weight_planes + (size_t)q * nc * rw, rw, nc, cnt);
+            for (int o = 0; o < nc; o++)
+                dot[o] += (q == 7 ? -128 * cnt[o] : cnt[o] * (1 << q)) * (1 << p);
+        }
+    int best = 0;
+    int64_t best_logit = 0;
+    for (int o = 0; o < nc; o++) {
+        const int64_t logit = (int64_t)head->scale[o] * dot[o] + head->bias[o];
+        if (o == 0 || logit > best_logit) { best_logit = logit; best = o; }
+    }
+    PF_ADD(SYMBEX_PF_CLASSIFY, t_all);
+    return best;
+}

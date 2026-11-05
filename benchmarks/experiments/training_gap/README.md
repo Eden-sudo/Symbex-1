@@ -420,6 +420,72 @@ python small_gap_study.py --bench har --arch max --first int8 --head int8 --kind
 python int8_head_bench.py --port /dev/serial/by-id/usb-Espressif_USB_JTAG_...   # --board esp32 --port /dev/ttyUSB0
 ```
 
+## The pooled int8 classifier (`--head pool2|pool4`), now in `lib_symbex`
+
+The int8 classifier gains +2.8 but weighs 40 KB, because it reads every bit of the last map. Pooling the whole map
+first (`--head pool`) loses 2.9 points. In between: count the ones of every channel per 2 × 2 (or 4 × 4) window of the
+8 × 8 map, then an int8 layer on those counts. `pool2` reads 64 channels × 16 windows = 1,024 counts →
+10 classes: **10 KB of int8 weights** instead of 40 KB. x1 network, 3 seeds, validation:
+
+| Network | binary head | int8 head | pool2 | pool4 |
+|---|---|---|---|---|
+| thermometer stem | 70.00 ± 1.12 | 72.84 ± 0.13 | 72.81 ± 0.59 | 71.19 ± 0.92 |
+| thermometer stem + Bop | 72.49 ± 0.51 | | 73.72 ± 1.04 | |
+| int8 stem | 75.39 ± 0.20 | | | |
+| int8 stem + Bop | 76.08 ± 0.24 | 77.66 ± 0.63 | **77.48 ± 0.39** | |
+| int8 stem + addpool + Bop | 75.71 ± 0.68 | 77.21 ± 0.45 | 76.89 ± 0.16 | 75.93 ± 0.46 |
+
+- **pool2 keeps the int8 classifier's gain at a quarter of its weights:** 72.81 vs 72.84 on x1, 77.48 vs 77.66 with
+  the int8 stem and Bop. pool4 (4 windows) already loses 1-1.6 points: the classifier still needs some of *where*.
+- **int8 stem + Bop + pool2 is the most accurate x1 network so far:** 77.48 %, +1.9 over the int8 stem record of the
+  benchmark (75.63, without Bop; the two recipes differ, so this is not the gain of the head alone), for 29.6 KB of flash.
+- addpool does not add up with the int8 stem (75.71 vs 76.08 with Bop).
+- **BatchNorm recalibration** (`--recalibrate-bn`: the BN statistics measured again on training images after
+  training, `bnrecal_*.json`) moves validation by −0.2 to +0.5 points, inside the noise: not used.
+
+The chip runs it as `symbex_bool_pool_head` (lib_symbex, `SymbexBoolNet.pool_head`): the counts of each window are
+kept bit-sliced (a few count planes), and the dot product with the int8 weights is AND + popcount of every count plane
+against each of the weights' 8 bit planes, exact in int64. The exporter folds the BatchNorm and the per-class scale
+into an int32 scale and bias, as for the binary classifier. `--export` writes the header and checks it in C.
+
+**Whole network on the chip**, int8 stem + Bop + pool2 against the int8-stem record (same flags, standard engine,
+3 seeds × 1,000 images, every image equal to the integer simulation; `results/train_gap/pool_head_chip.json`), ms:
+
+| Board | weights | int8 stem record | + pool2 | extra | classifier alone |
+|---|---|---|---|---|---|
+| ESP32-S3 (swar) | flash | 35.54 | 35.77 | +0.23 (+0.7 %) | 0.06 → 0.28 |
+| ESP32-S3 (swar) | RAM | 35.54 | 35.76 | +0.23 (+0.6 %) | 0.06 → 0.28 |
+| ESP32 (lut16) | flash | 68.07 | 69.31 | +1.24 (+1.8 %) | 0.35 → 1.00 |
+| ESP32 (lut16) | RAM | 63.52 | 63.98 | +0.46 (+0.7 %) | 0.11 → 0.56 |
+| Pico 2 M33 | flash | 72.21 | 73.57 | +1.36 (+1.9 %) | 0.57 → 2.25 |
+| Pico 2 M33 | RAM | 68.54 | 69.14 | +0.60 (+0.9 %) | 0.14 → 0.76 |
+| Pico 2 Hazard3 | flash | 64.34 | 65.52 | +1.18 (+1.8 %) | 0.53 → 1.93 |
+| Pico 2 Hazard3 | RAM | 59.45 | 60.16 | +0.71 (+1.2 %) | 0.09 → 0.55 |
+
+Flash: 24.6 → 29.6 KB. The standard deviations are ≤ 0.004 ms.
+
+**On the vertical engine (ESP32-S3)**, the int8 stem and the pooled classifier run there too (exact on every image,
+3 seeds, weights in flash; `results/train_gap/pool_head_vertical_s3.json`), ms (RAM):
+
+| Network | validation | default | compact | prepared |
+|---|---|---|---|---|
+| record: thermometer, binary classifier | 71.17 ± 0.32 | 10.36 (63 KB) | 7.70 (151 KB) | 6.44 (238 KB) |
+| thermometer + Bop + pool2 | 73.72 ± 1.04 | 10.67 ± 0.04 (62 KB) | 7.92 ± 0.04 (151 KB) | 6.74 ± 0.02 (239 KB) |
+| int8 stem + Bop + pool2 | 77.48 ± 0.39 | 13.37 ± 0.04 (52 KB) | 10.84 ± 0.04 (136 KB) | 9.78 ± 0.02 (215 KB) |
+
+- **The pooled classifier costs ~0.3 ms** on the vertical engine (0.35 ms against 0.10).
+- **The int8 stem is now the slow part:** 4.5 ms against 1.9 ms for the thermometer + binary stem. In the standard
+  engine it was faster (4.2 vs 8.1 ms), but the vertical engine made the thermometer path 4× faster. Against ESP-DL
+  (14.8 ms flash, 9.8 ms RAM with 147 KB) the int8-stem network is 1.11× faster in flash and only ties in RAM.
+- **Thermometer + Bop + pool2 keeps the speed** (1.39× ESP-DL in flash, 1.45× in RAM) and gains 2.5 points.
+- Future work: the int8 stem on PIE (int8 SIMD); not measured yet.
+
+```
+python train_gap_study.py --model binary --stem int8 --recipe bop --head pool2 --seeds 42 43 44
+python train_gap_study.py --model binary --stem int8 --recipe bop --head pool2 --seeds 42 43 44 --export
+python ../../../tools/chip_test.py runs/train_gap/export/binary_i8_hpool2_bop_g0.0001_t1e-08_s42 --board s3 --usb --popcount swar
+```
+
 ## Where accuracy stands, and how we got here
 
 The path of this study, each step answering the question the previous one raised:
@@ -456,8 +522,8 @@ Open, if you want to help:
   +1.5 on x1 and ~7 % faster on the S3 (estimated from the measured blocks). The one architecture change with
   evidence behind it; avg (five thresholds) adds
   +0.4 more, inside the noise.
-- **The int8 classifier in `lib_symbex` for ResNet-8:** +2.8 on x1 for ~1 ms on the S3 and 35 KB (measured apart);
-  a smaller one (fewer input bits) and with 1-3-3 or the int8 stem not tried.
+- **The pooled int8 classifier with 1-3-3**, and the test set for int8 stem + Bop + pool2 (validation only so far).
+  The pooled classifier itself is now in `lib_symbex` (above).
 - **The int8 stem with `--spec`** (1-3-3 + int8 stem): both gains measured apart, not together.
 - **Bop with the benchmark's own pipeline and test images:** measured here on validation only.
 - **A stronger `dead_loss`, or another way to use the shortcut path** across the stride.

@@ -1,0 +1,40 @@
+{
+ "run": "binary_bop_g0.0001_t1e-08",
+ "n_train": 45000,
+ "n_validation": 5000,
+ "batch_size": 128,
+ "seeds": [
+  {
+   "seed": 42,
+   "val_acc": 72.2,
+   "val_acc_clean": 72.72,
+   "val_acc_augmented": 73.08
+  },
+  {
+   "seed": 43,
+   "val_acc": 72.18,
+   "val_acc_clean": 72.06,
+   "val_acc_augmented": 72.68
+  },
+  {
+   "seed": 44,
+   "val_acc": 73.08,
+   "val_acc_clean": 72.22,
+   "val_acc_augmented": 73.12
+  }
+ ],
+ "summary": {
+  "val_acc": {
+   "mean": 72.487,
+   "std": 0.514
+  },
+  "val_acc_clean": {
+   "mean": 72.333,
+   "std": 0.344
+  },
+  "val_acc_augmented": {
+   "mean": 72.96,
+   "std": 0.243
+  }
+ }
+}
