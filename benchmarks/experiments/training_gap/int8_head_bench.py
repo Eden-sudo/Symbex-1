@@ -266,6 +266,9 @@ def main():
         print(f"  {'shape / method':<22}{'cycles':>10}{'us':>9}  equal to the reference")
         for name, (cyc, ok) in rows.items():
             print(f"  {name:<22}{cyc:>10}{cyc / 240:>9.1f}  {'OK' if ok else 'NO'}")
+        missing = sorted({f"{shape}_{method}" for shape, *_ in SHAPES for method in METHODS} - set(rows))
+        if missing:                                        # a lost serial line must not make a short result file
+            sys.exit(f"[X] no result for {', '.join(missing)}: the times are not trusted")
         if not all(ok for _, ok in rows.values()):
             sys.exit("[X] a method differs from its reference: the times are not trusted")
         out[weights] = {name: {"cycles": cyc, "us": round(cyc / 240, 2), "equal_reference": ok}
