@@ -274,6 +274,7 @@ def run(kind, args, setup, dev):
     layers, n_in, classes, split, shape = setup
     split = tuple(t.to(dev) for t in split)
     name = f"{shape}_{kind}_s{args.seed}"
+    torch.manual_seed(args.seed)                           # the starting weights depend on the seed only
     net = Stack(kind, layers, n_in, classes, args.first).to(dev)
     path = os.path.join(RUNS, name + ".pth")
     out = os.path.join(OUT, name + ".json")

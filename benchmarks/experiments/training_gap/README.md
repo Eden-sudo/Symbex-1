@@ -141,23 +141,23 @@ three (Adam 5e-3, cosine, 100 / 50 epochs, labels only, last epoch), 3 seeds, va
 
 | Network | binary | twin | relu | binary train | binary probe, layer by layer | 1 % flipped → predictions changed |
 |---|---|---|---|---|---|---|
-| HAR `max` (32 ch) | 67.2 ± 1.3 | 69.2 ± 0.7 | 72.8 ± 0.5 | 87.2 | 57.9 → 66.4 → 66.7 | 17.9 % |
-| HAR `min` (4 ch) | 38.3 ± 6.7 | 56.8 ± 2.0 | 61.3 ± 1.5 | 38.8 | 34.7 → 46.4 → 44.0 | 17.6 % |
-| MLP 256-128 | 88.5 ± 0.2 | 89.4 ± 0.1 | 90.0 ± 0.2 | 96.9 | 87.3 → 88.0 | 3.2 % |
+| HAR `max` (32 ch) | 67.5 ± 1.3 | 69.1 ± 1.0 | 72.8 ± 0.3 | 88.2 | 59.2 → 64.6 → 67.1 | 18.3 % |
+| HAR `min` (4 ch) | 40.8 ± 5.2 | 57.7 ± 3.4 | 58.2 ± 2.2 | 39.8 | 39.0 → 46.6 → 45.9 | 22.3 % |
+| MLP 256-128 | 88.6 ± 0.1 | 89.6 ± 0.2 | 89.9 ± 0.1 | 97.1 | 87.6 → 88.1 | 3.2 % |
 | ResNet-8 x1 (above) | 70.0 | 83.6 | 85.4 | | 52.8 → ... → 60.2 | 17.8 % |
 
 - **The same answer: capacity, not training.** Where the binary network has room (HAR `max`, the MLP) it is within
   1-2 points of twin and fits its training data (87-97 %); where it is narrow (HAR `min`, ResNet-8 x1) it loses
-  13-18 points and does not even fit its training data (38.8 % train, 38.3 % validation).
-- **The narrow binary networks stall the same way:** HAR `min` loses information in its last layer (46.4 → 44.0),
+  13-17 points and does not even fit its training data (39.8 % train, 40.8 % validation).
+- **The narrow binary networks stall the same way:** HAR `min` loses information in its last layer (46.6 → 45.9),
   as ResNet-8 x1 does at its stride-2 blocks; the wide ones keep adding it.
-- **The margins are the same everywhere:** 19-54 % of the binary outputs lie within one noise unit of their
+- **The margins are the same everywhere:** 33-47 % of the binary outputs lie within one noise unit of their
   threshold (25-43 % in ResNet-8), in the networks that lose 1 point and in the ones that lose 18.
 - **Noise grows with depth and convolution, not with being narrow:** 1 % of flipped first-layer bits becomes 8 %
-  of the last layer's bits in HAR `max` (13.7 % in ResNet-8) but 3.7 % in the MLP, and changes 3 % of the MLP's
+  of the last layer's bits in HAR `max` (13.7 % in ResNet-8) but 3.6 % in the MLP, and changes 3 % of the MLP's
   predictions against ~18 % in both convolutional networks.
-- **No more spurious detections than floating point:** 30-34 % (HAR `max`) and 79 % (the MLP's second layer) of the
-  binary neurons beat all 19 shuffles of their weights, against 3-32 % and 54-56 % in twin and relu.
+- **No more spurious detections than floating point:** 22-33 % (HAR `max`) and 81 % (the MLP's second layer) of the
+  binary neurons beat all 19 shuffles of their weights, against 8-45 % and 54-58 % in twin and relu.
 
 ```
 python small_gap_study.py --bench har --arch max --seeds 42 43 44
@@ -350,6 +350,38 @@ python train_gap_study.py --model binary --recipe twostep_bop --bop-tau 1e-6 --s
 python train_gap_study.py --model binary --recipe twostep --phase2-lr 1e-4 --seeds 42 43 44
 ```
 
+## The rest of the block: padding, BatchNorm, the classifier (`--pad`, `--head`, `--density`)
+
+Four more parts of the network, x1 binary, 3 seeds, validation (base 70.00 ± 1.12):
+
+| Part | Variant | validation | Result |
+|---|---|---|---|
+| 3×3 convolutions | `--density`: channels never on / always on (x1 and 1-3-3, 2,000 images) | | 1 of 2,832 never on, 0 always on |
+| BatchNorm | `--density`: channels with gamma < 0 | | 0 of 2,832 |
+| Padding | `--pad minus` (border = −1) | 70.90 ± 0.99 | inside the noise |
+| Padding | `--pad plus` (border = +1) | 71.09 ± 0.76 | inside the noise |
+| Classifier | `--head int8` (int8 weights, binary input bits) | **72.84 ± 0.13** | **+2.8**, and steadier |
+| Classifier | `--head pool` (ones per channel, then int8) | 67.09 ± 1.36 | −2.9 |
+
+- **The "dead" channels are sparse, not dead:** every nearly constant channel is nearly *off* (< 10 % ones), none
+  nearly on, and only one is never on. With the OR an off channel passes its shortcut through, so there is nothing
+  to prune for free.
+- **No gamma < 0 anywhere**, and the exporter already turns one into a negated weight row at no cost: nothing to
+  gain in the BatchNorm.
+- **Block order (BN before or after the convolution):** on ±1 inputs a BatchNorm before a binary convolution folds
+  into it; the real alternatives are how the shortcut is added, already measured (`add` 69.39, addpool +1.5).
+- **Padding does not matter:** the chip's zero padding (border pixels left out of the count) is as good as −1 or +1.
+- **The int8 classifier is the one that helps, but it is not free:** it reads the whole last map (64 × 8 × 8 = 4,096
+  bits → 10 classes), so its weights grow from 5 KB to 40 KB, against 24 KB of flash for the whole x1 network today.
+  Its chip time is not measured yet. Pooling first (64 counts) is tiny but loses 2.9 points: the classifier needs
+  where in the image a feature is.
+
+```
+python train_gap_study.py --model binary --pad minus --seeds 42 43 44                 # plus
+python train_gap_study.py --model binary --head int8 --seeds 42 43 44                 # pool
+python train_gap_study.py --model binary --density --seeds 42 43 44                   # + --channels 16-48-96/1-3-3
+```
+
 ## Where accuracy stands, and how we got here
 
 The path of this study, each step answering the question the previous one raised:
@@ -360,7 +392,7 @@ The path of this study, each step answering the question the previous one raised
 2. **Then it is capacity: where?** The layer probes: the small binary network stops adding information after its
    first block and loses it at both stride-2 blocks; twice the channels recovers it in the last stage.
 3. **Is it the same in other networks?** conv1d (HAR) and the MLP: where the binary network has room it is within
-   1-2 points of twin; where it is narrow it loses 13-18.
+   1-2 points of twin; where it is narrow it loses 13-17.
 4. **How to spend the extra operations?** Width beats 2-bit activations at the same operations; the middle stage is
    worth more than the last; more blocks in the small-map stages match more width, steadier (1-3-3: 77.3 %). Two bits per
    element is the sweet spot of `../pair_bits`; 4 and 8 cost far more for little.
@@ -370,6 +402,8 @@ The path of this study, each step answering the question the previous one raised
 7. **Is the OR the problem, and is the 1×1 needed?** XOR is worse (−7.5). Without the 1×1 (option A), x1 keeps its
    accuracy and gets faster, but 1-3-3 loses 2 points. Adding the OR-pooled bit to the threshold (addpool) gives
    +1.5, nearly all of avg's gain. Bop and twostep still do not combine, at any τ.
+8. **The rest of the block?** Padding, block order and BatchNorm give nothing; an int8 classifier gives +2.8, at
+   35 KB more weights.
 
 What is left, as measured: against the INT8 MLPerf model (87.0 %) the best binary ResNet-8 is ~10 points behind
 (76.8 % with 1-3-3, 75.4 % with the int8 stem at x1's cost). Binary networks win where the arithmetic is the limit
@@ -384,10 +418,12 @@ Open, if you want to help:
   +1.5 on x1 and ~7 % faster on the S3 (estimated from the measured blocks). The one architecture change with
   evidence behind it; avg (five thresholds) adds
   +0.4 more, inside the noise.
+- **The int8 classifier on the chip, and on the MLP and conv1d:** +2.8 on ResNet-8 x1; its speed, a smaller
+  version (fewer input bits) and the other networks are not measured.
 - **The int8 stem with `--spec`** (1-3-3 + int8 stem): both gains measured apart, not together.
 - **Bop with the benchmark's own pipeline and test images:** measured here on validation only.
 - **A stronger `dead_loss`, or another way to use the shortcut path** across the stride.
 - **Option A (`--shortcut2 pad`) in `lib_symbex` for x1:** about the same accuracy without the 1×1, ~8 % faster on
   the S3 (estimated from the measured blocks).
 - Ideas we have not tried and would like to see measured: grouped binary convolutions, channels passed through
-  without a convolution (BinaryDenseNet style), a multi-bit classifier.
+  without a convolution (BinaryDenseNet style).
