@@ -34,6 +34,7 @@ the seeds. Run from anywhere; env_bench (CUDA) recommended (~1-2 min per network
 import argparse
 import json
 import os
+import re
 import statistics
 import sys
 
@@ -62,7 +63,8 @@ def restore_variant(name, seed):
     kind = info["model"]
     tg.STEM, tg.WIDTH, tg.LAST = info.get("stem", "thermometer"), info.get("width", 1), info.get("last_stage", "x1")
     tg.BLOCKS = tuple(info.get("blocks", (2, 2, 2)))
-    tg.CHANNELS = tuple(info["channels"]) if "_c" in name else None
+    custom = re.search(r"_c\d", name) and info.get("channels")   # "_c<channels>", not the "_clip" recipe
+    tg.CHANNELS = tuple(custom) if custom else None
     tg.SHORTCUT2, tg.SHORTCUT_OP = info.get("shortcut2", "or"), info.get("shortcut_op", "or")
     tg.PAD, tg.HEAD = info.get("pad", "zero"), info.get("head", "binary")
     parts = name.split("_")                                # older JSONs lack dead_fix: its tag in the name
@@ -86,6 +88,15 @@ def load_net(name, seed, dev):
         raise SystemExit(f"[X] {name}: the probes cover the benchmark's blocks only, not {', '.join(wrapped)}")
     net.load_state_dict(torch.load(path, map_location="cpu"))
     return net.to(dev).eval(), kind
+
+
+def padded_input(conv, inp):
+    """(input, padding) for F.conv2d as the trained forward pass sees them: --pad minus / plus borders the binary
+    convs' input with -1 / +1 (train_gap_study._padded_forward), the zero padding stays in F.conv2d"""
+    if tg.PAD == "zero" or not isinstance(conv, resnet8.BinaryConv) or conv.padding == (0, 0):
+        return inp, conv.padding
+    p = conv.padding
+    return F.pad(inp, (p[1], p[1], p[0], p[0]), value=-1.0 if tg.PAD == "minus" else 1.0), 0
 
 
 def effective_weight(conv, kind):
@@ -222,12 +233,13 @@ def conv_stats(net, kind, x, y, shuffles, seed, bs=500):
     for i in range(0, len(x), bs):
         net(x[i:i + bs])
         for name, conv, bn in convs:
-            inp, w = taps.conv_in[name], weights[name]
-            d = F.conv2d(inp, w, None, conv.stride, conv.padding)
+            w = weights[name]
+            inp, pad = padded_input(conv, taps.conv_in[name])
+            d = F.conv2d(inp, w, None, conv.stride, pad)
             resp[name].append(activation(bn(d), kind).mean((2, 3)))
             flat = w.flatten(1)
             for k, p in enumerate(perms[name]):
-                ds = F.conv2d(inp, torch.gather(flat, 1, p).view_as(w), None, conv.stride, conv.padding)
+                ds = F.conv2d(inp, torch.gather(flat, 1, p).view_as(w), None, conv.stride, pad)
                 if (name, k) not in match:                 # the shuffled filter moved to the real one's scale
                     match[name, k] = (ds.mean((0, 2, 3)), ds.std((0, 2, 3)).clamp_min(1e-6),
                                       d.mean((0, 2, 3)), d.std((0, 2, 3)))
