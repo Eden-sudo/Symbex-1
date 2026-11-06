@@ -4,10 +4,11 @@ stem_i8_pie_bench.py -- a faster int8 stem for the ESP32-S3: vectorized over the
 lib_symbex's int8 stem (symbex_bool_stem_i8) builds a 27-byte window per output pixel, then one PIE dot product per
 output channel (symbex_s8_dot_rows: 2 x ee.vmulas.s8.accx + reading ACCX, per channel). Here the loops are turned
 around, as ESP-DL's int8 convolutions do: the 16 lanes of a PIE register are 16 output channels of one pixel.
-    weights      transposed once per call to [tap][16 channels] (a 16-byte vector per tap, in RAM)
-    per pixel    QACC (16 lanes of 20 bits) loaded with -threshold; per tap: the input byte broadcast to 16 lanes
-                 (ee.vldbc.8, straight from the image; XOR 0x80 = pixel - 128), its 16 weights, ee.vmulas.s8.qacc
-    out bits     ee.srcmb.s8.qacc (saturated, the sign kept) -> bit = lane >= 0
+    weights      transposed once per call to [tap][16 channels] (a 16-byte vector per tap, on the stack)
+    image rows   a ring of 3 padded rows (pixel ^ 0x80 = pixel - 128, a zero pixel left and right)
+    per pixel    QACC (16 lanes of 20 bits) loaded with -threshold; per tap: ee.vsmulas.s8.qacc (16 weights times
+                 one input byte of the ring)
+    out bits     ee.srcmb.s8.qacc (saturated, the sign kept) -> bit = lane >= 0, packed with shifts and masks
 Exact only if no lane leaves 20 bits: |threshold| + 128 * sum|w| < 2^19 per channel (channels whose bit never
 changes are set directly); otherwise the kernel says so and the library's kernel must run.
 
@@ -15,9 +16,15 @@ changes are set directly); otherwise the kernel says so and the library's kernel
     python stem_i8_pie_bench.py --port /dev/ttyACM0 --weights ram
 
 Checked on the chip: the new kernel against the library's (and both against plain C) on 3 shapes: ResNet-8's stem
-(32 x 32, 16 channels, stride 1; the image in RAM, as from a camera), 40 channels with stride 2 (a partial group of 16) and a 1 x 1 kernel. The first
-line printed is a probe of the QACC layout (lane j of ee.vmulas.s8.qacc = 20-bit slot j % 8 of QACC_L / QACC_H).
-Times: best of 7 (cycles at 240 MHz). Results: results/stem_i8_pie_bench_s3.json.
+(32 x 32, 16 channels, stride 1; the image in RAM, as from a camera), 40 channels with stride 2 (a partial group of 16)
+and a 48 x 48 image with 24 channels. The first line printed is a probe of the QACC layout (lane j of
+ee.vmulas.s8.qacc = 20-bit slot j % 8 of QACC_L / QACC_H).
+Times: best of 7 (cycles at 240 MHz). Results: results/stem_i8_pie_bench_s3.json, measured with the library's
+earlier kernel (one dot product per channel).
+
+Now in lib_symbex: the same kernel is the S3 HAL's symbex_s8_stem3_bits, which symbex_bool_stem_i8 calls for 3 x 3
+stems (the earlier kernel runs when it refuses). With the current library, "the library's kernel" in this bench is
+therefore the same design; the copy here is kept as the record of the experiment.
 """
 import argparse
 import json

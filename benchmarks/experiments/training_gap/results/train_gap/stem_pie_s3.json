@@ -1,0 +1,253 @@
+{
+ "note": "whole ResNet-8 x1, int8 stem + Bop + pool2, ESP32-S3, popcount swar, 1000 validation images per seed; the int8 stem on PIE (symbex_s8_stem3_bits for the standard engine, symbex_s8_stem3_planes for the vertical one)",
+ "seeds": [
+  42,
+  43,
+  44
+ ],
+ "runs": [
+  {
+   "engine": "standard",
+   "weights": "flash",
+   "median_ms": [
+    32.328,
+    32.328,
+    32.328
+   ],
+   "mean": 32.328,
+   "std": 0.0,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "accuracy": [
+    75.9,
+    76.5,
+    77.7
+   ],
+   "ram_kb": [
+    15.21,
+    15.21,
+    15.21
+   ],
+   "model_flash": 29648
+  },
+  {
+   "engine": "standard",
+   "weights": "ram",
+   "median_ms": [
+    32.321,
+    32.321,
+    32.321
+   ],
+   "mean": 32.321,
+   "std": 0.0,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "accuracy": [
+    75.9,
+    76.5,
+    77.7
+   ],
+   "ram_kb": [
+    44.16,
+    44.16,
+    44.16
+   ],
+   "model_flash": 29648
+  },
+  {
+   "engine": "vertical",
+   "weights": "flash",
+   "median_ms": [
+    9.704,
+    9.7745,
+    9.7035
+   ],
+   "mean": 9.727,
+   "std": 0.041,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "accuracy": [
+    75.9,
+    76.5,
+    77.7
+   ],
+   "ram_kb": [
+    54.16,
+    54.16,
+    54.16
+   ],
+   "model_flash": 29648
+  },
+  {
+   "engine": "vertical",
+   "weights": "ram",
+   "median_ms": [
+    9.6985,
+    9.7695,
+    9.6985
+   ],
+   "mean": 9.722,
+   "std": 0.041,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "accuracy": [
+    75.9,
+    76.5,
+    77.7
+   ],
+   "ram_kb": [
+    83.11,
+    83.11,
+    83.11
+   ],
+   "model_flash": 29648
+  },
+  {
+   "engine": "vertical",
+   "weights": "flash, code in RAM",
+   "median_ms": [
+    9.408,
+    9.478,
+    9.407
+   ],
+   "mean": 9.431,
+   "std": 0.041,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "accuracy": [
+    75.9,
+    76.5,
+    77.7
+   ],
+   "ram_kb": [
+    64.73,
+    64.73,
+    64.73
+   ],
+   "model_flash": 29648
+  },
+  {
+   "engine": "vertical_compact",
+   "weights": "flash",
+   "median_ms": [
+    7.068,
+    7.1365,
+    7.0705
+   ],
+   "mean": 7.092,
+   "std": 0.039,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "accuracy": [
+    75.9,
+    76.5,
+    77.7
+   ],
+   "ram_kb": [
+    137.96,
+    138.19,
+    137.96
+   ],
+   "model_flash": 29648
+  },
+  {
+   "engine": "vertical_compact",
+   "weights": "flash, code in RAM",
+   "median_ms": [
+    6.941,
+    7.009,
+    6.94
+   ],
+   "mean": 6.963,
+   "std": 0.04,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "accuracy": [
+    75.9,
+    76.5,
+    77.7
+   ],
+   "ram_kb": [
+    148.53,
+    148.76,
+    148.54
+   ],
+   "model_flash": 29648
+  },
+  {
+   "engine": "vertical_prepared",
+   "weights": "flash",
+   "median_ms": [
+    6.034,
+    6.052,
+    6.017
+   ],
+   "mean": 6.034,
+   "std": 0.018,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "accuracy": [
+    75.9,
+    76.5,
+    77.7
+   ],
+   "ram_kb": [
+    216.96,
+    217.19,
+    216.99
+   ],
+   "model_flash": 29648
+  },
+  {
+   "engine": "vertical_prepared",
+   "weights": "flash, code in RAM",
+   "median_ms": [
+    5.909,
+    5.925,
+    5.894
+   ],
+   "mean": 5.909,
+   "std": 0.016,
+   "equal_simulation": [
+    100.0,
+    100.0,
+    100.0
+   ],
+   "accuracy": [
+    75.9,
+    76.5,
+    77.7
+   ],
+   "ram_kb": [
+    227.54,
+    227.77,
+    227.57
+   ],
+   "model_flash": 29648
+  }
+ ]
+}

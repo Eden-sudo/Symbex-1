@@ -76,6 +76,9 @@ def main():
                          "vertical_compact: lists prepared, thresholds compact (about half that RAM)")
     ap.add_argument("--code", choices=["flash", "ram"], default="flash",
                     help="where the engine's inner loops run (vertical engine): flash (default) or RAM (-DSYMBEX_CODE_IN_RAM)")
+    ap.add_argument("--flash-config", choices=["default", "fast"], default="default",
+                    help="ESP32 boards: fast = the flash in quad mode (QIO) and, on the ESP32-S3, the largest caches "
+                         "(32 KB instructions, 64 KB data); default = ESP-IDF's (DIO, 16 / 32 KB)")
     ap.add_argument("--usb", action="store_true",
                     help="through the board's native USB-Serial-JTAG port (ESP32-S3, /dev/ttyACM0) instead of its UART: "
                          "flashing needs no BOOT button, same firmware and results")
@@ -122,13 +125,15 @@ def main():
         res = measure_on_chip(header, x, y, sim, os.path.join(args.folder, f"chip_{args.board}"), args.lib_path,
                               args.board, args.port, args.baud, args.samples, not args.no_upload, args.popcount, flash,
                               weights=args.weights, first_layer=args.first_layer, int8=int8, usb=args.usb,
-                              engine=args.engine, code=args.code)
+                              engine=args.engine, code=args.code, flash_config=args.flash_config)
         res["code"] = args.code
+        res["flash_config"] = args.flash_config
     except (RuntimeError, ValueError) as e:
         sys.exit(f"[X] {e}")
     path = os.path.join(args.folder, f"chip_{args.board}_{args.popcount}_{args.weights}_{args.first_layer}"
                                      + ("" if args.engine == "standard" else "_" + args.engine)
-                                     + ("_coderam" if args.code == "ram" else "") + ".json")
+                                     + ("_coderam" if args.code == "ram" else "")
+                                     + ("_fastflash" if args.flash_config == "fast" else "") + ".json")
     with open(path, "w") as f:
         json.dump(res, f, indent=1)
     print(f"\n[*] -> {path}")

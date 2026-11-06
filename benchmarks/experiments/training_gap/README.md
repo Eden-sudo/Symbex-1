@@ -478,7 +478,26 @@ Flash: 24.6 → 29.6 KB. The standard deviations are ≤ 0.004 ms.
   engine it was faster (4.2 vs 8.1 ms), but the vertical engine made the thermometer path 4× faster. Against ESP-DL
   (14.8 ms flash, 9.8 ms RAM with 147 KB) the int8-stem network is 1.11× faster in flash and only ties in RAM.
 - **Thermometer + Bop + pool2 keeps the speed** (1.39× ESP-DL in flash, 1.45× in RAM) and gains 2.5 points.
-- Future work: the int8 stem on PIE (int8 SIMD); not measured yet.
+
+**The int8 stem on PIE (Nov 6).** *Question:* the int8 stem is the slow part on the S3; can PIE take it away?
+*What we did:* two S3 HAL kernels (`../chip_kernels`): 16 output channels per instruction for the standard engine,
+16 pixels per instruction written straight into the channel planes for the vertical one. *Result*, measured, 3
+seeds × 1,000 images, every image equal to the simulation (`results/train_gap/stem_pie_s3.json`), ms (RAM):
+
+| Engine | before | int8 stem on PIE |
+|---|---|---|
+| standard, weights in flash / RAM | 35.77 / 35.76 | **32.33 / 32.32** (15 / 44 KB) |
+| vertical default, flash | 13.37 | **9.73 ± 0.04** (54 KB) |
+| vertical default, weights in RAM | — | 9.72 ± 0.04 (83 KB) |
+| vertical default, flash, code in RAM | — | 9.43 ± 0.04 (65 KB) |
+| vertical compact, flash (code in RAM) | 10.84 | **7.09 ± 0.04** (138 KB); 6.96 (149 KB) |
+| vertical prepared, flash (code in RAM) | 9.78 | **6.03 ± 0.02** (217 KB); 5.91 (228 KB) |
+
+*Answer:* the most accurate x1 network (77.48 %) is now also the fastest on the S3: 9.73 ms in flash with 54 KB of
+RAM, faster than the earlier record (10.36, thermometer, 71.2 %) and 1.52× faster than ESP-DL in flash (14.8 ms);
+the compact mode (7.09 ms, 138 KB) is 1.38× faster than ESP-DL in RAM (9.8 ms, 147 KB). The other boards keep
+their times (seed 42, exact: ESP32 and both Pico 2 cores the same or up to 1.4 % faster). Still open: the test set
+once for this network, and the CDT recipe (pool2 head).
 
 ```
 python train_gap_study.py --model binary --stem int8 --recipe bop --head pool2 --seeds 42 43 44

@@ -252,14 +252,31 @@ weights in flash, 3 seeds (details: benchmarks/experiments/training_gap):
 | thermometer + pooled classifier | 73.72 % | 10.67 ms | 7.92 ms | 6.74 ms |
 | int8 stem + pooled classifier | 77.48 % | 13.37 ms | 10.84 ms | 9.78 ms |
 
-The int8 stem takes 4.5 ms here, more than the thermometer path (1.9 ms): on this engine it costs speed.
+The int8 stem took 4.5 ms here, more than the thermometer path (1.9 ms).
+
+**The int8 stem on PIE (Nov 6).** The S3 HAL now has `symbex_s8_stem3_planes`: the 16 lanes of a PIE register are
+16 pixels of one output channel (`ee.vsmulas.s8.qacc`, the weight broadcast to every lane), and their 16 signs are
+written straight into the channel plane: no HWC map, no transpose. It runs 3×3 stride-1 stems with a width that is a
+multiple of 16 up to 128, and refuses the rest (return −1: the portable path runs, same bits). Same network, 3
+seeds × 1000 images, exact on every image:
+
+| int8 stem + pooled classifier | default | compact | prepared |
+|---|---|---|---|
+| before (standard kernel + transpose) | 13.37 ms (52 KB) | 10.84 ms (136 KB) | 9.78 ms (215 KB) |
+| PIE planes, code in flash | **9.73 ms** (54 KB) | **7.09 ms** (138 KB) | **6.03 ms** (217 KB) |
+| PIE planes, code in RAM (`--code ram`) | 9.43 ms (65 KB) | 6.96 ms (149 KB) | 5.91 ms (228 KB) |
+
+The stem step is now 0.72 ms (code in RAM). The most accurate x1 network (77.48 %) is also the fastest: 1.52×
+faster than ESP-DL in flash, and the compact mode 1.38× faster than ESP-DL in RAM with less RAM (138 vs 147 KB).
+`chip_test.py --flash-config fast` (quad flash, largest caches) was measured too: within 0.1 % of the default, so
+comparisons keep ESP-IDF's default.
 
 ## Future work
 
 - **Weights in RAM with less RAM than ESP-DL:** the default engine is 1.06× slower than ESP-DL there (10.4 ms vs
   9.8 ms, 63 KB vs 147 KB of RAM); the compact mode wins with about the same RAM. A block only for the small maps
   would sit between the two.
-- **The stem** (about 2 ms): the thermometer and the transpose into planes.
+- **The thermometer stem** (about 2 ms): the thermometer and the transpose into planes (the int8 stem is done, above).
 - **The classifier** (0.17 ms vs 0.06 ms): reading the final planes directly instead of converting them back.
 - **Small maps** (blocks 4 and 5, 8×8 and 16×16): a 128-pixel register is half used or less, and every plane list is
   used once; packing several output channels per register would fill it.

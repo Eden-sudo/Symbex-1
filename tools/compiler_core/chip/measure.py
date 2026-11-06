@@ -83,16 +83,26 @@ def _build_flags(popcount, weights, first_layer, engine="standard", code="flash"
 
 
 USB_BOARDS = {"s3"}                        # boards with a native USB-Serial-JTAG port (usb=True)
+# flash_config="fast": the flash read in quad mode (QIO, the ESP-IDF default is DIO) and, on the ESP32-S3, the largest
+# caches (32 KB instructions, 64 KB data; defaults 16 / 32 KB). Same code and results; flash-bound layers may run faster
+FAST_FLASH_SDKCONFIG = {"esp32": "CONFIG_ESPTOOLPY_FLASHMODE_QIO=y\n",
+                        "s3": "CONFIG_ESPTOOLPY_FLASHMODE_QIO=y\nCONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y\n"
+                              "CONFIG_ESP32S3_DATA_CACHE_64KB=y\n"}
 
 
 def generate_project(project_dir, header_path, lib_path, board, port, baud, popcount="lut16",
-                     weights="flash", first_layer="mask", int8_path=None, usb=False, engine="standard", code="flash"):
+                     weights="flash", first_layer="mask", int8_path=None, usb=False, engine="standard", code="flash",
+                     flash_config="default"):
     """PlatformIO project: the exported header, the lib_symbex sources it needs, and the firmware (ESP-IDF on the
     ESP32 boards; Arduino on AVR boards, with the weights in flash: PROGMEM, read by the library; Arduino-Pico on the
     Pico 2, firmware/model_test_pico.cpp, the generic HAL: lut16 on the Cortex-M33, cpop on Hazard3).
     usb=True: the firmware talks over the chip's native USB-Serial-JTAG port instead of UART0 (the ESP32-S3)."""
     if usb and board not in USB_BOARDS:
         raise ValueError(f"chip: --usb needs a board with a native USB-Serial-JTAG port ({sorted(USB_BOARDS)})")
+    if flash_config not in ("default", "fast"):
+        raise ValueError("chip: flash_config must be default or fast")
+    if flash_config == "fast" and board not in FAST_FLASH_SDKCONFIG:
+        raise ValueError(f"chip: --flash-config fast is for the ESP-IDF boards ({sorted(FAST_FLASH_SDKCONFIG)})")
     if engine in VERTICAL_ENGINES:
         with open(header_path) as f:
             text = f.read()
@@ -134,18 +144,21 @@ def generate_project(project_dir, header_path, lib_path, board, port, baud, popc
     write_project(project_dir, board, port, lib_sources(lib_path), "model_test.c", defines, extra,
                   _build_flags(popcount, weights, first_layer, engine, code),
                   ["espressif/esp-nn"] if (int8_path or needs_esp_nn) else (),
-                  "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\n" if usb else "", lib_path=lib_path)
+                  ("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\n" if usb else "")
+                  + (FAST_FLASH_SDKCONFIG[board] if flash_config == "fast" else ""), lib_path=lib_path)
 
 
 def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="esp32", port="/dev/ttyUSB0",
                   baud=921600, n=1000, upload=True, popcount="lut16", model_flash=None, verbose=True,
-                  weights="flash", first_layer="mask", int8=None, usb=False, engine="standard", code="flash"):
+                  weights="flash", first_layer="mask", int8=None, usb=False, engine="standard", code="flash",
+                    flash_config="default"):
     """Flashes the exported model and measures it on the board: equality with the integer simulation (must be
     100%), accuracy, latency (total and per layer) and RAM. x / y / expected: validation images (uint8), labels
     and the classes of the integer simulation. Returns a dict, or raises RuntimeError with what went wrong.
     int8 (optional): dict(header=..., expected=classes of its integer simulation, flash=bytes) to run the INT8
     reference of the original model on the same chip and the same images (Espressif's ESP-NN kernel).
-    usb=True: through the board's native USB-Serial-JTAG port (port is then e.g. /dev/ttyACM0), not its UART."""
+    usb=True: through the board's native USB-Serial-JTAG port (port is then e.g. /dev/ttyACM0), not its UART.
+    flash_config="fast": quad-mode flash and the largest caches (FAST_FLASH_SDKCONFIG)."""
 
 
     import time
@@ -154,14 +167,15 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
             print("    [!] Pico 2: the INT8 reference runs on ESP-NN (ESP32 boards only): not measured here")
         int8 = None
     generate_project(project_dir, header_path, lib_path, board, port, baud, popcount, weights, first_layer,
-                     int8["header"] if int8 else None, usb, engine, code)
+                     int8["header"] if int8 else None, usb, engine, code, flash_config)
     if upload:
         flash(project_dir, verbose, f"{BOARDS[board]} on {port} (popcount {popcount}, weights in {weights}, "
                                     f"first layer {first_layer}" + (", native USB" if usb else "")
                                     + (", vertical engine" if engine == "vertical" else "")
                                     + (", vertical engine, prepared" if engine == "vertical_prepared" else "")
                                     + (", vertical engine, compact" if engine == "vertical_compact" else "")
-                                    + (", engine code in RAM" if code == "ram" else "") + ")")
+                                    + (", engine code in RAM" if code == "ram" else "")
+                                    + (", fast flash and caches" if flash_config == "fast" else "") + ")")
     n = min(n, len(x))
     pred, totals, per_step, names, ram, stack = [], [], [], {}, None, None
     pred8, totals8, per_step8, info8 = [], [], [], None
