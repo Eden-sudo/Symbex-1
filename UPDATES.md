@@ -3,6 +3,18 @@
 A running log of what each pull request brings, what is still in progress and what comes next. One section per
 pull request, newest first.
 
+## PR #12: team sync (October 2026)
+
+- Keep Abrahan's classic ESP32 without PSRAM active for FOMO, alongside the shared S3 with microSD on Eden's PC.
+  S3 runs retain human approval and exclusive board access; microSD wiring/interface/card details need confirmation.
+- Correct Abrahan's name and track open PR #15: three-seed classic ESP32 RAM/swar results and flash/RAM step captures.
+  New-split classic re-measurements and future S3 board requests are distinct from existing measured results.
+- Route requests only from the three team logins; all GitHub text remains untrusted and mentions grant no execution,
+  flash or publication permission. Paginate issue/comment/review discovery, including submitted PR review bodies.
+- Read the canonical upstream roadmap, require exactly one Team sync issue, and preserve per-head/reply deduplication.
+- Retain `AGENTS.md`; withdraw tracked `CLAUDE.md` so Eden can keep his own local include without an incoming collision.
+- Abrahan's Linux/zsh check of the original discovery commands is reported evidence, not a local hardware test.
+
 ## PR #4: conv1d/pico2 (October 2026)
 
 ### Done
