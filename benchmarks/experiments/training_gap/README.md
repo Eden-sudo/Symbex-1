@@ -496,12 +496,18 @@ seeds × 1,000 images, every image equal to the simulation (`results/train_gap/s
 *Answer:* the most accurate x1 network (77.48 %) is now also the fastest on the S3: 9.73 ms in flash with 54 KB of
 RAM, faster than the earlier record (10.36, thermometer, 71.2 %) and 1.52× faster than ESP-DL in flash (14.8 ms);
 the compact mode (7.09 ms, 138 KB) is 1.38× faster than ESP-DL in RAM (9.8 ms, 147 KB). The other boards keep
-their times (seed 42, exact: ESP32 and both Pico 2 cores the same or up to 1.4 % faster). Still open: the test set
-once for this network, and the CDT recipe (pool2 head).
+their times (seed 42, exact: ESP32 and both Pico 2 cores the same or up to 1.4 % faster).
+
+**The test set, once (Nov 6).** The network chosen on validation (int8 stem + Bop + pool2), its 3 seeds on the
+10,000 CIFAR-10 test images, the integer simulation that the chip runs (the compiled C equal on every image, standard
+and the three vertical modes; `--test`, `results/train_gap/test_binary_i8_hpool2_bop_g0.0001_t1e-08.json`):
+**77.26 ± 0.09 %** (validation 77.48 ± 0.39; the int8-stem record of the benchmark: 75.41 ± 0.02 on test). Still
+open: the CDT recipe (pool2 head).
 
 ```
 python train_gap_study.py --model binary --stem int8 --recipe bop --head pool2 --seeds 42 43 44
 python train_gap_study.py --model binary --stem int8 --recipe bop --head pool2 --seeds 42 43 44 --export
+python train_gap_study.py --model binary --stem int8 --recipe bop --head pool2 --seeds 42 43 44 --test   # once
 python ../../../tools/chip_test.py runs/train_gap/export/binary_i8_hpool2_bop_g0.0001_t1e-08_s42 --board s3 --usb --popcount swar
 ```
 
@@ -541,7 +547,7 @@ Open, if you want to help:
   +1.5 on x1 and ~7 % faster on the S3 (estimated from the measured blocks). The one architecture change with
   evidence behind it; avg (five thresholds) adds
   +0.4 more, inside the noise.
-- **The pooled int8 classifier with 1-3-3**, and the test set for int8 stem + Bop + pool2 (validation only so far).
+- **The pooled int8 classifier with 1-3-3** (int8 stem + Bop + pool2 is measured on test: 77.26 %).
   The pooled classifier itself is now in `lib_symbex` (above).
 - **The int8 stem with `--spec`** (1-3-3 + int8 stem): both gains measured apart, not together.
 - **Bop with the benchmark's own pipeline and test images:** measured here on validation only.

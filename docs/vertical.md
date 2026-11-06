@@ -266,7 +266,7 @@ seeds × 1000 images, exact on every image:
 | PIE planes, code in flash | **9.73 ms** (54 KB) | **7.09 ms** (138 KB) | **6.03 ms** (217 KB) |
 | PIE planes, code in RAM (`--code ram`) | 9.43 ms (65 KB) | 6.96 ms (149 KB) | 5.91 ms (228 KB) |
 
-The stem step is now 0.72 ms (code in RAM). The most accurate x1 network (77.48 %) is also the fastest: 1.52×
+The stem step is now 0.72 ms (code in RAM). The most accurate x1 network (77.48 % validation, 77.26 % test) is also the fastest: 1.52×
 faster than ESP-DL in flash, and the compact mode 1.38× faster than ESP-DL in RAM with less RAM (138 vs 147 KB).
 `chip_test.py --flash-config fast` (quad flash, largest caches) was measured too: within 0.1 % of the default, so
 comparisons keep ESP-IDF's default.

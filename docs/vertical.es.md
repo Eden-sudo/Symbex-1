@@ -273,7 +273,7 @@ red, 3 semillas × 1000 imágenes, exacta en cada imagen:
 | PIE a planos, código en flash | **9.73 ms** (54 KB) | **7.09 ms** (138 KB) | **6.03 ms** (217 KB) |
 | PIE a planos, código en RAM (`--code ram`) | 9.43 ms (65 KB) | 6.96 ms (149 KB) | 5.91 ms (228 KB) |
 
-El paso del stem es ahora 0.72 ms (código en RAM). La red x1 más precisa (77.48 %) es también la más rápida: 1.52×
+El paso del stem es ahora 0.72 ms (código en RAM). La red x1 más precisa (77.48 % validación, 77.26 % test) es también la más rápida: 1.52×
 más rápida que ESP-DL en flash, y el modo compacto 1.38× más rápido que ESP-DL en RAM con menos RAM (138 frente a
 147 KB). También se midió `chip_test.py --flash-config fast` (flash en modo quad, cachés más grandes): a 0.1 % del
 valor por defecto, así que las comparaciones mantienen la configuración por defecto de ESP-IDF.
