@@ -190,6 +190,19 @@ most accurate network is also faster than the thermometer network on the ESP32 (
 (67.77 vs 74.58); on Hazard3 it is 1.8 ms slower (57.94 vs 56.15) for 5.3 more points (test). The S3 keeps its PIE kernel
 (32.33 ms standard, 9.73 ms vertical).
 
+**The vertical engine on the Pico 2** (`docs/vertical.md`), same network, 3 seeds × 1,000 images, every image equal
+to the simulation, weights in flash, lut16 (`results/symbex_seeds_pico2_*_w1_int8stem_pool2_vertical*.json`), ms (RAM):
+
+| Core | standard | vertical | compact | prepared |
+|---|---|---|---|---|
+| Cortex-M33 | 67.77 (80 KB) | 66.91 ± 0.13 (117 KB) | 60.95 ± 0.14 (200 KB) | **59.12 ± 0.14** (279 KB) |
+| Hazard3 | **57.94** (15 KB) | 71.92 ± 0.13 (53 KB) | 64.11 ± 0.14 (136 KB) | 62.66 ± 0.14 (215 KB) |
+
+On the M33 the prepared mode is the fastest (1.15× the standard engine with weights in flash, 1.07× with weights in
+RAM, 63.43 ms), for 3.5× the RAM; the Pico 2 has 520 KB. On Hazard3, with its native popcount, the standard engine
+stays the fastest and the smallest. The S3's large gain (32.33 → 9.73 ms) comes from PIE's 128-bit registers, which
+the Pico 2 does not have.
+
 ## Reproduce
 
 From this folder (environment `env_bench`, with PyTorch on CUDA and TensorFlow):
