@@ -8,6 +8,7 @@ resnet8_symbex.py -- the cnn_cifar_resnet8 benchmark: a fully binary ResNet-8, t
     python resnet8_symbex.py --seeds 3 --board pico2_riscv --port /dev/ttyACM0 --popcount lut16   # Pico 2 (or pico2_arm)
     python resnet8_symbex.py --variant int8stem --seeds 3   # stem / shortcut study: base | int8stem | add | int8stem_add
     python resnet8_symbex.py --variant int8stem --seeds 3 --board s3 --port /dev/ttyACM0   # the int8 stem on a board
+    python resnet8_symbex.py --variant int8stem_pool2 --seeds 3   # int8 stem + pooled int8 classifier, Bop (most accurate x1)
     python resnet8_symbex.py --seeds 3 --board s3 --summary   # the summary from runs measured with tools/chip_test.py
     python resnet8_symbex.py --seeds 3 --board s3 --summary --engine vertical   # ... measured with --engine vertical
     python resnet8_symbex.py --seeds 3 --board s3 --summary --engine vertical_prepared   # ... lists prepared in RAM
@@ -69,6 +70,9 @@ def config_for(width, out_dir, spec=None, variant=None):
     text = open("symbex.toml").read()
     text = re.sub(r'(?m)^file = .*$', f'file = "{os.path.abspath(init)}"', text)
     text = re.sub(r'(?m)^definition = .*$', f'definition = "{definition}"', text)
+    if variant in m.BOP_VARIANTS:                    # the recipe of the training-gap study: Bop for the 1-bit weights
+        text = re.sub(r'(?m)^(compile = .*)$', r'\1\nbinary_optimizer = "bop"', text)
+        assert 'binary_optimizer = "bop"' in text
     text = re.sub(r'(?m)^directory = "\.\./\.\./data/cifar10"', f'directory = "{os.path.normpath(os.path.join(HERE, "..", "..", "data", "cifar10"))}"', text)
     text = re.sub(r'(?m)^lib_path = .*$', f'lib_path = "{os.path.normpath(os.path.join(HERE, "..", "..", "..", "Symbex1_PIO", "lib", "lib_symbex"))}"', text)
     os.makedirs(out_dir, exist_ok=True)
@@ -93,10 +97,11 @@ def main():
     ap.add_argument("--engine", choices=["standard", "vertical", "vertical_prepared", "vertical_compact"],
                     default="standard",
                     help="with --summary: the runs measured with tools/chip_test.py --engine vertical[_prepared|_compact]")
-    ap.add_argument("--variant", choices=["base", "int8stem", "add", "int8stem_add"], default="",
+    ap.add_argument("--variant", choices=["base", "int8stem", "add", "int8stem_add", "int8stem_pool2"], default="",
                     help="the stem / shortcut study (x1 channels, own run folders runs/w1_<variant>_s<seed>): base = "
-                         "the network as it is; int8stem = int8 stem on the pixels; add = added shortcuts instead of OR. "
-                         "base and int8stem are exported and measured like the default network (the int8 stem: "
+                         "the network as it is; int8stem = int8 stem on the pixels; add = added shortcuts instead of OR; "
+                         "int8stem_pool2 = int8 stem + pooled int8 classifier (2x2 windows), trained with Bop. "
+                         "base, int8stem and int8stem_pool2 are exported and measured like the default network (the int8 stem: "
                          "lib_symbex's optional int8 first layer); add and int8stem_add are trained only (PC, "
                          "validation accuracy): the boolean export takes OR shortcuts only")
     ap.add_argument("--spec", default="", help='a variant of the sizing study: "16-32-64/2-2-2" = channels / blocks '

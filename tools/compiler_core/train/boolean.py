@@ -43,13 +43,15 @@ def _evaluate(model, loader, dev):
 
 def binary_weights(model):
     """the 1-bit weights of a boolean model, by the contract above: the stem (unless it is int8), every block's conv
-    and shortcut conv, the classifier or per-cell head"""
+    and shortcut conv, the classifier or per-cell head (unless it is an int8 head, int8_weights(): Adam trains it)"""
     ws = [] if getattr(model, "stem_kind", "thermometer") == "int8" else [model.stem.weight]
     for b in model.blocks:
         ws.append(b.conv.weight)
         if getattr(b, "changes", False):
             ws.append(b.ds_conv.weight)
-    ws.append((model.head if hasattr(model, "head") else model.fc).weight)
+    head = model.head if hasattr(model, "head") else model.fc
+    if not hasattr(head, "int8_weights"):
+        ws.append(head.weight)
     return ws
 
 

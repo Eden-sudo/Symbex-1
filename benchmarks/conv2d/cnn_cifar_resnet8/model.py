@@ -13,7 +13,9 @@ On the chip there is no multiplication at all: every BatchNorm + sign is one int
 
     BoolResNet8(width, levels)    the network (input: uint8 images N x 3 x 32 x 32, or floats in [0, 1] as the CDT gives)
     BoolResNet8x1 / BoolResNet8x2 the two widths, buildable with no arguments ([model] definition of the CDT)
-    VARIANTS                      the stem / shortcut study (resnet8_symbex.py --variant): int8 stem, added shortcuts
+    VARIANTS                      the stem / shortcut study (resnet8_symbex.py --variant): int8 stem, added shortcuts;
+                                  int8stem_pool2: int8 stem + pooled int8 classifier (trained with Bop)
+    PoolHead                      the pooled int8 classifier: ones per k x k window of the final map, then int8 weights
     parse_spec / write_definition variants for the sizing study: "16-32-64/2-2-2" = channels / blocks per stage
     initial_weights(cls, path)    the random starting weights the CDT loads ([model] file)
     thermometer(x_u8, levels)     the input encoding, in +-1
@@ -91,6 +93,44 @@ class Int8Conv(nn.Conv2d):
         return F.conv2d(x, wq, None, self.stride, self.padding)
 
 
+def _int8_ste(w):
+    """symmetric int8 weights per output row (scale = max |w| / 127), straight-through"""
+    s = w.abs().amax(1, keepdim=True).clamp_min(1e-8) / 127
+    return w + (torch.round(w / s) * s - w).detach()
+
+
+class Int8Head(nn.Linear):
+    """int8 weights on the counts of the pooled classifier (a sum of int8 weights per class on a chip)"""
+    def forward(self, x):
+        return F.linear(x, _int8_ste(self.weight))
+
+
+class PoolHead(nn.Module):
+    """the pooled int8 classifier (head="pool2"): the count of ones per window x window block of the final map
+    (0..window^2; window 0 = the whole map), then int8 weights per class, no bias (the BatchNorm after it gives the
+    offset). Input: the flattened map (N, C*H*W, channel-major, as BoolResNet8.forward gives it). The boolean export
+    runs it as lib_symbex's symbex_bool_pool_head (window, side and int8_weights() are what it reads)"""
+    def __init__(self, channels, classes, window=0, side=0):
+        super().__init__()
+        self.channels, self.window, self.side = channels, window, side
+        n_in = channels if window == 0 else channels * (side // window) ** 2
+        self.fc = Int8Head(n_in, classes, bias=False)
+
+    def forward(self, x):
+        bits = (x + 1) / 2
+        if self.window == 0:
+            return self.fc(bits.view(x.shape[0], self.channels, -1).sum(-1))
+        maps = bits.view(x.shape[0], self.channels, self.side, self.side)
+        counts = F.avg_pool2d(maps, self.window) * self.window ** 2
+        return self.fc(counts.flatten(1))
+
+    def int8_weights(self):
+        """integers q (classes, inputs) in -127..127 and per-class scales s: the weights the forward uses = q * s"""
+        w = self.fc.weight.detach()
+        s = w.abs().amax(1, keepdim=True).clamp_min(1e-8) / 127
+        return torch.round(w / s), s.flatten()
+
+
 class Block(nn.Module):
     """one binary conv with its OR shortcut: out = sign(BN(conv(x))) OR shortcut(x), all in +-1.
     shortcut="add": out = sign(BN(conv(x)) + shortcut(x)) instead (the shortcut bit shifts the threshold: two integer
@@ -122,9 +162,10 @@ class BoolResNet8(nn.Module):
     """channels / blocks: per stage (default: BASE_CHANNELS times width, two blocks per stage: the ResNet-8).
     stem="int8": an Int8Conv on the pixels instead of the binary conv on the thermometer (the boolean export runs it
     as lib_symbex's optional int8 first layer, symbex_bool_stem_i8); shortcut="add": see Block (the stem / shortcut
-    study only; the boolean export takes OR shortcuts)"""
+    study only; the boolean export takes OR shortcuts); head="pool2": the pooled int8 classifier (PoolHead, 2x2
+    windows) instead of the binary one"""
     def __init__(self, width=1.0, levels=8, classes=10, channels=None, blocks=(2, 2, 2), stem="thermometer",
-                 shortcut="or"):
+                 shortcut="or", head="binary"):
         super().__init__()
         channels = tuple(channels) if channels else tuple(int(round(c * width)) for c in BASE_CHANNELS)
         self.width, self.levels, self.channels, self.blocks_per_stage = width, levels, channels, tuple(blocks)
@@ -144,7 +185,12 @@ class BoolResNet8(nn.Module):
         res = 32
         for s in STRIDES:
             res //= s
-        self.fc = BinaryLinear(cin * res * res, classes)
+        if head == "binary":
+            self.fc = BinaryLinear(cin * res * res, classes)
+        elif head == "pool2":
+            self.fc = PoolHead(cin, classes, 2, res)
+        else:
+            raise ValueError(f"head {head!r}: binary or pool2")
         self.fc_bn = nn.BatchNorm1d(classes)
 
     def forward(self, x):
@@ -188,8 +234,16 @@ class BoolResNet8Int8StemAdd(BoolResNet8):
         super().__init__(1.0, 8, stem="int8", shortcut="add")
 
 
+class BoolResNet8Int8StemPool2(BoolResNet8):
+    """the x1 network with an int8 stem and the pooled int8 classifier (2x2 windows): the most accurate x1 of the
+    training-gap study when trained with Bop (benchmarks/experiments/training_gap)"""
+    def __init__(self):
+        super().__init__(1.0, 8, stem="int8", head="pool2")
+
+
 VARIANTS = {"base": "BoolResNet8x1", "int8stem": "BoolResNet8Int8Stem", "add": "BoolResNet8AddShortcut",
-            "int8stem_add": "BoolResNet8Int8StemAdd"}
+            "int8stem_add": "BoolResNet8Int8StemAdd", "int8stem_pool2": "BoolResNet8Int8StemPool2"}
+BOP_VARIANTS = ("int8stem_pool2",)       # trained with Bop for the 1-bit weights ([training] binary_optimizer = "bop")
 
 
 def parse_spec(spec):

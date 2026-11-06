@@ -501,8 +501,9 @@ their times (seed 42, exact: ESP32 and both Pico 2 cores the same or up to 1.4 %
 **The test set, once (Nov 6).** The network chosen on validation (int8 stem + Bop + pool2), its 3 seeds on the
 10,000 CIFAR-10 test images, the integer simulation that the chip runs (the compiled C equal on every image, standard
 and the three vertical modes; `--test`, `results/train_gap/test_binary_i8_hpool2_bop_g0.0001_t1e-08.json`):
-**77.26 ± 0.09 %** (validation 77.48 ± 0.39; the int8-stem record of the benchmark: 75.41 ± 0.02 on test). Still
-open: the CDT recipe (pool2 head).
+**77.26 ± 0.09 %** (validation 77.48 ± 0.39; the int8-stem record of the benchmark: 75.41 ± 0.02 on test). The
+recipe is now in the CDT (Nov 6): `resnet8_symbex.py --variant int8stem_pool2` in `../../conv2d/cnn_cifar_resnet8`,
+measured there on every board.
 
 ```
 python train_gap_study.py --model binary --stem int8 --recipe bop --head pool2 --seeds 42 43 44

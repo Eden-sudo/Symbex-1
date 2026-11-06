@@ -1232,7 +1232,8 @@ int main(void) { int hdr[5]; static uint8_t img[16 * 16 * 3];
 
 def test_bool_stem_i8(hal, n):
     """the optional int8 first layer (symbex_bool_stem_i8): random images, 1x1 / 3x3, strides 1 / 2, any size and
-    channel count, output bits against numpy (dot of pixel - 128 with the int8 weights, zero padding, >= threshold);
+    channel count (rows up to 80 wide: the 3x3 stem without windows and, past its 64, the window path), output bits
+    against numpy (dot of pixel - 128 with the int8 weights, zero padding, >= threshold);
     then the same layer as a network's stem (symbex_bool_net_run with stem_i8, a classifier on its bits); the
     vertical engine must give the same class where it runs the shape (output width divides 32, h * w a multiple of
     32) and refuse the rest"""
@@ -1283,6 +1284,8 @@ int main(void) { int a[7];
         k = int(RNG.choice([1, 3]))
         s = int(RNG.choice([1, 2]))
         h, w = int(RNG.integers(1, 25)), int(RNG.integers(1, 25))
+        if c_ % 6 == 2:                         # wide rows: around the windowless 3x3 stem's limit (64), then past it
+            h, w = int(RNG.integers(1, 8)), int(RNG.integers(60, 81))
         cout = int(RNG.choice([1, 5, 16, 31, 32, 33, 64, 70, 96]))
         rb = (k * k * 3 + 3) // 4 * 4
         img = u8_data(h * w * 3, c_).reshape(h, w, 3)
