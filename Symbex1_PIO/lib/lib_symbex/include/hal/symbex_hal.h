@@ -36,11 +36,12 @@
   #endif
 #endif
 
-/* SYMBEX_FAST_CODE: marks the inner loops of an engine (today the vertical one). With -DSYMBEX_CODE_IN_RAM they run
-   from RAM instead of flash: the RP2350 (Pico SDK .time_critical sections) and the ESP32 boards (IRAM). Code read from
-   flash goes through a small cache, so where a loop lands in flash changes its speed (measured on the Pico 2's
-   Hazard3: the same engine at 60 or 70 ms after an unrelated edit); in RAM the time no longer depends on it. Costs the
-   RAM of that code. Elsewhere, or without the flag, it is empty. */
+/* SYMBEX_FAST_CODE: marks the inner loops of an engine (today the vertical one, with the int8 stem and the pooled
+   classifier it calls). With -DSYMBEX_CODE_IN_RAM they run from RAM instead of flash: the RP2350 (Pico SDK
+   .time_critical sections) and the ESP32 boards (IRAM). Code read from flash goes through a small cache, so where a
+   loop lands in flash changes its speed (measured on the Pico 2's Hazard3: the same engine at 60 or 70 ms after an
+   unrelated edit); in RAM the time no longer depends on it. Costs the RAM of that code. Elsewhere, or without the
+   flag, it is empty. */
 #if defined(SYMBEX_CODE_IN_RAM) && (defined(PICO_RP2350) || defined(SYMBEX_HAL_TEST_RP2350))
   #define SYMBEX_FAST_CODE __attribute__((section(".time_critical.symbex")))
 #elif defined(SYMBEX_CODE_IN_RAM) && defined(ESP_PLATFORM)
@@ -115,6 +116,21 @@ void symbex_u8_sum_bits_rows(const uint8_t* workspace, int n_inputs, const uint3
 /* ESP32-S3 only (PIE): out[r] = sum_{i < n} x[i] * w[r * stride + i], n >= 1. x: 16-byte aligned, zero padded to a
    multiple of 16 bytes; the rows any alignment (read in aligned 16-byte blocks, only those holding bytes of the row). */
 void symbex_s8_dot_rows(const int8_t* x, int n, const int8_t* w, int stride, int n_rows, int32_t* out);
+
+/* ESP32-S3 only (PIE): a whole 3 x 3 int8 stem at once (symbex_bool_stem_i8's layer, stride 1 or 2, padding 1), 16
+   output channels per instruction: out bit o of pixel (oy, ox) = sum over the window of (pixel - 128) * w[o] >= thr[o],
+   out HWC as symbex_bool_stem_i8 writes it. 0 = done; -1 = not this kernel's, nothing written (another kernel size,
+   in_w > SYMBEX_S8_STEM3_MAX_W, or a channel whose sums could leave QACC's 20 bits: |thr| + 128 * sum |w| > 524287;
+   channels whose bit is constant are set directly and never refuse). Stack: 3 padded image rows + ~0.5 KB. */
+#define SYMBEX_S8_STEM3_MAX_W 128
+int symbex_s8_stem3_bits(const uint8_t* img, int in_h, int in_w, int stride, int out_h, int out_w,
+                         const int8_t* weights, int row_bytes, const int32_t* thresholds, int out_ch, uint32_t* out);
+/* the same layer at stride 1 with its bits straight in channel planes (the vertical engine's layout, 16 pixels per
+   instruction): bit p of plane c (planes + c * plane_stride, little-endian words) = pixel p = y * in_w + x of
+   channel c; out_h = in_h, out_w = in_w. 0 = done; -1 = nothing written (in_w not a multiple of 16 or past
+   SYMBEX_S8_STEM3_MAX_W, or the 20-bit check above). Stack: 3 image rows of 9 * in_w bytes + ~2 KB. */
+int symbex_s8_stem3_planes(const uint8_t* img, int in_h, int in_w, const int8_t* weights, int row_bytes,
+                           const int32_t* thresholds, int out_ch, uint32_t* planes, int plane_stride);
 #endif
 
 /* Weighted AND counts over bit planes (first layer with the input split into k bit planes):

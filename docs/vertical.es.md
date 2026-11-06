@@ -259,14 +259,31 @@ Bop, S3, pesos en flash, 3 semillas (detalles: benchmarks/experiments/training_g
 | termómetro + clasificador con pooling | 73.72 % | 10.67 ms | 7.92 ms | 6.74 ms |
 | stem int8 + clasificador con pooling | 77.48 % | 13.37 ms | 10.84 ms | 9.78 ms |
 
-Aquí el stem int8 tarda 4.5 ms, más que el camino del termómetro (1.9 ms): en este motor cuesta velocidad.
+Aquí el stem int8 tardaba 4.5 ms, más que el camino del termómetro (1.9 ms).
+
+**El stem int8 en PIE (6 nov).** La HAL del S3 tiene ahora `symbex_s8_stem3_planes`: los 16 carriles de un registro
+PIE son 16 píxeles de un canal de salida (`ee.vsmulas.s8.qacc`, el peso repetido en todos los carriles), y sus 16
+signos se escriben directo en el plano del canal: sin mapa HWC, sin transposición. Corre stems 3×3 de paso 1 con un
+ancho múltiplo de 16 hasta 128, y rechaza el resto (devuelve −1: corre el camino portable, los mismos bits). La misma
+red, 3 semillas × 1000 imágenes, exacta en cada imagen:
+
+| stem int8 + clasificador con pooling | por defecto | compacto | preparado |
+|---|---|---|---|
+| antes (kernel estándar + transposición) | 13.37 ms (52 KB) | 10.84 ms (136 KB) | 9.78 ms (215 KB) |
+| PIE a planos, código en flash | **9.73 ms** (54 KB) | **7.09 ms** (138 KB) | **6.03 ms** (217 KB) |
+| PIE a planos, código en RAM (`--code ram`) | 9.43 ms (65 KB) | 6.96 ms (149 KB) | 5.91 ms (228 KB) |
+
+El paso del stem es ahora 0.72 ms (código en RAM). La red x1 más precisa (77.48 % validación, 77.26 % test) es también la más rápida: 1.52×
+más rápida que ESP-DL en flash, y el modo compacto 1.38× más rápido que ESP-DL en RAM con menos RAM (138 frente a
+147 KB). También se midió `chip_test.py --flash-config fast` (flash en modo quad, cachés más grandes): a 0.1 % del
+valor por defecto, así que las comparaciones mantienen la configuración por defecto de ESP-IDF.
 
 ## Trabajo futuro
 
 - **Pesos en RAM con menos RAM que ESP-DL:** ahí el motor por defecto es 1.06× más lento que ESP-DL (10.4 ms frente a
   9.8 ms, 63 KB frente a 147 KB de RAM); el modo compacto gana con casi la misma RAM. Un bloque solo para los mapas
   pequeños quedaría entre los dos.
-- **El stem** (unos 2 ms): el termómetro y la transposición a planos.
+- **El stem del termómetro** (unos 2 ms): el termómetro y la transposición a planos (el stem int8 ya está, arriba).
 - **El clasificador** (0.17 ms frente a 0.06 ms): leer los planos finales directamente en lugar de convertirlos.
 - **Mapas pequeños** (bloques 4 y 5, 8×8 y 16×16): un registro de 128 píxeles se usa a la mitad o menos, y cada lista
   de planos se usa una vez; empaquetar varios canales de salida por registro lo llenaría.

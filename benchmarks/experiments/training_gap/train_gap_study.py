@@ -13,7 +13,8 @@ Step A, the diagnostic: no new method, the benchmark's recipe as it is, three ne
 
 Same recipe for the three (the benchmark's, boolean.train): Adam lr 5e-3 + cosine, 150 epochs, batch 128, random crop
 + flip, BatchNorm momentum 0.3, labels only, the same starting weights (models/bool_resnet8_x1_init.pth) and the
-CDT's split (45,000 training / 5,000 validation, carved out of the training data). The test set is never read.
+CDT's split (45,000 training / 5,000 validation, carved out of the training data). The test set is never read
+(only --test reads it, once, for a network already chosen on validation).
 Every epoch it records:
     train_acc        accuracy on 5,000 fixed training images (no augmentation): train ~ validation and both low means
                      the network underfits (optimization or capacity), not that it overfits
@@ -105,6 +106,11 @@ addpool --head int8).
     integer simulation, header, the compiled C checked on this PC) into runs/train_gap/export/<run>_s<seed>, the folder
     tools/chip_test.py measures (only what lib_symbex runs: no added shortcuts, binary / pool2 / pool4 heads):
         python train_gap_study.py --model binary --stem int8 --recipe bop --head pool2 --export
+--test: train nothing, choose nothing; the network these flags name, already chosen on validation, through the same
+    exporter on the 10,000 CIFAR-10 test images (integer simulation, the compiled C checked on every image) into
+    runs/train_gap/test/<run>_s<seed>; results/train_gap/test_<run>.json. The test set is used once: it refuses to
+    run again if that file exists.
+        python train_gap_study.py --model binary --stem int8 --recipe bop --head pool2 --seeds 42 43 44 --test
 Results: results/train_gap/<model>_s<seed>.json (<model>_<recipe>_s<seed>.json for step B). Run from anywhere; env_bench (CUDA) recommended.
 """
 import argparse
@@ -670,9 +676,10 @@ def run(kind, seed, epochs, lr, bs, compile_mode, recipe="base", bop_gamma=1e-4,
     return info
 
 
-def export(kind, seeds, name):
+def export(kind, seeds, name, test=False):
     """--export: the trained runs through the CDT's boolean exporter (fold, simulation, header, the C check on this PC)
-    into runs/train_gap/export/<run>_s<seed>, the folder tools/chip_test.py measures. Train nothing."""
+    into runs/train_gap/export/<run>_s<seed>, the folder tools/chip_test.py measures. Train nothing.
+    test=True (--test): the same on the 10,000 test images, into runs/train_gap/test/; results/train_gap/test_<run>.json"""
     from compiler_core.export import boolean as bexport
     unsupported = [what for what, bad in (
         (f"model {kind} (only binary runs on the chip)", kind != "binary"),
@@ -687,16 +694,26 @@ def export(kind, seeds, name):
         raise SystemExit("[X] --export: not what the boolean exporter runs: " + "; ".join(unsupported))
     stem = tag(kind) if name == "base" else f"{tag(kind)}_{name}"
     lib = os.path.join(REPO, "Symbex1_PIO", "lib", "lib_symbex")
+    test_json = os.path.join(OUT, f"test_{stem}.json")
+    if test and os.path.exists(test_json):                 # the test set is used once
+        raise SystemExit(f"[X] --test: {test_json} exists; the test set is used once")
     rows = []
     for seed in seeds:
         net = build(kind)
         net.load_state_dict(torch.load(os.path.join(RUNS, f"{stem}_s{seed}.pth"), map_location="cpu"))
         net.blocks = nn.Sequential(*[b.block if isinstance(b, OrGradBlock) else b    # or_grad: only the backward
                                      for b in net.blocks])
-        out = os.path.join(RUNS, "export", f"{stem}_s{seed}")
+        out = os.path.join(RUNS, "test" if test else "export", f"{stem}_s{seed}")
         os.makedirs(out, exist_ok=True)
-        print(f"[*] export {stem}_s{seed} -> {out}")
-        r = bexport.export_and_validate(net.cpu().eval(), load_split(seed)[1], out, lib)
+        print(f"[*] {'test' if test else 'export'} {stem}_s{seed} -> {out}")
+        if test:
+            import cdt
+            cfg = {"data": dict(cdt.DEFAULTS["data"], format="cifar10",
+                                directory=os.path.join(REPO, "benchmarks", "data", "cifar10")), "training": {"seed": seed}}
+            images = cdt.load_data(cfg)[2]
+            r = bexport.export_and_validate(net.cpu().eval(), images, out, lib, n_validation=len(images))
+        else:
+            r = bexport.export_and_validate(net.cpu().eval(), load_split(seed)[1], out, lib)
         rows.append((seed, r))
         json.dump({k: v for k, v in r.items() if not k.startswith("_")}, open(os.path.join(out, "export.json"), "w"),
                   indent=1)
@@ -704,6 +721,24 @@ def export(kind, seeds, name):
     for seed, r in rows:
         print(f"{seed:4d}  {r['accuracy_torch']:9.2f}  {r['accuracy_sim']:12.2f}  {r['fidelity']:10.2f}  "
               f"{r['exactness'] if r['exactness'] is not None else float('nan'):9.2f}  {r['flash_bytes'] / 1024:8.1f}")
+    if test:
+        unverified = []                                    # the report is final: only with the C equal on every image
+        for seed, r in rows:
+            with open(r["header"]) as f:
+                vertical = "symbex_bool_net_run_vertical" in f.read()
+            keys = ["exactness"] + (["exactness_vertical", "exactness_vertical_prepared", "exactness_vertical_compact"]
+                                    if vertical else [])
+            unverified += [f"s{seed} {k}={r[k]}" for k in keys if r[k] != 100.0]
+        if unverified:                                     # gcc missing, a build failure or a mismatch: no report
+            raise SystemExit("[X] --test: the compiled C is not verified equal on every image (" + ", ".join(unverified)
+                             + f"); {test_json} not written, fix and run --test again")
+        acc = torch.tensor([r["accuracy_sim"] for _, r in rows], dtype=torch.float64)
+        summary = dict(mean=round(acc.mean().item(), 3), std=round(acc.std().item(), 3) if len(acc) > 1 else 0.0)
+        os.makedirs(OUT, exist_ok=True)
+        json.dump(dict(run=stem, split="test", n_test=len(rows[0][1]["_y"]), accuracy_sim=summary,
+                       seeds=[dict(seed=s, **{k: v for k, v in r.items() if not k.startswith("_")}) for s, r in rows]),
+                  open(test_json, "w"), indent=1)
+        print(f"    test (integer simulation = the chip): {summary['mean']:.2f} +- {summary['std']:.2f} %  -> {test_json}")
 
 
 @torch.no_grad()
@@ -825,6 +860,8 @@ def main():
                     help="train nothing: the share of ones per channel of the trained runs (docstring)")
     ap.add_argument("--export", action="store_true",
                     help="train nothing: the trained runs exported for the chip with the CDT's boolean exporter (docstring)")
+    ap.add_argument("--test", action="store_true",
+                    help="train nothing: the chosen network on the test set, once (docstring)")
     ap.add_argument("--recalibrate-bn", action="store_true",
                     help="train nothing: the trained runs' BatchNorm statistics computed again, weights frozen (docstring)")
     args = ap.parse_args()
@@ -843,11 +880,11 @@ def main():
                 density(kind, args.seeds, recipe_name(recipe, args.bop_gamma, args.bop_tau, args.epochs,
                                                       args.distill and kind == "binary"))
         return
-    if args.export:
+    if args.export or args.test:
         for kind in [k for k in kinds if k == "binary"] or kinds:       # --model all: the binary one; twin / relu refused
             for recipe in (args.recipe if kind == "binary" else ["base"]):
                 export(kind, args.seeds, recipe_name(recipe, args.bop_gamma, args.bop_tau, args.epochs,
-                                                     args.distill and kind == "binary"))
+                                                     args.distill and kind == "binary"), test=args.test)
         return
     if args.recalibrate_bn:
         for kind in kinds:

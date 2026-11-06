@@ -292,13 +292,21 @@ static void stem_i8_dot_rows(const int8_t* x, int n, const int8_t* w, int stride
 #endif
 }
 
-void symbex_bool_stem_i8(const struct SymbexBoolStemI8* L, const uint8_t* img, uint32_t* out, int8_t* window,
-                         int32_t* scratch) {
+SYMBEX_FAST_CODE void symbex_bool_stem_i8(const struct SymbexBoolStemI8* L, const uint8_t* img, uint32_t* out,
+                                          int8_t* window, int32_t* scratch) {
     PF_T(t_all);
     const int k = L->kernel, pad = k / 2, s = L->stride, H = L->in_h, W = L->in_w;
     const int n = k * k * 3, n_out = L->out_ch, pout = (n_out + 31) / 32;
     const int32_t* thr = L->thresholds;
     int32_t* dot = scratch;
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+    /* PIE: the whole 3 x 3 layer, 16 channels per instruction (refuses what it cannot run exactly: then the path below) */
+    if (k == 3 && symbex_s8_stem3_bits(img, H, W, s, L->out_h, L->out_w, L->weights, L->row_bytes, thr, n_out,
+                                       out) == 0) {
+        PF_ADD(SYMBEX_PF_STEM_I8, t_all);
+        return;
+    }
+#endif
     memset(window, 0, SYMBEX_BOOL_STEM_I8_WINDOW);           /* past n: zero, for the padded rows and PIE's blocks */
     for (int oy = 0; oy < L->out_h; oy++) {
         const int iy0 = oy * s - pad;
@@ -407,8 +415,8 @@ int symbex_bool_classify(const uint32_t* bits, uint16_t n_words, uint32_t n_bits
     return best;
 }
 
-int symbex_bool_pool_head(const struct SymbexBoolPoolHead* head, const uint32_t* map, uint32_t* counts,
-                          int32_t* scratch) {
+SYMBEX_FAST_CODE int symbex_bool_pool_head(const struct SymbexBoolPoolHead* head, const uint32_t* map,
+                                           uint32_t* counts, int32_t* scratch) {
     PF_T(t_all);
     const int k = head->window, ppx = (head->channels + 31) / 32, rw = head->row_words, np = head->n_planes;
     const int nwy = head->in_h / k, nwx = head->in_w / k, nc = head->n_classes;

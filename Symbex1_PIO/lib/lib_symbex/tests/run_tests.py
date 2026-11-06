@@ -1292,6 +1292,12 @@ int main(void) { int a[7];
         wrows = np.zeros((cout, rb), dtype=np.int8)
         wrows[:, :k * k * 3] = wt.reshape(cout, -1)
         thr = RNG.integers(-30000, 30001, cout)
+        if c_ % 5 == 1:                         # constant bits: always 0 / always 1 (the S3 PIE stem sets them directly)
+            thr[::3], thr[1::3] = 10 ** 6, -10 ** 6
+        if c_ % 9 == 4:                         # sums past QACC's 20 bits: the S3 PIE stem refuses, the C path runs
+            wt = np.where(RNG.integers(0, 2, (cout, k, k, 3)) == 1, 127, -128)
+            wrows[:, :k * k * 3] = wt.reshape(cout, -1)
+            thr = RNG.integers(-300000, 300001, cout)
         pad = k // 2
         xp = np.zeros((h + 2 * pad, w + 2 * pad, 3), dtype=np.int64)
         xp[pad:pad + h, pad:pad + w] = img - 128
@@ -1330,6 +1336,70 @@ int main(void) { int a[7];
             bad.append(i)
         pos += len(e)
     return n, len(bad), (f"case {bad[0]}: output bits, class or vertical refusal differ" if bad else "")
+
+
+def test_bool_vstem_planes(hal, n):
+    """the int8 stem of the vertical engine (symbex_bool_vstem_i8) on its own: the whole channel-plane map against
+    numpy, word by word, guard words included (zero) and nothing written past the map. 3 x 3, stride 1, widths that
+    the S3's planes kernel runs (multiples of 16, 16 pixels per instruction) and widths it refuses (the HWC stem +
+    transpose then), constant bits and sums past QACC's 20 bits (refused too)"""
+    exe = build("boolvstem", """
+static int8_t W8[40 * 28] __attribute__((aligned(16))); static int32_t T[40], SCR[128];
+static uint32_t MAP[40 * (64 * 64 / 32 + 8) + 8], HWC[64 * 64 * 2 + 64] __attribute__((aligned(16)));
+static uint8_t img[64 * 64 * 3];
+int main(void) { int a[3];
+  while (fread(a, 4, 3, stdin) == 3) {
+    struct SymbexBoolStemI8 L = {(uint16_t)a[0], 3, 1, (uint16_t)a[1], (uint16_t)a[2], (uint16_t)a[1], (uint16_t)a[2],
+                                 28, W8, T};
+    if (fread(img, 1, a[1] * a[2] * 3, stdin) != (size_t)(a[1] * a[2] * 3)) return 2;
+    if (fread(W8, 1, a[0] * 28, stdin) != (size_t)(a[0] * 28) || fread(T, 4, a[0], stdin) != (size_t)a[0]) return 2;
+    struct SymbexBoolNet net; memset(&net, 0, sizeof net);
+    net.stem_i8 = &L; net.scratch = SCR;
+    struct SymbexBoolVertical v; memset(&v, 0, sizeof v); v.hwc = HWC;
+    const uint32_t words = (uint32_t)a[0] * symbex_bool_vplane_stride(a[1], a[2]) + 4;
+    memset(MAP, 0x5A, sizeof MAP);
+    symbex_bool_vstem_i8(&net, img, MAP, &v);
+    for (uint32_t i = 0; i <= words; i++) printf("%u ", MAP[i]);
+    printf("\\n");
+  }
+  return 0; }""", hal)
+    data, exp = Chunks(), []
+    for c_ in range(n):
+        w = int(RNG.choice([16, 32, 48, 64, 8, 24]))
+        h = int(RNG.integers(1, 5)) * (32 // np.gcd(w, 32))  # h * w a multiple of 32, as the vertical engine needs
+        cout = int(RNG.choice([1, 5, 16, 17, 33, 40]))
+        img = u8_data(h * w * 3, c_).reshape(h, w, 3)
+        wt = RNG.integers(-128, 128, (cout, 27))
+        thr = RNG.integers(-30000, 30001, cout)
+        if c_ % 5 == 1:                         # constant bits: always 0 / always 1
+            thr[::3], thr[1::3] = 10 ** 6, -10 ** 6
+        if c_ % 9 == 4:                         # sums past QACC's 20 bits: the S3 kernels refuse, the C path runs
+            wt = np.where(RNG.integers(0, 2, (cout, 27)) == 1, 127, -128)
+            thr = RNG.integers(-300000, 300001, cout)
+        wrows = np.zeros((cout, 28), dtype=np.int8)
+        wrows[:, :27] = wt
+        xp = np.zeros((h + 2, w + 2, 3), dtype=np.int64)
+        xp[1:1 + h, 1:1 + w] = img - 128
+        win = np.stack([xp[ky:ky + h, kx:kx + w] for ky in range(3) for kx in range(3)], axis=2).reshape(h * w, 27)
+        bits = (win @ wt.T >= thr).astype(np.int64)          # (pixels, channels)
+        ps = ((h * w // 32 + 3) & ~3) + 4
+        m = np.zeros(cout * ps + 4, dtype=np.int64)
+        for c in range(cout):
+            for p in range(h * w):
+                if bits[p, c]:
+                    m[4 + c * ps + p // 32] |= 1 << (p % 32)
+        exp.append(list(m) + [0x5A5A5A5A])
+        data += i32(cout, h, w) + img.astype(np.uint8).tobytes() + wrows.tobytes() + thr.astype(np.int32).tobytes()
+    got = run(exe, data)
+    flat = np.array([v for e in exp for v in e], dtype=np.int64)
+    if len(got) != len(flat):
+        return n, n, f"printed {len(got)} values, expected {len(flat)}"
+    bad, pos = [], 0
+    for i, e in enumerate(exp):
+        if not np.array_equal(got[pos:pos + len(e)], np.array(e, dtype=np.int64)):
+            bad.append(i)
+        pos += len(e)
+    return n, len(bad), (f"case {bad[0]}: plane map differs" if bad else "")
 
 
 def test_bool_net_vertical(hal, n):
@@ -1856,6 +1926,7 @@ TESTS = [("hal: popcount32", test_hal_popcount32), ("hal: name", test_hal_name),
          ("bool: thermometer, OR pool, OR, integer classifier", test_bool_pieces),
          ("bool: whole random networks, AND and XOR forms (symbex_bool_net_run)", test_bool_net),
          ("bool: int8 stem (borders, strides, 1x1 / 3x3), as a network's stem, standard and vertical engines", test_bool_stem_i8),
+         ("bool: int8 stem of the vertical engine, the channel-plane map word by word (S3: planes kernel / transpose)", test_bool_vstem_planes),
          ("bool: vertical engine (built, prepared, compact), whole networks = symbex_bool_net_run (class and final map)", test_bool_net_vertical),
          ("bool: vertical engine, two instances at the same time (two threads) = symbex_bool_net_run", test_bool_vertical_threads),
          ("hal: xor_popcount_rows, *_rows_n (AND / XOR over the first n words)", test_hal_xor_rows),

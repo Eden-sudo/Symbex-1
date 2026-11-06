@@ -1,0 +1,335 @@
+{
+ "run": "binary_i8_hpool2_bop_g0.0001_t1e-08",
+ "split": "test",
+ "n_test": 10000,
+ "accuracy_sim": {
+  "mean": 77.26,
+  "std": 0.092
+ },
+ "seeds": [
+  {
+   "seed": 42,
+   "method": "boolean",
+   "header": "/home/eden/Proyectos/Symbex1/benchmarks/experiments/training_gap/runs/train_gap/test/binary_i8_hpool2_bop_g0.0001_t1e-08_s42/model_symbex.h",
+   "flash_bytes": 29648,
+   "ram_buffers": 11136,
+   "steps": [
+    "int8 stem 3->16 32x32",
+    "block 0: conv 16->16 32x32 | OR",
+    "block 1: conv 16->16 32x32 | OR",
+    "block 2: conv 16->32 32x32 s2 + OR pool + 1x1 | OR",
+    "block 3: conv 32->32 16x16 | OR",
+    "block 4: conv 32->64 16x16 s2 + OR pool + 1x1 | OR",
+    "block 5: conv 64->64 8x8 | OR",
+    "pooled int8 classifier 2x2"
+   ],
+   "layers": [
+    {
+     "cin": 3,
+     "cout": 16,
+     "k": 3,
+     "stride": 1,
+     "h": 32,
+     "out_h": 32,
+     "int8_macs": 442368
+    },
+    {
+     "cin": 16,
+     "cout": 16,
+     "k": 3,
+     "stride": 1,
+     "h": 32,
+     "out_h": 32,
+     "bit_ops": 2359296
+    },
+    {
+     "cin": 16,
+     "cout": 16,
+     "k": 3,
+     "stride": 1,
+     "h": 32,
+     "out_h": 32,
+     "bit_ops": 2359296
+    },
+    {
+     "cin": 16,
+     "cout": 32,
+     "k": 3,
+     "stride": 2,
+     "h": 32,
+     "out_h": 16,
+     "bit_ops": 1179648
+    },
+    {
+     "cin": 16,
+     "cout": 32,
+     "k": 1,
+     "stride": 1,
+     "h": 16,
+     "out_h": 16,
+     "bit_ops": 131072
+    },
+    {
+     "cin": 32,
+     "cout": 32,
+     "k": 3,
+     "stride": 1,
+     "h": 16,
+     "out_h": 16,
+     "bit_ops": 2359296
+    },
+    {
+     "cin": 32,
+     "cout": 64,
+     "k": 3,
+     "stride": 2,
+     "h": 16,
+     "out_h": 8,
+     "bit_ops": 1179648
+    },
+    {
+     "cin": 32,
+     "cout": 64,
+     "k": 1,
+     "stride": 1,
+     "h": 8,
+     "out_h": 8,
+     "bit_ops": 131072
+    },
+    {
+     "cin": 64,
+     "cout": 64,
+     "k": 3,
+     "stride": 1,
+     "h": 8,
+     "out_h": 8,
+     "bit_ops": 2359296
+    }
+   ],
+   "accuracy_torch": 77.28,
+   "accuracy_sim": 77.28,
+   "fidelity": 100.0,
+   "exactness": 100.0,
+   "arithmetic": "and (HAL rows)",
+   "exactness_vertical": 100.0,
+   "exactness_vertical_prepared": 100.0,
+   "exactness_vertical_compact": 100.0
+  },
+  {
+   "seed": 43,
+   "method": "boolean",
+   "header": "/home/eden/Proyectos/Symbex1/benchmarks/experiments/training_gap/runs/train_gap/test/binary_i8_hpool2_bop_g0.0001_t1e-08_s43/model_symbex.h",
+   "flash_bytes": 29648,
+   "ram_buffers": 11136,
+   "steps": [
+    "int8 stem 3->16 32x32",
+    "block 0: conv 16->16 32x32 | OR",
+    "block 1: conv 16->16 32x32 | OR",
+    "block 2: conv 16->32 32x32 s2 + OR pool + 1x1 | OR",
+    "block 3: conv 32->32 16x16 | OR",
+    "block 4: conv 32->64 16x16 s2 + OR pool + 1x1 | OR",
+    "block 5: conv 64->64 8x8 | OR",
+    "pooled int8 classifier 2x2"
+   ],
+   "layers": [
+    {
+     "cin": 3,
+     "cout": 16,
+     "k": 3,
+     "stride": 1,
+     "h": 32,
+     "out_h": 32,
+     "int8_macs": 442368
+    },
+    {
+     "cin": 16,
+     "cout": 16,
+     "k": 3,
+     "stride": 1,
+     "h": 32,
+     "out_h": 32,
+     "bit_ops": 2359296
+    },
+    {
+     "cin": 16,
+     "cout": 16,
+     "k": 3,
+     "stride": 1,
+     "h": 32,
+     "out_h": 32,
+     "bit_ops": 2359296
+    },
+    {
+     "cin": 16,
+     "cout": 32,
+     "k": 3,
+     "stride": 2,
+     "h": 32,
+     "out_h": 16,
+     "bit_ops": 1179648
+    },
+    {
+     "cin": 16,
+     "cout": 32,
+     "k": 1,
+     "stride": 1,
+     "h": 16,
+     "out_h": 16,
+     "bit_ops": 131072
+    },
+    {
+     "cin": 32,
+     "cout": 32,
+     "k": 3,
+     "stride": 1,
+     "h": 16,
+     "out_h": 16,
+     "bit_ops": 2359296
+    },
+    {
+     "cin": 32,
+     "cout": 64,
+     "k": 3,
+     "stride": 2,
+     "h": 16,
+     "out_h": 8,
+     "bit_ops": 1179648
+    },
+    {
+     "cin": 32,
+     "cout": 64,
+     "k": 1,
+     "stride": 1,
+     "h": 8,
+     "out_h": 8,
+     "bit_ops": 131072
+    },
+    {
+     "cin": 64,
+     "cout": 64,
+     "k": 3,
+     "stride": 1,
+     "h": 8,
+     "out_h": 8,
+     "bit_ops": 2359296
+    }
+   ],
+   "accuracy_torch": 77.16,
+   "accuracy_sim": 77.16,
+   "fidelity": 100.0,
+   "exactness": 100.0,
+   "arithmetic": "and (HAL rows)",
+   "exactness_vertical": 100.0,
+   "exactness_vertical_prepared": 100.0,
+   "exactness_vertical_compact": 100.0
+  },
+  {
+   "seed": 44,
+   "method": "boolean",
+   "header": "/home/eden/Proyectos/Symbex1/benchmarks/experiments/training_gap/runs/train_gap/test/binary_i8_hpool2_bop_g0.0001_t1e-08_s44/model_symbex.h",
+   "flash_bytes": 29648,
+   "ram_buffers": 11136,
+   "steps": [
+    "int8 stem 3->16 32x32",
+    "block 0: conv 16->16 32x32 | OR",
+    "block 1: conv 16->16 32x32 | OR",
+    "block 2: conv 16->32 32x32 s2 + OR pool + 1x1 | OR",
+    "block 3: conv 32->32 16x16 | OR",
+    "block 4: conv 32->64 16x16 s2 + OR pool + 1x1 | OR",
+    "block 5: conv 64->64 8x8 | OR",
+    "pooled int8 classifier 2x2"
+   ],
+   "layers": [
+    {
+     "cin": 3,
+     "cout": 16,
+     "k": 3,
+     "stride": 1,
+     "h": 32,
+     "out_h": 32,
+     "int8_macs": 442368
+    },
+    {
+     "cin": 16,
+     "cout": 16,
+     "k": 3,
+     "stride": 1,
+     "h": 32,
+     "out_h": 32,
+     "bit_ops": 2359296
+    },
+    {
+     "cin": 16,
+     "cout": 16,
+     "k": 3,
+     "stride": 1,
+     "h": 32,
+     "out_h": 32,
+     "bit_ops": 2359296
+    },
+    {
+     "cin": 16,
+     "cout": 32,
+     "k": 3,
+     "stride": 2,
+     "h": 32,
+     "out_h": 16,
+     "bit_ops": 1179648
+    },
+    {
+     "cin": 16,
+     "cout": 32,
+     "k": 1,
+     "stride": 1,
+     "h": 16,
+     "out_h": 16,
+     "bit_ops": 131072
+    },
+    {
+     "cin": 32,
+     "cout": 32,
+     "k": 3,
+     "stride": 1,
+     "h": 16,
+     "out_h": 16,
+     "bit_ops": 2359296
+    },
+    {
+     "cin": 32,
+     "cout": 64,
+     "k": 3,
+     "stride": 2,
+     "h": 16,
+     "out_h": 8,
+     "bit_ops": 1179648
+    },
+    {
+     "cin": 32,
+     "cout": 64,
+     "k": 1,
+     "stride": 1,
+     "h": 8,
+     "out_h": 8,
+     "bit_ops": 131072
+    },
+    {
+     "cin": 64,
+     "cout": 64,
+     "k": 3,
+     "stride": 1,
+     "h": 8,
+     "out_h": 8,
+     "bit_ops": 2359296
+    }
+   ],
+   "accuracy_torch": 77.34,
+   "accuracy_sim": 77.34,
+   "fidelity": 100.0,
+   "exactness": 100.0,
+   "arithmetic": "and (HAL rows)",
+   "exactness_vertical": 100.0,
+   "exactness_vertical_prepared": 100.0,
+   "exactness_vertical_compact": 100.0
+  }
+ ]
+}

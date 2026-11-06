@@ -356,6 +356,18 @@ SYMBEX_FAST_CODE static void transpose32(uint32_t a[32]) {
             a[k + j] ^= t;
         }
 }
+/* transpose32 when every a[r] < 2^16 (at most 16 columns): rows 16..31 of the result are then 0 and not written;
+   rows 0..15 as transpose32's with half the work (the halves merged, then 4 swaps on 16 rows) */
+SYMBEX_FAST_CODE static void transpose32_lo16(uint32_t a[32]) {
+    for (int k = 0; k < 16; k++) a[k] |= a[k + 16] << 16;
+    uint32_t m = 0x00FF00FFu;
+    for (int j = 8; j; j >>= 1, m ^= m << j)
+        for (int k = 0; k < 16; k = (k + j + 1) & ~j) {
+            const uint32_t t = ((a[k] >> j) ^ a[k + j]) & m;
+            a[k] ^= t << j;
+            a[k + j] ^= t;
+        }
+}
 
 SYMBEX_FAST_CODE void symbex_bool_vthermometer(const uint8_t* img, uint16_t h, uint16_t w, uint8_t levels,
                                                uint32_t* out) {
@@ -837,13 +849,20 @@ SYMBEX_FAST_CODE void symbex_bool_vstem_i8(const struct SymbexBoolNet* net, cons
     const uint32_t ps = symbex_bool_vplane_stride(s->out_h, s->out_w), n = (uint32_t)s->out_h * s->out_w;
     const uint32_t ppx = (s->out_ch + 31) / 32;
     uint32_t* hwc = v->hwc;
-    symbex_bool_stem_i8(s, img, hwc, (int8_t*)(void*)(hwc + hwc_words(s->out_ch, s->out_h, s->out_w)), net->scratch);
     memset(out, 0, map_words(s->out_ch, s->out_h, s->out_w) * 4);
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+    /* PIE: 16 pixels per instruction, the bits straight into the planes (refuses what it cannot run: the path below) */
+    if (s->kernel == 3 && s->stride == 1
+        && symbex_s8_stem3_planes(img, s->in_h, s->in_w, s->weights, s->row_bytes, s->thresholds, s->out_ch,
+                                  PLANE(out, ps, 0), (int)ps) == 0)
+        return;
+#endif
+    symbex_bool_stem_i8(s, img, hwc, (int8_t*)(void*)(hwc + hwc_words(s->out_ch, s->out_h, s->out_w)), net->scratch);
     uint32_t a[32];                              /* HWC -> planes: 32 pixels x 32 channels at a time, transposed */
     for (uint32_t g = 0; g < ppx; g++)
         for (uint32_t i = 0; i < n / 32; i++) {
             for (int px = 0; px < 32; px++) a[px] = hwc[(size_t)(i * 32 + px) * ppx + g];
-            transpose32(a);
+            if (s->out_ch - g * 32 <= 16) transpose32_lo16(a); else transpose32(a);
             for (uint32_t j = 0; j < 32 && g * 32 + j < s->out_ch; j++) PLANE(out, ps, g * 32 + j)[i] = a[j];
         }
 }
