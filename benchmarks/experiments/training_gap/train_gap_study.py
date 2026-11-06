@@ -722,6 +722,16 @@ def export(kind, seeds, name, test=False):
         print(f"{seed:4d}  {r['accuracy_torch']:9.2f}  {r['accuracy_sim']:12.2f}  {r['fidelity']:10.2f}  "
               f"{r['exactness'] if r['exactness'] is not None else float('nan'):9.2f}  {r['flash_bytes'] / 1024:8.1f}")
     if test:
+        unverified = []                                    # the report is final: only with the C equal on every image
+        for seed, r in rows:
+            with open(r["header"]) as f:
+                vertical = "symbex_bool_net_run_vertical" in f.read()
+            keys = ["exactness"] + (["exactness_vertical", "exactness_vertical_prepared", "exactness_vertical_compact"]
+                                    if vertical else [])
+            unverified += [f"s{seed} {k}={r[k]}" for k in keys if r[k] != 100.0]
+        if unverified:                                     # gcc missing, a build failure or a mismatch: no report
+            raise SystemExit("[X] --test: the compiled C is not verified equal on every image (" + ", ".join(unverified)
+                             + f"); {test_json} not written, fix and run --test again")
         acc = torch.tensor([r["accuracy_sim"] for _, r in rows], dtype=torch.float64)
         summary = dict(mean=round(acc.mean().item(), 3), std=round(acc.std().item(), 3) if len(acc) > 1 else 0.0)
         os.makedirs(OUT, exist_ok=True)
