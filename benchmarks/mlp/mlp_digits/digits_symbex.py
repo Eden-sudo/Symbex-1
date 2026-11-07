@@ -16,7 +16,7 @@ Run from benchmarks/mlp/mlp_digits/.
      popcount mode (--popcount) and, with --compare-arithmetic, both arithmetics
   4. --sweep: on the first seed's export, every combination of weights (flash, ram) and popcount (swar, lut16),
      each with both arithmetics, sorted by latency
-Summary tables at the end; every result .json is copied to results/ (the only outputs that are published).
+Summary tables at the end; every result .json is copied to results/symbex/ (the only outputs that are published).
 """
 import argparse
 import glob
@@ -95,7 +95,7 @@ def main():
     from model import get_fp32
     print("[*] original FP32 model (models/digits_mlp.pth, trained if missing)")
     fp32_sha256 = hashlib.sha256(open(get_fp32(), "rb").read()).hexdigest()
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join("results", "symbex"), exist_ok=True)
     seeds = [42 + i for i in range(args.seeds)]
     suffix = ("" if args.input_bits == 8 else f"_b{args.input_bits}") + (f"_w{args.widths.replace(',', '-')}" if args.widths else "") \
         + (f"_t{args.input_threshold}" if args.input_threshold else "") + ("_nd" if args.no_distill else "")
@@ -136,7 +136,7 @@ def main():
                 if not args.board:                   # a PC run: the chip files are an earlier board run's
                     continue
                 name = name.replace("chip", f"chip_{args.board}_{args.weights}_{args.popcount}", 1)
-            shutil.copy(f, os.path.join("results", f"symbex{tag}_{name}"))
+            shutil.copy(f, os.path.join("results", "symbex", f"symbex{tag}_{name}"))
 
     on_chip = args.board and not args.sweep
     print(f"\n    SEEDS  (same FP32 original; last epoch: validation = 288 images split from the training data, "
@@ -158,7 +158,7 @@ def main():
         summary["latency_ms"] = mean_std([r["latency_ms"] for r in rows])
         summary["chip_accuracy"] = mean_std([r["chip_accuracy"] for r in rows])
         print(f"    on the board: latency {summary['latency_ms']} ms | accuracy {summary['chip_accuracy']} %")
-    path = f"results/symbex_seeds_{args.board or 'pc'}{suffix}.json"
+    path = f"results/symbex/symbex_seeds_{args.board or 'pc'}{suffix}.json"
     json.dump(summary, open(path, "w"), indent=1)
     print(f"    -> {path}")
 
@@ -179,7 +179,7 @@ def main():
         for r in results:
             print(f"    {str(r['arithmetic']).upper():<12}{r['weights']:<9}{r['popcount']:<10}{r['ms']:>10.3f}"
                   f"{r['layer0_ms']:>12.3f}{r['ram_kb']:>9.2f}{r['equal']:>7.0f}%")
-        path = f"results/symbex_sweep_{args.board}{suffix}.json"
+        path = f"results/symbex/symbex_sweep_{args.board}{suffix}.json"
         json.dump(results, open(path, "w"), indent=1)
         print(f"    -> {path}")
 

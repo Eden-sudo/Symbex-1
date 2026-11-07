@@ -26,13 +26,13 @@ RESNET = "conv2d/cnn_cifar_resnet8/results"
 FOMO = "conv2d/fomo_voc_person/results"
 FASHION = "mlp/mlp_fashion/results"
 SOURCES = {
-    "resnet_s3": f"{RESNET}/symbex_seeds_s3_swar_w1.json",
-    "resnet_s3_int8": f"{RESNET}/tflite_s3.json",
-    "resnet_esp32": f"{RESNET}/symbex_seeds_esp32_lut16_w1.json",
-    "resnet_esp32_int8": f"{RESNET}/tflite_esp32.json",
-    "fomo_s3": f"{FOMO}/symbex_seeds_s3_swar_c32-32-128_b1-2-2_w40_e100.json",
-    "fomo_s3_int8": f"{FOMO}/tflite_s3_c32-32-128_b1-2-2_w20_e60.json",
-    "fomo_esp32": f"{FOMO}/symbex_seeds_esp32_lut16_c32-32-128_b1-2-2_w40_e100.json",
+    "resnet_s3": f"{RESNET}/symbex/symbex_seeds_s3_swar_w1.json",
+    "resnet_s3_int8": f"{RESNET}/tflite/tflite_s3.json",
+    "resnet_esp32": f"{RESNET}/symbex/symbex_seeds_esp32_lut16_w1.json",
+    "resnet_esp32_int8": f"{RESNET}/tflite/tflite_esp32.json",
+    "fomo_s3": f"{FOMO}/symbex/symbex_seeds_s3_swar_c32-32-128_b1-2-2_w40_e100.json",
+    "fomo_s3_int8": f"{FOMO}/tflite/tflite_s3_c32-32-128_b1-2-2_w20_e60.json",
+    "fomo_esp32": f"{FOMO}/symbex/symbex_seeds_esp32_lut16_c32-32-128_b1-2-2_w40_e100.json",
     "mlp_sizing": f"{FASHION}/sizing/fashion_sizing.json",
     "mlp_s3_int8": f"{FASHION}/tflite/tflite_s3_h128_512.json",
     "mlp_s3_int8_ram": f"{FASHION}/tflite/tflite_s3_h128_512_ram.json",

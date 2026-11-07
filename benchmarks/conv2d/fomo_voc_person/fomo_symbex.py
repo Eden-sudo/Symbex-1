@@ -14,7 +14,7 @@ fomo_train.py (skipped if runs/<name>_s<seed>/ already holds model.pth and train
 fomo_export.py (always: the C check on the PC, EXACTNESS must be 100%) and, with --board, tools/chip_test.py on the
 same images (equality with the integer simulation must be 100%; latency; RAM). Every number in the summary is read
 from the files these scripts write (train.json, export.json, chip_<board>_<popcount>_<weights>_mask.json), never typed.
-Summary: results/symbex_seeds_<board>_<popcount>[_ram]_<name>.json (results/symbex_seeds_pc_<name>.json without a
+Summary: results/symbex/symbex_seeds_<board>_<popcount>[_ram]_<name>.json (results/symbex/symbex_seeds_pc_<name>.json without a
 board), <name> = c<channels>_b<blocks>_w<weight>_e<epochs>. --summary trains, exports and measures nothing: it rebuilds
 the summary from the files already in the run folders.
 """
@@ -64,7 +64,7 @@ def main():
     ap.add_argument("--summary", action="store_true", help="no training, export or chip run: summarize the run folders")
     args = ap.parse_args()
     os.chdir(HERE)
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join("results", "symbex"), exist_ok=True)
     name = f"c{args.channels}_b{args.blocks}_w{args.weight:g}_e{args.epochs}"
     rows = []
     for seed in [42 + i for i in range(args.seeds)]:
@@ -125,7 +125,7 @@ def main():
     if args.summary and not rows:
         sys.exit("[X] --summary: no measured seed for this board and setting")
     tag = f"{args.board}_{args.popcount}{'_ram' if args.weights == 'ram' else ''}" if args.board else "pc"
-    path = os.path.join("results", f"symbex_seeds_{tag}_{name}.json")
+    path = os.path.join("results", "symbex", f"symbex_seeds_{tag}_{name}.json")
     json.dump(dict(channels=args.channels, blocks=args.blocks, weight=args.weight, epochs=args.epochs, board=args.board,
                    weights=args.weights, popcount=args.popcount, seeds=rows),
               open(path, "w"), indent=1)

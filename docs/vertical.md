@@ -283,4 +283,4 @@ comparisons keep ESP-IDF's default.
 - **The classic ESP32** (no 128-bit registers): the portable C version runs there, not measured yet.
 
 The layer-by-layer study that led to this engine (precomputed vs run-time lists and thresholds, cold and warm cache)
-is `benchmarks/conv2d/cnn_cifar_resnet8/s3_vertical_layers.py`, with its results in `results/s3_vertical_layers*.json`.
+is `benchmarks/conv2d/cnn_cifar_resnet8/s3_vertical_layers.py`, with its results in `results/symbex/s3_vertical_layers*.json`.

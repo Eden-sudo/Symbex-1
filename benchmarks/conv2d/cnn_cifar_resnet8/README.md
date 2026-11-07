@@ -191,7 +191,7 @@ most accurate network is also faster than the thermometer network on the ESP32 (
 (32.33 ms standard, 9.73 ms vertical).
 
 **The vertical engine on the Pico 2** (`docs/vertical.md`), same network, 3 seeds × 1,000 images, every image equal
-to the simulation, weights in flash, lut16 (`results/symbex_seeds_pico2_*_w1_int8stem_pool2_vertical*.json`), ms (RAM):
+to the simulation, weights in flash, lut16 (`results/symbex/symbex_seeds_pico2_*_w1_int8stem_pool2_vertical*.json`), ms (RAM):
 
 | Core | standard | vertical | compact | prepared |
 |---|---|---|---|---|
@@ -240,10 +240,10 @@ Profiles: `python ../../../tools/dev/fine_profile.py runs/w1_s44 --board s3` and
 |---|---|
 | `model.py` | the binary ResNet-8 with any channels and blocks per stage, the thermometer, CIFAR-10 |
 | `symbex.toml` | the CDT configuration (method `boolean`, 150 epochs, labels only) |
-| `resnet8_symbex.py` | the CDT per seed and per board; summary in `results/symbex_seeds_<board>_<popcount>_w1.json` (`..._w1_<variant>.json` with `--variant`) (`--summary`: from runs measured with `tools/chip_test.py`; older summaries in `results/earlier/`) |
+| `resnet8_symbex.py` | the CDT per seed and per board; summary in `results/symbex/symbex_seeds_<board>_<popcount>_w1.json` (`..._w1_<variant>.json` with `--variant`) (`--summary`: from runs measured with `tools/chip_test.py`; older summaries in `results/earlier/`) |
 | `resnet8_tflite.py` | the official MLPerf Tiny INT8 model, on the PC and with TFLite Micro on the boards |
 | `resnet8_train.py` | evaluates a trained model on its own (`--check`) |
-| `resnet8_sizing.py` | the sizing study: variants, predicted latency, Pareto front (`results/sizing.json`; every variant's quick training in `results/sizing/`) |
+| `resnet8_sizing.py` | the sizing study: variants, predicted latency, Pareto front (`results/sizing/sizing.json`; every variant's quick training in `results/sizing/`) |
 
 ## Future work
 

@@ -291,4 +291,4 @@ valor por defecto, así que las comparaciones mantienen la configuración por de
 
 El estudio capa por capa que llevó a este motor (listas y umbrales precalculados frente a construidos en el chip, caché
 fría y caliente) es `benchmarks/conv2d/cnn_cifar_resnet8/s3_vertical_layers.py`, con sus resultados en
-`results/s3_vertical_layers*.json`.
+`results/symbex/s3_vertical_layers*.json`.
