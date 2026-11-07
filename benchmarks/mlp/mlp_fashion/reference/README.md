@@ -60,5 +60,5 @@ python chip_test.py ../benchmarks/mlp/mlp_fashion/reference --board esp32 --port
 python chip_test.py ../benchmarks/mlp/mlp_fashion/reference --board pico2_arm --port /dev/ttyACM1 --popcount swar
 ```
 
-The INT8 model on a board: `python fashion_tflite.py --board s3 --port /dev/ttyACM0` from the benchmark's folder (see
-its README for the 784-128-512 shape).
+The INT8 model on a board, this exact file (no FP32 model, no conversion): `python fashion_tflite.py --shape 128-512
+--model reference/fashion_int8_h128_512.tflite --board s3 --port /dev/ttyACM0 --usb` from the benchmark's folder.

@@ -5,6 +5,7 @@ fomo_tflite.py -- the INT8 reference of the fomo_voc_person benchmark: the SAME 
     python fomo_tflite.py --board s3 --port /dev/ttyUSB0    # ... and the latency with TFLite Micro on the board
     python fomo_tflite.py --channels 32-64-128 --blocks 1-2-2 --weight 20 --epochs 60
     python fomo_tflite.py --channels 32-32-128 --blocks 1-2-2 --seed 43     # another training seed
+    python fomo_tflite.py --model reference/fomo_int8_c32-32-128.tflite --board s3 --port /dev/ttyACM0   # a given model
 
 Run from benchmarks/conv2d/fomo_voc_person/ with the benchmark environment (env_bench: TensorFlow). The network is the float
 architecture of model.RealFOMO, written directly in Keras (no conversion between frameworks): stem 3x3 stride 2, blocks
@@ -16,7 +17,8 @@ threshold (the same fixed split as fomo_train.py, model.SPLIT_SEED; each model g
     F1 (PC)     the TFLite interpreter on the 4,952 VOC 2007 test images, with the INT8 model's own calibrated threshold
     board       TensorFlow Lite Micro (esp-tflite-micro, ESP-NN) on the first --images test images: latency, arena, and
                 the same output as the PC interpreter (the index of the largest of the 288 outputs, image by image)
-Results: models/fomo_int8_<name>.tflite, results/tflite/tflite_<pc|board>_<name>.json.
+Results: models/fomo_int8_<name>.tflite, results/tflite/tflite_<pc|board>_<name>.json. With --model the given .tflite is
+measured as it is (no training) and <name> is its file name.
 """
 import argparse
 import json
@@ -85,7 +87,9 @@ def main():
     ap.add_argument("--images", type=int, default=100)
     ap.add_argument("--arena-kb", type=int, default=230, help="TFLite Micro arena (default 230 KB)")
     ap.add_argument("--no-upload", action="store_true")
+    ap.add_argument("--model", help="measure this .tflite as it is (no training; e.g. reference/fomo_int8_c32-32-128.tflite)")
     args = ap.parse_args()
+    cwd = os.getcwd()                                                   # --model is relative to where it is run
     os.chdir(HERE)
     import tensorflow as tf
     for g in tf.config.list_physical_devices("GPU"):                    # share the GPU with other trainings
@@ -95,6 +99,11 @@ def main():
     bl = tuple(int(v) for v in args.blocks.split("-"))
     name = f"c{args.channels}_b{args.blocks}_w{args.weight:g}_e{args.epochs}" + ("" if args.seed == 42 else f"_s{args.seed}")
     path = os.path.join("models", f"fomo_int8_{name}.tflite")
+    if args.model:                                                      # a given model: never trained here
+        path = os.path.abspath(os.path.join(cwd, args.model))
+        if not os.path.exists(path):
+            sys.exit(f"[X] {path} not found")
+        name = os.path.splitext(os.path.basename(path))[0]
     os.makedirs("models", exist_ok=True)
     os.makedirs(os.path.join("results", "tflite"), exist_ok=True)
     xtr, ytr, ctr, otr = load("train")
@@ -105,7 +114,10 @@ def main():
     cva, ova = held_out_centers(ctr, otr, va)
     split = dict(split_seed=SPLIT_SEED, val=nv)
     split_path = path.replace(".tflite", "_split.json")                 # the split the model was trained without
-    if os.path.exists(path) and (json.load(open(split_path)) if os.path.exists(split_path) else None) != split:
+    if args.model and not os.path.exists(split_path):
+        print("[!] no record of the split this model was trained without: its calibrated F1 may choose the threshold "
+              "on images it trained on (the latency and the equality to the PC are valid)")
+    elif os.path.exists(path) and (json.load(open(split_path)) if os.path.exists(split_path) else None) != split:
         sys.exit(f"[X] {path} was trained with another validation split (or before the fixed one): calibrating it on "
                  f"this split would choose its threshold on images it trained on. Delete it to train it again")
 
@@ -147,7 +159,8 @@ def main():
     th, sva = calibrate(mva, cva, ova)
     mte, flat = margins_tflite(tflite, xte)
     s0, s1 = f1_score(mte > 0, cte, ote), f1_score(mte > th, cte, ote)
-    print(f"\n    FOMO INT8 (TFLite), {args.channels} / {args.blocks}: model {len(tflite) / 1024:.1f} KB")
+    label = name if args.model else f"{args.channels} / {args.blocks}"
+    print(f"\n    FOMO INT8 (TFLite), {label}: model {len(tflite) / 1024:.1f} KB")
     print(f"    threshold calibrated on {nv} held-out training images: {th:+.3f}  (validation F1 {sva['f1']:.1f}%)")
     print(f"    test F1: default {s0['f1']:.1f}% | calibrated {s1['f1']:.1f}% (precision {s1['precision']:.1f}%, recall "
           f"{s1['recall']:.1f}%)")

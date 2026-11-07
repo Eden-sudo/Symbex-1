@@ -61,5 +61,5 @@ python chip_test.py ../benchmarks/conv2d/fomo_voc_person/reference --board esp32
 python chip_test.py ../benchmarks/conv2d/fomo_voc_person/reference --board pico2_riscv --port /dev/ttyACM1 --popcount lut16
 ```
 
-The INT8 model on a board: `python fomo_tflite.py --channels 32-32-128 --board s3 --port /dev/ttyACM0` from the
-benchmark's folder.
+The INT8 model on a board, this exact file (no training): `python fomo_tflite.py --model
+reference/fomo_int8_c32-32-128.tflite --board s3 --port /dev/ttyACM0` from the benchmark's folder.
