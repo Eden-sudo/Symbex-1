@@ -479,6 +479,8 @@ int main(void) { int n_in, n_out; static uint32_t inp[256], w[256 * 160]; static
     data, exp, total = Chunks(), [], 0
     for _ in range(n):
         n_in, n_out = pick(1, 1300, _), pick(1, 41, _)
+        if not STRESS and _ % 4 == 0:                        # short layers (a first layer of a few sensors)
+            n_in = int(RNG.integers(1, 65))
         pal = (n_in + 31) // 32
         abits = bits_data(n_in, _)
         wbits = bits_data((n_out, n_in), _ + 3)

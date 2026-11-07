@@ -146,20 +146,20 @@ The same seed-42 exports on the ESP32 (240 MHz, one core), the current library a
 
 | Model | Flash | Weights in flash | RAM | Weights in RAM |
 |---|---|---|---|---|
-| **SYMBEX 1 bit x1** (`--popcount swar`) | 34.3 KB | **6.754 ms** | 3.4 KB | **3.840 ms** (37.7 KB) |
-| SYMBEX 1 bit x1.5 | 54.5 KB | 12.949 ms | 3.9 KB | 5.805 ms (58.3 KB) |
-| SYMBEX 1 bit x2 | 76.5 KB | 17.788 ms | 4.4 KB | 7.809 ms (80.8 KB) |
+| **SYMBEX 1 bit x1** (`--popcount swar`) | 34.3 KB | **6.583 ms** | 3.4 KB | **3.678 ms** (37.7 KB) |
+| SYMBEX 1 bit x1.5 | 54.5 KB | 12.709 ms | 3.9 KB | 5.562 ms (58.3 KB) |
+| SYMBEX 1 bit x2 | 76.5 KB | 17.470 ms | 4.4 KB | 7.484 ms (80.8 KB) |
 | ternary x1 (`lut16`) | 59.9 KB | 19.997 ms | 66.3 KB | 12.137 ms (126.3 KB) |
 | ternary x1.5 (`lut16`) | 95.8 KB | 31.031 ms | 66.9 KB | 18.541 ms (162.7 KB) |
 | INT2 QAT x1, ESP-NN | 61.9 KB | 30.352 ms | 11.1 KB | does not start (likely: no 235 KB block for the unpacked weights) |
 | INT4 QAT x1, ESP-NN | 119.2 KB | 34.610 ms | 11.1 KB | does not start (same) |
 | INT8 QAT x1, ESP-NN | 233.9 KB | 41.377 ms | 3.1 KB | does not fit (DRAM overflowed by 74 KB) |
 | INT8 TFLite x1 | 242.2 KB | 41.966 ms | 4.8 KB (arena) | does not fit |
-| **SYMBEX 784-128-512** (sized for binary) | 27.3 KB | **3.635 ms** | 4.4 KB | **2.186 ms** (31.6 KB) |
+| **SYMBEX 784-128-512** (sized for binary) | 27.3 KB | **3.546 ms** | 4.4 KB | **2.105 ms** (31.6 KB) |
 | INT8 TFLite 784-128-512 (same shape) | 187 KB | 31.108 ms | 6.7 KB (arena) | not measured |
 
-- In flash, SYMBEX x1 is 4.5x faster than the fastest integer model (INT2) and 6.2x faster than TFLite INT8; the
-  binary-sized 784-128-512 is 8.6x faster than TFLite INT8 of the same shape. With the weights in RAM only the
+- In flash, SYMBEX x1 is 4.6x faster than the fastest integer model (INT2) and 6.4x faster than TFLite INT8; the
+  binary-sized 784-128-512 is 8.8x faster than TFLite INT8 of the same shape. With the weights in RAM only the
   binary and ternary models run.
 - The ternary kernel is slow here too (20 ms): the next kernel to rewrite.
 

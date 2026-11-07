@@ -12,6 +12,7 @@ docstring.
 | `s8_dot_rows_chip_test.py` | is the S3 PIE kernel `symbex_s8_dot_rows` exact at every alignment? | 9,792 cases, weights in RAM and flash: all equal to C |
 | `int8_first_bench.py` | does an int8 first layer speed up mlp_fashion and ResNet-8, as it does conv1d? | below |
 | `stem_i8_pie_bench.py` | can the int8 stem use PIE better on the ESP32-S3? | 5.7× faster stem, now in lib_symbex (below) |
+| `dense_short_bench.py` | why is a first dense layer with few inputs (19 sensors → 64) slow? | 2.2-2.5× faster, now in lib_symbex (below) |
 
 Results in `results/`; the generated firmware projects in `runs/` (not in git).
 
@@ -70,4 +71,39 @@ their kernels (checked, seed 42, exact: ESP32 and both Pico 2 cores the same or 
 
 ```
 python stem_i8_pie_bench.py --port /dev/ttyACM0
+```
+
+## Short first dense layers (`dense_short_bench.py`, Nov 7)
+
+**Question.** A control network (19 sensor inputs → 64 → 64 → 3) measured on the ESP32-S3 spent 66 % of its time in
+the 19 → 64 first layer, as slow with `symbex_dense_input_u8_bits` as with `_planes`. Why?
+
+**What we found.** The 4-inputs-per-operation SWAR sum only took whole 32-input words: with fewer than 32 inputs
+every input went one at a time. Two changes in `lib_symbex`, same bits:
+
+- `symbex_swar_u8_masked_sum` (`ops/symbex_swar.h`): the partial last word also goes 4 inputs at a time.
+- `symbex_dense_input_u8_bits` / `_mask`, layers of up to 64 inputs and at least 8 neurons: subset-sum tables. For
+  each group of 4 inputs the 16 sums of its subsets are built once per image; each neuron then reads one table entry
+  per 4 inputs. Any input alignment (the SWAR path needs 4-byte aligned inputs). 512 bytes of stack at most.
+
+**Result (measured, exact against plain C on the chip, weights in flash, best of 7; `master` = before):**
+
+| Layer | ESP32-S3 | ESP32 | Pico 2 M33 | Pico 2 Hazard3 |
+|---|---|---|---|---|
+| 19 → 64, `_bits` | 59.3 → **27.0 µs** (2.2×) | 66.6 → **31.0** (2.1×) | 97.8 → **38.8** (2.5×) | 92.9 → **39.4** (2.4×) |
+| 64 → 64, `_bits` | 79.3 → **52.3 µs** (1.5×) | 91.9 → **57.1** (1.6×) | 136.3 → **77.0** (1.8×) | 127.7 → **73.0** (1.7×) |
+| 64 → 64, input not aligned | 158.0 → **52.3 µs** (3.0×) | 178.5 → **57.1** (3.1×) | 256.8 → **77.0** (3.3×) | 251.2 → **73.0** (3.4×) |
+| 64 → 3, 784 → 128 | same or up to 3 % faster (no tables below 8 neurons or above 64 inputs) | same | same | same |
+
+One exception: 784 → 128 with an unaligned input on the M33, 6.00 → 6.65 ms (its code did not change: the
+layout in flash behind the Pico 2's XIP cache, seen before). Code or weights in RAM give the same times on the S3. `_planes` is not changed (slower on these shapes except
+784 → 128 on Hazard3, which has a popcount instruction).
+
+Future work: the tables for wider layers (784 → 128 would need a 6 KB workspace; ESTIMATE ~1.3× from the 64-input
+cost per group, not measured).
+
+```
+python dense_short_bench.py --port /dev/ttyACM0                      # ESP32-S3, the library in the work tree
+python dense_short_bench.py --port /dev/ttyACM0 --lib-rev master     # the library before
+python dense_short_bench.py --board pico2_arm --port /dev/ttyACM1    # esp32 /dev/ttyUSB0; pico2_riscv
 ```

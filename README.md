@@ -87,7 +87,7 @@ network; 3 seeds, labels only, weights in flash unless stated:
 | Accuracy | 87.47 ± 0.09 % | 89.81 ± 0.11 % (QAT) |
 | ESP32-S3 | **0.42 ms (28× faster)** | 11.7 ms (TFLite Micro) |
 | ESP32-S3, weights in RAM | **0.41 ms (2.1× faster)** | 0.89 ms |
-| ESP32 | **3.6 ms (8.6× faster)** | 31.1 ms |
+| ESP32 | **3.5 ms (8.8× faster)** | 31.1 ms |
 | Raspberry Pi Pico 2, Cortex-M33 | **4.6 ms (6.9× faster)**; 1.5 ms with the weights in RAM (1.9×) | 31.4 ms (CMSIS-NN); 2.9 ms in RAM |
 | Raspberry Pi Pico 2, Hazard3 | **4.4 ms (8.5× faster)**; 1.4 ms with the weights in RAM (6.8×) | 37.5 ms; 9.6 ms in RAM (reference kernels) |
 | Flash | **27 KB** | 187 KB |

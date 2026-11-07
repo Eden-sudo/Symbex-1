@@ -28,6 +28,7 @@
  * ~65-90 cycles per neuron on the ESP32 / S3 (measured), more than half the time on rows of 1-4 words.
  * First layer, uint8 x 1 bit, on 32-bit chips: SWAR, 4 inputs per 32-bit operation (ops/symbex_swar.h);
  * -DSYMBEX_U8_SCALAR keeps the previous one-input-at-a-time mask (to compare). AVR keeps its 8-bit path.
+ * Short first layers (<= 64 inputs, >= 8 neurons): subset-sum tables, one table read per 4 inputs (u8_lut_*).
  *
  * DEBUG: SYMBEX_DEBUG_CLASSIFIER prints raw/logit_q per class in
  * symbex_binary_classifier_argmax, with printf, not Serial (this is a plain .c file;
@@ -310,18 +311,70 @@ static int32_t u8_positives(const uint8_t* x, const uint32_t* w, uint16_t n_in, 
 #endif
 }
 
+/* Short first layers (a few sensors, many neurons): subset-sum tables. For each group of 4 inputs, the 16 sums of
+ * its subsets are built once per image (lut[16 g + m] = sum of x[4g + k] for the bits k of m, 15 additions per
+ * group); each neuron then needs ONE table read per 4 inputs (4 weight bits = the index) instead of the mask work.
+ * Inputs past n_in are 0 in the tables, so the padding bits of the last weight word add nothing. Any alignment of x.
+ * The tables are on the stack (2 bytes x 16 x n_in / 4: 512 bytes at the default limit of 64 inputs). Used from
+ * U8_LUT_MIN_OUT neurons on (below, building the tables costs more than it saves). -DSYMBEX_U8_LUT_MAX_IN=0 turns
+ * it off. Same result, bit for bit. AVR and the SYMBEX_U8_BYTEWISE / SYMBEX_U8_SCALAR builds keep their paths. */
+#ifndef SYMBEX_U8_LUT_MAX_IN
+  #define SYMBEX_U8_LUT_MAX_IN 64
+#endif
+#define U8_LUT_MIN_OUT 8
+#if !defined(__AVR__) && !defined(SYMBEX_U8_BYTEWISE) && !defined(SYMBEX_U8_SCALAR) && SYMBEX_U8_LUT_MAX_IN > 0
+  #define U8_LUT 1
+static int u8_lut_use(uint16_t n_in, uint16_t n_out) {
+    return n_in <= SYMBEX_U8_LUT_MAX_IN && n_out >= U8_LUT_MIN_OUT;
+}
+static void u8_lut_build(const uint8_t* x, uint16_t n_in, uint16_t* lut) {
+    for (uint16_t g = 0; g < (n_in + 3) / 4; g++, lut += 16) {
+        uint16_t v[4];
+        for (uint8_t k = 0; k < 4; k++) v[k] = (uint16_t)(4 * g + k < n_in ? x[4 * g + k] : 0);
+        lut[0] = 0;
+        for (uint8_t m = 1; m < 16; m++) lut[m] = (uint16_t)(lut[m & (m - 1)] + v[CTZ32(m)]);
+    }
+}
+/* inlined: a call per neuron (call8 / entry / retw on Xtensa) costs about as much as the reads */
+static inline __attribute__((always_inline)) int32_t u8_lut_positives(const uint16_t* lut, const uint32_t* w,
+                                                                      uint16_t n_in) {
+    int32_t total = 0;
+    const uint16_t groups = (uint16_t)((n_in + 3) / 4);
+    uint16_t g = 0;
+    for (; g + 8 <= groups; g += 8, lut += 128) {          /* whole weight words: 8 reads, unrolled */
+        const uint32_t wv = SYMBEX_READ_W32(&w[g / 8]);
+        total += lut[wv & 15u] + lut[16 + ((wv >> 4) & 15u)] + lut[32 + ((wv >> 8) & 15u)]
+               + lut[48 + ((wv >> 12) & 15u)] + lut[64 + ((wv >> 16) & 15u)] + lut[80 + ((wv >> 20) & 15u)]
+               + lut[96 + ((wv >> 24) & 15u)] + lut[112 + (wv >> 28)];
+    }
+    if (g < groups) {                                         /* the last, partial word */
+        uint32_t wv = SYMBEX_READ_W32(&w[g / 8]);
+        for (; g < groups; g++, wv >>= 4, lut += 16) total += lut[wv & 15u];
+    }
+    return total;
+}
+#endif
+
 /*
  * First layer, mask version: no bit planes and no popcount. For each weight word, every input is added
  * through a mask (0x00 or 0xFF from its weight bit), with no branches:
  *     sum_{s_i = +1} x_i = sum_i x_i AND mask_i
  * Each weight word is read once. Exactly the same result as symbex_dense_input_u8.
  */
-void symbex_dense_input_u8_mask(const uint8_t* x, int32_t* out, const struct SymbexLayerData* layer) {
+SYMBEX_FAST_CODE void symbex_dense_input_u8_mask(const uint8_t* x, int32_t* out, const struct SymbexLayerData* layer) {
     const uint16_t n_in = layer->in_features;
     const uint16_t in_words = (n_in + 31) / 32;
     int32_t total = 0;
     for (uint16_t i = 0; i < n_in; i++) total += x[i];
     const uint32_t* w = layer->weights;
+#if defined(U8_LUT)
+    if (u8_lut_use(n_in, layer->out_features)) {
+        uint16_t lut[16 * ((SYMBEX_U8_LUT_MAX_IN + 3) / 4)];
+        u8_lut_build(x, n_in, lut);
+        for (uint16_t n = 0; n < layer->out_features; n++, w += in_words) out[n] = 2 * u8_lut_positives(lut, w, n_in) - total;
+        return;
+    }
+#endif
     for (uint16_t n = 0; n < layer->out_features; n++) {
         out[n] = 2 * u8_positives(x, w, n_in, in_words) - total;
         w += in_words;
@@ -347,8 +400,8 @@ void symbex_dense_forward_bits(const uint32_t* input_bits, const int32_t* thresh
     }
 }
 
-void symbex_dense_input_u8_bits(const uint8_t* x, const int32_t* threshold, uint32_t* out_bits,
-                                const struct SymbexLayerData* layer) {
+SYMBEX_FAST_CODE void symbex_dense_input_u8_bits(const uint8_t* x, const int32_t* threshold, uint32_t* out_bits,
+                                                 const struct SymbexLayerData* layer) {
     const uint16_t n_in = layer->in_features;
     const uint16_t in_words = (n_in + 31) / 32;
     const uint16_t n_out = layer->out_features;
@@ -356,6 +409,17 @@ void symbex_dense_input_u8_bits(const uint8_t* x, const int32_t* threshold, uint
     for (uint16_t i = 0; i < n_in; i++) total += x[i];
     for (uint16_t p = 0; p < (n_out + 31) / 32; p++) out_bits[p] = 0;
     const uint32_t* w = layer->weights;
+#if defined(U8_LUT)
+    if (u8_lut_use(n_in, n_out)) {
+        uint16_t lut[16 * ((SYMBEX_U8_LUT_MAX_IN + 3) / 4)];
+        u8_lut_build(x, n_in, lut);
+        for (uint16_t n = 0; n < n_out; n++, w += in_words) {
+            const int32_t raw = 2 * u8_lut_positives(lut, w, n_in) - total;
+            if (raw >= THRESHOLD(threshold, n)) out_bits[n / 32] |= 1UL << (n % 32);
+        }
+        return;
+    }
+#endif
     for (uint16_t n = 0; n < n_out; n++) {
         const int32_t raw = 2 * u8_positives(x, w, n_in, in_words) - total;
         if (raw >= THRESHOLD(threshold, n)) out_bits[n / 32] |= 1UL << (n % 32);

@@ -25,9 +25,9 @@
 <text x="265.9" y="135.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">2.14×</text>
 <text x="316.4" y="135.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">0.41 vs 0.89 ms</text>
 <text x="218.0" y="169.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">MLP · ESP32</text>
-<path d="M230.0,156.0 H337.3 Q341.3,156.0 341.3,160.0 V170.0 Q341.3,174.0 337.3,174.0 H230.0 Z" fill="#2a78d6"/>
-<text x="349.3" y="169.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">8.56×</text>
-<text x="399.8" y="169.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">3.63 vs 31.1 ms</text>
+<path d="M230.0,156.0 H340.0 Q344.0,156.0 344.0,160.0 V170.0 Q344.0,174.0 340.0,174.0 H230.0 Z" fill="#2a78d6"/>
+<text x="352.0" y="169.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">8.77×</text>
+<text x="402.5" y="169.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">3.55 vs 31.1 ms</text>
 <text x="218.0" y="203.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">ResNet-8 · ESP32-S3</text>
 <path d="M230.0,190.0 H243.2 Q247.2,190.0 247.2,194.0 V204.0 Q247.2,208.0 243.2,208.0 H230.0 Z" fill="#2a78d6"/>
 <text x="255.2" y="203.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">1.33×</text>
