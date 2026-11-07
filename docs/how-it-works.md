@@ -81,8 +81,11 @@ the threshold of the next layer's binarization.
   chip multiplies bytes in SIMD (the stem alone: 1.79× on the ESP32-S3, 1.13× on the Pico 2's Cortex-M33), but slower
   where it does not (0.86× on the ESP32, 0.62× on Hazard3). The whole ResNet-8, 3 seeds, exact on every board: 75.4 %
   on the test set against 71.3 %, 1.10× faster on the S3 (35.5 against 39.2 ms), 1.03× on the M33, 0.93× on the ESP32
-  and 0.87× on Hazard3 ([the benchmark](../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). The thermometer stays the
-  default.
+  and 0.87× on Hazard3 ([the benchmark](../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). Since then the stem has its own
+  kernels (PIE on the S3, one without a window buffer on the other chips), and the same network measures (seed 42,
+  weights in flash) 1.22× faster than the thermometer on the S3 (32.1 against 39.2 ms), 1.12× on the M33 (66.4
+  against 74.6), 1.04× on the ESP32 (61.1 against 63.3) and 0.98× on Hazard3 (57.4 against 56.1). The thermometer
+  stays the default.
 - **Bytes directly (dense networks).** The first layer reads the `uint8` values and adds those whose weight is +1 and
   subtracts those whose weight is −1. That is still a sum without multiplications, and the input normalization goes
   into the thresholds.

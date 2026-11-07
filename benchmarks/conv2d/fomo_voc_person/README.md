@@ -42,10 +42,10 @@ simulation on 1,000 test images; the original shape, in **296.2 ms** with the sa
 210.7 / 275.0 ms (184 / 197 KB of RAM); without the 64 KB counting table (swar): 274.5 / 364.6 ms (79 / 81 KB); the
 32-32-128 figures over 3 seeds. Flash is the number to report (a real deployment keeps the weights there); RAM is 7 %
 faster. Step by step (`tools/dev/fine_profile.py --plain`, seed 42, 100 images; captures for 32-32-128 in
-[flash](results/fine_profile_esp32_lut16_flash_c32-32-128_b1-2-2_w40_e100_s42.txt) and
-[RAM](results/fine_profile_esp32_lut16_ram_c32-32-128_b1-2-2_w40_e100_s42.txt), for 32-64-128 in
-[flash](results/fine_profile_esp32_lut16_flash_c32-64-128_b1-2-2_w40_e100_s42.txt) and
-[RAM](results/fine_profile_esp32_lut16_ram_c32-64-128_b1-2-2_w40_e100_s42.txt)), the steps with 11-21 KB of weights gain
+[flash](results/symbex/fine_profile_esp32_lut16_flash_c32-32-128_b1-2-2_w40_e100_s42.txt) and
+[RAM](results/symbex/fine_profile_esp32_lut16_ram_c32-32-128_b1-2-2_w40_e100_s42.txt), for 32-64-128 in
+[flash](results/symbex/fine_profile_esp32_lut16_flash_c32-64-128_b1-2-2_w40_e100_s42.txt) and
+[RAM](results/symbex/fine_profile_esp32_lut16_ram_c32-64-128_b1-2-2_w40_e100_s42.txt)), the steps with 11-21 KB of weights gain
 10-11 % in RAM and those with 2-6 KB 5-7 %. We attribute the larger gain to the flash cache, as in `../cnn_cifar_resnet8`, but moving the weights does not
 isolate the cause, and the 5 % on the smallest steps is not explained (perhaps the code sharing the same cache; not
 measured). The
@@ -112,6 +112,9 @@ Inside the library (`tools/dev/fine_profile.py`): counting bits is ~73 % of the 
 
 ## Reproduce
 
+**Without training:** [`reference/`](reference/README.md) holds seed 42 of the resized detector (32-32-128), ready to compile or
+measure, next to its INT8 model.
+
 From this folder (environment `env_bench`, with PyTorch on CUDA and TensorFlow):
 
 ```
@@ -119,7 +122,7 @@ python fomo_data.py                                          # Pascal VOC -> dat
 python fomo_train.py --channels 32-32-128 --blocks 1-2-2 --weight 40 --epochs 100
 python fomo_export.py runs/c32-32-128_b1-2-2_w40_e100_s42    # integers, header, C check (100 %)
 python ../../../tools/dev/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --board s3 --port /dev/ttyUSB0 --plain
-python ../../../tools/dev/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --board esp32 --port /dev/ttyUSB0 --popcount lut16 --weights ram --plain  # weights flash|ram: the captures in results/
+python ../../../tools/dev/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --board esp32 --port /dev/ttyUSB0 --popcount lut16 --weights ram --plain  # weights flash|ram: the captures in results/symbex/
 python fomo_symbex.py --channels 32-32-128 --seeds 3 --board esp32 --port /dev/ttyUSB0                   # train (if needed) + export + chip
 python fomo_symbex.py --channels 32-32-128 --seeds 1 --board esp32 --port /dev/ttyUSB0 --weights ram
 python fomo_symbex.py --channels 32-32-128 --seeds 1 --board esp32 --port /dev/ttyUSB0 --popcount swar
@@ -137,9 +140,9 @@ python fomo_sizing.py --phase depth ; python fomo_sizing.py --phase width
 | `model.py` | the binary detector (the binary pieces of `../cnn_cifar_resnet8/model.py`), its float version, the F1 score |
 | `fomo_train.py` | trains a detector (binary or `--fp32`) and calibrates its threshold |
 | `fomo_export.py` | the binary detector into lib_symbex through the CDT exporter, checked against the simulation |
-| `fomo_symbex.py` | train + export + measure on the board, per seed; summary in `results/symbex_seeds_<board>_<popcount>[_ram]_<name>.json` |
-| `fomo_tflite.py` | the same architecture in Keras → INT8 → TFLite Micro on the boards |
-| `fomo_sizing.py` | the sizing study |
+| `fomo_symbex.py` | train + export + measure on the board, per seed; summary in `results/symbex/symbex_seeds_<board>_<popcount>[_ram]_<name>.json` |
+| `fomo_tflite.py` | the same architecture in Keras → INT8 → TFLite Micro on the boards (`results/tflite/`) |
+| `fomo_sizing.py` | the sizing study (`results/sizing/fomo_sizing.json`) |
 
 ## Future work
 

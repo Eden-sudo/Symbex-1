@@ -310,6 +310,9 @@ python ../../experiments/other_probes/poplut_probe.py --modelo runs/symbex_local
 
 ## How to reproduce
 
+**Without training:** [`reference/`](reference/README.md) holds seed 42 of the MLP sized for binary (784-128-512-10), ready to compile or
+measure, next to its INT8 model.
+
 | Script | What it does |
 |---|---|
 | `model.py` | the FP32 model and the data both sides share |

@@ -1,0 +1,4 @@
+# Rebuilt by `cdt.py config.toml --from export` (2000 CIFAR-10 validation images, 6 MB) and by the chip runs.
+validation_*.u8
+config_used.toml
+chip*

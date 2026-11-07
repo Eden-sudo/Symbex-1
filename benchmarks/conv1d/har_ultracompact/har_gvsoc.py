@@ -15,7 +15,7 @@ designed (same architecture, same training recipe):
     lib_symbex        the run with first = binary: model_symbex.h of har_export.py (symbex_bool1d layers, the
                       classifier of symbex_bool.h), bits counted with p.cnt (-DSYMBEX_POPCOUNT_FORCE_NATIVE)
 Their kernels OR into their outputs, so every output buffer is cleared inside the measured time (lib_symbex clears
-its own). Both report the class (the first largest score). Results: results/har_gvsoc_<arch>_s<seed>.json.
+its own). Both report the class (the first largest score). Results: results/symbex/har_gvsoc_<arch>_s<seed>.json.
 """
 import argparse
 import json
@@ -392,8 +392,8 @@ def main():
               f"{e['instr']:>9}{e['cycles']:>10} | {u['instr'] / max(e['instr'], 1):>5.2f}x")
     print(f"\n    outputs equal to their integer simulations: ultracompactBNN {uc['windows'] - uc['errors']}/{uc['windows']}"
           + "".join(f", {k} {v['windows'] - v['errors']}/{v['windows']}" for k, v in sx.items()))
-    os.makedirs("results", exist_ok=True)
-    out = os.path.join("results", f"har_gvsoc_{tag}.json")
+    os.makedirs(os.path.join("results", "symbex"), exist_ok=True)
+    out = os.path.join("results", "symbex", f"har_gvsoc_{tag}.json")
     json.dump(dict(arch=ib["arch"], seed=ib["seed"], steps=names, ucbnn=uc, symbex=sx["symbex"],
                    symbex_pulp_u8=sx["symbex_pulp_u8"], symbex_pulp_layer=sx["symbex_pulp_layer"],
                    symbex_i8_first=sx["symbex_i8_first"], windows=args.windows,

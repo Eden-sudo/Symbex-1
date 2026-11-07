@@ -51,6 +51,12 @@ incluida (la imagen entra como un termómetro de bits); 3 semillas de entrenamie
 | RAM | **15 KB** | 53-80 KB |
 | Mismo resultado que su referencia en la PC | **100 %** | 98.1 % |
 
+**La receta más precisa.** Con una primera capa int8 sobre los píxeles y un clasificador int8 con pooling (todas las
+demás capas binarias, Bop para los pesos binarios; `--variant int8stem_pool2` en el CDT), la misma ResNet-8 llega a
+**76.7 ± 0.3 %** y corre más rápido: ESP32-S3 32.3 ms (1.61×), 6.0-9.7 ms con el motor vertical; ESP32 62.5 ms
+(11.5×); Pico 2 M33 67.8 ms (6.7×), Hazard3 57.9 ms; 29 KB de flash, exacta en todas las placas. La semilla 42 está
+lista para usar en [`reference/`](benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md).
+
 **Dimensionada para binario.** La mejor forma de una red binaria no es la de INT8: un estudio de dimensionamiento
 (bloques y canales por etapa, latencia predicha con perfiles medidos en el chip) encontró que las primeras etapas pueden
 ser más delgadas y la última más ancha. Medido en el chip, 3 semillas (en el ESP32 la ganancia es precisión a la misma
@@ -136,6 +142,8 @@ bits) contra int8 (multiplicación-suma).
    entera del modelo: se verifica en cada modelo exportado, siempre.
 
 ## Metodología
+
+El estándar completo, las referencias y cómo repetir un benchmark: [docs/methodology.es.md](docs/methodology.es.md). En resumen:
 
 - **La misma arquitectura** siempre que SYMBEX se compara con INT8 (el modelo oficial de MLPerf, o la misma red
   entrenada con la misma receta); una red binaria redimensionada se compara con INT8 redimensionado igual.

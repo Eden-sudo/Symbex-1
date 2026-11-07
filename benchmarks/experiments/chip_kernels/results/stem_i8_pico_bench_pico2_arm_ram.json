@@ -1,0 +1,65 @@
+{
+ "board": "pico2_arm",
+ "mhz": 150.0,
+ "reps": "best of 7",
+ "weights": "flash",
+ "code": "ram",
+ "shapes": [
+  [
+   "resnet8",
+   32,
+   16,
+   3,
+   1
+  ],
+  [
+   "s2_c40",
+   32,
+   40,
+   3,
+   2
+  ],
+  [
+   "w48_c24",
+   48,
+   24,
+   3,
+   1
+  ]
+ ],
+ "cases": {
+  "resnet8": {
+   "lib_us": 14573,
+   "window_us": 2037,
+   "dots_us": 13683,
+   "ring_us": 12492,
+   "rows_us": 9211,
+   "lib_equal": true,
+   "ring_equal": true,
+   "rows_equal": true,
+   "ones": 8189
+  },
+  "s2_c40": {
+   "lib_us": 8102,
+   "window_us": 519,
+   "dots_us": 8305,
+   "ring_us": 8336,
+   "rows_us": 5686,
+   "lib_equal": true,
+   "ring_equal": true,
+   "rows_equal": true,
+   "ones": 5120
+  },
+  "w48_c24": {
+   "lib_us": 45793,
+   "window_us": 4610,
+   "dots_us": 45019,
+   "ring_us": 41845,
+   "rows_us": 30325,
+   "lib_equal": true,
+   "ring_equal": true,
+   "rows_equal": true,
+   "ones": 27647
+  }
+ }
+}

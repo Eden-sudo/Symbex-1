@@ -4,7 +4,7 @@
 
 Cada benchmark compara una red SYMBEX completamente binaria con INT8 en el mismo chip y con la misma arquitectura. El
 lado INT8 es el modelo oficial de TensorFlow Lite Micro o, donde no existe un modelo oficial, la misma red entrenada con
-la misma receta. Todas las reglas vienen de la [metodología](../README.es.md#metodología):
+la misma receta. Todas las reglas vienen de la [metodología](methodology.es.md):
 
 - los resultados son medias sobre 3 semillas (42, 43, 44);
 - toda elección se hace sobre un split de validación, y el conjunto de test se usa una sola vez;
@@ -17,7 +17,9 @@ Espressif ejecuta ResNet-8 2.6× más rápido que el motor estándar de SYMBEX. 
 ([El motor vertical](vertical.es.md)) lo ejecuta en 10.4 ms, 1.43× más rápido que ESP-DL con los pesos en flash; con los
 pesos en RAM, ESP-DL sigue 1.06× más rápido, salvo con uno de los modos opcionales del motor: compacto (7.70 ms, 1.27×
 más rápido que ESP-DL en RAM, con 151 KB de RAM frente a los 147 KB de ESP-DL) o preparado (6.44 ms, 1.52× más rápido,
-238 KB de RAM). [¿Qué tan rápido podría ser INT8?](#qué-tan-rápido-podría-ser-int8)
+238 KB de RAM). La receta más precisa de ResNet-8 (una primera capa int8 y un clasificador int8 con pooling, todo lo
+demás binario) es más rápida aún: 9.70 ms en el modo por defecto, 7.07 ms en compacto con menos RAM que ESP-DL (138
+frente a 147 KB), 6.02 ms en preparado. [¿Qué tan rápido podría ser INT8?](#qué-tan-rápido-podría-ser-int8)
 muestra qué está medido y qué no.
 
 Esta página da lo principal de cada benchmark. Los detalles, los comandos y los archivos crudos están en el README de
@@ -45,8 +47,8 @@ flash en todas las filas menos una.
 | MLP (Fashion-MNIST, 784-128-512-10) | ESP32 | flash | 3.55 / 31.11 ms | **8.77×** | 27.3 / 187.0 KB | 4.4 / 6.7 KB |
 | ResNet-8 (CIFAR-10) | ESP32-S3 | flash | 39.2 / 52.0 ms | **1.33×** | 24.3 / 96.2 KB | 14.8 / 80.5 KB |
 | ResNet-8 (CIFAR-10) | ESP32 | flash | 63.3 / 717.8 ms | **11.3×** | 24.3 / 96.2 KB | 78.6 / 53.1 KB ¹ |
-| ResNet-8, primera capa int8 (opcional) ² | ESP32-S3 | flash | 35.5 / 52.0 ms | **1.46×** | 24.0 / 96.2 KB | 14.3 / 80.5 KB |
-| ResNet-8, primera capa int8 (opcional) ² | ESP32 | flash | 68.1 / 717.8 ms | **10.5×** | 24.0 / 96.2 KB | 78.1 / 53.1 KB ¹ |
+| ResNet-8, receta más precisa ² | ESP32-S3 | flash | 32.3 / 52.0 ms | **1.61×** | 29.0 / 96.2 KB | 15.2 / 80.5 KB |
+| ResNet-8, receta más precisa ² | ESP32 | flash | 62.5 / 717.8 ms | **11.5×** | 29.0 / 96.2 KB | 79.0 / 53.1 KB ¹ |
 | Detección de personas FOMO (32-32-128) | ESP32-S3 | flash | 126.3 / 256.9 ms | **2.03×** | 41.2 / 236.1 KB | 79.0 / 222.6 KB |
 | Detección de personas FOMO (32-32-128) | ESP32 | flash | 226.3 ms / no cabe | **solo SYMBEX corre** | 41.2 / 236.1 KB | 142.8 KB ¹ / no cabe |
 | Reconocimiento de actividad (1D), 4 redes | ESP32-S3 | flash | 0.49-3.83 / 0.72-7.11 ms | **1.47-1.90×** | 0.7-6.5 / 7.3-42.5 KB | 1.3-2.7 / 2.7-25.5 KB |
@@ -58,9 +60,10 @@ flash en todas las filas menos una.
 - ¹ En el ESP32 clásico, SYMBEX cuenta bits con una tabla de 64 KB en RAM, el método más rápido ahí. Sin ella, ResNet-8
   necesita 15 KB de RAM y corre en 71.0 ms (10.1×), y FOMO necesita 79 KB y corre en 274.5 ms.
 - Las filas 1D son los rangos sobre las cuatro redes de Daghero, de la más pequeña a la más grande.
-- ² La misma ResNet-8 con la primera capa int8 opcional de lib_symbex sobre los píxeles en lugar del termómetro: 75.4 %
-  en el conjunto de prueba contra 71.3 % (3 semillas), más rápida en el S3 y en el M33 del Pico 2, más lenta en el ESP32
-  y en Hazard3 ([el benchmark](../benchmarks/conv2d/cnn_cifar_resnet8/README.md#an-int8-first-layer-optional)).
+- ² La misma ResNet-8 con una primera capa int8 sobre los píxeles en lugar del termómetro, Bop para los pesos binarios y
+  un clasificador int8 con pooling; todas las demás capas binarias (`--variant int8stem_pool2` del CDT). 76.7 ± 0.3 %
+  en el conjunto de prueba contra 71.3 % (3 semillas), y más rápida que la red completamente binaria en todas las placas
+  salvo Hazard3 (57.9 frente a 56.1 ms) ([el benchmark](../benchmarks/conv2d/cnn_cifar_resnet8/README.md#the-most-accurate-recipe-int8-stem--bop--pooled-int8-classifier)).
 
 Las gráficas se dibujan a partir de los archivos de resultados con `python tools/dev/docs_charts.py`, así que una nueva
 medición las actualiza.
@@ -117,8 +120,13 @@ RAM cuando el modelo se carga.
 | ResNet-8, motor vertical de SYMBEX, compacto (opcional) | ESP32-S3 | RAM | 9.8 ms (147 KB de RAM) | **7.70 ms** (175 KB de RAM) | — | SYMBEX **1.27× más rápido** |
 | ResNet-8, motor vertical de SYMBEX, preparado (opcional) | ESP32-S3 | flash | 14.8 ms | **6.44 ms** (238 KB de RAM) | 52.0 ms | SYMBEX **2.3× más rápido** |
 | ResNet-8, motor vertical de SYMBEX, preparado (opcional) | ESP32-S3 | RAM | 9.8 ms (147 KB de RAM) | **6.44 ms** (262 KB de RAM) | — | SYMBEX **1.52× más rápido**, con más RAM |
+| ResNet-8, receta más precisa ², motor vertical | ESP32-S3 | flash | 14.8 ms | **9.70 ms** (54 KB de RAM) | 52.0 ms | SYMBEX **1.53× más rápido** |
+| ResNet-8, receta más precisa ², compacto | ESP32-S3 | RAM (SYMBEX: flash) | 9.8 ms (147 KB de RAM) | **7.07 ms** (138 KB de RAM) | — | SYMBEX **1.39× más rápido**, con menos RAM |
+| ResNet-8, receta más precisa ², preparado | ESP32-S3 | RAM (SYMBEX: flash) | 9.8 ms (147 KB de RAM) | **6.02 ms** (217 KB de RAM) | — | SYMBEX **1.63× más rápido**, con más RAM |
 | ResNet-8 | ESP32 | flash | 712.4 ms | **63.3 ms** | 717.8 ms | SYMBEX **11.3× más rápido** |
 | ResNet-8 | ESP32 | RAM | 603.4 ms | **59.7 ms** | — | SYMBEX **10.1× más rápido** |
+| ResNet-8, receta más precisa ² | ESP32 | flash | 712.4 ms | **62.5 ms** | 717.8 ms | SYMBEX **11.4× más rápido** |
+| ResNet-8, receta más precisa ² | ESP32 | RAM | 603.4 ms | **58.2 ms** | — | SYMBEX **10.4× más rápido** |
 | MLP 784-128-512-10 | ESP32-S3 | flash | 11.38 ms | **0.42 ms** | 11.67 ms | SYMBEX **27× más rápido** |
 | MLP 784-128-512-10 | ESP32-S3 | RAM | **0.317 ms** (177 KB de RAM) | 0.414 ms | 0.888 ms | ESP-DL **1.31× más rápido** |
 | MLP 784-128-512-10 | ESP32 | flash | 28.49 ms | **3.55 ms** | 31.11 ms | SYMBEX **8.0× más rápido** |
@@ -145,7 +153,7 @@ Los pesos y las activaciones binarias cuestan precisión. Cuánto depende de la 
 | Detección de personas FOMO, F1 | **31.2 ± 0.7 %** | 30.1 ± 0.2 % | binaria tan buena como INT8 |
 | Dígitos en un Arduino Uno (entrada de 1 bit) | 94.5 ± 1.3 % | FP32 con la misma entrada: 94.4 % | binarizar la red no cuesta nada |
 | MLP, Fashion-MNIST (784-128-512-10) | 87.5 % | 89.8 % (QAT) | −2.3 puntos |
-| ResNet-8, CIFAR-10 | 71.3 ± 0.8 % (73.1 % dimensionada para binario) | 87.0 % (MLPerf Tiny) | −14 a −16 puntos |
+| ResNet-8, CIFAR-10 | 71.3 ± 0.8 % (73.1 % dimensionada para binario; 76.7 ± 0.3 % con la primera capa y el clasificador int8 ²) | 87.0 % (MLPerf Tiny) | −10 a −16 puntos |
 | Reconocimiento de actividad, redes grandes | 56.8-58.8 % | 66.2-67.9 % (TFLite) | unos −9 puntos |
 
 La detección, y las tareas pequeñas con una entrada binaria, se binarizan bien. Las clases que solo se distinguen por
@@ -153,6 +161,9 @@ detalles finos, como las diez de CIFAR-10, son las que más pierden. Con una ent
 primera capa int8 es más rápida y más precisa que una binaria (ver el benchmark 1D).
 
 ## Los benchmarks
+
+Cada benchmark tiene una carpeta `reference/` con un modelo listo (semilla 42), su modelo INT8 y los comandos para
+medir los dos en una placa sin entrenar ([Metodología](methodology.es.md)).
 
 ### ResNet-8 en CIFAR-10: contra el modelo oficial de MLPerf Tiny
 
@@ -171,6 +182,10 @@ primera capa int8 es más rápida y más precisa que una binaria (ver el benchma
 - **Pico 2:** 56.1 ms en Hazard3 y 74.5 ms en el M33; en el M33 el modo preparado del motor vertical la ejecuta en
   57.4 ms (semilla 42, un ranking; [El motor vertical](vertical.es.md#otros-chips-pico-2)). TFLite Micro INT8 con
   CMSIS-NN en el M33: 453.0 ms (6.1×), 211.4 ms con el modelo en RAM; en Hazard3, con los kernels de referencia: 5702 ms.
+- **La receta más precisa** (primera capa int8 + Bop + clasificador int8 con pooling, el resto binario; en el CDT):
+  76.7 ± 0.3 % en el conjunto de prueba con 29.0 KB de flash. ESP32-S3 32.3 ms (1.61×), motor vertical 9.70 / 7.07 /
+  6.02 ms (por defecto / compacto / preparado); ESP32 62.5 ms (11.5×); M33 67.8 ms (6.7×); Hazard3 57.9 ms. Lista para
+  usar en [`reference/`](../benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md).
 - **Memoria:** 24.3 KB de flash frente a 96.2 KB, y 15 KB de RAM frente a una arena de 53-80 KB.
 - **Precisión:** 71.3 ± 0.8 % frente a 87.0 %. Con la red dimensionada para binario (16-32-128 / 1-1-2) llega a 73.1 %
   a la misma velocidad.
@@ -225,3 +240,5 @@ primera capa int8 es más rápida y más precisa que una binaria (ver el benchma
   frente a 9.8 ms con 63 KB; el modo compacto gana con 7.70 ms y casi la misma RAM, 151 KB frente a 147 KB), y el
   motor vertical para el MLP y las redes 1D.
 - Volver a calibrar el umbral de decisión de FOMO sobre el nuevo split de validación.
+- Un kernel de primera capa int8 para Hazard3: ahí la primera capa int8 sigue un poco más lenta que el termómetro
+  (ResNet-8 completa, semilla 42: 57.4 frente a 56.1 ms); en todas las demás placas ya es más rápida.

@@ -1,0 +1,78 @@
+{
+ "arch": "max",
+ "layers": [
+  [
+   "conv",
+   32,
+   15
+  ],
+  [
+   "conv",
+   32,
+   15
+  ],
+  [
+   "pool",
+   4
+  ],
+  [
+   "conv",
+   32,
+   15
+  ],
+  [
+   "pool",
+   4
+  ]
+ ],
+ "first": "binary",
+ "seed": 42,
+ "epochs": 100,
+ "lr": 0.005,
+ "best_epoch": 85,
+ "validation": 69.37077483099324,
+ "test": 59.46872322193659,
+ "features": 128,
+ "history": [
+  {
+   "epoch": 10,
+   "validation": 59.4383775351014
+  },
+  {
+   "epoch": 20,
+   "validation": 64.63858554342174
+  },
+  {
+   "epoch": 30,
+   "validation": 63.39053562142486
+  },
+  {
+   "epoch": 40,
+   "validation": 61.98647945917837
+  },
+  {
+   "epoch": 50,
+   "validation": 63.026521060842434
+  },
+  {
+   "epoch": 60,
+   "validation": 64.37857514300572
+  },
+  {
+   "epoch": 70,
+   "validation": 63.44253770150806
+  },
+  {
+   "epoch": 80,
+   "validation": 67.55070202808112
+  },
+  {
+   "epoch": 90,
+   "validation": 67.81071242849714
+  },
+  {
+   "epoch": 100,
+   "validation": 65.52262090483619
+  }
+ ]
+}

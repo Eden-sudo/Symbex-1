@@ -1,0 +1,15 @@
+{
+ "n": 2000,
+ "arithmetic": "and",
+ "acc_pytorch": 88.64999999999999,
+ "acc_integer": 88.64999999999999,
+ "fidelity": 100.0,
+ "bit_agreement": [
+  100.0,
+  100.0
+ ],
+ "flash_bytes": 27936,
+ "header": "../benchmarks/mlp/mlp_fashion/reference/model_symbex.h",
+ "c_exactness": 100.0,
+ "c_note": ""
+}

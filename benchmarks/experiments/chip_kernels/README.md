@@ -12,6 +12,7 @@ docstring.
 | `s8_dot_rows_chip_test.py` | is the S3 PIE kernel `symbex_s8_dot_rows` exact at every alignment? | 9,792 cases, weights in RAM and flash: all equal to C |
 | `int8_first_bench.py` | does an int8 first layer speed up mlp_fashion and ResNet-8, as it does conv1d? | below |
 | `stem_i8_pie_bench.py` | can the int8 stem use PIE better on the ESP32-S3? | 5.7× faster stem, now in lib_symbex (below) |
+| `stem_i8_pico_bench.py` | where does the int8 stem's time go on the Pico 2, and can it go faster? | 1.4-1.6× faster stem, now in lib_symbex (below) |
 | `dense_short_bench.py` | why is a first dense layer with few inputs (19 sensors → 64) slow? | 2.2-2.5× faster, now in lib_symbex (below) |
 
 Results in `results/`; the generated firmware projects in `runs/` (not in git).
@@ -71,6 +72,43 @@ their kernels (checked, seed 42, exact: ESP32 and both Pico 2 cores the same or 
 
 ```
 python stem_i8_pie_bench.py --port /dev/ttyACM0
+```
+
+## The int8 stem on the Pico 2 (`stem_i8_pico_bench.py`, Nov 6)
+
+**Question.** On the Pico 2 the int8 stem took ~20 % of ResNet-8 (M33 14.6 ms, Hazard3 19.1 ms). Is the time in
+building the 27-byte window per pixel, or in the multiplies? Can a kernel without windows do better?
+
+**What we did.** Timed the library's kernel, its two halves alone (`window`, `dots`) and two candidates: `ring` (3
+padded rows, no window, one pixel at a time) and `rows` (the same rows, then per channel and kernel row the 9 weights
+stay in registers while 16 output pixels stream past; M33: the strip split once into SXTB16 halves, 5 SMLAD per
+pixel; Hazard3: 2 channels per pass). Weights in flash, random, every kernel checked against plain C on the chip.
+
+**Result (measured, best of 7, exact, code in RAM; ms):**
+
+| Core | Shape | library | window alone | dots alone | ring | **rows** | |
+|---|---|---|---|---|---|---|---|
+| M33 | ResNet-8 stem (32×32, 16 ch) | 14.57 | 2.04 | 13.68 | 12.49 | **9.21** | 1.58× |
+| M33 | 40 ch, stride 2 | 8.10 | 0.52 | 8.30 | 8.34 | **5.69** | 1.42× |
+| M33 | 48×48, 24 ch | 45.79 | 4.61 | 45.02 | 41.84 | **30.32** | 1.51× |
+| Hazard3 | ResNet-8 stem | 19.05 | 1.78 | 17.23 | 21.45 | **12.29** | 1.55× |
+| Hazard3 | 40 ch, stride 2 | 11.08 | 0.45 | 10.66 | 14.22 | **7.74** | 1.43× |
+| Hazard3 | 48×48, 24 ch | 61.71 | 4.04 | 57.72 | 72.16 | **41.16** | 1.50× |
+
+Code in flash gives the same times within 2 % (`results/stem_i8_pico_bench_pico2_arm_flash.json`, measured after the
+move: there `library` already runs `rows`, 9.17 ms).
+
+**Answer.** The multiplies are the time (~94 % of the M33 stem), not the window (~2 ms). Keeping the weights in registers and the
+pixels pre-split is what pays. `rows` is in lib_symbex as `stem3_rows` (`symbex_bool.c`), the 3×3 int8 stem of every
+board but the S3 (which has its PIE kernel): rows up to 64 wide, the window path past that; same bits always
+(`run_tests.py`, 6 HALs, rows up to 80 wide, sanitizers). Whole ResNet-8 (int8 stem + Bop + pool2), 3 seeds, exact:
+M33 73.57 → 67.77 ms, Hazard3 65.52 → 57.94 ms, ESP32 69.31 → 62.52 ms (weights in flash; `../../conv2d/cnn_cifar_resnet8`).
+Further: the M33 inner loop is 14 instructions per pixel and kernel row; assembly with software pipelining could go
+lower (not tried).
+
+```
+python stem_i8_pico_bench.py --board pico2_arm --port /dev/ttyACM1 --code ram     # Cortex-M33
+python stem_i8_pico_bench.py --board pico2_riscv --port /dev/ttyACM1 --code ram   # Hazard3
 ```
 
 ## Short first dense layers (`dense_short_bench.py`, Nov 7)
