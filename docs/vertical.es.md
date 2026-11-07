@@ -236,6 +236,9 @@ semillas):
   disposición del código. Con `-DSYMBEX_CODE_IN_RAM` (`--code ram`) midió 60.0 ms en todas. En esta compilación la
   disposición en flash resulta buena, y el código en RAM da casi los mismos tiempos (M33 67.7 / 59.9 / 58.0 ms,
   Hazard3 69.0 / 61.8 / 60.2 ms); está para las compilaciones donde la disposición sale mal.
+- La receta más precisa (stem int8 + clasificador int8 con pooling, `int8stem_pool2` del CDT; 3 semillas, pesos en
+  flash, exacta) mantiene el mismo orden. Cortex-M33: estándar 67.77, vertical 66.91, compacto 60.95, preparado
+  **59.12 ms**. Hazard3: estándar **57.93**, vertical 71.92, compacto 64.11, preparado 62.66 ms.
 
 ## Coste
 
@@ -291,4 +294,4 @@ valor por defecto, así que las comparaciones mantienen la configuración por de
 
 El estudio capa por capa que llevó a este motor (listas y umbrales precalculados frente a construidos en el chip, caché
 fría y caliente) es `benchmarks/conv2d/cnn_cifar_resnet8/s3_vertical_layers.py`, con sus resultados en
-`results/s3_vertical_layers*.json`.
+`results/symbex/s3_vertical_layers*.json`.

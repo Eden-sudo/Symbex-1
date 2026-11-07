@@ -117,6 +117,9 @@ With a strong teacher the picture flips: see `cnn_cifar_resnet20`, where distill
 
 ## Reproduce
 
+**Without training:** [`reference/`](reference/README.md) holds seed 42 of the main result (64-256-10, fully binary), ready to compile or
+measure, next to its INT8 model.
+
 From `benchmarks/mlp/mlp_digits/` (environment `env_bench`).
 
 **Option A -- the same FP32 model (recommended).** The FP32 original is published in `models/digits_mlp.pth`
@@ -154,19 +157,19 @@ the ESP32-S3 through its native USB port with `--usb`).
 | `symbex.toml` | the CDT configuration (Arduino Uno: 2 KB of RAM, 32 KB of flash, 50% budget) |
 | `digits_symbex.py` | runs the CDT per seed and per board; summary tables |
 | `digits_tflite.py` | the INT8 reference with TensorFlow Lite Micro (ESP32, ESP32-S3) |
-| `results/symbex_seeds_<board>_b1_w2_nd.json` | main result (fully binary, x2, labels only), per board |
-| `results/symbex_seeds_<board>_b4.json` | 4-bit input (x2), per board |
-| `results/symbex_seeds_pc_*.json` | every variant on the PC: validation and test accuracy |
-| `results/tflite_<board>.json` | TensorFlow Lite Micro |
-| `results/symbex_s<seed>_*` | every seed: training, estimate, export and chip measurements |
-| `results/earlier_test_validated/` | the earlier results, when the test images were also the validation set |
+| `results/symbex/symbex_seeds_<board>_b1_w2_nd.json` | main result (fully binary, x2, labels only), per board |
+| `results/symbex/symbex_seeds_<board>_b4.json` | 4-bit input (x2), per board |
+| `results/symbex/symbex_seeds_pc_*.json` | every variant on the PC: validation and test accuracy |
+| `results/tflite/tflite_<board>.json` | TensorFlow Lite Micro |
+| `results/symbex/symbex_s<seed>_*` | every seed: training, estimate, export and chip measurements |
+| `results/earlier/` | the earlier results, when the test images were also the validation set |
 
 ## Earlier version
 
 Until October 28 the test images were also the validation set, so the width (x4) and the threshold were chosen on
 test. With a validation split carved from the training data, the widths tie and the smallest (x2) is chosen: the
 main result is now half the flash and twice as fast, at the same accuracy. The earlier results stay in
-`results/earlier_test_validated/`.
+`results/earlier/`.
 
 Measured in October 2026 on an Arduino Uno (ATmega328P), an ESP32 dev board (PlatformIO `esp32dev`), an
 ESP32-S3-DevKitC-1 and a Raspberry Pi Pico 2 (RP2350), all at their stock clocks; weights in flash, the minimum-RAM

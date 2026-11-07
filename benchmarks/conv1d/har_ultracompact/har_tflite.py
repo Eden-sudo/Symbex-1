@@ -18,8 +18,8 @@ are scored once. Then:
     board   TensorFlow Lite Micro (esp-tflite-micro, ESP-NN; the firmware of mlp_fashion/fashion_tflite.py) on the first
             --windows validation windows: latency, arena, and the same class as the PC interpreter, window by window
             (the same windows chip_test.py sends to the SYMBEX network)
-Results: models/har_int8_<arch>_s<seed>.tflite (+ .weights.h5, the float Keras weights), results/tflite_pc_<arch>_s<seed>.json,
-results/tflite_<board>_<arch>_s<seed>[_ram].json.
+Results: models/har_int8_<arch>_s<seed>.tflite (+ .weights.h5, the float Keras weights), results/tflite/tflite_pc_<arch>_s<seed>.json,
+results/tflite/tflite_<board>_<arch>_s<seed>[_ram].json.
 """
 import argparse
 import json
@@ -133,7 +133,7 @@ def convert(arch, weights, path, tf):
 def run_pc(arch, seed, epochs, lr, tf):
     name = f"{arch}_s{seed}"
     path = os.path.join("models", f"har_int8_{name}.tflite")
-    out = os.path.join("results", f"tflite_pc_{name}.json")
+    out = os.path.join("results", "tflite", f"tflite_pc_{name}.json")
     info = json.load(open(out)) if os.path.exists(out) else {}
     if not os.path.exists(path):
         info = train_convert(arch, seed, epochs, lr, path, tf)
@@ -183,7 +183,7 @@ def run_board(args, tflite, ops):
     print(f"    same class as the PC interpreter : {equal:.2f}%" + ("" if equal == 100 else "  [X]"))
     print(f"    latency                          : median {np.median(times) / 1000:.3f} ms | min {times.min() / 1000:.3f} ms")
     print(f"    flash (model) / RAM (arena)      : {len(tflite) / 1024:.1f} KB / {arena / 1024:.1f} KB")
-    out = os.path.join("results", f"tflite_{args.board}_{name}{ram}.json")
+    out = os.path.join("results", "tflite", f"tflite_{args.board}_{name}{ram}.json")
     json.dump(dict(arch=args.arch, seed=args.seed, board=args.board, weights=args.weights, windows=n, equal_to_pc=equal,
                    median_ms=float(np.median(times)) / 1000, min_ms=float(times.min()) / 1000,
                    model_kb=len(tflite) / 1024, arena_kb=arena / 1024), open(out, "w"), indent=1)
@@ -209,7 +209,7 @@ def main():
     args = ap.parse_args()
     os.chdir(HERE)
     os.makedirs("models", exist_ok=True)
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join("results", "tflite"), exist_ok=True)
     import tensorflow as tf
     for g in tf.config.list_physical_devices("GPU"):                 # share the GPU with other trainings
         tf.config.experimental.set_memory_growth(g, True)

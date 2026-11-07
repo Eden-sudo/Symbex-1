@@ -50,6 +50,12 @@ one included (the image enters as a thermometer of bits); 3 training seeds, labe
 | RAM | **15 KB** | 53-80 KB |
 | Same result as its PC reference | **100 %** | 98.1 % |
 
+**The most accurate recipe.** With an int8 first layer on the pixels and a pooled int8 classifier (every other layer
+binary, Bop for the binary weights; `--variant int8stem_pool2` in the CDT), the same ResNet-8 reaches **76.7 ± 0.3 %**
+and runs faster: ESP32-S3 32.3 ms (1.61×), 6.0-9.7 ms with the vertical engine; ESP32 62.5 ms (11.5×); Pico 2 M33
+67.8 ms (6.7×), Hazard3 57.9 ms; 29 KB of flash, exact on every board. Seed 42 is ready to use in
+[`reference/`](benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md).
+
 **Sized for binary.** The best shape of a binary network is not the INT8 one: a sizing study (blocks and channels per
 stage, latency predicted from measured chip profiles) found that the first stages can be thinner and the last one
 wider. Measured on the chip, 3 seeds (on the ESP32 the gain is accuracy at the same speed; the best shape depends on
@@ -134,6 +140,8 @@ against int8 (multiply-accumulate).
    100 %: every exported model is checked, every time.
 
 ## Methodology
+
+The full standard, the references and how to repeat a benchmark: [docs/methodology.md](docs/methodology.md). In short:
 
 - **Same architecture** whenever SYMBEX is compared with INT8 (the official MLPerf model, or the same network trained
   with the same recipe); a resized binary network is compared with INT8 resized the same way.

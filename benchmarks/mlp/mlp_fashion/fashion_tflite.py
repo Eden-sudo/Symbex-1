@@ -6,6 +6,8 @@ fashion_tflite.py -- mlp_fashion benchmark, official INT8 side (TensorFlow Lite)
     python fashion_tflite.py --table-only       # only the comparison table, from results/tflite/ (no board)
     python fashion_tflite.py --shape 128-512 --board s3 --port /dev/ttyACM0 --usb   # INT8 of the binary-sized MLP
     python fashion_tflite.py --shape 128-512 --board pico2_arm --port /dev/ttyACM1    # Pico 2 M33, TFLite Micro + CMSIS-NN
+    python fashion_tflite.py --shape 128-512 --model reference/fashion_int8_h128_512.tflite --board s3 --port /dev/ttyACM0 --usb
+                                                # a given .tflite as it is (no FP32 model, no conversion)
 --no-upload assumes the TFLite firmware is still on the board: after running the SYMBEX side (which flashes
 its own firmware), measure without --no-upload, or just print the table with --table-only.
 
@@ -527,6 +529,8 @@ def main():
                     help="epochs of the FP32 model (default model.EPOCHS); others: models/fashion_mlp[...]_e<N>.pth, "
                          "results get _f<N>")
     ap.add_argument("--usb", action="store_true", help="the ESP32-S3's native USB port (/dev/ttyACM0), not its UART")
+    ap.add_argument("--model", help="measure this .tflite as it is, no FP32 model and no conversion (e.g. "
+                                    "reference/fashion_int8_h128_512.tflite; --shape only labels it); results get _<file name>")
     args = ap.parse_args()
     if args.port and not args.port.startswith("/") and not args.port.upper().startswith("COM"):
         args.port = "/dev/" + args.port                  # "ttyUSB0" -> "/dev/ttyUSB0"
@@ -538,6 +542,11 @@ def main():
     from model import EPOCHS
     fp32_epochs = args.fp32_epochs or EPOCHS
     tag += "" if fp32_epochs == EPOCHS else f"_f{fp32_epochs}"
+    model_path = os.path.abspath(args.model) if args.model else None    # relative to where it is run
+    if model_path:
+        if not os.path.exists(model_path):
+            sys.exit(f"[X] {model_path} not found")
+        tag = "_" + os.path.splitext(os.path.basename(model_path))[0]   # never overwrites the converted model's results
     os.chdir(HERE)
     if args.table_only:
         board = args.board or "esp32"
@@ -548,26 +557,34 @@ def main():
         return
     sys.path.insert(0, HERE)
     from model import get_fp32, validation_u8, calibration_u8
-    fp32_path = get_fp32(h1, h2, fp32_epochs)        # trained here if missing (models/)
     x_val, y_val = validation_u8(args.validation)        # the same images the SYMBEX side validates
-
-    print("[*] 1-2. Keras rebuild of the original FP32 model and official INT8 conversion (TFLiteConverter)")
-    calib = calibration_u8(1000).astype(np.float32) / 255.0
-    layers = folded_weights(fp32_path)
-    m = keras_model(layers)
-    os.makedirs("runs/tflite", exist_ok=True)
-    tflite = convert_int8(m, calib)
-    open(f"runs/tflite/fashion_int8{tag}.tflite", "wb").write(tflite)
-    pred_k = np.argmax(m.predict(x_val.astype(np.float32) / 255.0, verbose=0), axis=1)
-    print(f"    Keras FP32 rebuild: {100 * (pred_k == y_val).mean():.2f}% on {len(y_val)} validation images "
-          f"(must match the original FP32 model)")
+    if model_path:
+        print(f"[*] 1-2. the given INT8 model, as it is: {model_path}")
+        tflite = open(model_path, "rb").read()
+        pred_k = None                                    # no FP32 model to compare with
+    else:
+        fp32_path = get_fp32(h1, h2, fp32_epochs)        # trained here if missing (models/)
+        print("[*] 1-2. Keras rebuild of the original FP32 model and official INT8 conversion (TFLiteConverter)")
+        calib = calibration_u8(1000).astype(np.float32) / 255.0
+        layers = folded_weights(fp32_path)
+        m = keras_model(layers)
+        os.makedirs("runs/tflite", exist_ok=True)
+        tflite = convert_int8(m, calib)
+        open(f"runs/tflite/fashion_int8{tag}.tflite", "wb").write(tflite)
+        pred_k = np.argmax(m.predict(x_val.astype(np.float32) / 255.0, verbose=0), axis=1)
+        print(f"    Keras FP32 rebuild: {100 * (pred_k == y_val).mean():.2f}% on {len(y_val)} validation images "
+              f"(must match the original FP32 model)")
 
     print("[*] 3. INT8 on the PC (TFLite interpreter)")
     pred_pc, (in_scale, zero_point) = evaluate_pc(tflite, x_val)
-    r_pc = dict(accuracy=100 * float((pred_pc == y_val).mean()), acuerdo_fp32=100 * float((pred_pc == pred_k).mean()),
+    r_pc = dict(accuracy=100 * float((pred_pc == y_val).mean()),
+                acuerdo_fp32=None if pred_k is None else 100 * float((pred_pc == pred_k).mean()),
                 tflite_bytes=len(tflite), input_scale=in_scale, input_zero_point=zero_point, n=len(y_val),
                 shape=f"784-{h1}-{h2}-10")
-    print(f"    accuracy {r_pc['accuracy']:.2f}% | same class as FP32 {r_pc['acuerdo_fp32']:.2f}% | "
+    if model_path:
+        r_pc["model"] = os.path.relpath(model_path, HERE)
+    same = "not compared" if pred_k is None else f"{r_pc['acuerdo_fp32']:.2f}%"
+    print(f"    accuracy {r_pc['accuracy']:.2f}% | same class as FP32 {same} | "
           f".tflite {len(tflite) / 1024:.1f} KB | input scale {in_scale:.6f}, zero point {zero_point}")
     os.makedirs(os.path.join("results", "tflite"), exist_ok=True)
     json.dump(r_pc, open(f"results/tflite/tflite_pc{tag}.json", "w"), indent=1)

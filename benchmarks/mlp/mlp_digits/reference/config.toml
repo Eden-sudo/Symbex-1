@@ -1,0 +1,59 @@
+[model]
+file = "../benchmarks/mlp/mlp_digits/reference/model_init.pth"
+definition = "../benchmarks/mlp/mlp_digits/model.py:DigitsMLP"
+method = "plain"
+
+[data]
+directory = "../benchmarks/data/digits"
+format = "npy"
+validation_split = 0.1
+calibration_samples = 64
+split_seed = -1
+mean = [0.306]
+std = [0.3762]
+input_bits = 1
+
+[hardware]
+ram_kb = 2
+flash_kb = 32
+psram_kb = 0
+cpu_bits = 8
+
+[target]
+budget = 0.5
+tolerance = 0.99
+options = ["bin"]
+max_accuracy_drop = 1.0
+search_epochs = 30
+widths = [2]
+
+[training]
+epochs = 150
+distill = true
+temperature = 4.0
+alpha = 0.85
+learning_rate = 0.001
+batch_size = 64
+checkpoint = "last"
+seed = 42
+data_on_gpu = false
+compile = ""
+
+[output]
+directory = "../benchmarks/mlp/mlp_digits/reference"
+verbose = true
+lib_path = "../Symbex1_PIO/lib/lib_symbex"
+validation_samples = 360
+arithmetic = "auto"
+int8_reference = false
+
+[chip]
+board = ""
+port = "/dev/ttyUSB1"
+baud = 921600
+samples = 360
+upload = true
+popcount = "swar"
+weights = "flash"
+compare_arithmetic = false
+

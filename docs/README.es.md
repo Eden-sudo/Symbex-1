@@ -11,7 +11,8 @@ entran en los detalles.
 | [CDT](cdt.es.md) | El compilador: de un modelo de PyTorch a un header de C comprobado, en la PC y en el chip |
 | [Librería](library.es.md) | lib_symbex: las capas, la capa de hardware de cada chip, cómo añadirla a un proyecto |
 | [Resultados](results.es.md) | Todos los benchmarks en un solo lugar: velocidad, flash y precisión frente a INT8, con las gráficas |
-| [El motor vertical](vertical.es.md) | Contar 128 ventanas a la vez: ResNet-8 en 10.4 ms en el ESP32-S3 (7.7 / 6.4 ms con los modos opcionales compacto / preparado), la fórmula y la lógica de inferencia |
+| [Metodología](methodology.es.md) | El estándar de medición: qué se compara contra qué (INT8, INT4 / INT2, otro motor binario), la lista que sigue cada benchmark, cómo repetirlo |
+| [El motor vertical](vertical.es.md) | Contar 128 ventanas a la vez: ResNet-8 en 10.4 ms en el ESP32-S3 (7.7 / 6.4 ms con los modos opcionales compacto / preparado; 6.0 ms con el stem int8), la fórmula y la lógica de inferencia |
 
 Los diagramas están escritos en [Mermaid](https://mermaid.js.org/) dentro de las páginas (GitHub los dibuja). Las
 gráficas viven en [`assets/`](assets/) y se generan a partir de los archivos de resultados de los benchmarks, así que

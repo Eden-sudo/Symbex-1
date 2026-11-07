@@ -1,0 +1,110 @@
+{
+ "method": "boolean",
+ "task": "fomo",
+ "header": "reference/model_symbex.h",
+ "flash_bytes": 42232,
+ "ram_buffers": 52000,
+ "steps": [
+  "thermometer (8 levels) + stem 24->32 96x96",
+  "block 0: conv 32->32 48x48 | OR",
+  "block 1: conv 32->32 48x48 s2 + OR pool + 1x1 | OR",
+  "block 2: conv 32->32 24x24 | OR",
+  "block 3: conv 32->128 24x24 s2 + OR pool + 1x1 | OR",
+  "block 4: conv 128->128 12x12 | OR",
+  "per-cell head"
+ ],
+ "layers": [
+  {
+   "cin": 24,
+   "cout": 32,
+   "k": 3,
+   "stride": 2,
+   "h": 96,
+   "out_h": 48,
+   "bit_ops": 15925248
+  },
+  {
+   "cin": 32,
+   "cout": 32,
+   "k": 3,
+   "stride": 1,
+   "h": 48,
+   "out_h": 48,
+   "bit_ops": 21233664
+  },
+  {
+   "cin": 32,
+   "cout": 32,
+   "k": 3,
+   "stride": 2,
+   "h": 48,
+   "out_h": 24,
+   "bit_ops": 5308416
+  },
+  {
+   "cin": 32,
+   "cout": 32,
+   "k": 1,
+   "stride": 1,
+   "h": 24,
+   "out_h": 24,
+   "bit_ops": 589824
+  },
+  {
+   "cin": 32,
+   "cout": 32,
+   "k": 3,
+   "stride": 1,
+   "h": 24,
+   "out_h": 24,
+   "bit_ops": 5308416
+  },
+  {
+   "cin": 32,
+   "cout": 128,
+   "k": 3,
+   "stride": 2,
+   "h": 24,
+   "out_h": 12,
+   "bit_ops": 5308416
+  },
+  {
+   "cin": 32,
+   "cout": 128,
+   "k": 1,
+   "stride": 1,
+   "h": 12,
+   "out_h": 12,
+   "bit_ops": 589824
+  },
+  {
+   "cin": 128,
+   "cout": 128,
+   "k": 3,
+   "stride": 1,
+   "h": 12,
+   "out_h": 12,
+   "bit_ops": 21233664
+  }
+ ],
+ "threshold": 1.0417394638061523,
+ "f1_torch": {
+  "precision": 35.55313944006524,
+  "recall": 28.886925795053003,
+  "f1": 31.87522846350676,
+  "tp": 1308,
+  "fp": 2371,
+  "fn": 3220
+ },
+ "f1_sim": {
+  "precision": 35.5640535372849,
+  "recall": 28.75441696113074,
+  "f1": 31.798754426669923,
+  "tp": 1302,
+  "fp": 2359,
+  "fn": 3226
+ },
+ "fidelity": 99.98429366361515,
+ "exactness": 100.0,
+ "images": 1000
+}

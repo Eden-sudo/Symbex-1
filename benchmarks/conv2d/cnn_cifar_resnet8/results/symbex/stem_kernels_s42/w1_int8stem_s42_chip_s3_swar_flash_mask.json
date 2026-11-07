@@ -1,0 +1,58 @@
+{
+ "board": "s3",
+ "hal": "esp32s3: PIE pie_swar (AND / XOR layers) + SWAR (single words, XNOR layers)",
+ "popcount": "swar",
+ "weights": "flash",
+ "first_layer": "mask",
+ "n": 1000,
+ "equal_simulation": 100.0,
+ "accuracy": 77.4,
+ "median_ms": 32.098,
+ "min_ms": 32.086,
+ "layers": [
+  {
+   "step": "int8 stem 3->16 32x32",
+   "median_ms": 0.749
+  },
+  {
+   "step": "block 0: conv 16->16 32x32 | OR",
+   "median_ms": 7.733
+  },
+  {
+   "step": "block 1: conv 16->16 32x32 | OR",
+   "median_ms": 7.732
+  },
+  {
+   "step": "block 2: conv 16->32 32x32 s2 + OR pool + 1x1 | OR",
+   "median_ms": 5.399
+  },
+  {
+   "step": "block 3: conv 32->32 16x16 | OR",
+   "median_ms": 4.282
+  },
+  {
+   "step": "block 4: conv 32->64 16x16 s2 + OR pool + 1x1 | OR",
+   "median_ms": 3.007
+  },
+  {
+   "step": "block 5: conv 64->64 8x8 | OR",
+   "median_ms": 3.134
+  },
+  {
+   "step": "classifier",
+   "median_ms": 0.061
+  }
+ ],
+ "ram": {
+  "buffers": 10832,
+  "input_bytes": 3072,
+  "popcount_table": 0,
+  "stack_used": 1380,
+  "weights_in_ram": 0,
+  "code_in_ram": 0,
+  "total": 15284
+ },
+ "model_flash": 24568,
+ "code": "flash",
+ "flash_config": "default"
+}

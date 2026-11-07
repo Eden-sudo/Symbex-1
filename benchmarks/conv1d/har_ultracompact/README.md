@@ -344,6 +344,9 @@ SYMBEX takes any count.
 
 ## Reproduce
 
+**Without training:** [`reference/`](reference/README.md) holds seed 42 of the max network, fully binary, ready to compile or
+measure, next to its INT8 model.
+
 ```
 cd benchmarks/conv1d/har_ultracompact                       # environment env_bench
 python har_data.py                                          # needs UniMiB-SHAR in ../../data/unimib_shar/
@@ -377,8 +380,8 @@ python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s
 python ../../experiments/chip_kernels/int8_first_bench.py --port /dev/ttyACM0
 ```
 
-Results: `results/` (GVSoC, accuracy, TFLite, lowbit), `runs/<run>/chip_<board>_<popcount>_<weights>_mask.json` (SYMBEX
-on the boards).
+Results: `results/symbex/` (SYMBEX on GVSoC, accuracy), `results/ucbnn/` (ultracompactBNN on GVSoC), `results/tflite/`,
+`results/lowbit/`, `runs/<run>/chip_<board>_<popcount>_<weights>_mask.json` (SYMBEX on the boards).
 
 ## Future work
 

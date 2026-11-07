@@ -1,0 +1,33 @@
+# The ResNet-8 reference model (seed 42): fully binary, int8 first layer, Bop, pooled int8 classifier.
+# Paths are relative to tools/, where cdt.py and chip_test.py run. Rebuild the export and the validation files
+# without training:   cd tools && python cdt.py ../benchmarks/conv2d/cnn_cifar_resnet8/reference/config.toml --from export --to export
+[model]
+file = "../benchmarks/conv2d/cnn_cifar_resnet8/reference/model_init.pth"
+definition = "../benchmarks/conv2d/cnn_cifar_resnet8/model.py:BoolResNet8Int8StemPool2"
+method = "boolean"
+
+[data]
+directory = "../benchmarks/data/cifar10"
+format = "cifar10"
+mean = []                                     # the network takes the pixels themselves
+std = []
+
+[training]
+epochs = 150
+learning_rate = 0.005
+batch_size = 128
+distill = false                               # labels only
+seed = 42
+data_on_gpu = true
+compile = "reduce-overhead"
+binary_optimizer = "bop"
+
+[output]
+directory = "../benchmarks/conv2d/cnn_cifar_resnet8/reference"
+verbose = true
+lib_path = "../Symbex1_PIO/lib/lib_symbex"
+validation_samples = 2000
+
+[chip]
+samples = 1000
+popcount = "swar"
