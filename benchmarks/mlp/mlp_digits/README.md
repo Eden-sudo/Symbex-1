@@ -117,6 +117,9 @@ With a strong teacher the picture flips: see `cnn_cifar_resnet20`, where distill
 
 ## Reproduce
 
+**Without training:** [`reference/`](reference/README.md) holds seed 42 of the main result (64-256-10, fully binary), ready to compile or
+measure, next to its INT8 model.
+
 From `benchmarks/mlp/mlp_digits/` (environment `env_bench`).
 
 **Option A -- the same FP32 model (recommended).** The FP32 original is published in `models/digits_mlp.pth`

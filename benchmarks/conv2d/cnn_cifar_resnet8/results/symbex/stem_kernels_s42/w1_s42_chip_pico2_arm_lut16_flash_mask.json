@@ -1,0 +1,58 @@
+{
+ "board": "pico2_arm",
+ "hal": "generic: lut16 (64 KB table in RAM), rp2350 first layer: usada8",
+ "popcount": "lut16",
+ "weights": "flash",
+ "first_layer": "mask",
+ "n": 1000,
+ "equal_simulation": 100.0,
+ "accuracy": 71.5,
+ "median_ms": 74.5745,
+ "min_ms": 74.369,
+ "layers": [
+  {
+   "step": "thermometer (8 levels) + stem 24->16 32x32",
+   "median_ms": 17.6925
+  },
+  {
+   "step": "block 0: conv 16->16 32x32 | OR",
+   "median_ms": 12.901
+  },
+  {
+   "step": "block 1: conv 16->16 32x32 | OR",
+   "median_ms": 12.655
+  },
+  {
+   "step": "block 2: conv 16->32 32x32 s2 + OR pool + 1x1 | OR",
+   "median_ms": 7.959
+  },
+  {
+   "step": "block 3: conv 32->32 16x16 | OR",
+   "median_ms": 8.626
+  },
+  {
+   "step": "block 4: conv 32->64 16x16 s2 + OR pool + 1x1 | OR",
+   "median_ms": 5.81
+  },
+  {
+   "step": "block 5: conv 64->64 8x8 | OR",
+   "median_ms": 8.351
+  },
+  {
+   "step": "classifier",
+   "median_ms": 0.583
+  }
+ ],
+ "ram": {
+  "buffers": 10832,
+  "input_bytes": 3072,
+  "popcount_table": 65544,
+  "stack_used": 1296,
+  "weights_in_ram": 0,
+  "code_in_ram": 0,
+  "total": 80744
+ },
+ "model_flash": 24920,
+ "code": "flash",
+ "flash_config": "default"
+}

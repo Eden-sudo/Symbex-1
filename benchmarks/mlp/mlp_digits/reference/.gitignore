@@ -1,0 +1,5 @@
+# Rebuilt by `cdt.py config.toml --from export --to export` and by the chip runs.
+validation_*.u8
+config_used.toml
+predictions.npz
+chip*

@@ -344,6 +344,9 @@ SYMBEX takes any count.
 
 ## Reproduce
 
+**Without training:** [`reference/`](reference/README.md) holds seed 42 of the max network, fully binary, ready to compile or
+measure, next to its INT8 model.
+
 ```
 cd benchmarks/conv1d/har_ultracompact                       # environment env_bench
 python har_data.py                                          # needs UniMiB-SHAR in ../../data/unimib_shar/

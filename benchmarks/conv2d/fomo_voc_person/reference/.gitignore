@@ -1,0 +1,3 @@
+# Rebuilt by `fomo_export.py reference` (1000 VOC 2007 test images, 27 MB) and by the chip runs.
+validation_*
+chip*

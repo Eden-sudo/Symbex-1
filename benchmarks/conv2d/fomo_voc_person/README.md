@@ -112,6 +112,9 @@ Inside the library (`tools/dev/fine_profile.py`): counting bits is ~73 % of the 
 
 ## Reproduce
 
+**Without training:** [`reference/`](reference/README.md) holds seed 42 of the resized detector (32-32-128), ready to compile or
+measure, next to its INT8 model.
+
 From this folder (environment `env_bench`, with PyTorch on CUDA and TensorFlow):
 
 ```

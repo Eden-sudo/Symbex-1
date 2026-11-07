@@ -1,0 +1,4 @@
+# Rebuilt by `har_export.py reference` (1000 validation windows) and by the chip runs.
+validation_*
+net.npz
+chip*

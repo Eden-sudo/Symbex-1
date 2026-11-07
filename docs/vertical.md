@@ -229,6 +229,9 @@ seed 42, 1000 images, every one 100 % equal to the simulation (one seed: a ranki
   `-DSYMBEX_CODE_IN_RAM` (`--code ram`) it measured 60.0 ms in every layout. In this build the flash layout happens to
   be a good one, and code in RAM gives about the same times (M33 67.7 / 59.9 / 58.0 ms, Hazard3 69.0 / 61.8 /
   60.2 ms); it is there for builds where the layout is unlucky.
+- The most accurate recipe (int8 stem + pooled int8 classifier, the CDT's `int8stem_pool2`; 3 seeds, weights in
+  flash, exact) keeps the same order. Cortex-M33: standard 67.77, vertical 66.91, compact 60.95, prepared **59.12 ms**.
+  Hazard3: standard **57.93**, vertical 71.92, compact 64.11, prepared 62.66 ms.
 
 ## Cost
 

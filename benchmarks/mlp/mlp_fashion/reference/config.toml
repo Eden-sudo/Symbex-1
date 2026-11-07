@@ -1,0 +1,59 @@
+[model]
+file = "../benchmarks/mlp/mlp_fashion/reference/model_init.pth"
+definition = "../benchmarks/mlp/mlp_fashion/model.py:FashionMLP_128_512"
+method = "plain"
+
+[data]
+directory = "../benchmarks/data/fashionmnist"
+format = "fashionmnist"
+validation_split = 0.1
+calibration_samples = 64
+split_seed = 42
+mean = [0.286]
+std = [0.353]
+input_bits = 8
+
+[hardware]
+ram_kb = 320
+flash_kb = 4096
+psram_kb = 0
+cpu_bits = 32
+
+[target]
+budget = 0.25
+tolerance = 0.99
+options = ["bin"]
+max_accuracy_drop = 100.0
+search_epochs = 1
+widths = [1]
+
+[training]
+epochs = 15
+distill = false
+temperature = 4.0
+alpha = 0.85
+learning_rate = 0.001
+batch_size = 256
+checkpoint = "last"
+seed = 42
+data_on_gpu = false
+compile = ""
+
+[output]
+directory = "../benchmarks/mlp/mlp_fashion/reference"
+verbose = false
+lib_path = "../Symbex1_PIO/lib/lib_symbex"
+validation_samples = 2000
+arithmetic = "auto"
+int8_reference = false
+
+[chip]
+board = ""
+port = "/dev/ttyUSB0"
+baud = 921600
+samples = 1000
+upload = true
+popcount = "swar"
+weights = "ram"
+compare_arithmetic = false
+
