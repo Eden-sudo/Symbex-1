@@ -53,7 +53,7 @@ to the simulation. On the S3 the counting mode matters: `--popcount swar` (PIE);
 ## Use it
 
 To build it into a project, copy `model_symbex.h` next to your code and follow the
-[library guide](../../../../docs/library.md).
+[library guide](../../../../docs/en/library.md).
 
 To measure it on a board, from `tools/` (environment `env_bench`, CIFAR-10 in `benchmarks/data/cifar10`):
 

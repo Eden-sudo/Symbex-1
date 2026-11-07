@@ -1,6 +1,6 @@
 # El CDT: de un modelo de PyTorch a un header de C comprobado
 
-*[Read in English](cdt.md)*
+*[Read in English](../en/cdt.md)*
 
 El CDT (`tools/cdt.py`) es el compilador de SYMBEX-1. Recibe un modelo, los datos y los límites de un microcontrolador,
 y devuelve una red binaria como un header de C para lib_symbex. Ese header se comprobó bit a bit en la PC y, cuando hay
@@ -8,7 +8,7 @@ una placa conectada, en el chip. Un archivo de configuración (`symbex.toml`) de
 resultado se puede volver a crear a partir del archivo del que salió.
 
 Esta página explica qué pasa por dentro. Para las opciones y los archivos que escribe, ver el
-[README de tools](../tools/README.md); para cómo calcula una capa binaria, ver [Cómo funciona](how-it-works.es.md).
+[README de tools](../../tools/README.md); para cómo calcula una capa binaria, ver [Cómo funciona](how-it-works.md).
 
 ## La corrida en una imagen
 
@@ -111,7 +111,7 @@ flowchart LR
 ```
 
 1. **Plegar.** Cada BatchNorm se convierte en un umbral entero, y los signos en palabras empaquetadas
-   ([Cómo funciona](how-it-works.es.md) muestra la derivación).
+   ([Cómo funciona](how-it-works.md) muestra la derivación).
 2. **Simular.** Un modelo en Python de la red entera: la referencia que el C tiene que reproducir.
 3. **Escribir y comprobar.** Se escribe el header, se compila con lib_symbex en la PC y se ejecuta sobre las imágenes
    de validación.
@@ -167,5 +167,5 @@ comentadas.
 | Plegar, simular, escribir, comprobar | `tools/compiler_core/export/` |
 | Placa, firmware, medición | `tools/compiler_core/chip/` |
 
-El [README de compiler_core](../tools/compiler_core/README.md) lista todos los archivos y marca cuáles son actuales y
+El [README de compiler_core](../../tools/compiler_core/README.md) lista todos los archivos y marca cuáles son actuales y
 cuáles son versiones anteriores.

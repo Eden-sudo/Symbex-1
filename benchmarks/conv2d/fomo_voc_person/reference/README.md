@@ -46,7 +46,7 @@ arena is 222.6 KB, too large for the classic ESP32. Every SYMBEX row was 100 % e
 ## Use it
 
 To build it into a project, copy `model_symbex.h` next to your code and follow the
-[library guide](../../../../docs/library.md).
+[library guide](../../../../docs/en/library.md).
 
 To measure it on a board (environment `env_bench`, Pascal VOC prepared once with `python fomo_data.py`):
 

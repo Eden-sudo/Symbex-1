@@ -1,6 +1,6 @@
 # Metodología: cómo mide SYMBEX-1
 
-*[Read in English](methodology.md)*
+*[Read in English](../en/methodology.md)*
 
 Todos los benchmarks de SYMBEX-1 siguen el mismo estándar, para que cualquier resultado se pueda revisar, repetir y
 comparar con los demás. Esta página reúne ese estándar: qué se compara, contra qué, cómo, y cómo repetirlo. La única
@@ -23,8 +23,8 @@ Por eso el resultado de un benchmark es una **frontera de Pareto** por chip: pre
 y RAM). Un método vale la pena donde ningún otro del gráfico es a la vez más preciso y más barato.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/pareto_mlp_dark.svg">
-  <img alt="Precisión contra latencia del MLP en el ESP32-S3: SYMBEX frente a INT8, INT4 e INT2, pesos en flash y en RAM" src="assets/pareto_mlp.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/pareto_mlp_dark.svg">
+  <img alt="Precisión contra latencia del MLP en el ESP32-S3: SYMBEX frente a INT8, INT4 e INT2, pesos en flash y en RAM" src="../assets/pareto_mlp.svg">
 </picture>
 
 El primer gráfico hecho así, mlp_fashion en el ESP32-S3 (precisión de validación, media ± desviación de 3 semillas, la
@@ -52,7 +52,7 @@ referencias INT4 / INT2 (ver la última tabla).
 | Referencia | La pregunta que responde | Qué es |
 |---|---|---|
 | **INT8**: TensorFlow Lite Micro (kernels ESP-NN en los ESP32, CMSIS-NN en el Cortex-M33 del Pico 2); ESP-DL en el ESP32-S3 | ¿Qué gana quien hoy despliega con la herramienta estándar? | La referencia de la industria, la más usada. Hecha para precisión, no para el menor costo |
-| **INT4 / INT2**: [`tools/lowbit`](../tools/lowbit/README.md), multiplicar y acumular sobre los mismos kernels ESP-NN | Con el mismo presupuesto de bits, ¿contar bits le gana a multiplicar? | La competencia directa en eficiencia. Justa por construcción, pero es implementación nuestra: ningún toolchain oficial corre INT2 |
+| **INT4 / INT2**: [`tools/lowbit`](../../tools/lowbit/README.md), multiplicar y acumular sobre los mismos kernels ESP-NN | Con el mismo presupuesto de bits, ¿contar bits le gana a multiplicar? | La competencia directa en eficiencia. Justa por construcción, pero es implementación nuestra: ningún toolchain oficial corre INT2 |
 | **Otro motor binario**: ultracompactBNN (Daghero et al. 2021) | ¿Es SYMBEX una mejor implementación de la misma idea? | Solo en el benchmark 1D, la excepción de arriba |
 
 INT8 le dice al lector qué cambia frente a lo que ya usa; INT4 e INT2 dicen si un bit es el lugar correcto de la curva;
@@ -137,7 +137,7 @@ Todos los benchmarks tienen los mismos pasos y las mismas carpetas:
 Placas: `esp32`, `s3` (su puerto USB nativo: `--usb`), `pico2_arm`, `pico2_riscv`. Cada README lista los comandos
 exactos con que se midió. Los resultados superados pasan a `results/earlier/`; no se borra nada medido.
 
-**Sin entrenar.** La carpeta `reference/` de cada benchmark ([mlp_fashion](../benchmarks/mlp/mlp_fashion/reference/README.md), [mlp_digits](../benchmarks/mlp/mlp_digits/reference/README.md), [ResNet-8](../benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md), [FOMO](../benchmarks/conv2d/fomo_voc_person/reference/README.md), [HAR](../benchmarks/conv1d/har_ultracompact/reference/README.md)) tiene un modelo
+**Sin entrenar.** La carpeta `reference/` de cada benchmark ([mlp_fashion](../../benchmarks/mlp/mlp_fashion/reference/README.md), [mlp_digits](../../benchmarks/mlp/mlp_digits/reference/README.md), [ResNet-8](../../benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md), [FOMO](../../benchmarks/conv2d/fomo_voc_person/reference/README.md), [HAR](../../benchmarks/conv1d/har_ultracompact/reference/README.md)) tiene un modelo
 listo, semilla 42: el modelo FP32 de partida, la cabecera SYMBEX lista para compilar, el `.tflite` INT8, la
 configuración con que se entrenó y una tarjeta con su precisión, latencia y memoria por placa. Basta para meter el
 modelo en un proyecto o medirlo en una placa sin reentrenar.
@@ -163,8 +163,8 @@ librería, las versiones del toolchain, el reloj y el sha256 del modelo FP32.
 
 | Benchmark | INT8 (TFLite Micro) | INT4 / INT2 | Pico 2 | ESP-DL |
 |---|---|---|---|---|
-| [mlp_fashion](../benchmarks/mlp/mlp_fashion/README.md) | ESP32, S3, los dos núcleos del Pico 2 | precisión (PC), ESP32, S3 | SYMBEX e INT8 | S3 (fuera del repositorio) |
-| [mlp_digits](../benchmarks/mlp/mlp_digits/README.md) | ESP32, S3 | pendiente | pendiente | pendiente |
-| [cnn_cifar_resnet8](../benchmarks/conv2d/cnn_cifar_resnet8/README.md) | ESP32, S3, los dos núcleos del Pico 2 | pendiente (`tools/lowbit` todavía no pliega las conexiones residuales) | SYMBEX e INT8 | S3 (fuera del repositorio) |
-| [fomo_voc_person](../benchmarks/conv2d/fomo_voc_person/README.md) | S3 (INT8 no cabe en el ESP32) | pendiente | solo SYMBEX | pendiente |
-| [har_ultracompact](../benchmarks/conv1d/har_ultracompact/README.md) | ESP32, S3 | solo precisión (PC) | solo SYMBEX | la excepción: se compara con ultracompactBNN en GVSoC |
+| [mlp_fashion](../../benchmarks/mlp/mlp_fashion/README.md) | ESP32, S3, los dos núcleos del Pico 2 | precisión (PC), ESP32, S3 | SYMBEX e INT8 | S3 (fuera del repositorio) |
+| [mlp_digits](../../benchmarks/mlp/mlp_digits/README.md) | ESP32, S3 | pendiente | pendiente | pendiente |
+| [cnn_cifar_resnet8](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md) | ESP32, S3, los dos núcleos del Pico 2 | pendiente (`tools/lowbit` todavía no pliega las conexiones residuales) | SYMBEX e INT8 | S3 (fuera del repositorio) |
+| [fomo_voc_person](../../benchmarks/conv2d/fomo_voc_person/README.md) | S3 (INT8 no cabe en el ESP32) | pendiente | solo SYMBEX | pendiente |
+| [har_ultracompact](../../benchmarks/conv1d/har_ultracompact/README.md) | ESP32, S3 | solo precisión (PC) | solo SYMBEX | la excepción: se compara con ultracompactBNN en GVSoC |

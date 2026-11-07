@@ -1,6 +1,6 @@
 # Results: every benchmark in one place
 
-*[Leer en español](results.es.md)*
+*[Leer en español](../es/results.md)*
 
 Each benchmark compares a fully binary SYMBEX network against INT8 on the same chip and with the same architecture.
 The INT8 side is the official TensorFlow Lite Micro model or, where no official model exists, the same network trained
@@ -27,13 +27,13 @@ README.
 ## Speed, flash and RAM
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/speedup_dark.svg">
-  <img alt="SYMBEX speed-up over TensorFlow Lite Micro INT8 per benchmark and chip" src="assets/speedup.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/speedup_dark.svg">
+  <img alt="SYMBEX speed-up over TensorFlow Lite Micro INT8 per benchmark and chip" src="../assets/speedup.svg">
 </picture>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/flash_dark.svg">
-  <img alt="Flash used by each model, SYMBEX vs. INT8" src="assets/flash.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/flash_dark.svg">
+  <img alt="Flash used by each model, SYMBEX vs. INT8" src="../assets/flash.svg">
 </picture>
 
 Every run on one core, at 240 MHz on both ESP32s. SYMBEX and INT8 always have their weights in the same place: flash
@@ -62,7 +62,7 @@ on every row but one.
 - ² The same ResNet-8 with an int8 first layer on the pixels instead of the thermometer, Bop for the binary weights and
   a pooled int8 classifier; every other layer binary (the CDT's `--variant int8stem_pool2`). 76.7 ± 0.3 % on the test
   set against 71.3 % (3 seeds), and faster than the fully binary network on every board but Hazard3 (57.9 against
-  56.1 ms) ([the benchmark](../benchmarks/conv2d/cnn_cifar_resnet8/README.md#the-most-accurate-recipe-int8-stem--bop--pooled-int8-classifier)).
+  56.1 ms) ([the benchmark](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md#the-most-accurate-recipe-int8-stem--bop--pooled-int8-classifier)).
 
 The charts are drawn from the result files by `python tools/dev/docs_charts.py`, so a new measurement updates them.
 
@@ -96,7 +96,7 @@ Where INT8 could still go faster:
 
 | Option | What we know |
 |---|---|
-| Calling ESP-NN directly, without the TFLite interpreter | **Measured** on the x1 MLP (784-256-128-10) on the ESP32-S3, weights in RAM: 0.556 ms instead of 0.876 ms (1.58× faster). SYMBEX x1 runs in 0.525 ms, so in RAM the two are close (`tools/lowbit`, [mlp_fashion](../benchmarks/mlp/mlp_fashion/README.md)). |
+| Calling ESP-NN directly, without the TFLite interpreter | **Measured** on the x1 MLP (784-256-128-10) on the ESP32-S3, weights in RAM: 0.556 ms instead of 0.876 ms (1.58× faster). SYMBEX x1 runs in 0.525 ms, so in RAM the two are close (`tools/lowbit`, [mlp_fashion](../../benchmarks/mlp/mlp_fashion/README.md)). |
 | Weights in RAM | **Measured** where the model fits: the MLP, and the 1D networks. In flash, INT8 is slow because it reads 8× more bytes through the flash cache. RAM removes that, if the chip has room. |
 | ESP-DL (Espressif's other library, tuned for the S3) | **Measured** in a quick check, table below. On the ESP32-S3 it is the fastest INT8: faster than SYMBEX's standard engine on ResNet-8 (the vertical engine beats it with the weights in flash, and in RAM with its compact mode at about the same RAM), and on the MLP when the weights are in RAM. |
 | CMSIS-NN on the Pico 2's Cortex-M33 | **Measured** (TFLite Micro with Arm's CMSIS-NN kernels, DSP on). It does not catch SYMBEX: ResNet-8 453.0 ms in flash and 211.4 ms with the model in RAM, against SYMBEX's 74.5 ms (6.1× / 2.8×); MLP 784-128-512-10 31.35 / 2.89 ms against 4.57 / 1.53 ms (6.9× / 1.9×). |
@@ -154,6 +154,13 @@ Detection, and small tasks with a binary input, binarize well. Classes that diff
 ten, lose the most. With a byte-wide input such as an accelerometer, an int8 first layer is both faster and more
 accurate than a binary one (see the 1D benchmark).
 
+The same trade-off on ResNet-8, every point measured on the chip (higher is more accurate, further left is faster):
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/pareto_resnet8_dark.svg">
+  <img alt="ResNet-8 on CIFAR-10, accuracy against latency on the ESP32-S3 and the ESP32: SYMBEX vs. INT8" src="../assets/pareto_resnet8.svg">
+</picture>
+
 ## The benchmarks
 
 Each benchmark has a `reference/` folder with one ready model (seed 42), its INT8 model and the commands to measure
@@ -161,7 +168,7 @@ both on a board without training ([Methodology](methodology.md)).
 
 ### ResNet-8 on CIFAR-10: against the official MLPerf Tiny model
 
-[`benchmarks/conv2d/cnn_cifar_resnet8`](../benchmarks/conv2d/cnn_cifar_resnet8/README.md)
+[`benchmarks/conv2d/cnn_cifar_resnet8`](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md)
 
 - The architecture is the same as the official INT8 ResNet-8 of MLPerf Tiny, measured with TFLite Micro on the same
   boards.
@@ -178,14 +185,14 @@ both on a board without training ([Methodology](methodology.md)).
 - **The most accurate recipe** (int8 first layer + Bop + pooled int8 classifier, the rest binary; in the CDT):
   76.7 ± 0.3 % on the test set with 29.0 KB of flash. ESP32-S3 32.3 ms (1.61×), vertical engine 9.70 / 7.07 /
   6.02 ms (default / compact / prepared); ESP32 62.5 ms (11.5×); M33 67.8 ms (6.7×); Hazard3 57.9 ms. Ready to use in
-  [`reference/`](../benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md).
+  [`reference/`](../../benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md).
 - **Memory:** 24.3 KB of flash vs 96.2 KB, and 15 KB of RAM vs a 53-80 KB arena.
 - **Accuracy:** 71.3 ± 0.8 % vs 87.0 %. With the network shaped for binary (16-32-128 / 1-1-2) it reaches 73.1 % at the
   same speed.
 
 ### FOMO person detection on Pascal VOC
 
-[`benchmarks/conv2d/fomo_voc_person`](../benchmarks/conv2d/fomo_voc_person/README.md)
+[`benchmarks/conv2d/fomo_voc_person`](../../benchmarks/conv2d/fomo_voc_person/README.md)
 
 - The comparison is the same detector, trained the same way, against its INT8 version.
 - **Detection:** F1 31.2 % vs 30.1 %, so the two detect alike.
@@ -197,7 +204,7 @@ both on a board without training ([Methodology](methodology.md)).
 
 ### MLP on Fashion-MNIST: binary against INT8, INT4 and INT2
 
-[`benchmarks/mlp/mlp_fashion`](../benchmarks/mlp/mlp_fashion/README.md)
+[`benchmarks/mlp/mlp_fashion`](../../benchmarks/mlp/mlp_fashion/README.md)
 
 - **Sized for binary** (784-128-512-10): 0.42 ms on the ESP32-S3 with the weights in flash vs 11.7 ms for TFLite INT8
   of the same network (28×), 27 KB of flash and 4.6 KB of RAM.
@@ -207,7 +214,7 @@ both on a board without training ([Methodology](methodology.md)).
 
 ### Digits on an Arduino Uno: binary from end to end
 
-[`benchmarks/mlp/mlp_digits`](../benchmarks/mlp/mlp_digits/README.md)
+[`benchmarks/mlp/mlp_digits`](../../benchmarks/mlp/mlp_digits/README.md)
 
 - Input, weights and activations are all 1 bit.
 - **Arduino Uno:** 94.5 % on handwritten digits in 5.3 ms, with 0.21 KB of RAM and 3.4 KB of flash.
@@ -215,7 +222,7 @@ both on a board without training ([Methodology](methodology.md)).
 
 ### Activity recognition with 1D convolutions: against ultracompactBNN and INT8
 
-[`benchmarks/conv1d/har_ultracompact`](../benchmarks/conv1d/har_ultracompact/README.md)
+[`benchmarks/conv1d/har_ultracompact`](../../benchmarks/conv1d/har_ultracompact/README.md)
 
 - **Against ultracompactBNN** (Daghero et al. 2021), in its own environment: their processor (RI5CY on GVSoC), their
   four networks and their code unchanged. SYMBEX needs **1.07-1.37× fewer instructions**, and both are exact.
@@ -223,6 +230,102 @@ both on a board without training ([Methodology](methodology.md)).
   less flash.
 - **Where fully binary stops paying (a working theory):** with an 8-bit input, an int8 first layer is faster than the
   binary one and more accurate.
+
+## The tables of each benchmark
+
+The full tables of each benchmark, measured on the chips on one core (they were on the main README until November 2026).
+
+### Image classification: a fully binary ResNet-8 ([`benchmarks/conv2d/cnn_cifar_resnet8`](../../benchmarks/conv2d/cnn_cifar_resnet8/))
+
+CIFAR-10, against the official INT8 ResNet-8 of MLPerf Tiny. Every layer of the SYMBEX network is binary, the first
+one included (the image enters as a thermometer of bits); 3 training seeds, labels only.
+
+| | **SYMBEX, binary** | MLPerf Tiny INT8 |
+|---|---|---|
+| Accuracy | 71.28 ± 0.81 % | 87.0 % |
+| ESP32-S3 | **39.2 ms (1.33× faster)** | 52.0 ms |
+| ESP32 | **59.7 ms (12.0× faster)**, weights in RAM; 63.3 ms in flash | 717.8 ms |
+| Raspberry Pi Pico 2, Cortex-M33 | **74.5 ms (6.1× faster)** | 453.0 ms (CMSIS-NN) |
+| Raspberry Pi Pico 2, Hazard3 RISC-V | **56.1 ms** | 5702 ms (reference kernels, the only ones TFLite Micro has for it) |
+| Flash | **24.3 KB** | 96.2 KB |
+| RAM | **15 KB** | 53-80 KB |
+| Same result as its PC reference | **100 %** | 98.1 % |
+
+**The most accurate recipe.** With an int8 first layer on the pixels and a pooled int8 classifier (every other layer
+binary, Bop for the binary weights; `--variant int8stem_pool2` in the CDT), the same ResNet-8 reaches **76.7 ± 0.3 %**
+and runs faster: ESP32-S3 32.3 ms (1.61×), 6.0-9.7 ms with the vertical engine; ESP32 62.5 ms (11.5×); Pico 2 M33
+67.8 ms (6.7×), Hazard3 57.9 ms; 29 KB of flash, exact on every board. Seed 42 is ready to use in
+[`reference/`](../../benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md).
+
+**Sized for binary.** The best shape of a binary network is not the INT8 one: a sizing study (blocks and channels per
+stage, latency predicted from measured chip profiles) found that the first stages can be thinner and the last one
+wider. Measured on the chip, 3 seeds (on the ESP32 the gain is accuracy at the same speed; the best shape depends on
+the chip):
+
+| Network | Accuracy | ESP32-S3 | ESP32 | RAM |
+|---|---|---|---|---|
+| ResNet-8 shape (16-32-64, 2-2-2 blocks) | 71.28 ± 0.81 % | 39.2 ms | 59.7 ms (weights in RAM) | 15 KB |
+| **16-32-128, 1-1-2 blocks** | **73.10 ± 0.23 %** | **39.6 ms** | 60.9 ms (weights in RAM) | 15 KB |
+| **16-64-128, 1-1-2 blocks** | **74.45 ± 0.23 %** | 46.6 ms | | 16 KB |
+
+### Person detection: FOMO, binary against the same detector in INT8 ([`benchmarks/conv2d/fomo_voc_person`](../../benchmarks/conv2d/fomo_voc_person/))
+
+Pascal VOC persons, 96 × 96 images, a 12 × 12 grid of person centers. The INT8 reference is **the same architecture**
+trained with the same recipe.
+
+| | **SYMBEX, binary** | TFLite INT8 |
+|---|---|---|
+| F1 (3 seeds) | **31.2 ± 0.7 %** | 30.1 ± 0.2 % |
+| ESP32-S3 | **126.3 ms (2.0× faster)** | 256.9 ms |
+| ESP32 | **runs** | does not fit (its arena overflows the RAM) |
+| Flash | **41 KB** | 236 KB |
+| RAM | **51 KB** | 223 KB |
+| Same result as its PC reference | **100 %** | 88 % |
+
+Detection binarizes well: every cell answers a yes/no question, and the binary detector is as accurate as the INT8 one.
+
+### Dense networks ([`benchmarks/mlp/mlp_fashion`](../../benchmarks/mlp/mlp_fashion/), [`benchmarks/mlp/mlp_digits`](../../benchmarks/mlp/mlp_digits/))
+
+Fashion-MNIST, sized for binary (784-128-512-10: a narrow first layer, wide binary layers), against INT8 of the same
+network; 3 seeds, labels only, weights in flash unless stated:
+
+| | **SYMBEX, binary** | INT8 (same network) |
+|---|---|---|
+| Accuracy | 87.47 ± 0.09 % | 89.81 ± 0.11 % (QAT) |
+| ESP32-S3 | **0.42 ms (28× faster)** | 11.7 ms (TFLite Micro) |
+| ESP32-S3, weights in RAM | **0.41 ms (2.1× faster)** | 0.89 ms |
+| ESP32 | **3.5 ms (8.8× faster)** | 31.1 ms |
+| Raspberry Pi Pico 2, Cortex-M33 | **4.6 ms (6.9× faster)**; 1.5 ms with the weights in RAM (1.9×) | 31.4 ms (CMSIS-NN); 2.9 ms in RAM |
+| Raspberry Pi Pico 2, Hazard3 | **4.4 ms (8.5× faster)**; 1.4 ms with the weights in RAM (6.8×) | 37.5 ms; 9.6 ms in RAM (reference kernels) |
+| Flash | **27 KB** | 187 KB |
+| RAM | **4.6 KB** | 6.7 KB |
+
+INT8 is 2.3 points more accurate; SYMBEX wins speed and memory. On the smaller Digits MLP the two tie on the ESP32-S3
+(0.109 against 0.110 ms), SYMBEX is 2-3.3× faster on the ESP32, and it is the only one that runs on an Arduino Uno.
+
+### Activity recognition: binary 1D convolutions ([`benchmarks/conv1d/har_ultracompact`](../../benchmarks/conv1d/har_ultracompact/))
+
+UniMiB-SHAR (accelerometer, 17 activities), the four networks of the closest prior work (Daghero et al. 2021,
+ultracompactBNN), 3 seeds:
+
+- **Against their binary library, in their own simulated RISC-V environment (GVSoC):** SYMBEX needs **1.07-1.37×
+  fewer instructions** on all four networks, also with their own trained weights.
+- **Against INT8 TFLite Micro, same architectures, weights in flash:** **5.3-10.4× faster** on the ESP32 and
+  **1.47-1.90× faster** on the ESP32-S3, with 2-10× less RAM and 6.5-10× less flash. INT8 is more accurate on these
+  small networks (about 9 points on the large ones).
+- **Where fully binary stops paying (a working theory):** with an 8-bit input like the accelerometer, a first layer
+  with int8 weights is faster and more accurate than a binary one on every board measured.
+
+### Why it is faster: counting bits against multiplying
+
+`tools/dev/count_bench.py` measures the raw arithmetic of each chip on the same convolution pattern: binary (bit counting)
+against int8 (multiply-accumulate).
+
+| Chip | Binary against int8, raw arithmetic |
+|---|---|
+| ESP32 (no SIMD) | **11-17× faster** |
+| ESP32-S3 (8-bit SIMD, no popcount instruction) | 1.05-2.1× faster (the SIMD multiplier counts the bits: `pie_swar`) |
+| x86 (AVX2 / VNNI) | 1.5-3.8× |
 
 ## Future work
 

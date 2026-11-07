@@ -26,7 +26,7 @@ on the board), --redo trains it again. Summary: results/symbex/symbex_seeds_<boa
 rebuilds the summary from the chip_<board>_<popcount>_<weights>_mask.json files that tools/chip_test.py leaves in each
 run folder (the S3's native USB port: chip_test.py runs/w1_s42 --board s3 --port /dev/ttyACM0 --usb).
 --engine vertical (with --summary): the runs measured with chip_test.py --engine vertical (the vertical engine,
-docs/vertical.md), summarized into results/symbex/symbex_seeds_<board>_<popcount>[_ram]_w<width>_vertical.json;
+docs/en/vertical.md), summarized into results/symbex/symbex_seeds_<board>_<popcount>[_ram]_w<width>_vertical.json;
 --engine vertical_prepared the same with its lists and thresholds prepared in RAM (_vertical_prepared.json);
 --engine vertical_compact with the lists prepared and the thresholds compact (_vertical_compact.json).
 """

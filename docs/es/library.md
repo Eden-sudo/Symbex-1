@@ -1,8 +1,8 @@
 # lib_symbex: el motor en C
 
-*[Read in English](library.md)*
+*[Read in English](../en/library.md)*
 
-lib_symbex ejecuta las redes que exporta el [CDT](cdt.es.md). Es C simple sin dependencias, la memoria del modelo es
+lib_symbex ejecuta las redes que exporta el [CDT](cdt.md). Es C simple sin dependencias, la memoria del modelo es
 estática, y cada modelo que ejecuta se comprobó bit a bit contra la simulación entera del CDT. Vive en
 `Symbex1_PIO/lib/lib_symbex/`, y las mismas fuentes compilan para la PC, el ESP32, el ESP32-S3 y la Raspberry Pi Pico 2
 (ambos núcleos), además de para PULP en el benchmark 1D.
@@ -70,7 +70,7 @@ flowchart TB
 
 | Carpeta | Qué contiene |
 |---|---|
-| `include/layers/conv/` | `symbex_bool.h`: redes 2D completamente binarias (entrada termómetro u, opcionalmente, una primera capa int8 `symbex_bool_stem_i8`; convoluciones binarias con umbrales enteros, pool OR, atajo OR, clasificador binario, clasificador int8 con pooling `symbex_bool_pool_head` (pesos int8 sobre los unos de cada ventana k × k) o cabeza de detección por celda, y el ejecutor de la red completa `symbex_bool_net_run`). `symbex_bool1d.h`: convoluciones 1D binarias para series de tiempo, con cualquier número de canales y un pool OR fusionado. `symbex_bool_vertical.h`: el [motor vertical](vertical.es.md), las mismas redes y los mismos bits contados 128 ventanas a la vez (modos opcionales preparado y compacto; el stem int8 y el clasificador con pooling corren como en el motor estándar) |
+| `include/layers/conv/` | `symbex_bool.h`: redes 2D completamente binarias (entrada termómetro u, opcionalmente, una primera capa int8 `symbex_bool_stem_i8`; convoluciones binarias con umbrales enteros, pool OR, atajo OR, clasificador binario, clasificador int8 con pooling `symbex_bool_pool_head` (pesos int8 sobre los unos de cada ventana k × k) o cabeza de detección por celda, y el ejecutor de la red completa `symbex_bool_net_run`). `symbex_bool1d.h`: convoluciones 1D binarias para series de tiempo, con cualquier número de canales y un pool OR fusionado. `symbex_bool_vertical.h`: el [motor vertical](vertical.md), las mismas redes y los mismos bits contados 128 ventanas a la vez (modos opcionales preparado y compacto; el stem int8 y el clasificador con pooling corren como en el motor estándar) |
 | `include/layers/dense/` | `symbex_dense.h`: capas densas de 1 bit (primera capa uint8, luego bits con un umbral entero por neurona). `symbex_ternary.h`: pesos en {-1, 0, +1} |
 | `include/ops/` | operaciones de bits, empaquetado de bits, la forma AND de los conteos |
 | `include/hal/symbex_hal.h` | la interfaz que implementa cada chip: los conteos de bits y los kernels de la primera capa |

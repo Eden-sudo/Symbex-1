@@ -46,7 +46,7 @@ reports (buffers, input, stack, and the weights when in RAM); the INT8 arena is 
 ## Use it
 
 To build it into a project, copy `model_symbex.h` next to your code and follow the
-[library guide](../../../../docs/library.md).
+[library guide](../../../../docs/en/library.md).
 
 To measure it on a board, from `tools/` (environment `env_bench`, Fashion-MNIST in `benchmarks/data/fashionmnist`):
 
