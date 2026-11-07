@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="488" viewBox="0 0 900 488" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" role="img">
 <title>Accuracy against latency, ResNet-8 on the ESP32-S3 and the ESP32: SYMBEX vs. INT8</title>
 <text x="16.0" y="26.0" fill="#f0efec" font-size="16" text-anchor="start" font-weight="bold">ResNet-8 on CIFAR-10: speed bought with accuracy</text>
-<text x="16.0" y="46.0" fill="#c3c2b7" font-size="12" text-anchor="start" font-weight="normal">Test accuracy (10,000 images; SYMBEX mean ± sd of 3 seeds), weights in flash · vertical: the S3's SIMD engine</text>
+<text x="16.0" y="46.0" fill="#c3c2b7" font-size="12" text-anchor="start" font-weight="normal">Accuracy on the PC (10,000 test images; SYMBEX mean ± sd of 3 seeds), latency on the chip, weights in flash</text>
 <text x="16.0" y="63.0" fill="#c3c2b7" font-size="12" text-anchor="start" font-weight="normal">INT8: official MLPerf Tiny model (TFLite Micro) · SYMBEX: the same network in 1 bit; 16-32-128 sized for binary; int8 stem: 8-bit first layer + pooled int8 classifier</text>
 <circle cx="76" cy="84" r="5" fill="#3987e5"/>
 <text x="86.0" y="88.0" fill="#f0efec" font-size="12" text-anchor="start" font-weight="normal">SYMBEX (1 bit)</text>

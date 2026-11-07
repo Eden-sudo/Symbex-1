@@ -154,7 +154,9 @@ Detection, and small tasks with a binary input, binarize well. Classes that diff
 ten, lose the most. With a byte-wide input such as an accelerometer, an int8 first layer is both faster and more
 accurate than a binary one (see the 1D benchmark).
 
-The same trade-off on ResNet-8, every point measured on the chip (higher is more accurate, further left is faster):
+The same trade-off on ResNet-8 (higher is more accurate, further left is faster; latency on the chip, accuracy on the
+PC over the 10,000 test images; on the chip SYMBEX matches its simulation on 100 % of the images, TFLite Micro its PC
+interpreter on 98.1 %):
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../assets/pareto_resnet8_dark.svg">

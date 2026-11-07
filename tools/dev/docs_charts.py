@@ -229,8 +229,9 @@ def pareto_points(placement):
 
 def pareto_points_resnet(board):
     """(method, label, ms, test mean, sd, source keys) for ResNet-8 on a board, weights in flash. INT8: the official
-    MLPerf Tiny model, one model (sd 0), test accuracy of its .tflite on the PC (the chip runs the same integers).
-    SYMBEX: 3 seeds, test accuracy of the integer simulation (the chip equals it image by image), latency measured."""
+    MLPerf Tiny model, one model (sd 0), test accuracy of its .tflite on the PC (on the chip TFLite Micro gives the
+    PC interpreter's class on 98.1 % of 1,000 images). SYMBEX: 3 seeds, test accuracy of the trained model on the PC
+    (train.json; the exported C gives the integer simulation's class on 100 % of the images). Latency: on the chip."""
     pts = [("INT8", "INT8 · MLPerf", load(f"resnet_{board}_int8")["latency_ms"], load("resnet_pc_int8")["int8_accuracy"],
             0.0, [f"resnet_{board}_int8", "resnet_pc_int8"])]
     for label, name in RESNET_PARETO[board]:
@@ -256,7 +257,7 @@ MLP_TITLE = ("Accuracy against latency: where one bit sits",
              "INT8 / INT4 / INT2: 784-256-128, QAT, ESP-NN kernels · SYMBEX: networks sized for binary",
              "Accuracy against latency, MLP on the ESP32-S3: SYMBEX vs. INT8 / INT4 / INT2")
 RESNET_TITLE = ("ResNet-8 on CIFAR-10: speed bought with accuracy",
-                "Test accuracy (10,000 images; SYMBEX mean ± sd of 3 seeds), weights in flash · vertical: the S3's SIMD engine",
+                "Accuracy on the PC (10,000 test images; SYMBEX mean ± sd of 3 seeds), latency on the chip, weights in flash",
                 "INT8: official MLPerf Tiny model (TFLite Micro) · SYMBEX: the same network in 1 bit; 16-32-128 sized for "
                 "binary; int8 stem: 8-bit first layer + pooled int8 classifier",
                 "Accuracy against latency, ResNet-8 on the ESP32-S3 and the ESP32: SYMBEX vs. INT8")

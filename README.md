@@ -47,8 +47,10 @@ multiplication into a bit operation and a count:
 
 ### ResNet-8: speed bought with accuracy
 
-Each point is a network measured on the chip: higher is more accurate, further left is faster. The line joins the
-points no other point beats on both axes.
+Each point is one network: higher is more accurate, further left is faster. The latency is measured on the chip; the
+accuracy is the model's on the 10,000 test images, on the PC (on the chip, SYMBEX gives its simulation's class on 100 %
+of the images, TFLite Micro the PC interpreter's on 98.1 %). The line joins the points no other point beats on both
+axes; "vertical" is SYMBEX's engine for the ESP32-S3's SIMD unit.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/pareto_resnet8_dark.svg">

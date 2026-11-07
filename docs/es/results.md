@@ -160,7 +160,9 @@ La detección, y las tareas pequeñas con una entrada binaria, se binarizan bien
 detalles finos, como las diez de CIFAR-10, son las que más pierden. Con una entrada de un byte, como un acelerómetro, una
 primera capa int8 es más rápida y más precisa que una binaria (ver el benchmark 1D).
 
-El mismo intercambio en ResNet-8, cada punto medido en el chip (más arriba es más preciso, más a la izquierda es más rápido):
+El mismo intercambio en ResNet-8 (más arriba es más preciso, más a la izquierda es más rápido; latencia en el chip,
+precisión en la PC sobre las 10,000 imágenes de prueba; en el chip SYMBEX coincide con su simulación en el 100 % de las
+imágenes, TFLite Micro con su intérprete de la PC en el 98.1 %):
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../assets/pareto_resnet8_dark.svg">

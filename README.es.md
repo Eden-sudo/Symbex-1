@@ -47,8 +47,10 @@ cada multiplicación en una operación de bits y un conteo:
 
 ### ResNet-8: velocidad a cambio de precisión
 
-Cada punto es una red medida en el chip: más arriba es más precisa, más a la izquierda es más rápida. La línea une los
-puntos que ningún otro supera en los dos ejes a la vez.
+Cada punto es una red: más arriba es más precisa, más a la izquierda es más rápida. La latencia se mide en el chip; la
+precisión es la del modelo en las 10,000 imágenes de prueba, en la PC (en el chip, SYMBEX da la clase de su simulación
+en el 100 % de las imágenes, TFLite Micro la del intérprete de la PC en el 98.1 %). La línea une los puntos que ningún
+otro supera en los dos ejes a la vez; "vertical" es el motor de SYMBEX para la unidad SIMD del ESP32-S3.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/pareto_resnet8_dark.svg">
