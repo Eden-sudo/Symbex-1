@@ -1,0 +1,137 @@
+{
+ "board": "esp32",
+ "library": "master",
+ "code": "flash",
+ "weights": "flash",
+ "reps": "best of 7",
+ "rows": [
+  {
+   "n_in": 19,
+   "n_out": 64,
+   "method": "bits",
+   "cycles": 15979,
+   "us": 66.579,
+   "equal_reference": true
+  },
+  {
+   "n_in": 19,
+   "n_out": 64,
+   "method": "bits_unal",
+   "cycles": 15723,
+   "us": 65.513,
+   "equal_reference": true
+  },
+  {
+   "n_in": 19,
+   "n_out": 64,
+   "method": "mask",
+   "cycles": 14963,
+   "us": 62.346,
+   "equal_reference": true
+  },
+  {
+   "n_in": 19,
+   "n_out": 64,
+   "method": "planes",
+   "cycles": 22005,
+   "us": 91.688,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 64,
+   "method": "bits",
+   "cycles": 22049,
+   "us": 91.871,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 64,
+   "method": "bits_unal",
+   "cycles": 42849,
+   "us": 178.537,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 64,
+   "method": "mask",
+   "cycles": 21031,
+   "us": 87.629,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 64,
+   "method": "planes",
+   "cycles": 38173,
+   "us": 159.054,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 3,
+   "method": "bits",
+   "cycles": 1366,
+   "us": 5.692,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 3,
+   "method": "bits_unal",
+   "cycles": 2341,
+   "us": 9.754,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 3,
+   "method": "mask",
+   "cycles": 1267,
+   "us": 5.279,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 3,
+   "method": "planes",
+   "cycles": 7978,
+   "us": 33.242,
+   "equal_reference": true
+  },
+  {
+   "n_in": 784,
+   "n_out": 128,
+   "method": "bits",
+   "cycles": 434976,
+   "us": 1812.4,
+   "equal_reference": true
+  },
+  {
+   "n_in": 784,
+   "n_out": 128,
+   "method": "bits_unal",
+   "cycles": 967840,
+   "us": 4032.667,
+   "equal_reference": true
+  },
+  {
+   "n_in": 784,
+   "n_out": 128,
+   "method": "mask",
+   "cycles": 432999,
+   "us": 1804.162,
+   "equal_reference": true
+  },
+  {
+   "n_in": 784,
+   "n_out": 128,
+   "method": "planes",
+   "cycles": 677812,
+   "us": 2824.217,
+   "equal_reference": true
+  }
+ ]
+}

@@ -127,6 +127,8 @@ void symbex_dense_forward_bits(
 /*
  * symbex_dense_input_u8_mask + symbex_dense_threshold in one pass (first layer, uint8 inputs).
  * Same bits, without the int32 array of raw scores.
+ * Both: with at most 64 inputs and at least 8 neurons (a few sensors), subset-sum tables on the stack (up to 512
+ * bytes) make each neuron one table read per 4 inputs; -DSYMBEX_U8_LUT_MAX_IN=0 turns them off.
  */
 void symbex_dense_input_u8_bits(
     const uint8_t* x,

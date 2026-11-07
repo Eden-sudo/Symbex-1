@@ -74,13 +74,20 @@ static inline int32_t symbex_swar_u8_masked_sum(const uint8_t* x, const uint32_t
             pending = 0;
         }
     }
-    total += (int32_t)((lo & 0xFFFFu) + (lo >> 16) + (hi & 0xFFFFu) + (hi >> 16));
-    const uint16_t rest = n_in % 32;               /* last partial word: one input at a time, never past n_in */
+    const uint16_t rest = n_in % 32;               /* last partial word: never past n_in */
     if (rest) {
-        const uint32_t wv = SYMBEX_READ_W32(&w[full_words]);
-        const uint8_t* xp = &x[(uint32_t)full_words * 32];
-        for (uint8_t b = 0; b < rest; b++) total += xp[b] & -(int32_t)((wv >> b) & 1u);
+        uint32_t wv = SYMBEX_READ_W32(&w[full_words]);
+        const symbex_swar_word_t* xp = (const symbex_swar_word_t*)&x[(uint32_t)full_words * 32];
+        const uint8_t groups = (uint8_t)(rest / 4);    /* its whole groups of 4 inputs, as above (lanes: at most */
+        for (uint8_t g = 0; g < groups; g++, wv >>= 4) {   /* 15 x 8 + 7 additions since the last emptying) */
+            const uint32_t v = xp[g] & symbex_swar_spread4[wv & 15u];
+            lo += v & 0x00FF00FFu;
+            hi += (v >> 8) & 0x00FF00FFu;
+        }
+        const uint8_t* xb = &x[(uint32_t)full_words * 32 + (uint32_t)groups * 4];
+        for (uint8_t b = 0; b < (uint8_t)(rest % 4); b++) total += xb[b] & -(int32_t)((wv >> b) & 1u);   /* 0-3 left */
     }
+    total += (int32_t)((lo & 0xFFFFu) + (lo >> 16) + (hi & 0xFFFFu) + (hi >> 16));
     return total;
 #endif
 }

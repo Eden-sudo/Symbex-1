@@ -30,7 +30,8 @@ The README follows the order of the work:
   gain of binary weights depends on the **data**. A binary input makes the first layer one more binary layer (32
   products per bit count), where fully binary should win. An 8-bit input (here the accelerometer) costs about one
   operation per input whether the weights have 1 bit or 8. There the int8 first layer is **faster than the fully
-  binary one** on every board measured (equal on the M33's largest network), because the chips multiply bytes faster
+  binary one** on every board measured (equal on the M33's largest network; on the classic ESP32's largest
+  network the bits are faster since the Nov 7 short-layer fix: 12.78 vs 14.07 ms), because the chips multiply bytes faster
   than they count bit planes (on the ESP32-S3, a new PIE kernel: **1.8-2.5×** for that layer, **1.26-1.70×** for the
   whole network). It is also **more accurate**: **+4.5-4.8 points** on the two small networks, equal on the large
   ones. Measured on one task (activity recognition) and checked quickly on two others: a theory to test further, not a
@@ -107,10 +108,10 @@ first-layer weights stored as +1 / −1 bytes and run by the int8 kernel, `har_e
 
 | Network | ESP32: first layer in bits | ±1 bytes | TFLite INT8 | SYMBEX vs TFLite |
 |---|---|---|---|---|
-| min | 1.53 | **0.78** | 4.17 | **5.3×** |
-| max-10% | 4.60 | **4.01** | 31.23 | **7.8×** |
-| max-5% | 14.71 | **10.99** | 114.22 | **10.4×** |
-| max | 14.77 | **14.08** | 115.62 | **8.2×** |
+| min | 1.11 | **0.78** | 4.17 | **5.3×** |
+| max-10% | 4.10 | **4.01** | 31.23 | **7.8×** |
+| max-5% | 11.21 | **10.99** | 114.22 | **10.4×** |
+| max | **12.78** | 14.08 | 115.62 | **9.0×** |
 
 | Network | ESP32-S3: first layer in bits | ±1 bytes | TFLite INT8 | SYMBEX vs TFLite |
 |---|---|---|---|---|
@@ -127,7 +128,9 @@ first-layer weights stored as +1 / −1 bytes and run by the int8 kernel, `har_e
 | max | 10.67 | **8.59** | **11.72** | 11.79 |
 
 Every run in these tables is 100 % equal to the simulation; the spread between the 3 seeds is at most 0.03 ms (on the
-S3 at most 0.004 ms). The S3's ±1 bytes column uses the PIE kernel of section 3; before it, the bits were faster there
+S3 at most 0.004 ms). The ESP32's bits columns were measured again on Nov 7, after a faster method for short
+first layers (`symbex_swar_u8_masked_sum` counts the last partial word 4 inputs at a time; before: 1.53 / 4.60 /
+14.71 / 14.77 ms in flash, 1.58 / 4.43 / 13.28 / 13.40 ms in RAM); the other boards do not use that code. The S3's ±1 bytes column uses the PIE kernel of section 3; before it, the bits were faster there
 (max: 4.83 vs 8.70 ms).
 
 SYMBEX counting modes: `swar` on the ESP32 and the ESP32-S3 (no lookup table: 1.3-2.8 KB of RAM; `lut16` is up to 8 %
@@ -138,10 +141,10 @@ faster on the ESP32, for 64 KB more, and gives the same speed on the S3), native
 
 | Network | ESP32: all binary (lut16) | int8 first layer (lut16) | TFLite INT8 | S3: all binary, bits | ±1 bytes | int8 first layer | TFLite INT8 |
 |---|---|---|---|---|---|---|---|
-| min | 1.58 | 0.79 | 3.74 | 0.83 | **0.49** | **0.49** | 0.71 |
-| max-10% | 4.43 | 3.74 | 28.72 | 2.36 | **1.83** | **1.83** | 2.93 |
-| max-5% | 13.28 | 9.33 | 100.97 | 4.87 | **3.76** | **3.76** | 6.40 |
-| max | 13.40 | 12.30 | 102.70 | 4.83 | **3.83** | **3.84** | 6.16 |
+| min | 1.15 | 0.79 | 3.74 | 0.83 | **0.49** | **0.49** | 0.71 |
+| max-10% | 3.93 | 3.74 | 28.72 | 2.36 | **1.83** | **1.83** | 2.93 |
+| max-5% | 9.77 | 9.33 | 100.97 | 4.87 | **3.76** | **3.76** | 6.40 |
+| max | **11.39** | 12.30 | 102.70 | 4.83 | **3.83** | **3.84** | 6.16 |
 
 TFLite with the weights in RAM copies the whole model at boot. On the S3, SYMBEX takes the same time with the weights in
 flash or in RAM (its weights fit the cache: 0.7-6.5 KB). On the Pico 2, the weights in RAM change SYMBEX's latency by
@@ -168,7 +171,7 @@ RAM; TFLite 7.3 KB of flash, 2.7-2.9 KB of arena.
   are the first layer alone. All binary with bits, it is 32-92 % of the network.
 - **The first layer was 1.1-4.4× faster in this version** (bit planes built once for the whole input instead of per
   step, no padding of the window to 128 inputs except for the S3's PIE, a running sum): Hazard3 min 5.45 → 1.31 ms,
-  M33 2.13 → 1.22 ms, ESP32 2.37 → 1.53 ms; the S3 already had its PIE path (0.84 → 0.83 ms).
+  M33 2.13 → 1.22 ms, ESP32 2.37 → 1.53 ms (1.11 ms after the Nov 7 short-layer fix); the S3 already had its PIE path (0.84 → 0.83 ms).
 
 ## 3. Where fully binary stops paying: the first layer (a working theory)
 
@@ -198,7 +201,7 @@ What the theory expects (the evidence so far in the last row):
 |---|---|---|
 | First layer | one more binary layer: 32 products per bit count | about one operation per input, 1-bit or 8-bit weights |
 | Expected best form | **fully binary** | **int8 first layer**, where the chip has a fast multiply-accumulate and the weights fit its memory |
-| Evidence so far | indirect: no benchmark here has a binary input yet; the binary layers, 1.14-1.59× fewer instructions than ultracompactBNN, 0.19 cycles per product (Hazard3) | the int8 first layer is faster than the bits on all four boards (M33, max: within 1 %) and more accurate (tables below) |
+| Evidence so far | indirect: no benchmark here has a binary input yet; the binary layers, 1.14-1.59× fewer instructions than ultracompactBNN, 0.19 cycles per product (Hazard3) | the int8 first layer is faster than the bits on all four boards (M33, max: within 1 %; ESP32, max: the bits are faster, 12.78 vs 14.07 ms) and more accurate (tables below) |
 
 If the theory holds, the earlier practice is right for 8-bit data, for a reason it did not state: with an 8-bit
 input, the first layer does not gain from 1-bit weights at all. And on chips that multiply bytes fast (here all four

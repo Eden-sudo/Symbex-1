@@ -7,16 +7,16 @@
  "n": 1000,
  "equal_simulation": 100.0,
  "accuracy": 86.5,
- "median_ms": 6.754,
- "min_ms": 6.749,
+ "median_ms": 6.583,
+ "min_ms": 6.579,
  "layers": [
   {
    "step": "layer 0: 784 -> 256 (uint8 x 1 bit, AND) + thresholds",
-   "median_ms": 6.113
+   "median_ms": 5.954
   },
   {
    "step": "layer 1: 256 -> 128 (1 bit x 1 bit, AND) + thresholds",
-   "median_ms": 0.573
+   "median_ms": 0.561
   },
   {
    "step": "layer 2: 128 -> 10 (1 bit x 1 bit, AND) + argmax",
@@ -27,9 +27,12 @@
   "buffers": 2144,
   "input_bytes": 784,
   "popcount_table": 0,
-  "stack_used": 520,
+  "stack_used": 568,
   "weights_in_ram": 0,
-  "total": 3448
+  "code_in_ram": 0,
+  "total": 3496
  },
- "model_flash": 35136
+ "model_flash": 35136,
+ "code": "flash",
+ "flash_config": "default"
 }

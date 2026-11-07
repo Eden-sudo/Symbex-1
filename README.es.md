@@ -95,7 +95,7 @@ INT8 de la misma red; 3 semillas, solo etiquetas, pesos en flash salvo que se in
 | Precisión | 87.47 ± 0.09 % | 89.81 ± 0.11 % (QAT) |
 | ESP32-S3 | **0.42 ms (28× más rápida)** | 11.7 ms (TFLite Micro) |
 | ESP32-S3, pesos en RAM | **0.41 ms (2.1× más rápida)** | 0.89 ms |
-| ESP32 | **3.6 ms (8.6× más rápida)** | 31.1 ms |
+| ESP32 | **3.5 ms (8.8× más rápida)** | 31.1 ms |
 | Raspberry Pi Pico 2, Cortex-M33 | **4.6 ms (6.9× más rápido)**; 1.5 ms con los pesos en RAM (1.9×) | 31.4 ms (CMSIS-NN); 2.9 ms en RAM |
 | Raspberry Pi Pico 2, Hazard3 | **4.4 ms (8.5× más rápido)**; 1.4 ms con los pesos en RAM (6.8×) | 37.5 ms; 9.6 ms en RAM (kernels de referencia) |
 | Flash | **27 KB** | 187 KB |

@@ -1,0 +1,137 @@
+{
+ "board": "pico2_riscv",
+ "library": "master",
+ "code": "flash",
+ "weights": "flash",
+ "reps": "best of 7",
+ "rows": [
+  {
+   "n_in": 19,
+   "n_out": 64,
+   "method": "bits",
+   "ns": 92906,
+   "us": 92.906,
+   "equal_reference": true
+  },
+  {
+   "n_in": 19,
+   "n_out": 64,
+   "method": "bits_unal",
+   "ns": 86843,
+   "us": 86.843,
+   "equal_reference": true
+  },
+  {
+   "n_in": 19,
+   "n_out": 64,
+   "method": "mask",
+   "ns": 89343,
+   "us": 89.343,
+   "equal_reference": true
+  },
+  {
+   "n_in": 19,
+   "n_out": 64,
+   "method": "planes",
+   "ns": 76406,
+   "us": 76.406,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 64,
+   "method": "bits",
+   "ns": 127687,
+   "us": 127.687,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 64,
+   "method": "bits_unal",
+   "ns": 251218,
+   "us": 251.218,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 64,
+   "method": "mask",
+   "ns": 124250,
+   "us": 124.25,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 64,
+   "method": "planes",
+   "ns": 128781,
+   "us": 128.781,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 3,
+   "method": "bits",
+   "ns": 8093,
+   "us": 8.093,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 3,
+   "method": "bits_unal",
+   "ns": 13843,
+   "us": 13.843,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 3,
+   "method": "mask",
+   "ns": 7718,
+   "us": 7.718,
+   "equal_reference": true
+  },
+  {
+   "n_in": 64,
+   "n_out": 3,
+   "method": "planes",
+   "ns": 30031,
+   "us": 30.031,
+   "equal_reference": true
+  },
+  {
+   "n_in": 784,
+   "n_out": 128,
+   "method": "bits",
+   "ns": 3083531,
+   "us": 3083.531,
+   "equal_reference": true
+  },
+  {
+   "n_in": 784,
+   "n_out": 128,
+   "method": "bits_unal",
+   "ns": 6229812,
+   "us": 6229.812,
+   "equal_reference": true
+  },
+  {
+   "n_in": 784,
+   "n_out": 128,
+   "method": "mask",
+   "ns": 3005656,
+   "us": 3005.656,
+   "equal_reference": true
+  },
+  {
+   "n_in": 784,
+   "n_out": 128,
+   "method": "planes",
+   "ns": 2551562,
+   "us": 2551.562,
+   "equal_reference": true
+  }
+ ]
+}

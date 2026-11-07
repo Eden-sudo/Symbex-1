@@ -44,7 +44,7 @@ flash en todas las filas menos una.
 |---|---|---|---|---|---|---|
 | MLP (Fashion-MNIST, 784-128-512-10) | ESP32-S3 | flash | 0.42 / 11.67 ms | **27.8×** | 27.3 / 187.0 KB | 4.6 / 6.7 KB |
 | MLP (Fashion-MNIST, 784-128-512-10) | ESP32-S3 | **RAM** | 0.414 / 0.888 ms | **2.14×** | 27.3 / 187.0 KB | 4.6 / 6.7 KB + los pesos (21 / 187 KB) |
-| MLP (Fashion-MNIST, 784-128-512-10) | ESP32 | flash | 3.64 / 31.11 ms | **8.56×** | 27.3 / 187.0 KB | 4.4 / 6.7 KB |
+| MLP (Fashion-MNIST, 784-128-512-10) | ESP32 | flash | 3.55 / 31.11 ms | **8.77×** | 27.3 / 187.0 KB | 4.4 / 6.7 KB |
 | ResNet-8 (CIFAR-10) | ESP32-S3 | flash | 39.2 / 52.0 ms | **1.33×** | 24.3 / 96.2 KB | 14.8 / 80.5 KB |
 | ResNet-8 (CIFAR-10) | ESP32 | flash | 63.3 / 717.8 ms | **11.3×** | 24.3 / 96.2 KB | 78.6 / 53.1 KB ¹ |
 | ResNet-8, receta más precisa ² | ESP32-S3 | flash | 32.3 / 52.0 ms | **1.61×** | 29.0 / 96.2 KB | 15.2 / 80.5 KB |
@@ -52,7 +52,7 @@ flash en todas las filas menos una.
 | Detección de personas FOMO (32-32-128) | ESP32-S3 | flash | 126.3 / 256.9 ms | **2.03×** | 41.2 / 236.1 KB | 79.0 / 222.6 KB |
 | Detección de personas FOMO (32-32-128) | ESP32 | flash | 226.3 ms / no cabe | **solo SYMBEX corre** | 41.2 / 236.1 KB | 142.8 KB ¹ / no cabe |
 | Reconocimiento de actividad (1D), 4 redes | ESP32-S3 | flash | 0.49-3.83 / 0.72-7.11 ms | **1.47-1.90×** | 0.7-6.5 / 7.3-42.5 KB | 1.3-2.7 / 2.7-25.5 KB |
-| Reconocimiento de actividad (1D), 4 redes | ESP32 | flash | 0.78-14.08 / 4.17-115.62 ms | **5.3-10.4×** | 0.7-6.5 / 7.3-42.5 KB | 1.3-2.7 / 2.7-10.3 KB |
+| Reconocimiento de actividad (1D), 4 redes | ESP32 | flash | 0.78-12.78 / 4.17-115.62 ms | **5.3-10.4×** | 0.7-6.5 / 7.3-42.5 KB | 1.3-2.7 / 2.7-10.3 KB |
 
 - **Flash** es el modelo completo: pesos, umbrales y escalas en SYMBEX, el archivo `.tflite` en INT8.
 - **RAM** es lo que usa el modelo mientras corre. En SYMBEX son los buffers, la entrada y la pila, medidos en el chip.
@@ -129,8 +129,8 @@ RAM cuando el modelo se carga.
 | ResNet-8, receta más precisa ² | ESP32 | RAM | 603.4 ms | **58.2 ms** | — | SYMBEX **10.4× más rápido** |
 | MLP 784-128-512-10 | ESP32-S3 | flash | 11.38 ms | **0.42 ms** | 11.67 ms | SYMBEX **27× más rápido** |
 | MLP 784-128-512-10 | ESP32-S3 | RAM | **0.317 ms** (177 KB de RAM) | 0.414 ms | 0.888 ms | ESP-DL **1.31× más rápido** |
-| MLP 784-128-512-10 | ESP32 | flash | 28.49 ms | **3.64 ms** | 31.11 ms | SYMBEX **7.8× más rápido** |
-| MLP 784-128-512-10 | ESP32 | RAM | 4.84 ms (177 KB de RAM) | **3.64 ms** (en flash) | — | SYMBEX 1.33× más rápido, desde flash |
+| MLP 784-128-512-10 | ESP32 | flash | 28.49 ms | **3.55 ms** | 31.11 ms | SYMBEX **8.0× más rápido** |
+| MLP 784-128-512-10 | ESP32 | RAM | 4.84 ms (177 KB de RAM) | **3.55 ms** (en flash) | — | SYMBEX 1.36× más rápido, desde flash |
 
 Precisión en esas entradas: ResNet-8 86 / 100, el MLP 179 / 200, la misma en los dos chips. Esta comprobación es una
 corrida sobre una parte del conjunto de test, todavía no un benchmark completo con 3 semillas; basta para mostrar dónde
