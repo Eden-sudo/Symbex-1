@@ -1,0 +1,58 @@
+{
+ "board": "esp32",
+ "hal": "generic: lut16 (64 KB table in RAM)",
+ "popcount": "lut16",
+ "weights": "flash",
+ "first_layer": "mask",
+ "n": 1000,
+ "equal_simulation": 100.0,
+ "accuracy": 71.5,
+ "median_ms": 63.287,
+ "min_ms": 63.237,
+ "layers": [
+  {
+   "step": "thermometer (8 levels) + stem 24->16 32x32",
+   "median_ms": 14.001
+  },
+  {
+   "step": "block 0: conv 16->16 32x32 | OR",
+   "median_ms": 11.46
+  },
+  {
+   "step": "block 1: conv 16->16 32x32 | OR",
+   "median_ms": 11.497
+  },
+  {
+   "step": "block 2: conv 16->32 32x32 s2 + OR pool + 1x1 | OR",
+   "median_ms": 7.202
+  },
+  {
+   "step": "block 3: conv 32->32 16x16 | OR",
+   "median_ms": 7.418
+  },
+  {
+   "step": "block 4: conv 32->64 16x16 s2 + OR pool + 1x1 | OR",
+   "median_ms": 4.795
+  },
+  {
+   "step": "block 5: conv 64->64 8x8 | OR",
+   "median_ms": 6.593
+  },
+  {
+   "step": "classifier",
+   "median_ms": 0.325
+  }
+ ],
+ "ram": {
+  "buffers": 10832,
+  "input_bytes": 3072,
+  "popcount_table": 65540,
+  "stack_used": 1016,
+  "weights_in_ram": 0,
+  "code_in_ram": 0,
+  "total": 80460
+ },
+ "model_flash": 24920,
+ "code": "flash",
+ "flash_config": "default"
+}

@@ -16,7 +16,7 @@ Run from benchmarks/conv2d/fomo_voc_person/ (main environment). The same study a
     flash, RAM  computed as the CDT exporter lays them out (packed weight rows, thresholds, counts; the four map buffers
                 each as large as what they hold, the window, the scratch, the cell grid)
 Then the interesting variants are exported and measured as the main one (fomo_export.py, tools/dev/fine_profile.py).
-Results: results/fomo_sizing.json.
+Results: results/sizing/fomo_sizing.json.
 """
 import argparse
 import itertools
@@ -176,8 +176,8 @@ def main():
               f"{'  *' if r['pareto'] else ''}{'   <- the benchmark FOMO' if r['spec'] == BASE else ''}")
     print("\n    * Pareto: no other variant detects better on validation AND runs faster. Export and measure the interesting ones:"
           "\n      python fomo_export.py runs/<run>  ;  python ../../../tools/dev/fine_profile.py runs/<run> --board s3 --plain")
-    os.makedirs("results", exist_ok=True)
-    path = os.path.join("results", "fomo_sizing.json")
+    os.makedirs(os.path.join("results", "sizing"), exist_ok=True)
+    path = os.path.join("results", "sizing", "fomo_sizing.json")
     out = json.load(open(path)) if os.path.exists(path) else {}
     out[f"{args.phase}_{args.blocks if args.phase == 'width' else 'all'}"] = dict(epochs=args.epochs, weight=args.weight,
                                                                                    calibration=factor, variants=rows)

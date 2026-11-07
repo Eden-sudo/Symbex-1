@@ -16,7 +16,7 @@ threshold (the same fixed split as fomo_train.py, model.SPLIT_SEED; each model g
     F1 (PC)     the TFLite interpreter on the 4,952 VOC 2007 test images, with the INT8 model's own calibrated threshold
     board       TensorFlow Lite Micro (esp-tflite-micro, ESP-NN) on the first --images test images: latency, arena, and
                 the same output as the PC interpreter (the index of the largest of the 288 outputs, image by image)
-Results: models/fomo_int8_<name>.tflite, results/tflite_<pc|board>_<name>.json.
+Results: models/fomo_int8_<name>.tflite, results/tflite/tflite_<pc|board>_<name>.json.
 """
 import argparse
 import json
@@ -96,7 +96,7 @@ def main():
     name = f"c{args.channels}_b{args.blocks}_w{args.weight:g}_e{args.epochs}" + ("" if args.seed == 42 else f"_s{args.seed}")
     path = os.path.join("models", f"fomo_int8_{name}.tflite")
     os.makedirs("models", exist_ok=True)
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join("results", "tflite"), exist_ok=True)
     xtr, ytr, ctr, otr = load("train")
     xte, _, cte, ote = load("test")
     nv = args.val                                                       # the same fixed random split as fomo_train.py
@@ -153,7 +153,7 @@ def main():
           f"{s1['recall']:.1f}%)")
     json.dump(dict(model=path, seed=args.seed, split_seed=SPLIT_SEED, val=nv, kb=len(tflite) / 1024, threshold=th,
                    f1_default=s0, f1_calibrated=s1),
-              open(os.path.join("results", f"tflite_pc_{name}.json"), "w"), indent=1)
+              open(os.path.join("results", "tflite", f"tflite_pc_{name}.json"), "w"), indent=1)
     if not args.board:
         return
 
@@ -181,7 +181,7 @@ def main():
     print(f"    flash (model) / RAM (arena)       : {len(tflite) / 1024:.1f} KB / {arena / 1024:.1f} KB")
     json.dump(dict(board=args.board, images=n, equal_to_pc=equal, latency_ms=float(np.median(times)) / 1000,
                    model_kb=len(tflite) / 1024, arena_kb=arena / 1024),
-              open(os.path.join("results", f"tflite_{args.board}_{name}.json"), "w"), indent=1)
+              open(os.path.join("results", "tflite", f"tflite_{args.board}_{name}.json"), "w"), indent=1)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ kernel on the PC), their convolution (convolution1bit_NxM.c + xnorpop2x2g.c + xn
 the current PULP SDK. Their program used the old SDK (pulp-rt: rt_perf_*); this one does the same with the current API
 (pi_perf_*): HOTTING = 2 warm-up runs, then the mean of REPEAT = 3 measured runs, as their stats.h. Their compiler flags:
 -O3 -flto. The output is checked against the expected one, word by word. Reported as they do: cycles and MAC/cycle,
-MAC = C_in x L_out x C_out x K. Results: results/ucbnn_gvsoc.json.
+MAC = C_in x L_out x C_out x K. Results: results/ucbnn/ucbnn_gvsoc.json.
 
 With --symbex, the SAME layer (the same bits, weights and thresholds) also runs through lib_symbex's 1D convolution
 (layers/conv/symbex_bool1d.c) on the same core, compiled the same way, its bits counted with the same p.cnt instruction
@@ -257,9 +257,9 @@ def main():
         rows.append(r)
     if lib:
         print("\n    instr ratio = ultracompactBNN instructions / SYMBEX instructions (> 1: SYMBEX does less work)")
-    os.makedirs("results", exist_ok=True)
-    json.dump(rows, open(os.path.join("results", "ucbnn_gvsoc.json"), "w"), indent=1)
-    print("\n    -> results/ucbnn_gvsoc.json")
+    os.makedirs(os.path.join("results", "ucbnn"), exist_ok=True)
+    json.dump(rows, open(os.path.join("results", "ucbnn", "ucbnn_gvsoc.json"), "w"), indent=1)
+    print("\n    -> results/ucbnn/ucbnn_gvsoc.json")
 
 
 if __name__ == "__main__":

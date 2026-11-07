@@ -1,0 +1,106 @@
+{
+ "method": "boolean",
+ "width": 1.0,
+ "levels": 8,
+ "binary_optimizer": "bop",
+ "stem": "int8",
+ "plan": {},
+ "epochs": 150,
+ "acc_last": 77.72,
+ "acc_test": 76.87,
+ "n_train": 45000,
+ "n_validation": 5000,
+ "n_test": 10000,
+ "history": [
+  [
+   10,
+   null,
+   null,
+   65.36
+  ],
+  [
+   20,
+   null,
+   null,
+   67.38
+  ],
+  [
+   30,
+   null,
+   null,
+   71.52
+  ],
+  [
+   40,
+   null,
+   null,
+   72.42
+  ],
+  [
+   50,
+   null,
+   null,
+   72.06
+  ],
+  [
+   60,
+   null,
+   null,
+   73.02
+  ],
+  [
+   70,
+   null,
+   null,
+   72.36
+  ],
+  [
+   80,
+   null,
+   null,
+   71.62
+  ],
+  [
+   90,
+   null,
+   null,
+   72.82
+  ],
+  [
+   100,
+   null,
+   null,
+   73.82
+  ],
+  [
+   110,
+   null,
+   null,
+   75.46
+  ],
+  [
+   120,
+   null,
+   null,
+   76.12
+  ],
+  [
+   130,
+   null,
+   null,
+   77.4
+  ],
+  [
+   140,
+   null,
+   null,
+   77.14
+  ],
+  [
+   150,
+   null,
+   null,
+   77.72
+  ]
+ ]
+}

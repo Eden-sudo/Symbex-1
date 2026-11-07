@@ -734,7 +734,7 @@ def main():
     print("\n    rt lists: the lists built at run time from the 1-bit weights (no list bytes), threshold planes in"
           " flash.\n    planes / pcx: share of the vertical time spent building the shifted planes / counting the windows."
           "\n    Not in the vertical time: HWC <-> planes at the ends, OR pool and OR on planes, the classifier.\n")
-    out = os.path.join(HERE, "results", "s3_vertical_layers" + ("_dcache64" if args.dcache64 else "") + ".json")
+    out = os.path.join(HERE, "results", "symbex", "s3_vertical_layers" + ("_dcache64" if args.dcache64 else "") + ".json")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w") as f:
         json.dump(dict(board="esp32s3", mhz=240, data_cache_kb=64 if args.dcache64 else 32, run=os.path.relpath(run_dir, HERE), images=args.images,

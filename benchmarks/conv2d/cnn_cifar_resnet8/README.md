@@ -187,11 +187,12 @@ elsewhere; `stem3_rows` in `symbex_bool.c`, rows up to 64 wide, the window path 
 "Before" is the study's network on the library of Nov 5 (`../../experiments/training_gap/results/train_gap/pool_head_chip.json`);
 "now" is the CDT's network (latency does not depend on the weights; the three seeds agree to 0.01 ms). With it, the
 most accurate network is also faster than the thermometer network on the ESP32 (62.52 vs 63.25 ms, flash) and the M33
-(67.77 vs 74.58); on Hazard3 it is 1.8 ms slower (57.94 vs 56.15) for 5.3 more points (test). The S3 keeps its PIE kernel
-(32.33 ms standard, 9.73 ms vertical).
+(67.77 vs 74.58); on Hazard3 it is 1.8 ms slower (57.94 vs 56.15) for 5.3 more points (test). The S3 keeps its PIE kernel; the CDT's
+network measured there too (3 seeds × 1,000 images, every image equal to the simulation, `results/symbex/symbex_seeds_s3_swar*_w1_int8stem_pool2*.json`): standard 32.33 ms flash / 32.32 ms RAM, vertical
+9.70 ± 0.02, compact 7.07 ± 0.02, **prepared 6.02 ± 0.01 ms** (weights in flash; 15 / 44 / 54 / 138 / 217 KB of RAM).
 
 **The vertical engine on the Pico 2** (`docs/vertical.md`), same network, 3 seeds × 1,000 images, every image equal
-to the simulation, weights in flash, lut16 (`results/symbex_seeds_pico2_*_w1_int8stem_pool2_vertical*.json`), ms (RAM):
+to the simulation, weights in flash, lut16 (`results/symbex/symbex_seeds_pico2_*_w1_int8stem_pool2_vertical*.json`), ms (RAM):
 
 | Core | standard | vertical | compact | prepared |
 |---|---|---|---|---|
@@ -204,6 +205,9 @@ stays the fastest and the smallest. The S3's large gain (32.33 → 9.73 ms) come
 the Pico 2 does not have.
 
 ## Reproduce
+
+**Without training:** [`reference/`](reference/README.md) holds seed 42 of the most accurate recipe, ready to
+compile or measure, next to the official INT8 model.
 
 From this folder (environment `env_bench`, with PyTorch on CUDA and TensorFlow):
 
@@ -240,10 +244,10 @@ Profiles: `python ../../../tools/dev/fine_profile.py runs/w1_s44 --board s3` and
 |---|---|
 | `model.py` | the binary ResNet-8 with any channels and blocks per stage, the thermometer, CIFAR-10 |
 | `symbex.toml` | the CDT configuration (method `boolean`, 150 epochs, labels only) |
-| `resnet8_symbex.py` | the CDT per seed and per board; summary in `results/symbex_seeds_<board>_<popcount>_w1.json` (`..._w1_<variant>.json` with `--variant`) (`--summary`: from runs measured with `tools/chip_test.py`; older summaries in `results/earlier/`) |
+| `resnet8_symbex.py` | the CDT per seed and per board; summary in `results/symbex/symbex_seeds_<board>_<popcount>_w1.json` (`..._w1_<variant>.json` with `--variant`) (`--summary`: from runs measured with `tools/chip_test.py`; older summaries in `results/earlier/`) |
 | `resnet8_tflite.py` | the official MLPerf Tiny INT8 model, on the PC and with TFLite Micro on the boards |
 | `resnet8_train.py` | evaluates a trained model on its own (`--check`) |
-| `resnet8_sizing.py` | the sizing study: variants, predicted latency, Pareto front (`results/sizing.json`; every variant's quick training in `results/sizing/`) |
+| `resnet8_sizing.py` | the sizing study: variants, predicted latency, Pareto front (`results/sizing/sizing.json`; every variant's quick training in `results/sizing/`) |
 
 ## Future work
 

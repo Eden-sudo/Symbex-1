@@ -84,7 +84,10 @@ y el umbral de binarización de la capa siguiente.
   el chip multiplica bytes con SIMD (el stem solo: 1.79× en el ESP32-S3, 1.13× en el Cortex-M33 del Pico 2), pero más
   lenta donde no (0.86× en el ESP32, 0.62× en Hazard3). La ResNet-8 completa, 3 semillas, exacta en todas las placas:
   75.4 % en el conjunto de prueba contra 71.3 %, 1.10× más rápida en el S3 (35.5 contra 39.2 ms), 1.03× en el M33,
-  0.93× en el ESP32 y 0.87× en Hazard3 ([el benchmark](../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). El
+  0.93× en el ESP32 y 0.87× en Hazard3 ([el benchmark](../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). Desde
+  entonces el stem tiene sus propios kernels (PIE en el S3, uno sin búfer de ventana en los demás chips), y la misma red
+  mide (semilla 42, pesos en flash) 1.22× más rápido que el termómetro en el S3 (32.1 frente a 39.2 ms), 1.12× en el
+  M33 (66.4 frente a 74.6), 1.04× en el ESP32 (61.1 frente a 63.3) y 0.98× en Hazard3 (57.4 frente a 56.1). El
   termómetro sigue siendo la opción por defecto.
 - **Bytes directamente (redes densas).** La primera capa lee los valores `uint8`, suma los que tienen peso +1 y resta
   los que tienen peso −1. Sigue siendo una suma sin multiplicaciones, y la normalización de la entrada va a los
