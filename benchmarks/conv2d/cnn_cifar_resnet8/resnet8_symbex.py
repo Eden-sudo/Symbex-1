@@ -21,12 +21,12 @@ binarization imposes changes: a thermometer input, 1-bit weights and activations
 exports it to lib_symbex (layers/conv/symbex_bool) and, with --board, measures it with the same firmware and the same
 tables as every other benchmark (100% equal to the integer simulation, accuracy, latency per layer, RAM).
 Each seed lands in runs/w<width>_s<seed>/; a seed already trained is only exported again (seconds; the export depends
-on the board), --redo trains it again. Summary: results/symbex_seeds_<board>_<popcount>[_ram]_w<width>.json
-(results/symbex_seeds_pc_w<width>.json without a board; with --epochs, in results/sizing/). --summary runs no CDT: it
+on the board), --redo trains it again. Summary: results/symbex/symbex_seeds_<board>_<popcount>[_ram]_w<width>.json
+(results/symbex/symbex_seeds_pc_w<width>.json without a board; with --epochs, in results/sizing/). --summary runs no CDT: it
 rebuilds the summary from the chip_<board>_<popcount>_<weights>_mask.json files that tools/chip_test.py leaves in each
 run folder (the S3's native USB port: chip_test.py runs/w1_s42 --board s3 --port /dev/ttyACM0 --usb).
 --engine vertical (with --summary): the runs measured with chip_test.py --engine vertical (the vertical engine,
-docs/vertical.md), summarized into results/symbex_seeds_<board>_<popcount>[_ram]_w<width>_vertical.json;
+docs/vertical.md), summarized into results/symbex/symbex_seeds_<board>_<popcount>[_ram]_w<width>_vertical.json;
 --engine vertical_prepared the same with its lists and thresholds prepared in RAM (_vertical_prepared.json);
 --engine vertical_compact with the lists prepared and the thresholds compact (_vertical_compact.json).
 """
@@ -120,7 +120,7 @@ def main():
                  "not in lib_symbex")
     vert = "" if args.engine == "standard" else "_" + args.engine
     os.chdir(HERE)
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join("results", "symbex"), exist_ok=True)
     rows = []
     if args.spec:
         sys.path.insert(0, HERE)
@@ -191,7 +191,7 @@ def main():
     if args.summary and not rows:
         sys.exit("[X] --summary: no measured seed for this board and setting")
     tag = f"{args.board}_{args.popcount}{'_ram' if args.weights == 'ram' else ''}" if args.board else "pc"
-    folder = os.path.join("results", "sizing") if args.epochs else "results"      # quick --epochs runs: the sizing study
+    folder = os.path.join("results", "sizing") if args.epochs else os.path.join("results", "symbex")     # quick --epochs runs: the sizing study
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, f"symbex_seeds_{tag}_{name}{vert}.json")
     json.dump(dict(width=args.width, spec=args.spec or None, variant=args.variant or None, board=args.board, weights=args.weights, popcount=args.popcount,

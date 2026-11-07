@@ -194,7 +194,7 @@ curves of `tools/dev/count_bench.py`, calibrated on the measured x1 network (the
 
 The winner on accuracy, measured on the boards with the benchmark's own pipeline (`resnet8_symbex.py --spec
 16-48-96/1-3-3`, 3 seeds, test images, 1,000 images on each chip, **chip = integer simulation on 100 %** in all 12
-runs, `../../conv2d/cnn_cifar_resnet8/results/symbex_seeds_*_c16-48-96_b1-3-3.json`):
+runs, `../../conv2d/cnn_cifar_resnet8/results/symbex/symbex_seeds_*_c16-48-96_b1-3-3.json`):
 
 | ResNet-8 | test | S3 flash / RAM | ESP32 flash / RAM | weights + thresholds |
 |---|---|---|---|---|

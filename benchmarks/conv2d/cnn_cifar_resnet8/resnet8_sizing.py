@@ -12,11 +12,11 @@ stage) resnet8_symbex.py --spec trains it for --epochs (default 30: a quick rank
 it (the flash and the shape of every layer come from that export). The latency is PREDICTED, without the chip:
     every layer costs (outputs) x (cycles per output of the chip's counting method for its packed window size), the
     method's cycles measured by tools/dev/count_bench.py on each chip (chip_profiles/count_<chip>.json), and one factor per
-    chip calibrated with the measured ResNet-8 (results/symbex_seeds_s3_swar_w1.json, ..._esp32_lut16_w1.json)
+    chip calibrated with the measured ResNet-8 (results/symbex/symbex_seeds_s3_swar_w1.json, ..._esp32_lut16_w1.json)
 It is an estimate: the variants worth it are then trained in full and measured on the chip, as the main benchmark:
     python resnet8_symbex.py --spec 16-32-64/1-1-2 --seeds 3 --board s3 --port /dev/ttyUSB0
 Table: accuracy (short training), predicted ms on both chips, flash, and the variants no other beats in both accuracy
-and time (Pareto). Results: results/sizing.json.
+and time (Pareto). Results: results/sizing/sizing.json.
 """
 import argparse
 import itertools
@@ -71,7 +71,7 @@ def raw_cycles(layers, curve):
 
 
 def measured_ms(chip):
-    r = load(os.path.join("results", CHIPS[chip][2]))
+    r = load(os.path.join("results", "symbex", CHIPS[chip][2]))
     if not r:
         return None
     ms = [s["latency_ms"] for s in r["seeds"] if s.get("latency_ms")]
@@ -106,7 +106,7 @@ def main():
     for chip in CHIPS:
         ms = measured_ms(chip)
         if ms is None:
-            sys.exit(f"[X] results/{CHIPS[chip][2]} not found: measure the ResNet-8 on the {chip} first (resnet8_symbex.py)")
+            sys.exit(f"[X] results/symbex/{CHIPS[chip][2]} not found: measure the ResNet-8 on the {chip} first (resnet8_symbex.py)")
         factor[chip] = ms / (raw_cycles(base["layers"], curves[chip]) / 240e3)
     rows = []
     for spec in specs:
@@ -134,12 +134,12 @@ def main():
               f"{'  *' if r['pareto'] else ''}{'   <- the ResNet-8' if r['spec'] == BASE else ''}")
     print("\n    * Pareto: no other variant is more accurate AND faster. Confirm the interesting ones with a full training"
           "\n      and the chip:  python resnet8_symbex.py --spec <channels/blocks> --seeds 3 --board s3")
-    os.makedirs("results", exist_ok=True)
-    out = load(os.path.join("results", "sizing.json")) or {}
+    os.makedirs(os.path.join("results", "sizing"), exist_ok=True)
+    out = load(os.path.join("results", "sizing", "sizing.json")) or {}
     out[f"{args.phase}_{args.blocks if args.phase == 'width' else 'all'}_e{args.epochs}"] = dict(
         epochs=args.epochs, calibration=factor, variants=rows)
-    json.dump(out, open(os.path.join("results", "sizing.json"), "w"), indent=1)
-    print("    -> results/sizing.json")
+    json.dump(out, open(os.path.join("results", "sizing", "sizing.json"), "w"), indent=1)
+    print("    -> results/sizing/sizing.json")
 
 
 if __name__ == "__main__":

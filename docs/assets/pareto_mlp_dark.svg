@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="488" viewBox="0 0 900 488" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" role="img">
+<title>Accuracy against latency, MLP on the ESP32-S3: SYMBEX vs. INT8 / INT4 / INT2</title>
+<text x="16.0" y="26.0" fill="#f0efec" font-size="16" text-anchor="start" font-weight="bold">Accuracy against latency: where one bit sits</text>
+<text x="16.0" y="46.0" fill="#c3c2b7" font-size="12" text-anchor="start" font-weight="normal">MLP, Fashion-MNIST, ESP32-S3 · validation accuracy, mean ± sd of 3 seeds, the same recipe</text>
+<text x="16.0" y="63.0" fill="#c3c2b7" font-size="12" text-anchor="start" font-weight="normal">INT8 / INT4 / INT2: 784-256-128, QAT, ESP-NN kernels · SYMBEX: networks sized for binary</text>
+<circle cx="76" cy="84" r="5" fill="#3987e5"/>
+<text x="86.0" y="88.0" fill="#f0efec" font-size="12" text-anchor="start" font-weight="normal">SYMBEX (1 bit)</text>
+<circle cx="196" cy="84" r="5" fill="#d95926"/>
+<text x="206.0" y="88.0" fill="#f0efec" font-size="12" text-anchor="start" font-weight="normal">INT8</text>
+<circle cx="316" cy="84" r="5" fill="#199e70"/>
+<text x="326.0" y="88.0" fill="#f0efec" font-size="12" text-anchor="start" font-weight="normal">INT4</text>
+<circle cx="436" cy="84" r="5" fill="#c98500"/>
+<text x="446.0" y="88.0" fill="#f0efec" font-size="12" text-anchor="start" font-weight="normal">INT2</text>
+<line x1="560" y1="84" x2="584" y2="84" stroke="#c3c2b7" stroke-width="2"/>
+<text x="590.0" y="88.0" fill="#f0efec" font-size="12" text-anchor="start" font-weight="normal">Pareto front: nothing is both faster and more accurate</text>
+<text x="62.0" y="428.0" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">85.5 %</text>
+<text x="62.0" y="390.5" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">86.0 %</text>
+<text x="62.0" y="353.0" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">86.5 %</text>
+<text x="62.0" y="315.5" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">87.0 %</text>
+<text x="62.0" y="278.0" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">87.5 %</text>
+<text x="62.0" y="240.5" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">88.0 %</text>
+<text x="62.0" y="203.0" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">88.5 %</text>
+<text x="62.0" y="165.5" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">89.0 %</text>
+<text x="62.0" y="128.0" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">89.5 %</text>
+<text x="70.0" y="112.0" fill="#f0efec" font-size="13" text-anchor="start" font-weight="bold">ESP32-S3 · weights in flash</text>
+<line x1="70" y1="424.0" x2="440" y2="424.0" stroke="#3a3a38"/>
+<line x1="70" y1="386.5" x2="440" y2="386.5" stroke="#3a3a38"/>
+<line x1="70" y1="349.0" x2="440" y2="349.0" stroke="#3a3a38"/>
+<line x1="70" y1="311.5" x2="440" y2="311.5" stroke="#3a3a38"/>
+<line x1="70" y1="274.0" x2="440" y2="274.0" stroke="#3a3a38"/>
+<line x1="70" y1="236.5" x2="440" y2="236.5" stroke="#3a3a38"/>
+<line x1="70" y1="199.0" x2="440" y2="199.0" stroke="#3a3a38"/>
+<line x1="70" y1="161.5" x2="440" y2="161.5" stroke="#3a3a38"/>
+<line x1="70" y1="124.0" x2="440" y2="124.0" stroke="#3a3a38"/>
+<line x1="70.0" y1="124" x2="70.0" y2="424" stroke="#3a3a38"/>
+<text x="70.0" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">0.1</text>
+<line x1="107.1" y1="124" x2="107.1" y2="424" stroke="#3a3a38"/>
+<text x="107.1" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">0.2</text>
+<line x1="156.2" y1="124" x2="156.2" y2="424" stroke="#3a3a38"/>
+<text x="156.2" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">0.5</text>
+<line x1="193.3" y1="124" x2="193.3" y2="424" stroke="#3a3a38"/>
+<text x="193.3" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">1</text>
+<line x1="230.5" y1="124" x2="230.5" y2="424" stroke="#3a3a38"/>
+<text x="230.5" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">2</text>
+<line x1="279.5" y1="124" x2="279.5" y2="424" stroke="#3a3a38"/>
+<text x="279.5" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">5</text>
+<line x1="316.7" y1="124" x2="316.7" y2="424" stroke="#3a3a38"/>
+<text x="316.7" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">10</text>
+<line x1="353.8" y1="124" x2="353.8" y2="424" stroke="#3a3a38"/>
+<text x="353.8" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">20</text>
+<line x1="402.9" y1="124" x2="402.9" y2="424" stroke="#3a3a38"/>
+<text x="402.9" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">50</text>
+<line x1="440.0" y1="124" x2="440.0" y2="424" stroke="#3a3a38"/>
+<text x="440.0" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">100</text>
+<text x="255.0" y="458.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">ms per inference (log scale)</text>
+<line x1="70" y1="161.5" x2="440" y2="161.5" stroke="#8f8e88" stroke-dasharray="3 3"/>
+<text x="74.0" y="156.5" fill="#c3c2b7" font-size="10" text-anchor="start" font-weight="normal">FP32 89.0 %</text>
+<path d="M146.9,290.3 H260.9 V242.3 H318.3 V158.2 H340.5 V147.7 H440.0" fill="none" stroke="#c3c2b7" stroke-width="2" stroke-opacity="0.6"/>
+<line x1="340.5" y1="145.6" x2="340.5" y2="149.9" stroke="#d95926" stroke-width="2"/>
+<circle cx="340.5" cy="147.7" r="5" fill="#d95926" stroke="#0d1117" stroke-width="2"><title>INT8: 89.18 ± 0.03 %, 15.6 ms</title></circle>
+<line x1="318.3" y1="144.9" x2="318.3" y2="171.4" stroke="#199e70" stroke-width="2"/>
+<circle cx="318.3" cy="158.2" r="5" fill="#199e70" stroke="#0d1117" stroke-width="2"><title>INT4: 89.04 ± 0.18 %, 10.3 ms</title></circle>
+<line x1="332.2" y1="179.0" x2="332.2" y2="229.0" stroke="#c98500" stroke-width="2"/>
+<circle cx="332.2" cy="204.0" r="5" fill="#c98500" stroke="#0d1117" stroke-width="2"><title>INT2: 88.43 ± 0.33 %, 13.4 ms</title></circle>
+<line x1="260.9" y1="225.7" x2="260.9" y2="259.0" stroke="#3987e5" stroke-width="2"/>
+<circle cx="260.9" cy="242.3" r="5" fill="#3987e5" stroke="#0d1117" stroke-width="2"><title>SYMBEX 256-512: 87.92 ± 0.22 %, 3.53 ms</title></circle>
+<line x1="280.6" y1="231.9" x2="280.6" y2="256.1" stroke="#3987e5" stroke-width="2"/>
+<circle cx="280.6" cy="244.0" r="5" fill="#3987e5" stroke="#0d1117" stroke-width="2"><title>SYMBEX 384-512: 87.90 ± 0.16 %, 5.10 ms</title></circle>
+<line x1="283.4" y1="211.0" x2="283.4" y2="360.3" stroke="#3987e5" stroke-width="2"/>
+<circle cx="283.4" cy="285.7" r="5" fill="#3987e5" stroke="#0d1117" stroke-width="2"><title>SYMBEX 512-256: 87.34 ± 1.00 %, 5.37 ms</title></circle>
+<line x1="146.9" y1="273.7" x2="146.9" y2="306.8" stroke="#3987e5" stroke-width="2"/>
+<circle cx="146.9" cy="290.3" r="5" fill="#3987e5" stroke="#0d1117" stroke-width="2"><title>SYMBEX 128-512: 87.28 ± 0.22 %, 0.42 ms</title></circle>
+<text x="297.8" y="137.7" fill="#f0efec" font-size="11" text-anchor="start" font-weight="normal">INT8 · 15.6 ms</text>
+<text x="223.9" y="162.2" fill="#f0efec" font-size="11" text-anchor="start" font-weight="normal">INT4 · 10.3 ms</text>
+<text x="341.2" y="208.0" fill="#f0efec" font-size="11" text-anchor="start" font-weight="normal">INT2 · 13.4 ms</text>
+<text x="148.2" y="246.3" fill="#f0efec" font-size="11" text-anchor="start" font-weight="normal">256-512 · 3.53 ms</text>
+<text x="155.9" y="306.3" fill="#f0efec" font-size="11" text-anchor="start" font-weight="normal">128-512 · 0.42 ms</text>
+<text x="500.0" y="112.0" fill="#f0efec" font-size="13" text-anchor="start" font-weight="bold">ESP32-S3 · weights in RAM</text>
+<line x1="500" y1="424.0" x2="870" y2="424.0" stroke="#3a3a38"/>
+<line x1="500" y1="386.5" x2="870" y2="386.5" stroke="#3a3a38"/>
+<line x1="500" y1="349.0" x2="870" y2="349.0" stroke="#3a3a38"/>
+<line x1="500" y1="311.5" x2="870" y2="311.5" stroke="#3a3a38"/>
+<line x1="500" y1="274.0" x2="870" y2="274.0" stroke="#3a3a38"/>
+<line x1="500" y1="236.5" x2="870" y2="236.5" stroke="#3a3a38"/>
+<line x1="500" y1="199.0" x2="870" y2="199.0" stroke="#3a3a38"/>
+<line x1="500" y1="161.5" x2="870" y2="161.5" stroke="#3a3a38"/>
+<line x1="500" y1="124.0" x2="870" y2="124.0" stroke="#3a3a38"/>
+<line x1="500.0" y1="124" x2="500.0" y2="424" stroke="#3a3a38"/>
+<text x="500.0" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">0.1</text>
+<line x1="565.6" y1="124" x2="565.6" y2="424" stroke="#3a3a38"/>
+<text x="565.6" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">0.2</text>
+<line x1="652.2" y1="124" x2="652.2" y2="424" stroke="#3a3a38"/>
+<text x="652.2" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">0.5</text>
+<line x1="717.8" y1="124" x2="717.8" y2="424" stroke="#3a3a38"/>
+<text x="717.8" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">1</text>
+<line x1="783.3" y1="124" x2="783.3" y2="424" stroke="#3a3a38"/>
+<text x="783.3" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">2</text>
+<line x1="870.0" y1="124" x2="870.0" y2="424" stroke="#3a3a38"/>
+<text x="870.0" y="440.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">5</text>
+<text x="685.0" y="458.0" fill="#c3c2b7" font-size="11" text-anchor="middle" font-weight="normal">ms per inference (log scale)</text>
+<line x1="500" y1="161.5" x2="870" y2="161.5" stroke="#8f8e88" stroke-dasharray="3 3"/>
+<text x="504.0" y="156.5" fill="#c3c2b7" font-size="10" text-anchor="start" font-weight="normal">FP32 89.0 %</text>
+<path d="M634.4,290.3 H662.3 V147.7 H870.0" fill="none" stroke="#c3c2b7" stroke-width="2" stroke-opacity="0.6"/>
+<line x1="662.3" y1="145.6" x2="662.3" y2="149.9" stroke="#d95926" stroke-width="2"/>
+<circle cx="662.3" cy="147.7" r="5" fill="#d95926" stroke="#0d1117" stroke-width="2"><title>INT8: 89.18 ± 0.03 %, 0.56 ms</title></circle>
+<line x1="662.3" y1="144.9" x2="662.3" y2="171.4" stroke="#199e70" stroke-width="2"/>
+<circle cx="662.3" cy="158.2" r="5" fill="#199e70" stroke="#0d1117" stroke-width="2"><title>INT4: 89.04 ± 0.18 %, 0.56 ms</title></circle>
+<line x1="662.3" y1="179.0" x2="662.3" y2="229.0" stroke="#c98500" stroke-width="2"/>
+<circle cx="662.3" cy="204.0" r="5" fill="#c98500" stroke="#0d1117" stroke-width="2"><title>INT2: 88.43 ± 0.33 %, 0.56 ms</title></circle>
+<line x1="680.3" y1="225.7" x2="680.3" y2="259.0" stroke="#3987e5" stroke-width="2"/>
+<circle cx="680.3" cy="242.3" r="5" fill="#3987e5" stroke="#0d1117" stroke-width="2"><title>SYMBEX 256-512: 87.92 ± 0.22 %, 0.67 ms</title></circle>
+<line x1="711.2" y1="231.9" x2="711.2" y2="256.1" stroke="#3987e5" stroke-width="2"/>
+<circle cx="711.2" cy="244.0" r="5" fill="#3987e5" stroke="#0d1117" stroke-width="2"><title>SYMBEX 384-512: 87.90 ± 0.16 %, 0.93 ms</title></circle>
+<line x1="721.2" y1="211.0" x2="721.2" y2="360.3" stroke="#3987e5" stroke-width="2"/>
+<circle cx="721.2" cy="285.7" r="5" fill="#3987e5" stroke="#0d1117" stroke-width="2"><title>SYMBEX 512-256: 87.34 ± 1.00 %, 1.04 ms</title></circle>
+<line x1="634.4" y1="273.7" x2="634.4" y2="306.8" stroke="#3987e5" stroke-width="2"/>
+<circle cx="634.4" cy="290.3" r="5" fill="#3987e5" stroke="#0d1117" stroke-width="2"><title>SYMBEX 128-512: 87.28 ± 0.22 %, 0.41 ms</title></circle>
+<text x="619.6" y="137.7" fill="#f0efec" font-size="11" text-anchor="start" font-weight="normal">INT8 · 0.56 ms</text>
+<text x="671.3" y="162.2" fill="#f0efec" font-size="11" text-anchor="start" font-weight="normal">INT4 · 0.56 ms</text>
+<text x="671.3" y="208.0" fill="#f0efec" font-size="11" text-anchor="start" font-weight="normal">INT2 · 0.56 ms</text>
+<text x="521.7" y="294.3" fill="#f0efec" font-size="11" text-anchor="start" font-weight="normal">128-512 · 0.41 ms</text>
+</svg>
