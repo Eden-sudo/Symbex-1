@@ -32,14 +32,14 @@ ESP32-S3 and both cores of the Raspberry Pi Pico 2.
 | Beats | one window per annotated beat: 256 samples (1.42 s) around the R peak, median removed, int8 (4 mV full scale) |
 | Classes | AAMI EC57: N, S, V, F; class Q and the 4 paced records (102, 104, 107, 217) dropped |
 | Split | inter-patient (de Chazal 2004): DS1 (22 records) trains, **DS2 (22 records) is the test set** |
-| Validation | 6 DS1 records (`ecg_data.py`); for choosing the recipe, 4 patient-wise folds inside DS1 |
+| Validation | 5 DS1 records (`ecg_data.py`); for choosing the recipe, 4 patient-wise folds inside DS1 |
 | Rhythm (RR) | 3 constant int8 input channels: RR before / local mean, RR after / local mean, local mean (10 beats) |
 | Metric | **balanced accuracy** (mean of the four sensitivities): N is 89 % of the test beats, plain accuracy hides S and F |
 
 | Split | N | S | V | F |
 |---|---|---|---|---|
-| train (16 DS1 records) | 35,019 | 664 | 2,644 | 399 |
-| validation (6 DS1 records) | 10,813 | 280 | 1,142 | 15 |
+| train (17 DS1 records) | 35,019 | 664 | 2,644 | 399 |
+| validation (5 DS1 records) | 10,813 | 280 | 1,142 | 15 |
 | test (DS2) | 44,224 | 1,837 | 3,219 | 388 |
 
 The networks (`ecg_data.ARCHS`): three binary convolutions of width 9 and two max pools, then one dense layer to the
@@ -59,7 +59,7 @@ weighted by the inverse class frequency, checkpoint at the best validation balan
 
 **Question.** Do augmentation or rhythm features help, and do they help both methods alike?
 
-**What.** One validation split of 6 patients is noisy (it holds only 15 F beats), so the recipe was chosen with
+**What.** One validation split of 5 patients is noisy (it holds only 15 F beats), so the recipe was chosen with
 4-fold patient-wise cross-validation inside DS1 (`--cv`, seed 42, whole records per fold, the test patients never
 in a fold). Metric: the mean of the four folds' balanced accuracy. Three recipes: base, `--augment` (random
 amplitude, baseline wander, noise and shift, a new draw every epoch) and `--rr`.

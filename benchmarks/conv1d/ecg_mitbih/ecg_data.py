@@ -167,20 +167,32 @@ def main():
         print(f"    fold {k}: {f}  N S V F = {c.tolist()}")
 
 
-def class_weights(y):
-    """inverse class frequency, mean 1 over the beats: the weights of the cross-entropy (the same for every method)"""
+def class_weights(y, power=1.0):
+    """inverse class frequency, mean 1 over the beats: the weights of the cross-entropy (the same for every method).
+    power < 1 softens them (inverse frequency ** power, mean 1 again): 0.5 the square root, 0 no weights at all"""
     c = np.bincount(y, minlength=len(CLASSES)).astype(np.float64)
-    return len(y) / (len(CLASSES) * np.maximum(c, 1))
+    w = len(y) / (len(CLASSES) * np.maximum(c, 1))
+    if power == 1.0:
+        return w
+    w = w ** power
+    return w * len(y) / float(np.dot(c, w))
+
+
+def recipe_tag(weight_power=1.0, select="balanced"):
+    """the run-name suffix of a recipe other than the default one: _wp<power>, _sel<metric>"""
+    return ("" if weight_power == 1.0 else f"_wp{weight_power:g}") + ("" if select == "balanced" else f"_sel{select}")
 
 
 def scores(y, p):
-    """accuracy, balanced accuracy (mean sensitivity of the 4 classes: the checkpoint is chosen on it), and per class
-    the sensitivity and the positive predictive value, all in %"""
+    """accuracy, balanced accuracy (mean sensitivity of the 4 classes: the default checkpoint metric), macro F1 (mean
+    over the classes of the harmonic mean of sensitivity and positive predictive value: false alarms count too), and
+    per class the sensitivity and the positive predictive value, all in %"""
     k = len(CLASSES)
     cm = np.bincount(k * y + p, minlength=k * k).reshape(k, k)
     sens = 100 * np.diag(cm) / np.maximum(cm.sum(1), 1)
     ppv = 100 * np.diag(cm) / np.maximum(cm.sum(0), 1)
-    return dict(accuracy=100 * float(np.trace(cm) / cm.sum()), balanced=float(sens.mean()),
+    f1 = 2 * sens * ppv / np.maximum(sens + ppv, 1e-9)
+    return dict(accuracy=100 * float(np.trace(cm) / cm.sum()), balanced=float(sens.mean()), f1=float(f1.mean()),
                 sensitivity=dict(zip(CLASSES, sens.round(2).tolist())), ppv=dict(zip(CLASSES, ppv.round(2).tolist())),
                 confusion=cm.tolist())
 

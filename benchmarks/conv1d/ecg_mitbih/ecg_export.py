@@ -42,6 +42,8 @@ def main():
                     help="binary runs: the 1-bit first layer as +-1 bytes (int8 kernel), written to <run>_bytes/")
     args = ap.parse_args()
     info = json.load(open(os.path.join(args.run, "train.json")))
+    if info.get("fold") is not None:                    # a CV fold run: its validation split is the fold
+        sys.exit(f"[X] {args.run} is a cross-validation fold run (fold {info['fold']}): export the final runs only")
     if args.first_bytes and info["first"] != "binary":
         sys.exit("[X] --first-bytes is for the runs with a binary first layer")
     rr = bool(info.get("rr", False))                   # the RR-interval channels (ecg_train.py --rr)

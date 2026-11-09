@@ -7,6 +7,7 @@ TensorFlow Lite, the way anyone deploys a network on a microcontroller.
     python ecg_tflite.py --arch m --augment --seed 42       # with ecg_data.augment every epoch (= ecg_train.py)
     python ecg_tflite.py --arch m --cv                      # patient-wise cross-validation inside DS1 (no test)
     python ecg_tflite.py --arch m --rr --seed 42            # + the RR-interval input channels (= ecg_train.py --rr)
+    python ecg_tflite.py --arch m --rr --cv --weight-power 0.5 --select f1   # = ecg_train.py: softer weights, F1
     python ecg_tflite.py --arch m --seed 42 --board esp32 --port /dev/ttyUSB0          # ... and TFLite Micro on a board
     python ecg_tflite.py --arch m --seed 42 --board s3 --port /dev/ttyACM0 --usb
     python ecg_tflite.py --arch m --seed 42 --board pico2_arm --port /dev/ttyACM1      # Pico 2 M33 (CMSIS-NN)
@@ -25,7 +26,8 @@ board: TensorFlow Lite Micro with the firmware of har_ultracompact/har_tflite.py
 the Pico 2 M33, reference kernels on Hazard3) on the same --windows validation beats ecg_export.py gives the SYMBEX
 chip test (drawn with numpy seed 0): latency, arena, and the same class as the PC interpreter, beat by beat.
 Results: models/ecg_int8_<arch>_s<seed>.tflite (+ .weights.h5), results/tflite/tflite_pc_<arch>_s<seed>.json,
-results/tflite/tflite_<board>_<arch>_s<seed>[_ram].json.
+results/tflite/tflite_<board>_<arch>_s<seed>[_ram].json. --weight-power / --select: the recipe options of ecg_train.py
+(class weights ** p, checkpoint on macro F1), in the names as _wp<p> / _self1.
 """
 import argparse
 import json
@@ -38,7 +40,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(1, os.path.join(HERE, "..", "har_ultracompact"))
 from ecg_data import (ARCHS, CLASSES, CV_FOLDS, RR_CHANNELS, WINDOW, augment, class_weights, load,  # noqa: E402
-                      scores)
+                      recipe_tag, scores)
 from har_tflite import measure_board, predict_tflite                                         # noqa: E402
 
 SEEDS = (42, 43, 44)
@@ -60,7 +62,7 @@ def u8(x):
     return (x.astype(np.int16) + 128).astype(np.uint8).reshape(len(x), -1)
 
 
-def train_convert(arch, seed, epochs, lr, path, tf, aug=False, fold=None, rr=False):
+def train_convert(arch, seed, epochs, lr, path, tf, aug=False, fold=None, rr=False, wp=1.0, select="balanced"):
     (xtr, ytr), (xva, yva) = load("train", fold, rr), load("validation", fold, rr)
     f = lambda x: (x.astype(np.float32) / 127)
     tf.keras.utils.set_random_seed(seed)
@@ -74,15 +76,15 @@ def train_convert(arch, seed, epochs, lr, path, tf, aug=False, fold=None, rr=Fal
         best, epoch, weights = -1.0, 0, None
 
         def on_epoch_end(self, ep, logs=None):
-            va = scores(yva, self.model.predict(xva_f, batch_size=4096, verbose=0).argmax(1))["balanced"]
+            va = scores(yva, self.model.predict(xva_f, batch_size=4096, verbose=0).argmax(1))[select]
             if va > Best.best:
                 Best.best, Best.epoch, Best.weights = va, ep + 1, self.model.get_weights()
             if (ep + 1) % 10 == 0:
-                print(f"    {arch}_s{seed} | epoch {ep + 1:3d}/{epochs} | validation balanced {va:5.1f}% "
+                print(f"    {arch}_s{seed} | epoch {ep + 1:3d}/{epochs} | validation {select} {va:5.1f}% "
                       f"(best {Best.best:5.1f}% at {Best.epoch})", flush=True)
 
     print(f"[*] training the float {arch} network in Keras ({epochs} epochs, seed {seed}) ...")
-    w = class_weights(ytr)
+    w = class_weights(ytr, wp)
     if aug:                                                          # a new draw every epoch, one epoch per fit
         rng = np.random.default_rng(seed)
         for ep in range(epochs):
@@ -94,7 +96,7 @@ def train_convert(arch, seed, epochs, lr, path, tf, aug=False, fold=None, rr=Fal
     model.set_weights(Best.weights)
     model.save_weights(path.replace(".tflite", ".weights.h5"))      # to convert again without training
     convert(arch, model.get_weights(), path, tf, fold, rr)
-    return dict(best_epoch=Best.epoch, validation_float_balanced=Best.best)
+    return dict(best_epoch=Best.epoch, **{f"validation_float_{select}": Best.best})
 
 
 def convert(arch, weights, path, tf, fold=None, rr=False):
@@ -112,21 +114,29 @@ def convert(arch, weights, path, tf, fold=None, rr=False):
     open(path, "wb").write(conv.convert())
 
 
-def run_name(arch, seed, aug=False, fold=None, rr=False):
-    return f"{arch}_s{seed}" + ("_aug" if aug else "") + ("_rr" if rr else "") + ("" if fold is None else f"_f{fold}")
+def run_name(arch, seed, aug=False, fold=None, rr=False, wp=1.0, select="balanced"):
+    return (f"{arch}_s{seed}" + ("_aug" if aug else "") + ("_rr" if rr else "") + recipe_tag(wp, select)
+            + ("" if fold is None else f"_f{fold}"))
 
 
-def run_pc(arch, seed, epochs, lr, tf, aug=False, fold=None, rr=False):
-    name = run_name(arch, seed, aug, fold, rr)
+def run_pc(arch, seed, epochs, lr, tf, aug=False, fold=None, rr=False, wp=1.0, select="balanced"):
+    name = run_name(arch, seed, aug, fold, rr, wp, select)
     path = os.path.join("models", f"ecg_int8_{name}.tflite")
     out = os.path.join("results", "tflite", ("cv" if fold is not None else ""), f"tflite_pc_{name}.json")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     info = json.load(open(out)) if os.path.exists(out) else {}
+    if os.path.exists(path) and (info.get("epochs", epochs) != epochs or info.get("lr", lr) != lr):
+        print(f"    {name}: the saved model was trained with {info.get('epochs')} epochs, lr {info.get('lr', lr)} "
+              f"-> training again with {epochs} epochs, lr {lr}")
+        os.remove(path)                                              # a model trained with other epochs / lr is stale
     if not os.path.exists(path):
-        info = train_convert(arch, seed, epochs, lr, path, tf, aug, fold, rr)
+        info = train_convert(arch, seed, epochs, lr, path, tf, aug, fold, rr, wp, select)
     tflite = open(path, "rb").read()
-    res = dict(arch=arch, seed=seed, epochs=epochs, augment=aug, fold=fold, rr=rr, model=path, kb=len(tflite) / 1024,
+    res = dict(arch=arch, seed=seed, epochs=epochs, lr=lr, augment=aug, fold=fold, rr=rr, weight_power=wp, select=select,
+               model=path, kb=len(tflite) / 1024,
                best_epoch=info.get("best_epoch"), validation_float_balanced=info.get("validation_float_balanced"))
+    if select != "balanced":
+        res[f"validation_float_{select}"] = info.get(f"validation_float_{select}")
     for split in ("validation",) if fold is not None else ("validation", "test"):    # folds never see the test set
         x, y = load(split, fold, rr)
         pred, ops = predict_tflite(tflite, u8(x))
@@ -146,23 +156,27 @@ def run_pc(arch, seed, epochs, lr, tf, aug=False, fold=None, rr=False):
 def cross_validate(args, tf):
     """every fold (a fold already done is read back), then the pooled out-of-fold INT8 and float scores"""
     folds = range(CV_FOLDS) if args.fold is None else [args.fold]
-    rows = [run_pc(args.arch, args.seed, args.epochs, args.lr, tf, args.augment, k, args.rr)[1] for k in folds]
+    rows = [run_pc(args.arch, args.seed, args.epochs, args.lr, tf, args.augment, k, args.rr, args.weight_power,
+                   args.select)[1] for k in folds]
     if args.fold is not None:
         return
     pooled = scores(np.concatenate([load("validation", k)[1] for k in folds]),
                     np.concatenate([np.array(r["validation_pred"]) for r in rows]))
-    name = run_name(args.arch, args.seed, args.augment, rr=args.rr)
+    name = run_name(args.arch, args.seed, args.augment, rr=args.rr, wp=args.weight_power, select=args.select)
     out = os.path.join("results", "tflite", f"cv_{name}.json")
-    json.dump(dict(name=name, arch=args.arch, seed=args.seed, epochs=args.epochs, augment=args.augment,
+    json.dump(dict(name=name, arch=args.arch, seed=args.seed, epochs=args.epochs, augment=args.augment, rr=args.rr,
+                   weight_power=args.weight_power, select=args.select,
                    folds=list(folds), fold_balanced=[r["validation"]["balanced"] for r in rows],
+                   fold_f1=[scores(load("validation", k)[1], np.array(r["validation_pred"]))["f1"]
+                            for k, r in zip(folds, rows)],
                    fold_float_balanced=[r["validation_float_balanced"] for r in rows], pooled=pooled),
               open(out, "w"), indent=1)
-    print(f"[*] CV INT8 {name}: pooled out-of-fold balanced {pooled['balanced']:.1f}%, folds "
-          f"{' / '.join(f'{r['validation']['balanced']:.1f}' for r in rows)} -> {out}")
+    print(f"[*] CV INT8 {name}: pooled out-of-fold balanced {pooled['balanced']:.1f}% F1 {pooled['f1']:.1f}%, folds "
+          f"{' / '.join('%.1f' % r['validation']['balanced'] for r in rows)} -> {out}")
 
 
 def run_board(args, tflite, ops):
-    name = run_name(args.arch, args.seed, args.augment, rr=args.rr)
+    name = run_name(args.arch, args.seed, args.augment, rr=args.rr, wp=args.weight_power, select=args.select)
     x, _ = load("validation", rr=args.rr)
     n = min(args.windows, len(x))
     x_u8 = u8(x[np.sort(np.random.default_rng(0).choice(len(x), n, replace=False))])   # = ecg_export.py
@@ -202,6 +216,10 @@ def main():
     ap.add_argument("--cv", action="store_true", help="patient-wise cross-validation inside DS1 (every fold, no test)")
     ap.add_argument("--fold", type=int, choices=range(CV_FOLDS), help="with --cv: only this fold")
     ap.add_argument("--rr", action="store_true", help="+ the RR-interval channels (ecg_data.rr_channels) as input")
+    ap.add_argument("--weight-power", type=float, default=1.0,
+                    help="class weights = inverse frequency ** this (1 default, 0.5 square root, 0 none)")
+    ap.add_argument("--select", choices=["balanced", "f1"], default="balanced",
+                    help="validation metric of the checkpoint: balanced accuracy (default) or macro F1")
     ap.add_argument("--gpu-memory", type=int, help="MB of GPU memory for this process (default: grow as needed); "
                     "a cap lets several trainings share the GPU")
     args = ap.parse_args()
@@ -217,7 +235,8 @@ def main():
     if args.cv:
         return cross_validate(args, tf)
     jobs = [(a, s) for a in ARCHS for s in SEEDS] if args.all else [(args.arch, args.seed)]
-    rows = [run_pc(a, s, args.epochs, args.lr, tf, args.augment, rr=args.rr) for a, s in jobs]
+    rows = [run_pc(a, s, args.epochs, args.lr, tf, args.augment, rr=args.rr, wp=args.weight_power, select=args.select)
+            for a, s in jobs]
     if args.board and not args.all:
         run_board(args, rows[0][0], rows[0][1]["ops"])
     rows = [r for _, r in rows]
