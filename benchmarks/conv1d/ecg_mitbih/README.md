@@ -23,6 +23,10 @@ ESP32-S3 and both cores of the Raspberry Pi Pico 2.
 - **Rhythm features help both methods.** Three constant input channels with the RR intervals (the time between
   beats, what a cardiologist reads first) add 2-5 points to both, chosen by cross-validation inside the
   training patients.
+- **Two operating points.** The default recipe catches more arrhythmic beats but raises many false alarms (PPV of S
+  24-33 %). A second recipe chosen by cross-validation (softer class weights, checkpoint on macro F1) cuts the false
+  S alarms of the binary networks by 40-60 %: test accuracy 85-91 %, macro F1 52-57 % (binary) vs 51-60 % (INT8), at the cost of fewer S beats found.
+  Both are shown (section 3b): the scores swing with very few patients (75 % of the test S beats come from one).
 
 ## 1. The task
 
@@ -34,7 +38,7 @@ ESP32-S3 and both cores of the Raspberry Pi Pico 2.
 | Split | inter-patient (de Chazal 2004): DS1 (22 records) trains, **DS2 (22 records) is the test set** |
 | Validation | 5 DS1 records (`ecg_data.py`); for choosing the recipe, 4 patient-wise folds inside DS1 |
 | Rhythm (RR) | 3 constant int8 input channels: RR before / local mean, RR after / local mean, local mean (10 beats) |
-| Metric | **balanced accuracy** (mean of the four sensitivities): N is 89 % of the test beats, plain accuracy hides S and F |
+| Metric | **balanced accuracy** (mean of the four sensitivities): N is 89 % of the test beats, plain accuracy hides S and F; **macro F1** (sensitivity and false alarms together) for the second operating point |
 
 | Split | N | S | V | F |
 |---|---|---|---|---|
@@ -102,9 +106,47 @@ SYMBEX with an int8 first layer (`--first int8`, the option `symbex_bool1d` offe
 - **Validation does not predict the test.** Validation balanced accuracy (binary / INT8): s 61.4 / 51.4, m 58.2 /
   51.6, l 53.9 / 50.2; on the test the order is different. Inter-patient ECG varies a lot from patient to patient, F
   has only 15 validation beats, and the standard deviations of 3-9 points say the same.
-- **The test set was scored twice**, once per recipe: first the base recipe (binary s / m / l 56.6 ± 4.0, 59.8 ±
+- **The test set was scored three times**, once per recipe (the third in section 3b): first the base recipe (binary s / m / l 56.6 ± 4.0, 59.8 ±
   5.7, 60.9 ± 2.1 %; INT8 61.7 ± 12.5, 58.5 ± 6.2, 59.8 ± 7.7 %), then, after the cross-validation chose RR, this
   final one. The choice of RR was made only on the folds inside DS1; the base numbers are kept for the record.
+
+## 3b. A second operating point: fewer false alarms
+
+**Question.** The default recipe finds most S beats but most of its S alarms are wrong (S PPV 24-33 %, F 2-5 %). Can
+a recipe with fewer false alarms be chosen without looking at the test?
+
+**What.** Two new options in both scripts: `--weight-power p` (class weights = inverse frequency ** p, mean 1) and
+`--select f1` (checkpoint at the best validation macro F1). Four recipes in the same 4-fold cross-validation (seed 42),
+the criterion fixed before: the best mean fold macro F1 over the 3 networks × 2 methods.
+
+| Recipe | default (p 1, balanced) | p 1, F1 | **p 0.5, F1** | p 0, F1 |
+|---|---|---|---|---|
+| mean fold macro F1 % | 47.7 | 52.2 | **53.5** | 52.9 |
+
+**Result** on the test patients (the third and last scoring of DS2), recipe p 0.5 + F1, 3 seeds; next to it the
+macro F1 of the default recipe (section 3). Sensitivity / PPV of S are means:
+
+| Network | Method | **Macro F1 %** | (default recipe) | Balanced % | Accuracy % | S sens. | S PPV |
+|---|---|---|---|---|---|---|---|
+| s | SYMBEX binary | 52.2 ± 2.8 | 47.5 ± 2.2 | 64.3 ± 5.1 | 84.8 | 60.6 | 30.4 |
+| s | TFLite INT8 | 55.8 ± 5.5 | 58.1 ± 5.0 | 60.3 ± 8.6 | 92.3 | 23.5 | 50.1 |
+| m | SYMBEX binary | 57.4 ± 3.1 | 51.1 ± 0.6 | 62.5 ± 3.9 | 90.5 | 49.1 | 35.2 |
+| m | TFLite INT8 | 59.5 ± 3.2 | 57.2 ± 3.8 | 65.8 ± 7.0 | 89.6 | 54.1 | 52.4 |
+| l | SYMBEX binary | 56.3 ± 7.2 | 54.7 ± 1.3 | 60.1 ± 8.0 | 90.7 | 43.2 | 39.9 |
+| l | TFLite INT8 | 50.8 ± 4.2 | 53.7 ± 8.7 | 51.2 ± 1.9 | 91.5 | 18.6 | 40.2 |
+
+Exact as before: the 9 binary networks give 100 % in C on the PC (HAL row functions and `-mpopcnt`); the integer
+simulation equals PyTorch on 99.99-100 % of the test beats.
+
+**Why the scores swing.** The test classes rest on very few patients. Of the 1,837 S beats of DS2, 1,382 (75 %) come
+from record 232; F is learned almost only from record 208 (372 of 399 training beats) and tested almost only on 213
+(362 of 388). A recipe that moves how one patient is read moves the whole S column. The class weights do not teach
+the network anything new: they choose a point on the same trade-off between beats found and false alarms.
+
+**Answer.** Yes for the binary networks: +1.6 to +6.3 points of macro F1, accuracy up to 85-91 %, half the false
+S alarms (from the mean sensitivity and PPV: 4,234 -> 1,660 on m), but fewer S beats found (43-61 % instead of 74-85 %). INT8 gains on m and loses on s and l. The two
+methods stay tied within the spread. Which point is right depends on the use (screening wants sensitivity, a
+wearable alarm wants few false alarms), so both are kept.
 
 ## 4. Speed and memory on the boards
 
@@ -159,10 +201,38 @@ to 11.69 on the ESP32, 9.88 to 11.74 on the M33, 7.72 to 10.55 on Hazard3.
 the network. On the ESP32-S3, whose ESP-NN kernels use the PIE vector unit, the small network is only 4 % faster:
 there the gain of SYMBEX is mostly memory (6.6-8.4× less flash, 2.4-8.5× less RAM).
 
+## 5. Experiment: one detector per class
+
+**Question.** Binary networks are cheap. Is it better to split the task into one small binary detector per class (N,
+S, V, F: "this class or not"), each free to specialize (S lives in the rhythm, V in the beat shape), than to train one
+4-class network of about the same cost?
+
+**What.** `ecg_detectors.py`: four detectors of size s (together about the cost of one m, ESTIMATE from the weight
+count) and four of size m (about one l), recipe p 0.5 + F1 with RR, trained side by side with ONE checkpoint for the
+four (the same freedom of choice as one network); the class is the detector with the largest margin, no thresholds
+tuned. Cross-validation inside DS1 only, 3 seeds; the test set was not used.
+
+**Result** (mean fold macro F1 %, 3 seeds; pooled out-of-fold sensitivities):
+
+| Model | Macro F1 % | S sens. | F sens. |
+|---|---|---|---|
+| one m network | 52.8 ± 0.9 | 29.6 | 5.9 |
+| **4 detectors s** (≈ m) | 53.2 ± 2.0 | 29.0 | 23.0 |
+| one l network | 52.2 ± 1.2 | 33.1 | 3.6 |
+| 4 detectors m (≈ l) | 51.4 ± 0.8 | 30.7 | 14.3 |
+| one s network | 52.4 ± 1.0 | 31.1 | 10.7 |
+
+**Answer.** No. Four detectors s tie with one m network (+0.4, inside the spread) and four detectors m lose to one l
+(-0.9). S does not move: the limit is the patients, not the way the task is split. Only F improves, and F rests on
+one training patient. The single network stays.
+
 ## Future work
 
 - More seeds or a k-fold test protocol: with 3 seeds and inter-patient variance, accuracy differences of 1-4 points
   cannot be called.
+- A fresh test set never used here (INCART, or SVDB resampled from 128 Hz): DS2 has now been scored three times.
+- Scores per test patient, and inputs that adapt to the patient (the beat minus a running template of that patient).
+- N / S / V without F, which is one training patient against one test patient.
 - The INT8 side with augmentation (its best recipe on s and l in the cross-validation), shown next to this one.
 - The vertical engine (`symbex_bool_vertical`) for 1D, and a PIE first-layer kernel for 4-channel inputs on the S3.
 - Energy per beat with the current meter: the metric a wearable cares about most.
@@ -181,10 +251,14 @@ python ecg_tflite.py --arch m --rr --seed 42
 python ecg_export.py runs/m_binary_e100_s42_rr              # integers, model_symbex.h, EXACTNESS on the PC
 python ../../../tools/chip_test.py runs/m_binary_e100_s42_rr --board s3 --port /dev/ttyACM0 --popcount swar --usb
 python ecg_tflite.py --arch m --rr --seed 42 --board s3 --port /dev/ttyACM0 --usb
+python ecg_train.py --arch m --rr --weight-power 0.5 --select f1 --seed 42   # second operating point (also --cv)
+python ecg_tflite.py --arch m --rr --weight-power 0.5 --select f1 --seed 42
+python ecg_detectors.py --arch s --rr --weight-power 0.5 --select f1 --cv --seed 42   # one detector per class (CV only)
 ```
 
 Boards: `--board esp32 --popcount swar`, `--board pico2_arm|pico2_riscv --popcount lut16`, `--weights ram` for the
 RAM variant (both scripts).
 
 Results: `results/symbex/<run>/` (train.json, export.json, chip_<board>_<popcount>_<weights>_mask.json),
-`results/symbex/cv/` (cross-validation), `results/tflite/` (tflite_pc_*, tflite_<board>_*, cv_*).
+`results/symbex/cv/` (cross-validation; `det_*` the detectors), `results/tflite/` (tflite_pc_*, tflite_<board>_*, cv_*).
+Second operating point: the same names with `_wp0.5_self1`.
