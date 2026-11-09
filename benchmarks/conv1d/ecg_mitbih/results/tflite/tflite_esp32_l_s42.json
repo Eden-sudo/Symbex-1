@@ -1,0 +1,12 @@
+{
+ "arch": "l",
+ "seed": 42,
+ "board": "esp32",
+ "weights": "flash",
+ "windows": 1000,
+ "equal_to_pc": 100.0,
+ "median_ms": 420.744,
+ "min_ms": 420.72,
+ "model_kb": 67.75,
+ "arena_kb": 25.30859375
+}
