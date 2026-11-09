@@ -155,20 +155,16 @@ def run_pc(arch, seed, epochs, lr, tf):
     return tflite, res
 
 
-def run_board(args, tflite, ops):
+def measure_board(args, tflite, ops, x_u8, classes, project):
+    """TFLite Micro on args.board (the firmware of mlp_fashion/fashion_tflite.py, its resolver set to `ops` and its
+    input table to input_table()): (classes on the chip, times in us, arena bytes). Also used by
+    benchmarks/conv1d/ecg_mitbih/ecg_tflite.py."""
     from fashion_tflite import measure_chip, tflm_project
-    name = f"{args.arch}_s{args.seed}"
-    x, _ = load("validation")
-    n = min(args.windows, len(x))
-    x_u8 = (x[:n].astype(np.int16) + 128).astype(np.uint8).reshape(n, -1)
-    pc_pred, _ = predict_tflite(tflite, x_u8)
-    ram = "_ram" if args.weights == "ram" else ""
-    project = os.path.join("runs", "tflite", f"tflm_{args.board}_{name}{ram}")
     if not args.no_upload:
         missing = [o for o in ops if o not in TFLM_OPS]
         if missing:
             sys.exit(f"[X] ops without a TFLite Micro resolver call in TFLM_OPS: {missing}")
-        tflm_project(project, tflite, args.board, args.port, args.baud, args.arena_kb, LENGTH * AXES, CLASSES,
+        tflm_project(project, tflite, args.board, args.port, args.baud, args.arena_kb, x_u8.shape[1], classes,
                      args.weights == "ram", args.usb)
         main_cc = os.path.join(project, "src", "main.cc")
         src = open(main_cc).read()
@@ -181,7 +177,18 @@ def run_board(args, tflite, ops):
                           + " ".join(f"ops.{TFLM_OPS[o]}();" for o in ops))
         src = src.replace(old_in, "roundf(((p - 128) / 127.0f) / inp->params.scale)")   # = input_table()
         open(main_cc, "w").write(src)
-    chip, times, arena = measure_chip(project, args.board, args.port, args.baud, x_u8, not args.no_upload, args.usb)
+    return measure_chip(project, args.board, args.port, args.baud, x_u8, not args.no_upload, args.usb)
+
+
+def run_board(args, tflite, ops):
+    name = f"{args.arch}_s{args.seed}"
+    x, _ = load("validation")
+    n = min(args.windows, len(x))
+    x_u8 = (x[:n].astype(np.int16) + 128).astype(np.uint8).reshape(n, -1)
+    pc_pred, _ = predict_tflite(tflite, x_u8)
+    ram = "_ram" if args.weights == "ram" else ""
+    project = os.path.join("runs", "tflite", f"tflm_{args.board}_{name}{ram}")
+    chip, times, arena = measure_board(args, tflite, ops, x_u8, CLASSES, project)
     equal = 100 * float((chip == pc_pred).mean())
     print(f"\n    {name} INT8, TensorFlow Lite Micro on {args.board} ({n} validation windows, model in {args.weights})")
     print(f"    same class as the PC interpreter : {equal:.2f}%" + ("" if equal == 100 else "  [X]"))

@@ -1,0 +1,42 @@
+{
+ "board": "pico2_arm",
+ "hal": "generic: lut16 (64 KB table in RAM), rp2350 first layer: usada8",
+ "popcount": "lut16",
+ "weights": "flash",
+ "first_layer": "mask",
+ "n": 1000,
+ "equal_simulation": 100.0,
+ "accuracy": 57.49999999999999,
+ "median_ms": 4.498,
+ "min_ms": 4.442,
+ "layers": [
+  {
+   "step": "conv 1->8 k9 L256 (uint8 input)",
+   "median_ms": 1.896
+  },
+  {
+   "step": "conv 8->16 k9 L248 + OR pool 4",
+   "median_ms": 1.943
+  },
+  {
+   "step": "conv 16->16 k9 L60 + OR pool 4",
+   "median_ms": 0.6485
+  },
+  {
+   "step": "classifier",
+   "median_ms": 0.014
+  }
+ ],
+ "ram": {
+  "buffers": 1080,
+  "input_bytes": 256,
+  "popcount_table": 65544,
+  "stack_used": 832,
+  "weights_in_ram": 0,
+  "code_in_ram": 0,
+  "total": 67712
+ },
+ "model_flash": 1360,
+ "code": "flash",
+ "flash_config": "default"
+}

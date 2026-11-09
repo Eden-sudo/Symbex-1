@@ -4,6 +4,9 @@ Daghero et al., "Ultra-compact Binary Neural Networks for Human Activity Recogni
 
     ARCHS[name]                 their four UniMiB-SHAR networks: conv(C_out, K) and pool(4, 4), then one linear layer
     BinaryHAR(arch, first)      the network; input int8 windows N x 151 x 3 (time-major, as har_data.py writes them)
+    BinaryHAR(arch, first, layers=..., length=..., channels=..., classes=...)
+                                the same layers on another data set (benchmarks/conv1d/ecg_mitbih): layers in the
+                                format of ARCHS, the input N x length x channels, `classes` outputs
     evaluate(model, x, y)       accuracy in %
 
 Every layer as in their paper and library:
@@ -55,13 +58,13 @@ def int8_weights(w):
 
 
 class BinaryHAR(nn.Module):
-    def __init__(self, arch="max", first="binary"):
+    def __init__(self, arch="max", first="binary", layers=None, length=LENGTH, channels=AXES, classes=CLASSES):
         super().__init__()
         assert first in ("binary", "int8")
         self.arch, self.first = arch, first
         self.convs, self.bns, self.plan = nn.ModuleList(), nn.ModuleList(), []
-        cin, length = AXES, LENGTH
-        for layer in ARCHS[arch]:
+        cin = channels
+        for layer in (ARCHS[arch] if layers is None else layers):
             if layer[0] == "conv":
                 _, cout, k = layer
                 self.convs.append(nn.Conv1d(cin, cout, k, bias=False))
@@ -72,8 +75,8 @@ class BinaryHAR(nn.Module):
                 self.plan.append(("pool", layer[1]))
                 length //= layer[1]
         self.features = cin * length
-        self.fc = nn.Linear(self.features, CLASSES, bias=False)
-        self.fc_bn = nn.BatchNorm1d(CLASSES)
+        self.fc = nn.Linear(self.features, classes, bias=False)
+        self.fc_bn = nn.BatchNorm1d(classes)
 
     @torch.no_grad()
     def first_weights(self):
@@ -81,7 +84,7 @@ class BinaryHAR(nn.Module):
         return torch.round(int8_weights(self.convs[0].weight))
 
     def forward(self, x):
-        x = x.float().transpose(1, 2)                                       # N x 3 x 151, int8 values
+        x = x.float().transpose(1, 2)                                       # N x channels x length (3 x 151), int8
         for kind, i in self.plan:
             if kind == "pool":
                 x = F.max_pool1d(x, i)                                       # max of +-1 = OR of the bits

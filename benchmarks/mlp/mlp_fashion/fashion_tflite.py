@@ -384,7 +384,8 @@ def tflm_project(project_dir, tflite, board, port, baud, arena_kb, n_inputs, n_c
     w("CMakeLists.txt", "cmake_minimum_required(VERSION 3.16.0)\ninclude($ENV{IDF_PATH}/tools/cmake/project.cmake)\n"
                         f"project({os.path.basename(os.path.abspath(project_dir))})\n")
     w("src/CMakeLists.txt", 'idf_component_register(SRCS "main.cc" "model_tflite.cc" INCLUDE_DIRS ".")\n')
-    w("src/idf_component.yml", 'dependencies:\n  espressif/esp-tflite-micro: "*"\n')
+    # pinned: every ESP result was measured with 1.4.1 (1.4.2 moved schema_generated.h and does not build here)
+    w("src/idf_component.yml", 'dependencies:\n  espressif/esp-tflite-micro: "==1.4.1"\n')
     model_sources(w, tflite)
     w("src/main.cc", f"#define BAUD_RATE {baud}\n#define ARENA_KB {arena_kb}\n#define N_INPUTS {n_inputs}\n"
                      f"#define N_CLASSES {n_classes}\n" + ("#define MODEL_IN_RAM 1\n" if model_ram else "")
