@@ -13,6 +13,10 @@ ESP32-S3 and both cores of the Raspberry Pi Pico 2.
   67.0 ± 4.6 % (binary) vs 70.9 ± 6.1 % (INT8), medium 71.2 ± 3.3 vs 71.9 ± 4.6, large **75.0 ± 5.5 vs 72.4 ± 8.8**.
   Every gap is inside one standard deviation. The binary networks find more **S** beats (74-85 % vs 53-63 %), the INT8
   ones more N and V beats.
+- **The limit is the data, not the network.** The rare classes rest on very few patients: 75 % of the test S beats
+  come from one record (232), and F is learned from one patient (208) and tested on another (213). Bigger networks
+  and one detector per class do not help (section 5), and INT8 meets the same wall. Every inter-patient MIT-BIH study
+  faces it; what would help is a patient-adaptive input or more patients (future work).
 - **Faster on every board** (weights in flash, 3 seeds): **6.0-13.4×** on the ESP32, **2.0-3.0×** on the Pico 2's
   Cortex-M33 against CMSIS-NN (3.0× for the large network with both models in RAM), **1.04-1.59×** on the ESP32-S3
   against ESP-NN. On the Pico 2's Hazard3 core, where TFLite Micro only has its reference kernels, 39-153×.
