@@ -147,6 +147,20 @@ Durante la revisión de la versión 3 se encontraron errores en esos métodos (l
 señal de entrenamiento; el simulador de `bitslice` no correspondía al motor en C). Esos resultados no se reportan
 aquí hasta que los métodos se reconstruyan y se vuelvan a medir.
 
+## Investigación relacionada
+
+Estos trabajos aportan contexto sobre redes binarias y ternarias, inferencia embebida y benchmarks de TinyML. No son
+comparaciones directas de rendimiento con SYMBEX: los modelos, el hardware y las condiciones de medición son distintos.
+
+- Daghero y otros, [Ultra-compact Binary Neural Networks for Human Activity Recognition on RISC-V Processors](https://arxiv.org/abs/2205.12781): inferencia binaria compacta y la librería de la comparación de actividad planificada.
+- McDanel y otros, [Embedded Binarized Neural Networks](https://arxiv.org/abs/1709.02260): inferencia binaria con memoria limitada.
+- Daghero y otros, [Human Activity Recognition on Microcontrollers with Quantized and Adaptive Deep Neural Networks](https://arxiv.org/abs/2209.00839): modelos cuantizados para reconocimiento de actividad.
+- [MLPerf Tiny Benchmark](https://arxiv.org/abs/2106.07597) y [MicroNets](https://arxiv.org/abs/2010.11267): benchmarks de TinyML y arquitecturas para microcontroladores.
+- [XNOR-Net](https://arxiv.org/abs/1603.05279), [Bi-Real Net](https://arxiv.org/abs/1808.00278) y [ReActNet](https://arxiv.org/abs/2003.03488): convoluciones binarias y diseño de redes.
+- [Binary Neural Networks: A Survey](https://arxiv.org/abs/2004.03333) y [daBNN](https://arxiv.org/abs/1908.05858): antecedentes de redes binarias e inferencia en ARM.
+- [Ternary Weight Networks](https://arxiv.org/abs/1605.04711) y [Unrolling Ternary Neural Networks](https://arxiv.org/abs/1909.04509): pesos ternarios e implementaciones especializadas.
+- [Accelerating TinyML Inference on Microcontrollers through Approximate Kernels](https://arxiv.org/abs/2409.16815): kernels aproximados para microcontroladores.
+
 ## Cómo citarlo
 
 Hay un preprint de SYMBEX-1 en preparación; la referencia se agregará aquí.
