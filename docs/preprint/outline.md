@@ -12,8 +12,8 @@ version (cs.LG, cross-list eess.SP) with the section names in English. About 8 p
 | Item | Content | Status |
 |---|---|---|
 | Title | *SYMBEX-1: exact binary neural networks on commercial microcontrollers, measured against the INT8 toolchain* / *SYMBEX-1: redes neuronales binarias exactas en microcontroladores comerciales, medidas contra la cadena INT8* | candidate; Edén decides |
-| Acronym | What SYMBEX stands for, one line under the title | **Edén writes it** (not in the repository) |
-| Authors, affiliation | Carlos Duarte (Edén), Obed (Obed0101); university and course | **Edén fills in** |
+| Acronym | SYMBEX-1 = **Sym**bolic **B**it **Ex**pansion, 1-bit engine (the original name). *Symbolic*: Boolean conditions instead of multiplications. *Bit expansion*: inputs and activations expanded into bit planes (thermometer stem, bit-sliced vertical engine). *1*: one bit per weight and activation. | draft; Edén decides whether to keep "expansion" |
+| Authors, affiliation | Carlos Duarte, Obed (Obed0101), Abrahan Aparicio (FOMO). Universidad Latina de Panamá, Licenciatura en Mecatrónica. | order and contribution lines: Edén decides |
 | Abstract (Spanish and English) | What: an end-to-end chain for binary networks, exact on the chip. How: trained, folded to integers, compiled to C, measured on three commercial chips against TensorFlow Lite Micro INT8, same network, 3 seeds, test once. Result: speed-up 2-28x without SIMD, 1.0-5.4x with SIMD; accuracy cost 0 to 16 points by task; 4-8x less flash. Conclusion: where binary pays and where INT8 stays. | written last, from the body |
 | Keywords (Spanish and English) | redes neuronales binarias, microcontroladores, cuantización, TinyML, inferencia en el borde / binary neural networks, microcontrollers, quantization, TinyML, edge inference | draft |
 
