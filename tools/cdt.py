@@ -34,11 +34,11 @@ Stages
                   layer the full training would not need.
     4. export     (MLP, every layer at 1 bit) folds the trained model into integers and writes
                   model_symbex.h for lib_symbex (symbex_mlp_infer(const uint8_t* x))
+    5. validate   (runs together with export) FIDELITY: PyTorch vs. the integer simulation (what folding
+                  costs); EXACTNESS: the compiled C on this PC vs. the integer simulation (must be 100%)
     6. chip       ([chip] board = "esp32" / "s3" / "pico2_arm" / "pico2_riscv") builds and flashes a project with the header and
                   lib_symbex, streams validation images and reports: equal to the integer simulation (must be
                   100%), accuracy and latency measured on the chip. Needs PlatformIO + a connected board.
-    5. validate   (runs together with export) FIDELITY: PyTorch vs. the integer simulation (what folding
-                  costs); EXACTNESS: the compiled C on this PC vs. the integer simulation (must be 100%)
 Choosing the stages ([run] from / to in the TOML, or --from / --to):
     python cdt.py my.toml                          every stage: inspect -> estimate -> train -> export -> chip
     python cdt.py my.toml --to export              create, train, export and validate (no board)
@@ -53,7 +53,7 @@ Outputs (in the output directory, "<model name>_binarized/" by default)
     chip.json          accuracy, equality with the simulation and latency measured on the board (chip stage)
     model_binarized.pth  the trained binarized model (weights; checkpoint policy from [training] checkpoint)
     train.json         plan per layer, accuracy of the original and of the binarized model, history
-    modelo_symbex.h    the C header for the chip (export stage)
+    model_symbex.h     the C header for the chip (export stage)
     export.json        fidelity, exactness and memory of the exported model
 
 Requires PyTorch for every stage; --show-config works without it.
@@ -532,7 +532,7 @@ def _train_plan(model, teacher, plan, first, train, trl, val_l, cfg, epochs, dev
     method = cfg["model"]["method"]
     student = apply_plan(base, plan, first=first, bin_method=method if method == "ternary" else "plain")
     init_thresholds(student, calib)
-    common =dict(epochs=epochs, lr=tr["learning_rate"], device=dev, verbose=verbose, checkpoint_path=path,
+    common = dict(epochs=epochs, lr=tr["learning_rate"], device=dev, verbose=verbose, checkpoint_path=path,
                    save=tr["checkpoint"],
                    average_last=min(5, epochs), bn_momentum=0.3)
     if tr["distill"]:
@@ -965,10 +965,10 @@ def compare_arithmetic(res_export, res_main, cfg, out_dir):
 
 
 def _quiet_estimate(model, train, cfg):
-    if cfg["model"]["method"] == "boolean":
-        return dict(rows=[])
     """The estimate rows (layer shapes and the first layer) without printing: needed to train or to rebuild the
     trained model when the run starts after the estimate stage."""
+    if cfg["model"]["method"] == "boolean":
+        return dict(rows=[])
     import torch
     from compiler_core.sensitivity import Sensitivity
     n = min(cfg["data"]["calibration_samples"], len(train))
@@ -987,11 +987,11 @@ def _option(v):
 
 
 def load_trained(model, train, estimate_res, cfg, out_dir):
+    """Rebuilds the trained binarized model from out_dir (train.json + model_binarized.pth), without training:
+    the original model, widened as the search chose, binarized with the chosen plan, with the saved weights."""
     if cfg["model"]["method"] == "boolean":
         from compiler_core.train import boolean
         return boolean.load_trained(model, out_dir)
-    """Rebuilds the trained binarized model from out_dir (train.json + model_binarized.pth), without training:
-    the original model, widened as the search chose, binarized with the chosen plan, with the saved weights."""
     import torch
     from compiler_core.methods import apply_plan, widen
     tj, wp = os.path.join(out_dir, "train.json"), os.path.join(out_dir, "model_binarized.pth")

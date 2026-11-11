@@ -174,8 +174,9 @@ int symbex_binary_classifier_argmax(
     uint16_t in_words = (layer->in_features + 31) / 32;
     const uint32_t* w_ptr = layer->weights;
 
-    uint8_t rescale_shift = q_mult - q_act;
-    int64_t rounding = (int64_t)1 << (rescale_shift - 1);
+    /* the exporters always give q_mult > q_act; guard the shift anyway (a shift by -1 is undefined) */
+    uint8_t rescale_shift = q_mult > q_act ? (uint8_t)(q_mult - q_act) : 0;
+    int64_t rounding = rescale_shift ? (int64_t)1 << (rescale_shift - 1) : 0;
 
     int best_class = 0;
     int64_t max_logit_q = INT64_MIN;
