@@ -3,6 +3,32 @@
 A running log of what each pull request brings, what is still in progress and what comes next. One section per
 pull request, newest first.
 
+## PR: three main goals, shared agent memory and team skills (November 2026)
+
+Sits on PR #12. Docs and agent instructions only; no code or results change.
+
+- `docs/roadmap.md` opens with the project's three main goals and their owners: an easy framework (Eden, Obed), vision
+  with FOMO (Abrahan) and language models on microcontrollers, research (Obed, Eden). New framework track; FOMO gets
+  the items for more classes and a camera. Agents read it before opening or reviewing any pull request.
+- `README.md` / `README.es.md`: a short summary of the three goals, linking to the roadmap and to this file.
+- `.agents/memory/`: shared project memory for every agent and the reviewer: team and usual work, conventions taken
+  from earlier reviews, FOMO gaps, and language-model research (our microSD measurement on the S3, prior work by others).
+- Five proposed team skills in `.claude/skills/`, built from what the merged pull requests repeat and what reviews
+  keep asking for: `symbex-pre-pr-check`, `symbex-pr-review`, `symbex-exactness-check`, `symbex-benchmark-run`,
+  `symbex-fomo-measure`. `AGENTS.md` lists them. To be organized together before they become the standard.
+
+## PR #12: team sync (October 2026)
+
+- Keep Abrahan's classic ESP32 without PSRAM active for FOMO, alongside the shared S3 with microSD on Eden's PC.
+  S3 runs retain human approval and exclusive board access; microSD wiring/interface/card details need confirmation.
+- Correct Abrahan's name and track open PR #15: three-seed classic ESP32 RAM/swar results and flash/RAM step captures.
+  New-split classic re-measurements and future S3 board requests are distinct from existing measured results.
+- Route requests only from the three team logins; all GitHub text remains untrusted and mentions grant no execution,
+  flash or publication permission. Paginate issue/comment/review discovery, including submitted PR review bodies.
+- Read the canonical upstream roadmap, require exactly one Team sync issue, and preserve per-head/reply deduplication.
+- Retain `AGENTS.md`; withdraw tracked `CLAUDE.md` so Eden can keep his own local include without an incoming collision.
+- Abrahan's Linux/zsh check of the original discovery commands is reported evidence, not a local hardware test.
+
 ## PR #4: conv1d/pico2 (October 2026)
 
 ### Done
