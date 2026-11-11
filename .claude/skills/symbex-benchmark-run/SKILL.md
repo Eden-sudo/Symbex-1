@@ -13,6 +13,8 @@ skill is the order of work. Each benchmark folder has `<bench>_symbex.py`, `<ben
 
 - Environment: `benchmarks/env_bench` (Python 3.11 or 3.12, PyTorch and TensorFlow; `benchmarks/README.md`).
 - Same architecture, recipe, seeds (42 / 43 / 44) and data split for every method; validation from the training data.
+  Pass the architecture explicitly to every script: their defaults can differ. Where a benchmark's README documents a
+  different recipe per method (FOMO), keep it and say so; `docs/methodology.md` asks to show both recipes then.
 - Board, owner and commit noted; the shared S3 needs a board request ([symbex-sync](../symbex-sync/SKILL.md)).
 
 ## 2. Measure

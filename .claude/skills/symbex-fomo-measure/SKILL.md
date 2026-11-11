@@ -25,9 +25,15 @@ python3 fomo_symbex.py --summary          # no training, export or chip run: sum
 ## 2. INT8 twin
 
 ```sh
-python3 fomo_tflite.py --board <esp32|s3> --port <port>
-python3 fomo_tflite.py --model reference/<file>.tflite --board <esp32|s3> --port <port>   # measure as it is
+python3 fomo_tflite.py --channels 32-32-128 --blocks 1-2-2 --board <esp32|s3> --port <port>
+python3 fomo_tflite.py --model reference/fomo_int8_c32-32-128.tflite --board <esp32|s3> --port <port>   # measure as it is
 ```
+
+- Always pass the binary detector's `--channels` and `--blocks`: `fomo_tflite.py` defaults to the original
+  32-64-128 shape, not the 32-32-128 twin.
+- Keep its training defaults (person weight 20, 60 epochs): the INT8 reference follows the floating-point recipe on
+  purpose, where it had already plateaued, while the binary detector uses weight 40 and 100 epochs (FOMO README,
+  "Same training budget"). Changing either recipe is a new experiment; report it as such.
 
 Only `esp32` and `s3` here (and in `tools/dev/fine_profile.py`).
 

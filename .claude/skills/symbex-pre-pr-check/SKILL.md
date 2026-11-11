@@ -11,11 +11,17 @@ human asked you to fix. Context first: [AGENTS.md](../../../AGENTS.md), [docs/ro
 
 ## 1. Scope
 
+Compare against the canonical base, `Eden-sudo/Symbex-1` `master`, not `origin`: `origin` may be your fork, and a
+stale fork `master` adds unrelated upstream changes to the diff.
+
 ```sh
-git fetch origin master
-git diff --stat origin/master...HEAD
-git diff --check origin/master...HEAD
+git fetch https://github.com/Eden-sudo/Symbex-1.git master
+BASE=$(git rev-parse FETCH_HEAD)
+git diff --stat "$BASE"...HEAD
+git diff --check "$BASE"...HEAD
 ```
+
+For a PR stacked on another one, use that PR's head instead of `master` as the base.
 
 - Only files this PR is about; no measurement scripts that were not run, no files from other sessions (#22).
 - Nothing that `.gitignore` keeps out: `runs/`, `models/`, datasets, `*.pth`, `*.tflite`, `*.u8`.
