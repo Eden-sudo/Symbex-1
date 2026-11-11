@@ -8,6 +8,13 @@ to be copied from its JSON the text says `[JSON]`. Sections not written yet are 
 
 ### 2.1 The chain: from a trained model to an exact binary network on the chip
 
+**What a developer does.** The chain exists to make one loop short: describe the network and the chip's limits in a
+configuration file, train, fold into integers, generate the C header, and check it against the integer simulation on
+the PC and on the board, image by image. Everything in this paper (the engines, the recipes, the studies on the stem,
+the shortcuts and the training gap) was produced by running that loop many times; without it, every variant would
+have meant hand-written C and a round of debugging against Python. The loop is the tool; the measurements are what
+it was used for.
+
 SYMBEX-1 has three parts. **lib_symbex** is a portable C inference engine for binary networks: bit counting instead of
 multiplication, one integer threshold per output, no floating point. **The CDT** (`tools/cdt.py`) is the compiler: it
 takes a PyTorch model, the data and the limits of a microcontroller, trains the binary network, folds it into integers,
@@ -18,18 +25,20 @@ all following the same standard (section 2.2).
 **The binary layer.** Every weight and every activation is +1 or −1, stored as one bit. The product of two such values
 is +1 when the bits are equal and −1 when they differ, so the dot product of two vectors of *n* values is
 raw = *n* − 2·popcount(*x* ⊕ *w*). One 32-bit word holds 32 values: one XOR and one bit count replace 32 multiplications
-and 32 additions. Where a chip counts faster with AND than with XOR the engine uses the equivalent form
-popcount(*x*) + popcount(*w*) − 2·popcount(*x* ∧ *w*). After the count, the scale, the BatchNorm and the sign that a
+and 32 additions. Where a chip counts faster with AND than with XOR the engine replaces the XOR term by the identity
+popcount(*x* ⊕ *w*) = popcount(*x*) + popcount(*w*) − 2·popcount(*x* ∧ *w*), that is,
+raw = *n* − 2·(popcount(*x*) + popcount(*w*)) + 4·popcount(*x* ∧ *w*); popcount(*w*) is a constant per weight row. After the count, the scale, the BatchNorm and the sign that a
 trained network applies in floating point are folded into one integer threshold *T* per output: the layer emits bit 1
-when raw ≥ *T* and 0 otherwise. The threshold is *T* = ⌈μ − βσ/γ⌉ from the BatchNorm's running statistics and learned
-parameters; when γ < 0 the exporter negates that output's weight row so that the C always evaluates the same comparison.
+when raw ≥ *T* and 0 otherwise. During training the layer computes BatchNorm and then the sign, bit = [γ·(raw − μ)/σ + β ≥ 0], where μ and σ are
+the running mean and standard deviation of raw and γ and β are the learned scale and bias. For γ > 0 this is
+raw ≥ μ − βσ/γ, and since raw is an integer the threshold is *T* = ⌈μ − βσ/γ⌉; when γ < 0 the exporter negates that output's weight row so that the C always evaluates the same comparison.
 Because raw is an integer and the threshold is rounded up, the folded layer gives the same bit as the floating-point
 layer for every possible input: it is not an approximation. Dense networks fold more into the same threshold (weight
 scale, bias, input normalization).
 
 **Input and output.** A sensor gives bytes, not bits. Convolutional networks enter through a *thermometer* encoding:
-each value becomes *levels* bits, bit *k* set when the value is at least (*k* + 1)·256/(*levels* + 1); with 8 levels a
-pixel becomes 24 bits and the first layer is binary like the rest. Optionally the first convolution keeps 8-bit weights
+each value becomes *levels* bits, bit *k* set when the value is at least (*k* + 1)·256/(*levels* + 1); the levels are per
+color channel, so with 8 levels an RGB pixel becomes 3 × 8 = 24 bits, and the first layer is binary like the rest. Optionally the first convolution keeps 8-bit weights
 and reads the pixels directly (`stem_i8`); its BatchNorm and sign fold into one threshold on the integer dot product, and
 its output is bits, so nothing else changes. Dense networks read the `uint8` input directly: a weight of +1 adds the
 value and a weight of −1 subtracts it, still without multiplications. The last layer is the only one that does not end

@@ -28,7 +28,33 @@ version (cs.LG, cross-list eess.SP) with the section names in English. About 8 p
 | Contribution 3: where binary pays and where it does not: accuracy cost 0 to >10 points by task; speed-up largest without SIMD | README "Every benchmark, side by side", section 5 below |
 | Contribution 4: the binary ResNet-8 loses by capacity, not training (study) | `benchmarks/experiments/training_gap/README.md`, `results/train_gap/*.json` |
 
+**The framing (Nov 10, Edén):** SYMBEX-1 is, first, a tool that makes developing binary networks for commercial
+microcontrollers iterable: `symbex.toml` -> train -> fold -> C header -> 100 % check on the PC and on the board, in
+minutes. The measurements are what the tool produced. Claim it as "an open chain for commercial MCUs with a verified
+path", never as "the first" (eBNN, 2017, had an open Chainer -> C -> Arduino 101 chain for one chip, both discontinued).
+
+| Claim (the loop) | Source |
+|---|---|
+| One configuration file re-creates a run; stages can start or stop anywhere (`--from`, `--to`) | docs/en/cdt.md |
+| Every export is checked against the simulation on the PC and on the chip, automatically | docs/en/how-it-works.md section 6; every chip JSON |
+| Iteration time: ResNet-8 training in minutes on one GPU (data on GPU + CUDA graphs); export + validate in seconds | docs/en/cdt.md, tools/README.md: ResNet-8 150 epochs in 3.0 min (8.6 without data on GPU + CUDA graphs), same accuracy and exactness |
+| What the loop produced: engines (standard, vertical), stem / shortcut / head variants, training-gap study, ECG recipe by CV | the benchmark and experiment READMEs |
+
 ### 1.1 Related work (two lines, honest)
+
+**Framework landscape (from Gemini's survey, Nov 10; every row to verify with a link before it goes in the paper):**
+
+| Framework | Training front end | Target | Commercial MCUs | Open | Config -> C, checked | Verify |
+|---|---|---|---|---|---|---|
+| Larq + LCE (Plumerai) | TF / Keras | ARM64 phones, NEON | no: the Cortex-M / ESP32 engine is a paid product | LCE yes, MCU engine no | yes, for phones | the GitHub issue where Plumerai says the MCU engine is commercial |
+| Brevitas + FINN (AMD) | PyTorch | FPGA (HLS / RTL) | no | yes | yes, for FPGA | version and target list |
+| TensorFlow Lite Micro | TF | MCUs | yes | yes | INT8 only, no 1-bit kernels | - |
+| ExecuTorch (Meta) | PyTorch | edge, Cortex-M backend | yes | yes | INT8 (and 4-bit weights?), no 1-bit | Cortex-M backend status, 4-bit claim |
+| eBNN (McDanel 2017) | Chainer (discontinued) | Intel Curie / Arduino 101 (discontinued) | one chip | yes | C generated, check on the board? | read the PDF: did it check exactness? |
+| ultracompactBNN (Daghero 2021) | PyTorch scripts | PULPissimo in GVSoC | no (research platform) | yes | scripts for its 4 networks, not a configurable chain | read the code |
+| CBin-NN (Sakr 2024) | ? | STM32F746 | yes, one | yes | C engine; compiler from PyTorch and bit check: ? | read the PDF |
+| SYMBEX-1 | PyTorch | Xtensa, Cortex-M33, RISC-V, AVR | yes, four | yes | yes, 100 % exact on PC and chip | - |
+
 
 Verified Nov 10 (arXiv pages, repositories). Read the PDFs before writing the paragraph; the "exact C = simulation"
 and "vs INT8" columns are **to confirm from the PDFs**, absence in an abstract is not proof.
