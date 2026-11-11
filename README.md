@@ -2,7 +2,7 @@
   <img src="docs/assets/symbex-1-banner.jpg" alt="SYMBEX-1, binary neural networks for microcontrollers" width="100%">
 </p>
 
-<p align="center"><b>Binary neural networks for microcontrollers.</b></p>
+<p align="center"><b>Binary neural networks, end to end, measured on real chips.</b></p>
 
 <p align="center">
   <a href="https://github.com/Eden-sudo/Symbex-1/releases"><img src="https://img.shields.io/github/v/release/Eden-sudo/Symbex-1?color=14b8a6&label=release" alt="release"></a>
@@ -13,10 +13,17 @@
   <a href="README.es.md"><img src="https://img.shields.io/badge/leer-en%20espa%C3%B1ol-334155" alt="leer"></a>
 </p>
 
-**SYMBEX-1 turns neural networks into fully binary networks, one bit per weight and per activation, that run on
-small microcontrollers.** It measures them on real chips against the official INT8 toolchain, TensorFlow Lite Micro,
-with the same network on the same chip, and every compiled model gives the same answer as its simulation on 100 % of
-the inputs.
+**SYMBEX-1 is an end-to-end framework for binary neural networks, one bit per weight and per activation: trained,
+folded into integers, compiled to C and measured on real hardware.** Its first target is the smallest hardware there
+is, microcontrollers with a few hundred KB of RAM and no floating point, where every bit counts; the same chain applies
+wherever bit operations are cheaper than multiplications.
+
+Binary networks are not new: they have run on FPGAs (FINN), on phones (daBNN, Larq) and on microcontrollers (eBNN,
+McDanel et al. 2017; ultracompactBNN, Daghero et al. 2021; CBin-NN, Sakr et al. 2024). What SYMBEX-1 adds is the proof
+that the chain goes all the way: every compiled model gives the same answer as its integer simulation on 100 % of the
+inputs, and every result is the same network measured on the same commercial chip, on three architectures (Xtensa,
+Cortex-M33, RISC-V), against the official INT8 toolchain, TensorFlow Lite Micro, with three seeds and the test set
+used once.
 
 ## Why binary?
 
@@ -32,9 +39,17 @@ multiplication into a bit operation and a count:
   `bit = (count >= T)`.
 
 > [!IMPORTANT]
-> **Binary networks do not replace INT8.** One bit per weight costs accuracy, and more so the finer the task. SYMBEX
-> trades that accuracy for **speed and resources**: it is for when latency, memory or a very small chip matter more
-> than the last points of accuracy. The charts below show exactly how much each side gives up.
+> **Binary networks do not replace INT8: the two optimize different things.** INT8 is the comparison that matters
+> because it is what almost everyone deploys, and it keeps the accuracy of the floating-point model. One bit per weight
+> gives some of it away, from nothing to more than ten points depending on the task (see the table below), in exchange
+> for **8× smaller weights and bit operations instead of multiplications**. SYMBEX is for when latency, memory or a
+> very small chip matter more than the last points of accuracy. The charts below show exactly how much each side
+> gives up.
+
+Between the two sit INT4, INT2 and ternary networks. [`tools/lowbit`](tools/lowbit/) trains and measures them on the
+same chips with ESP-NN multiply-accumulate kernels and our own packing. Those numbers come from our own code, not from
+an official toolchain, so they are exploratory baselines, not an objective comparison; they are useful to see where
+each bit width sits.
 
 | Binary is a good fit | INT8 is the better choice |
 |---|---|

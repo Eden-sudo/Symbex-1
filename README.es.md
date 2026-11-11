@@ -2,7 +2,7 @@
   <img src="docs/assets/symbex-1-banner.jpg" alt="SYMBEX-1, redes neuronales binarias para microcontroladores" width="100%">
 </p>
 
-<p align="center"><b>Redes neuronales binarias para microcontroladores.</b></p>
+<p align="center"><b>Redes neuronales binarias, de extremo a extremo, medidas en chips reales.</b></p>
 
 <p align="center">
   <a href="https://github.com/Eden-sudo/Symbex-1/releases"><img src="https://img.shields.io/github/v/release/Eden-sudo/Symbex-1?color=14b8a6&label=release" alt="release"></a>
@@ -13,10 +13,17 @@
   <a href="README.md"><img src="https://img.shields.io/badge/read-in%20English-334155" alt="read"></a>
 </p>
 
-**SYMBEX-1 convierte redes neuronales en redes completamente binarias, un bit por peso y por activación, que corren
-en microcontroladores pequeños.** Las mide en chips reales contra la herramienta oficial de INT8, TensorFlow Lite Micro,
-con la misma red en el mismo chip, y cada modelo compilado da la misma respuesta que su simulación en el 100 % de las
-entradas.
+**SYMBEX-1 es un framework de extremo a extremo para redes neuronales binarias, un bit por peso y por activación:
+se entrenan, se pliegan a enteros, se compilan a C y se miden en hardware real.** Su primer objetivo es el hardware
+más pequeño que existe, microcontroladores con unos cientos de KB de RAM y sin punto flotante, donde cada bit cuenta;
+la misma cadena sirve donde las operaciones de bits sean más baratas que las multiplicaciones.
+
+Las redes binarias no son nuevas: han corrido en FPGA (FINN), en teléfonos (daBNN, Larq) y en microcontroladores (eBNN,
+McDanel et al. 2017; ultracompactBNN, Daghero et al. 2021; CBin-NN, Sakr et al. 2024). Lo que SYMBEX-1 añade es la
+prueba de que la cadena llega hasta el final: cada modelo compilado da la misma respuesta que su simulación entera en el
+100 % de las entradas, y cada resultado es la misma red medida en el mismo chip comercial, en tres arquitecturas
+(Xtensa, Cortex-M33, RISC-V), contra la herramienta oficial de INT8, TensorFlow Lite Micro, con tres semillas y el
+conjunto de test usado una sola vez.
 
 ## ¿Por qué binario?
 
@@ -32,9 +39,17 @@ cada multiplicación en una operación de bits y un conteo:
   `bit = (conteo >= T)`.
 
 > [!IMPORTANT]
-> **Las redes binarias no reemplazan a INT8.** Un bit por peso cuesta precisión, y más cuanto más fina es la tarea.
-> SYMBEX cambia esa precisión por **velocidad y recursos**: sirve cuando la latencia, la memoria o un chip muy pequeño
-> importan más que los últimos puntos de precisión. Las gráficas de abajo muestran exactamente cuánto cede cada lado.
+> **Las redes binarias no reemplazan a INT8: las dos optimizan cosas distintas.** INT8 es la comparación que importa
+> porque es lo que casi todo el mundo despliega, y conserva la precisión del modelo en punto flotante. Un bit por peso
+> cede parte de ella, desde nada hasta más de diez puntos según la tarea (ver la tabla de abajo), a cambio de **pesos
+> 8× más pequeños y operaciones de bits en vez de multiplicaciones**. SYMBEX sirve cuando la latencia, la memoria o un
+> chip muy pequeño importan más que los últimos puntos de precisión. Las gráficas de abajo muestran exactamente cuánto
+> cede cada lado.
+
+Entre las dos están las redes INT4, INT2 y ternarias. [`tools/lowbit`](tools/lowbit/) las entrena y las mide en los
+mismos chips con los kernels multiplicación-suma de ESP-NN y nuestro propio empaquetado. Esos números salen de nuestro
+código, no de una herramienta oficial, así que son líneas base exploratorias, no una comparación objetiva; sirven para
+ver dónde queda cada ancho de bit.
 
 | Lo binario conviene | INT8 es la mejor opción |
 |---|---|
