@@ -42,39 +42,43 @@ path", never as "the first" (eBNN, 2017, had an open Chainer -> C -> Arduino 101
 
 ### 1.1 Related work (two lines, honest)
 
-**Framework landscape (from Gemini's survey, Nov 10; every row to verify with a link before it goes in the paper):**
+**Framework landscape (verified Nov 10 with the sources in the last column):**
 
-| Framework | Training front end | Target | Commercial MCUs | Open | Config -> C, checked | Verify |
+| Framework | Training front end | Target | Commercial MCUs | Open | Config -> C, checked | Source |
 |---|---|---|---|---|---|---|
-| Larq + LCE (Plumerai) | TF / Keras | ARM64 phones, NEON | no: the Cortex-M / ESP32 engine is a paid product | LCE yes, MCU engine no | yes, for phones | the GitHub issue where Plumerai says the MCU engine is commercial |
-| Brevitas + FINN (AMD) | PyTorch | FPGA (HLS / RTL) | no | yes | yes, for FPGA | version and target list |
+| Larq + LCE (Plumerai) | TF / Keras | Cortex-A / ARM64 (NEON) | no: "meant more for mobile-class devices such as the Arm Cortex-A ... ESP32 family isn't the target"; for MCUs "Plumerai does offer commercial solutions" | LCE Apache-2.0; the MCU engine has no public source (evaluation on request) | yes, for phones | github.com/larq/compute-engine/discussions/775 (CNugteren, 2023-07-05); plumerai.com ("optimized for Arm Cortex-M, Cortex-A and RISC-V") |
+| Brevitas + FINN (AMD) | PyTorch | FPGA (HLS / RTL) | no | yes | yes, for FPGA | FINN paper / repo |
 | TensorFlow Lite Micro | TF | MCUs | yes | yes | INT8 only, no 1-bit kernels | - |
-| ExecuTorch (Meta) | PyTorch | edge, Cortex-M backend | yes | yes | INT8 (and 4-bit weights?), no 1-bit | Cortex-M backend status, 4-bit claim |
-| eBNN (McDanel 2017) | Chainer (discontinued) | Intel Curie / Arduino 101 (discontinued) | one chip | yes | C generated, check on the board? | read the PDF: did it check exactness? |
-| ultracompactBNN (Daghero 2021) | PyTorch scripts | PULPissimo in GVSoC | no (research platform) | yes | scripts for its 4 networks, not a configurable chain | read the code |
-| CBin-NN (Sakr 2024) | ? | STM32F746 | yes, one | yes | C engine; compiler from PyTorch and bit check: ? | read the PDF |
-| SYMBEX-1 | PyTorch | Xtensa, Cortex-M33, RISC-V, AVR | yes, four | yes | yes, 100 % exact on PC and chip | - |
+| ExecuTorch (Meta), Cortex-M backend | PyTorch | Cortex-M | yes | yes | "in beta"; "symmetric INT8 (8w8a)"; 4w8a from CMSIS-NN "not yet integrated"; validated on the Corstone-300 FVP (simulator) | docs.pytorch.org/executorch/stable/backends/arm-cortex-m |
+| eBNN (McDanel 2017) | Chainer (discontinued 2019) | Intel Curie / Arduino 101 (discontinued) | one chip | yes (gitlab.com/htkung/ddnn) | "automatically converted into a standalone C header"; "validated the correctness of the C implementation by comparing the output at each stage to the Python version" (no metric, not per input on the device) | arXiv 1709.02260 |
+| ultracompactBNN (Daghero 2021) | not in the repo | PULPissimo (RI5CY) in GVSoC | no (research platform) | code yes, no license file | six kernel templates (linear, maxpool, conv1d 1-bit and 8-to-1-bit) with a `main.c` each; no converter, no check | github.com/francescodaghero/ultracompactBNN (one commit, 2021-03-23) |
+| CBin-NN (Sakr 2024) | Larq / Keras | STM32F746 (Cortex-M7, 216 MHz) + F091, F401, H743 (all Cortex-M) | yes, four STM32 | yes (github.com/Edge-Learning-Machine/CBin-NN) | `model_converter.py` writes the parameters and the layer calls; no check of the C output against Keras in the paper or the code | Electronics 2024 13 1624, sections 5.3 and 6 |
+| SYMBEX-1 | PyTorch | Xtensa LX6 / LX7, Cortex-M33, Hazard3 RISC-V, AVR | yes, five cores of four ISAs | yes | yes, 100 % exact on PC and chip, every model | this paper |
 
-
-Verified Nov 10 (arXiv pages, repositories). Read the PDFs before writing the paragraph; the "exact C = simulation"
-and "vs INT8" columns are **to confirm from the PDFs**, absence in an abstract is not proof.
+Verified Nov 10 (arXiv pages, repositories; eBNN, Cerutti and CBin-NN read in full, ultracompactBNN read from its
+repository and its paper).
 
 | Work | Chip / platform | Task | Code | vs INT8 | Notes |
 |---|---|---|---|---|---|
 | BinaryConnect / BNN (Courbariaux, Hubara 2015-16), XNOR-Net 2016, Bi-Real 2018, ReActNet 2020, Bop (Helwegen 2019) | method papers | ImageNet, CIFAR | yes | - | training methods; we use Bop as an option |
 | FINN (Umuroglu 2017) | FPGA | MNIST, CIFAR | yes | - | hardware line |
 | daBNN (Zhang 2019), Larq Compute Engine (Bannink 2020) | ARM64 phones | ImageNet | yes | yes (TFLite) | not microcontrollers |
-| **eBNN**, McDanel, Teerapittayanon, Kung, EWSN 2017, arXiv 1709.02260, `kunglab/ebnn` | Intel Curie (Arduino 101), ~15 KB usable | MNIST (95 %) | yes: Chainer -> C header -> Arduino | no (vs FP32 BNN implementations) | **already an open end-to-end chain**: we do not claim "first end-to-end" |
+| **eBNN**, McDanel, Teerapittayanon, Kung, EWSN 2017, arXiv 1709.02260, `gitlab.com/htkung/ddnn` | Intel Curie (Arduino 101), 32 MHz, ~15 KB usable | MNIST (Conv-1 94.56 %, 53.7 ms; MLP-1 91.54 %, 17.4 ms, 14.7 KB), CIFAR10-Easy | yes: Chainer -> C header -> Arduino | **no** (only vs a BNN with float temporaries, 32x memory, theoretical) | **already an open end-to-end chain**: we do not claim "first end-to-end". Correctness checked "at each stage" against Python, no metric |
 | Garofalo et al., PULP-NN, Phil. Trans. R. Soc. A 378 (2164), 2020, DOI 10.1098/rsta.2019.0155; XpulpNN (DATE 2020) | PULP RISC-V (GAP8); XpulpNN = ISA extension | CIFAR-10 kernels | yes | yes (CMSIS-NN) | kernels, 8-bit and sub-byte; no compiler |
-| Cerutti et al., ISLPED 2020, DOI 10.1145/3370748.3406588, arXiv 2101.04446 | GAP8 (RISC-V, commercial) | sound event detection | partial | vs FP32 and Cortex-M4 | energy per inference reported |
+| Cerutti et al., ISLPED 2020, DOI 10.1145/3370748.3406588, arXiv 2101.04446 | GAP8 (8-core RISC-V, commercial) vs STM32F469I (Cortex-M4F) | sound event detection, 28 classes (BNN 77.9 % vs 16-bit CNN 85.1 %) | no code mentioned | **no**: the only on-device baseline is the same BNN on the Cortex-M4F (10.3x faster, 51x less energy on GAP8); the 16-bit CNN does not fit | energy per inference reported (25.5 mJ); no exactness check |
 | **ultracompactBNN**, Daghero et al., ACM CF 2021, DOI 10.1145/3457388.3458656, arXiv 2205.12781, `francescodaghero/ultracompactBNN` | PULPissimo (RI5CY, 1 core) on GVSoC | HAR, UniMiB-SHAR + private "Walk" | yes | **no** (vs random forest and padded PULP-NN BNN) | our HAR comparison runs their library on GVSoC |
-| Sakr et al., IEEE EDGE 2022 ("Memory efficient binary CNNs on microcontrollers"); **CBin-NN**, Electronics 2024, 13, 1624, DOI 10.3390/electronics13091624 | STM32F746 (Cortex-M7), commercial | CIFAR-10; robotic touch | yes | to confirm (CMSIS-NN?) | inference engine in C |
+| Sakr et al., IEEE EDGE 2022 ("Memory efficient binary CNNs on microcontrollers"); **CBin-NN**, Electronics 2024, 13, 1624, DOI 10.3390/electronics13091624 | STM32F746 (Cortex-M7, 216 MHz) + 3 more STM32, commercial | CIFAR-10 "SmallCifar": CBin-NN 77.42 % (Bop + PReLU + 8-bit first layer) vs the same network INT8 79.90 % | yes, Larq + `model_converter.py` | **yes**: 3.6x faster than TFLite Micro, 1.4x MicroTVM, 20 % less than CMSIS-NN, 15 % less than TinyEngine; 14.17 vs 87.34 KB | the closest work: commercial MCU, same network, vs INT8 toolchains. One task, one ISA, no exactness check, no seeds. Their 8-bit first layer (QQConv2D) matches our int8 stem finding |
 | xTern, Rutishauser et al., IEEE ASAP 2024, arXiv 2405.19065, DOI 10.1109/ASAP61560.2024.00049 | RISC-V cluster with a custom ISA extension | CIFAR-10 ternary vs 2-bit | yes | vs 2-bit | not a commercial chip |
 
-Gap statement (what no previous work combines): an open chain whose output is **verified exact** on every model,
-measured on **commercial chips of three ISAs** against the **official INT8 toolchain** on **several tasks** (2D images,
-detection, 1D signals: HAR, ECG) with a **fixed methodology** (same architecture, 3 seeds, test once). eBNN is the
-closest ancestor (open chain, MNIST, one chip, no INT8 baseline); CBin-NN the closest engine (commercial Cortex-M).
+Gap statement (what no previous work combines), after reading the papers: eBNN (2017) had an open chain and a
+correctness check, on one discontinued chip, one task, with no INT8 baseline. CBin-NN (2024) has an open engine and a
+converter, on commercial Cortex-M, and compares the same network with the INT8 toolchains (TFLite Micro, CMSIS-NN),
+on one task, one ISA, one seed, with no check of the C output. ultracompactBNN and xTern run on research platforms;
+Cerutti on a commercial GAP8 but with no INT8 baseline; LCE and FINN do not target microcontrollers. What SYMBEX-1
+adds: a chain whose output is **verified exact on every model, on the PC and on the chip**, measured on **commercial
+chips of four ISAs** against the **official INT8 toolchain** on **five tasks** (images, detection, HAR, ECG, digits)
+with a **fixed methodology** (same architecture, 3 seeds, validation for every choice, test once), plus a second engine
+for SIMD and the studies the chain made possible. Say it that way; do not say "first".
 
 Obed's PR #36 (`docs/related-research`) lists eBNN, ultracompactBNN, Daghero 2022 (arXiv 2209.00839), the BNN survey
 (arXiv 2004.03333) and daBNN: reuse those links.

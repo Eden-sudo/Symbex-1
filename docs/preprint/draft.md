@@ -4,6 +4,99 @@ Prose for the sections of [outline.md](outline.md), written in English first (th
 version follows once the text is stable. Every number comes from a file named in the outline; where a figure is still
 to be copied from its JSON the text says `[JSON]`. Sections not written yet are listed at the end.
 
+## 1. Introduction
+
+A microcontroller has a few hundred kilobytes of RAM, a few megabytes of flash and often no SIMD unit and no
+floating-point unit. The way almost everyone runs a neural network on one is INT8: the model is trained in floating
+point, quantized to 8-bit integers with the vendor's converter and executed by TensorFlow Lite Micro with the vendor's
+kernels (ESP-NN on Espressif chips, CMSIS-NN on Arm Cortex-M). INT8 keeps the accuracy of the floating-point model
+almost intact. It also multiplies and adds one byte per weight.
+
+A binary network keeps one bit per weight and one bit per activation. The weights take eight times less memory than
+INT8, and the multiply-accumulate becomes a bit operation and a count: XOR or AND over 32 to 128 weights at a time,
+then a population count. On a chip without SIMD that arithmetic is an order of magnitude cheaper than an int8
+multiply-accumulate (11-17× on the classic ESP32, measured with `tools/dev/count_bench.py`). Scale, BatchNorm and the
+activation fold into one integer threshold per output, so the inference has no floating point at all. The price is
+accuracy, and how much depends on the task.
+
+Binary networks are not new: the training methods date from 2015-2016 (BinaryConnect, BNN, XNOR-Net) and have been
+refined since (Bi-Real, ReActNet, the Bop optimizer). Nor is running them on small hardware new: FINN compiles them
+to FPGAs, daBNN and Larq Compute Engine run them on 64-bit Arm phones, and several works have put them on
+microcontrollers or on research RISC-V platforms (section 1.1). What was missing, in our reading of that work, is
+a chain that a developer can actually iterate with on the chips they buy, whose output is checked rather than
+trusted, and a set of measurements against the toolchain everyone deploys, on several tasks, with one methodology.
+
+**What this paper does.** SYMBEX-1 is an open, end-to-end chain for binary networks whose first target is commercial
+microcontrollers. A configuration file describes the network and the chip's limits; the compiler trains the binary
+network in PyTorch, folds it into integers, writes a C header for a portable inference engine and checks that header
+against the integer simulation of the model, image by image, on the PC and on the board. The check must give 100 %;
+it has, for every model reported here. With that chain we measured the same networks, binary and INT8, on three
+commercial boards of four instruction sets (Xtensa LX6 and LX7, Arm Cortex-M33, Hazard3 RISC-V), INT8 through the
+official TensorFlow Lite toolchain, three seeds, every choice made on validation and the test set used once. The
+tasks go from fine-grained image classification (CIFAR-10, the MLPerf Tiny ResNet-8) through person detection, a
+dense network on Fashion-MNIST, and two 1D signals (activity recognition from an accelerometer, arrhythmia from the
+ECG), to a digit classifier on an 8-bit Arduino.
+
+**What we found.** Binary pays most where the chip has no SIMD: on the classic ESP32 whole networks run 5 to 13
+times faster than INT8 with 3 to 10 times less flash. Where the chip has an int8 SIMD unit the standard engine wins
+by 1.0 to 2 times on the convolutional networks (28 times on the dense network with its weights in flash, where INT8
+pays for every byte read), and beating the vendor's own INT8 library took a second engine that counts 128 windows at once.
+The accuracy cost is the task's, not the method's: none on person detection and on the ECG, two points on
+Fashion-MNIST, ten points on CIFAR-10, where a study shows the binary network loses by capacity, not by training.
+An 8-bit first layer and a pooled 8-bit classifier recover part of it at a small cost. `[every number in this paragraph
+is copied from the results tables of section 3; re-read them in the final pass]`
+
+**Contributions.** (1) An open chain from a PyTorch model to a C header that is verified exact on the chip, with a
+configuration file that re-creates every run. (2) A portable engine with one hardware layer per chip family and a
+second, bit-sliced engine for SIMD units. (3) Measurements of the same network, binary and INT8, on commercial chips
+of four ISAs against the official INT8 toolchain, with one methodology across five tasks. (4) An account of where one
+bit pays and where it does not, including the capacity study of the binary ResNet-8. Everything, code, models and
+result files, is in the repository.
+
+### 1.1 Related work
+
+**Training binary networks.** BinaryConnect (Courbariaux et al. 2015) and BNN (Hubara et al. 2016) train with latent
+real weights and a straight-through gradient; XNOR-Net (Rastegari et al. 2016) adds scaling factors; Bi-Real
+(Liu et al. 2018) and ReActNet (Liu et al. 2020) change the block to keep information through the sign; Bop
+(Helwegen et al. 2019) optimizes the bits directly. SYMBEX-1 trains with the straight-through gradient and offers Bop
+as an option; the training-gap study of section 3 measures what those methods are worth on the binary ResNet-8.
+
+**Binary networks on hardware.** Three lines of work precede ours. *Programmable logic:* FINN (Umuroglu et al. 2017)
+compiles binary networks to FPGAs through Brevitas and high-level synthesis; it produces hardware, not code for a
+microcontroller. *Application processors:* daBNN (Zhang et al. 2019) and the Larq Compute Engine (Bannink et al.
+2021) run binary networks on 64-bit Arm phones with NEON. Larq's maintainers state that the engine "is meant more for
+mobile-class devices with CPUs such as the Arm Cortex-A" and that the ESP32 family "isn't the target"; for
+microcontrollers Plumerai "does offer commercial solutions", with no public source. *Research RISC-V platforms:*
+Garofalo et al. (PULP-NN, 2020) wrote 8-bit and sub-byte kernels for PULP and XpulpNN extended the ISA; Daghero et
+al. (ultracompactBNN, 2021) ran 1D binary networks for activity recognition on PULPissimo in the GVSoC simulator,
+against a random forest and a padded PULP-NN network, not against INT8; xTern (Rutishauser et al. 2024) adds ternary
+instructions to a RISC-V cluster. Cerutti et al. (2020) ran a binary sound-event detector on the commercial GAP8 and
+reported energy per inference; the only on-device baseline is the same network on a Cortex-M4F.
+
+**Binary networks on commercial microcontrollers.** eBNN (McDanel, Teerapittayanon and Kung, 2017) is the closest
+ancestor: a Chainer model "automatically converted into a standalone C header file" and run on an Intel Curie at
+32 MHz with about 15 KB of usable RAM, on MNIST (94.6 % at 53.7 ms with a small convolutional network). The authors
+"validated the correctness of the C implementation by comparing the output at each stage to the Python version"; the
+chain is open, and both the framework and the chip have since been discontinued. There is no INT8 baseline. CBin-NN
+(Sakr et al. 2024) is the closest engine: a C library of binary layers for Cortex-M, fed by a Python script that
+writes the parameters of a Larq model, measured on an STM32F746 on CIFAR-10 against the same network in INT8 on
+TensorFlow Lite Micro, CMSIS-NN, MicroTVM and TinyEngine: 3.6× faster than TensorFlow Lite Micro and 20 % faster than
+CMSIS-NN, 14 KB instead of 87 KB, 77.4 % against 79.9 %. Two of their findings agree with ours: Bop helps, and an
+8-bit first layer on 8-bit input is worth its cost. Their comparison covers one task, one instruction set and one
+seed, and the paper does not check the C output against the Keras model.
+
+**The INT8 toolchains.** TensorFlow Lite Micro and, more recently, ExecuTorch's Cortex-M backend ("in beta", INT8
+only, validated on a simulator) are the official paths to a microcontroller; neither has 1-bit kernels or folds a
+layer into a threshold. Espressif's ESP-DL is the most optimized INT8 path we know on the ESP32-S3; we report one
+measurement against it. INT4 and INT2 have kernels in CMSIS-NN and ESP-NN but no end-to-end toolchain on these
+chips; the low-bit baselines in this paper are our own code and are labelled as such.
+
+**What SYMBEX-1 adds** to this picture is the combination: a chain whose output is verified exact on every model, on
+the PC and on the chip; commercial chips of four instruction sets; the official INT8 toolchain as the baseline;
+five tasks under one methodology (same architecture, three seeds, validation for every choice, test once); and a
+second engine for SIMD units. We do not claim to be the first chain, the first engine or the first comparison; eBNN,
+CBin-NN and the works above did each part before. We claim the measurements and the tool that produced them.
+
 ## 2. Materials and methods
 
 ### 2.1 The chain: from a trained model to an exact binary network on the chip
@@ -146,6 +239,5 @@ retraining. The 1D comparison with ultracompactBNN runs in a Docker image with G
 ## Not written yet
 
 - Front matter (abstract and keywords in both languages): last, from the body.
-- 1 Introduction and 1.1 Related work: from the outline's verified table, after the four PDFs are read.
 - 3 Results and discussion: after master is merged into this branch (ECG results) and the charts are regenerated.
 - 4 Conclusions, 5 References (`references.bib`).
