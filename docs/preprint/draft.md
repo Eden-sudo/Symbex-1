@@ -4,6 +4,34 @@ Prose for the sections of [outline.md](outline.md), written in English first (th
 version follows once the text is stable. Every number comes from a file named in the outline; where a figure is still
 to be copied from its JSON the text says `[JSON]`. Sections not written yet are listed at the end.
 
+## Front matter
+
+**Title (candidate, Edén decides).** SYMBEX-1: exact binary neural networks on commercial microcontrollers, measured
+against the INT8 toolchain.
+
+**Authors.** Carlos Duarte, Obed, Abrahan Aparicio. Universidad Latina de Panamá, Licenciatura en Mecatrónica.
+`[order and contribution lines: Edén decides]`
+
+**Abstract.** Microcontrollers run neural networks almost always in INT8, through TensorFlow Lite Micro and the
+vendor's kernels. Binary networks, with one bit per weight and per activation, promise eight times smaller weights and
+multiply-free arithmetic, but they have rarely been measured against that toolchain on the chips people buy. We present
+SYMBEX-1, an open, end-to-end chain that trains a binary network in PyTorch, folds it into integers, compiles it to a
+portable C engine and checks the result against its integer simulation, input by input, on the PC and on the board:
+every model reported is exact on 100 % of its test inputs. With it we measured the same networks, binary and INT8, on
+five tasks (CIFAR-10, person detection, Fashion-MNIST, activity recognition, ECG beats) and on commercial chips of four
+instruction sets (Xtensa LX6 and LX7, Arm Cortex-M33, Hazard3 RISC-V), with three seeds, every choice made on
+validation and the test set used once. Without a SIMD unit binary networks run 5-13 times faster than INT8 on the
+classic ESP32; with one the gain falls to 1.0-2 times on convolutional networks, except where INT8 must read its
+weights from flash (28 times on a dense network). Binary models need 3-10 times less flash. The accuracy cost depends
+on the task: none for person detection and ECG beats, two points on Fashion-MNIST, 10-16 on CIFAR-10 and 9-23 on
+activity recognition, where a study attributes the gap to capacity, not training.
+
+**Keywords.** binary neural networks, microcontrollers, quantization, TinyML, edge inference.
+
+**Resumen.** `[Spanish version of the abstract: written with the full translation, once the English text is final]`
+
+**Palabras clave.** redes neuronales binarias, microcontroladores, cuantización, TinyML, inferencia en el borde.
+
 ## 1. Introduction
 
 A microcontroller has a few hundred kilobytes of RAM, a few megabytes of flash and often no SIMD unit and no
@@ -41,11 +69,11 @@ ECG), to a digit classifier on an 8-bit Arduino.
 times faster than INT8 with 3 to 10 times less flash. Where the chip has an int8 SIMD unit the standard engine wins
 by 1.0 to 2 times on the convolutional networks (28 times on the dense network with its weights in flash, where INT8
 pays for every byte read), and beating the vendor's own INT8 library took a second engine that counts 128 windows at once.
-The accuracy cost is the task's, not the method's: none on person detection and on the ECG, two points on
-Fashion-MNIST, ten points on CIFAR-10, where a study shows the binary network loses by capacity, not by training,
-and 9 to 23 points on activity recognition, worst on the smallest network.
-An 8-bit first layer and a pooled 8-bit classifier recover part of it at a small cost. `[every number in this paragraph
-is copied from the results tables of section 3; re-read them in the final pass]`
+The accuracy cost is the task's, not the method's: none on person detection, on the ECG beats (tied within one
+standard deviation) and on the 1-bit digits, two points on Fashion-MNIST, 10 to 16 points on CIFAR-10, where a study
+shows the binary network loses by capacity, not by training, and 9 to 23 points on activity recognition, worst on the
+smallest network. An 8-bit first layer and a pooled 8-bit classifier recover five of the CIFAR-10 points at a small
+cost.
 
 **Contributions.** (1) An open chain from a PyTorch model to a C header that is verified exact on the chip, with a
 configuration file that re-creates every run. (2) A portable engine with one hardware layer per chip family and a
@@ -446,8 +474,62 @@ disagreed with its simulation was a bug to fix, never a result to report.
   changed 28 % of its predictions. Nothing of it is in the chain. `[local probe only (LOGBOOK.md outside the
   repository), no result file: Edén decides whether this bullet stays]`
 
+## 4. Conclusions
+
+**An open chain can deliver binary networks that are exact on commercial chips.** SYMBEX-1 takes a network from a
+PyTorch model to a C header and checks it against its integer simulation on the PC and on the board. Every model in
+this paper, on five cores of four instruction sets, matched its simulation on 100 % of its test inputs. That check
+turned each new idea (an int8 first layer, a pooled classifier, a second engine, a new task) into a configuration
+change and a measurement, not a debugging session.
+
+**The chip decides how much one bit pays.** Without SIMD (the classic ESP32, Hazard3) whole binary networks run 5-13
+times faster than INT8 on the official toolchain. With an 8-bit SIMD unit or DSP instructions (ESP32-S3, Cortex-M33)
+the standard engine wins by 1.0-2 times on convolutional networks; the 28 times of the dense network on the S3 is a
+memory effect, INT8 reading its weights from flash. Beating the vendor's own INT8 library on the S3 took a second,
+bit-sliced engine. On every chip the binary model needs 3-10 times less flash and, in most cases, less RAM; that is
+what lets the binary person detector run on the classic ESP32, where the INT8 one does not fit.
+
+**The accuracy cost is the task's.** It is zero for person detection, ECG beats and 1-bit digits, two points on
+Fashion-MNIST, 10-16 points on CIFAR-10 and 9-23 points on activity recognition, worst on the smallest networks. The
+training-gap study places the CIFAR-10 loss in capacity, not in training: better optimizers recover two or three
+points, width and an 8-bit first layer recover more, at a cost in speed or memory. Binary is the right choice where
+the task tolerates it and the chip lacks SIMD, or where memory decides; INT8 stays where accuracy on a fine-grained
+task decides.
+
+**Future work.** Energy per inference, with a current meter on the same boards and models; keyword spotting, which
+needs binary depthwise layers; the vertical engine for 1D networks on the S3; more chips; and the open items of
+section 3.3.
+
+## 5. References
+
+The BibTeX entries are in [references.bib](references.bib) (key in brackets). Entries marked `verify` there are
+written from the citations in the repository and must be checked against the publisher before submission.
+
+*Training binary networks.* Courbariaux et al. 2015, BinaryConnect [courbariaux2015binaryconnect]. Hubara et al.
+2016, Binarized Neural Networks [hubara2016bnn]. Rastegari et al. 2016, XNOR-Net [rastegari2016xnor]. Liu et al.
+2018, Bi-Real Net [liu2018bireal]. Liu et al. 2020, ReActNet [liu2020reactnet]. Helwegen et al. 2019, Bop
+[helwegen2019bop]. Liu et al. 2021, two-step training [liu2021adambnn]. Zhang et al. 2021, FracBNN, thermometer
+input [zhang2021fracbnn]. Qin et al. 2020, survey [qin2020bnnsurvey].
+
+*Binary networks on hardware.* Umuroglu et al. 2017, FINN [umuroglu2017finn]. Zhang et al. 2019, daBNN
+[zhang2019dabnn]. Bannink et al. 2021, Larq Compute Engine [bannink2021lce]. Garofalo et al. 2020, PULP-NN
+[garofalo2020pulpnn] and XpulpNN [garofalo2020xpulpnn]. Daghero et al. 2021, ultracompactBNN
+[daghero2021ultracompact]. Rutishauser et al. 2024, xTern [rutishauser2024xtern]. Cerutti et al. 2020, binary sound
+event detection on GAP8 [cerutti2020sed]. McDanel et al. 2017, eBNN [mcdanel2017ebnn]. Sakr et al. 2024, CBin-NN
+[sakr2024cbinnn].
+
+*Toolchains and tools.* TensorFlow Lite Micro [david2021tflm]. CMSIS-NN [lai2018cmsisnn]. ESP-NN [espnn]. ESP-DL
+[espdl]. ExecuTorch Cortex-M backend [executorch]. TVM / MicroTVM [chen2018tvm]. MCUNet / TinyEngine
+[lin2020mcunet]. Brevitas [pappalardo2023brevitas]. GVSoC [bruschi2021gvsoc]. PyTorch [paszke2019pytorch].
+TensorFlow and Keras [abadi2016tensorflow].
+
+*Benchmarks and datasets.* MLPerf Tiny [banbury2021mlperftiny]. CIFAR-10 [krizhevsky2009cifar]. Fashion-MNIST
+[xiao2017fashion]. PASCAL VOC [everingham2010voc]. FOMO [edgeimpulse2022fomo]. UniMiB-SHAR [micucci2017unimib].
+MIT-BIH [moody2001mitbih], the inter-patient split [dechazal2004ecg] and the AAMI classes [aami2012ec57].
+scikit-learn and its Digits set [pedregosa2011sklearn].
+
 ## Not written yet
 
-- Front matter (abstract and keywords in both languages): last, from the body.
-- 4 Conclusions (from the outline's table), 5 References (`references.bib`).
-- Final pass: re-read the "What we found" paragraph of the Introduction against the tables of section 3.
+- Spanish version of the whole text (the abstract first), then LaTeX with `references.bib`.
+- Check the `verify` entries of `references.bib`; decide the title, the author order and the RNN bullet of 3.3.
+- Energy, once the meter arrives: one table, then a sentence in the abstract and in section 4.

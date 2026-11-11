@@ -154,7 +154,7 @@ Accuracy-cost table for the paper (one row per benchmark, from the files above):
 
 Every work in section 1.1, with DOI or arXiv id, plus TensorFlow Lite Micro, ESP-NN, CMSIS-NN, ESP-DL, MLPerf Tiny,
 the datasets (CIFAR-10, Fashion-MNIST, PASCAL VOC, UniMiB-SHAR, MIT-BIH) and the training-method papers. BibTeX file:
-`docs/preprint/references.bib` (to create).
+`docs/preprint/references.bib` (created Nov 11; entries marked `verify` still to check).
 
 ## Appendix: reproducibility
 
@@ -170,7 +170,7 @@ the datasets (CIFAR-10, Fashion-MNIST, PASCAL VOC, UniMiB-SHAR, MIT-BIH) and the
 
 ## To do before prose
 
-- [ ] Merge master into `docs/structure` (ECG results, PR #35) and regenerate the charts.
+- [x] Merge master into `docs/structure` (ECG results, PR #35) and regenerate the charts.
 - [ ] Read the PDFs of eBNN, ultracompactBNN, CBin-NN, Cerutti: fill the "vs INT8" and "exact" columns.
 - [ ] Decide the title and the author list.
 - [ ] Energy: meter arrives -> one script, one table (ESP32, S3, Pico 2), same models.
