@@ -166,7 +166,9 @@ the datasets (CIFAR-10, Fashion-MNIST, PASCAL VOC, UniMiB-SHAR, MIT-BIH) and the
 1. ResNet-8 accuracy vs latency Pareto (S3 and ESP32): `docs/assets/pareto_resnet8.svg`
 2. MLP accuracy vs latency, binary vs INT8 / INT4 / INT2: `docs/assets/pareto_mlp.svg`
 3. Speed-up per benchmark and chip: `docs/assets/speedup.svg`; flash per model: `docs/assets/flash.svg`
-4. New: accuracy cost per benchmark (points) against speed-up; the chain diagram (PyTorch -> integers -> C -> chip)
+4. Accuracy cost per benchmark (points) against speed-up: `docs/assets/cost.svg` (done Nov 11; activity recognition
+   left out: its SYMBEX chip times are in runs/, not results/); the chain diagram: mermaid in draft.md section 2.1
+   (redraw for LaTeX)
 
 ## To do before prose
 

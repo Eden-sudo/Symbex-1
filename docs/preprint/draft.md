@@ -144,6 +144,21 @@ writes a C header for the engine and checks that header bit by bit, on the PC an
 chip. **benchmarks/** holds the comparisons against the official INT8 toolchain on the same chips, one folder per task,
 all following the same standard (section 2.2).
 
+*Figure 1. The chain. Each arrow is a stage of the CDT; the two checks at the bottom must give the same class as the
+integer simulation on 100 % of the inputs, or the export stops.*
+
+```mermaid
+flowchart LR
+  A["symbex.toml<br/>network, data, chip limits"] --> B["train<br/>PyTorch, 1-bit weights<br/>and activations"]
+  B --> C["fold<br/>BatchNorm + sign -> one<br/>integer threshold per output"]
+  C --> D["integer simulation<br/>(Python, the reference)"]
+  C --> E["export<br/>C header for lib_symbex"]
+  E --> F["validate on the PC<br/>C vs simulation"]
+  E --> G["chip<br/>C vs simulation + latency"]
+  D -.-> F
+  D -.-> G
+```
+
 **The binary layer.** Every weight and every activation is +1 or −1, stored as one bit. The product of two such values
 is +1 when the bits are equal and −1 when they differ, so the dot product of two vectors of *n* values is
 raw = *n* − 2·popcount(*x* ⊕ *w*). One 32-bit word holds 32 values: one XOR and one bit count replace 32 multiplications
@@ -307,6 +322,11 @@ prepared 6.44 ms with 238 KB (fully binary); 9.70 / 7.07 / 6.02 ms with the most
 the Pico 2 the standard engine stays the fastest (section 2.1). Sizing the network for binary rather than copying the
 INT8 shape gives 73.1 ± 0.2 % (16-32-128 channels, 1-1-2 blocks) at the same S3 latency (39.6 ms) and 74.5 ± 0.2 %
 (16-64-128) at 46.6 ms; those shapes were ranked on one seed (section 2.2), so they are reported as a ranking.
+Figure 2 puts every ResNet-8 on one accuracy-latency plane per chip.
+
+*Figure 2. ResNet-8, accuracy against latency, ESP32-S3 and ESP32 (`docs/assets/pareto_resnet8.svg`).*
+
+![ResNet-8 accuracy against latency](../assets/pareto_resnet8.svg)
 
 **Person detection: FOMO on Pascal VOC.** The same detector in INT8, trained with the recipe noted in section 2.2
 (`fomo_voc_person/results/symbex/symbex_seeds_*.json`, `results/tflite/tflite_s3_*.json`):
@@ -409,6 +429,19 @@ seeds, plus the M33 RAM variant) are exact.
 | Fashion-MNIST MLP, same shape | 87.5 ± 0.1 % | 89.8 ± 0.1 % | 2.3 points |
 | CIFAR-10 ResNet-8 (reference: the MLPerf Tiny model) | 71.3 ± 0.8 / 76.7 ± 0.3 % | 87.0 % | 10.3-15.7 points |
 | Activity recognition, 4 networks | 32.7-58.8 % | 56.1-67.9 % | 9.0-23.4 points |
+
+Figure 3 draws the speed-up of each benchmark next to its cost; Figure 4 puts the two together. Activity recognition is
+not in Figure 4 because its SYMBEX chip times are kept with the training runs, not with the results files the charts
+read (its speed-ups are in the activity-recognition table above).
+
+*Figure 3. Speed-up over TensorFlow Lite Micro INT8, same network, same chip (`docs/assets/speedup.svg`).*
+
+![Speed-up per benchmark and chip](../assets/speedup.svg)
+
+*Figure 4. Points lost against INT8 and speed-up, one line per benchmark from the ESP32 to the ESP32-S3
+(`docs/assets/cost.svg`).*
+
+![Accuracy cost against speed-up](../assets/cost.svg)
 
 ### 3.2 Discussion: where binary pays, and why it loses where it loses
 

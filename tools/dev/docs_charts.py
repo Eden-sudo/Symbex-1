@@ -17,6 +17,9 @@ Charts:
                 3 seeds, distillation), with the Pareto front (docs/en/methodology.md)
   pareto_resnet8.svg  accuracy against latency, ResNet-8 on CIFAR-10, ESP32-S3 and ESP32, weights in flash: the
                 official MLPerf Tiny INT8 model (TFLite Micro) and the fully binary ResNet-8s (test accuracy, 3 seeds)
+  cost.svg      the accuracy binary costs (INT8 minus SYMBEX, points of each task's metric on its test set) against the
+                speed-up of speedup.svg, one line per benchmark from the ESP32 to the ESP32-S3 (activity recognition
+                is left out: its SYMBEX chip times are kept in runs/, not in results/)
 Each one also as <name>_dark.svg, for GitHub's dark theme (the pages pick one with <picture>).
 """
 import json
@@ -48,6 +51,9 @@ SOURCES = {
     "mlp_lowbit_s3_flash": f"{FASHION}/lowbit/lowbit_esp_nn_s3_flash.json",
     "mlp_lowbit_s3_ram": f"{FASHION}/lowbit/lowbit_esp_nn_s3_ram.json",
     "resnet_pc_int8": f"{RESNET}/tflite/tflite_pc.json",
+    "resnet_s3_vertical": f"{RESNET}/symbex/symbex_seeds_s3_swar_w1_vertical.json",
+    "mlp_sizing_labels": f"{FASHION}/sizing/fashion_sizing_nodistill.json",
+    "mlp_int8_qat_labels": f"{FASHION}/lowbit/int8_e15_h128_512_nodistill_pc.json",
 }
 # the ResNet-8s of the Pareto chart: (label, file name part); the boards' files are symbex_seeds_<board>_<name>.json
 RESNET_PARETO = {
@@ -69,6 +75,9 @@ SOURCES.update({
     "ecg_s3_int8": [f"{ECG}/tflite/tflite_s3_l_s{s}_rr.json" for s in ECG_SEEDS],
     "ecg_esp32": [f"{ECG}/symbex/l_binary_e100_s{s}_rr/chip_esp32_swar_flash_mask.json" for s in ECG_SEEDS],
     "ecg_esp32_int8": [f"{ECG}/tflite/tflite_esp32_l_s{s}_rr.json" for s in ECG_SEEDS],
+    "ecg_train": [f"{ECG}/symbex/l_binary_e100_s{s}_rr/train.json" for s in ECG_SEEDS],
+    "ecg_pc_int8": [f"{ECG}/tflite/tflite_pc_l_s{s}_rr.json" for s in ECG_SEEDS],
+    "fomo_pc_int8": [f"{FOMO}/tflite/tflite_pc_c32-32-128_b1-2-2_w20_e60{x}.json" for x in ("", "_s43", "_s44")],
 })
 
 # Colors: the first four slots of a color-blind-checked categorical palette, stepped for each theme (SYMBEX, INT8,
@@ -90,18 +99,24 @@ def load(key):
 
 
 def files_mean(key, field):
-    """Mean of one field over a key that lists one file per seed."""
+    """Mean of one field over a key that lists one file per seed; a field "a.b" reads d["a"]["b"]."""
     values = []
     for path in SOURCES[key]:
         with open(os.path.join(BENCH, path)) as f:
-            values.append(json.load(f)[field])
+            v = json.load(f)
+        for part in field.split("."):
+            v = v[part]
+        values.append(v)
     return statistics.mean(values)
 
 
 def source(key):
     """The file behind a key, for the printed table; a per-seed list is shown as one pattern."""
     v = SOURCES[key]
-    return v if isinstance(v, str) else v[0].replace(f"s{ECG_SEEDS[0]}", "s{" + ",".join(map(str, ECG_SEEDS)) + "}")
+    if isinstance(v, str):
+        return v
+    one = v[0].replace(f"s{ECG_SEEDS[0]}", "s{" + ",".join(map(str, ECG_SEEDS)) + "}")
+    return one if one != v[0] else f"{v[0]} (+ {len(v) - 1} more seeds)"
 
 
 def seeds_mean(d, field):
@@ -125,6 +140,8 @@ def speedup_rows():
          ["mlp_esp32", "mlp_esp32_int8"]),
         ("ResNet-8 · ESP32-S3", seeds_mean(load("resnet_s3"), "latency_ms"), load("resnet_s3_int8")["latency_ms"],
          ["resnet_s3", "resnet_s3_int8"]),
+        ("ResNet-8 · ESP32-S3, vertical", seeds_mean(load("resnet_s3_vertical"), "latency_ms"),
+         load("resnet_s3_int8")["latency_ms"], ["resnet_s3_vertical", "resnet_s3_int8"]),
         ("ResNet-8 · ESP32", seeds_mean(load("resnet_esp32"), "latency_ms"),
          load("resnet_esp32_int8")["latency_ms"], ["resnet_esp32", "resnet_esp32_int8"]),
         ("FOMO person · ESP32-S3", seeds_mean(load("fomo_s3"), "latency_ms"), load("fomo_s3_int8")["latency_ms"],
@@ -147,6 +164,26 @@ def flash_rows():
          ["fomo_s3", "fomo_s3_int8"]),
         ("ECG beats, large 1D network", files_mean("ecg_s3", "model_flash") / 1024, files_mean("ecg_s3_int8", "model_kb"),
          ["ecg_s3", "ecg_s3_int8"]),
+    ]
+
+
+def cost_rows(speed):
+    """(benchmark, metric, INT8 score, SYMBEX score, {chip: speed-up}, source keys). Scores: the test set, mean of 3
+    seeds, the same network and the same recipe for both methods; the speed-ups are the rows of speedup.svg (weights
+    in flash), so a chip where INT8 does not fit has no point."""
+    up = {label: i / s for label, s, i, _ in speed if i is not None}
+    chips = lambda name: {c: up[f"{name} · {c}"] for c in ("ESP32", "ESP32-S3") if f"{name} · {c}" in up}
+    mlp = next(r for r in load("mlp_sizing_labels")["rows"] if r["shape"] == MLP_SHAPE)
+    fomo = load("fomo_s3")
+    return [
+        ("MLP, Fashion-MNIST", "accuracy", load("mlp_int8_qat_labels")["metodos"]["qat"]["precision_10k"], mlp["test"],
+         chips("MLP"), ["mlp_int8_qat_labels", "mlp_sizing_labels"]),
+        ("ResNet-8, CIFAR-10", "accuracy", load("resnet_pc_int8")["int8_accuracy"],
+         seeds_mean(load("resnet_s3"), "test_accuracy"), chips("ResNet-8"), ["resnet_pc_int8", "resnet_s3"]),
+        ("FOMO, person detection", "F1", files_mean("fomo_pc_int8", "f1_calibrated.f1"), seeds_mean(fomo, "f1_test"),
+         chips("FOMO person"), ["fomo_pc_int8", "fomo_s3"]),
+        ("ECG beats, large 1D net", "balanced accuracy", files_mean("ecg_pc_int8", "test.balanced"),
+         files_mean("ecg_train", "test.balanced"), chips("ECG beats, large 1D net"), ["ecg_pc_int8", "ecg_train"]),
     ]
 
 
@@ -236,6 +273,72 @@ def flash_svg(rows, th):
             body.append(text(xs(v) + 6, yy + bh - 4, note, th["text"] if j == 0 else th["muted"], 12,
                              weight="bold" if j == 0 else "normal"))
     return svg(width, height, "Flash used by the model: SYMBEX vs. INT8", body)
+
+
+def cost_svg(rows, th):
+    """One horizontal line per benchmark at its accuracy cost, from its ESP32 speed-up (filled dot) to its ESP32-S3
+    one (ring); x on a log scale. Lower is more accurate, further right is faster."""
+    import math
+    width, left, right, top, ph = 820, 80, 40, 118, 330
+    height = top + ph + 58
+    pw = width - left - right
+    costs = [i - b for _, _, i, b, _, _ in rows]
+    ylo, yhi = 5 * math.floor((min(costs) - 4) / 5), 5 * math.ceil(max(costs) / 5 + 0.2)   # room for labels below
+    ys = lambda v: top + ph * (yhi - v) / (yhi - ylo)
+    lo, hi = 1, 50
+    xs = lambda v: left + pw * (math.log10(v) - math.log10(lo)) / (math.log10(hi) - math.log10(lo))
+    body = [text(16, 26, "What binary costs and what it buys", th["text"], 16, weight="bold"),
+            text(16, 46, "Points lost against INT8 (each task's metric, test set, mean of 3 seeds) and speed-up on "
+                 "the chip (weights in flash)", th["muted"], 12),
+            text(16, 63, "Same network and same recipe for both methods; lower is more accurate, further right is faster",
+                 th["muted"], 12)]
+    c = th["series"][THEME_SLOT["SYMBEX"]]
+    body.append(f'<circle cx="{left + 6}" cy="84" r="5" fill="{c}"/>')
+    body.append(text(left + 16, 88, "ESP32 (no SIMD)", th["text"], 12))
+    body.append(f'<circle cx="{left + 146}" cy="84" r="4" fill="{th["surface"]}" stroke="{c}" stroke-width="2"/>')
+    body.append(text(left + 156, 88, "ESP32-S3 (SIMD)", th["text"], 12))
+    for t in range(ylo, yhi + 1, 5):
+        body.append(f'<line x1="{left}" y1="{ys(t):.1f}" x2="{left + pw}" y2="{ys(t):.1f}" stroke="{th["grid"]}"/>')
+        body.append(text(left - 8, ys(t) + 4, f"{t:+d}" if t else "0", th["muted"], 11, "end"))
+    for v in (1, 2, 5, 10, 20, 50):
+        body.append(f'<line x1="{xs(v):.1f}" y1="{top}" x2="{xs(v):.1f}" y2="{top + ph}" stroke="{th["grid"]}"/>')
+        body.append(text(xs(v), top + ph + 16, f"{v}×", th["muted"], 11, "middle"))
+    body.append(text(left + pw / 2, top + ph + 36, "times faster than TFLite Micro INT8 (log scale)", th["muted"], 11,
+                     "middle"))
+    body.append(text(16, top - 10, "points lost (INT8 − SYMBEX)", th["muted"], 11))
+    body.append(f'<line x1="{left}" y1="{ys(0):.1f}" x2="{left + pw}" y2="{ys(0):.1f}" stroke="{th["base"]}" '
+                f'stroke-dasharray="3 3"/>')
+    body.append(text(left + 4, ys(0) - 6, "as accurate as INT8", th["muted"], 10))
+    body.append(f'<line x1="{xs(1):.1f}" y1="{top}" x2="{xs(1):.1f}" y2="{top + ph}" stroke="{th["base"]}" '
+                f'stroke-dasharray="3 3"/>')
+    placed = []
+    for name, metric, i, b, up, _ in sorted(rows, key=lambda r: -(r[2] - r[3])):
+        y = ys(i - b)
+        pts = sorted(up.items(), key=lambda kv: kv[1])
+        x1, x2 = xs(pts[0][1]), xs(pts[-1][1])
+        if len(pts) > 1:
+            body.append(f'<line x1="{x1:.1f}" y1="{y:.1f}" x2="{x2:.1f}" y2="{y:.1f}" stroke="{c}" stroke-width="2" '
+                        f'stroke-opacity="0.5"/>')
+        for chip, v in pts:
+            x = xs(v)
+            tip = f"{name} · {chip}: {v:.2f}× faster, INT8 {i:.1f} vs SYMBEX {b:.1f} ({metric})"
+            fill, r = (c, 5) if chip == "ESP32" else (th["surface"], 4)
+            body.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{fill}" stroke="{c if chip != "ESP32" else th["surface"]}" '
+                        f'stroke-width="2"><title>{escape(tip)}</title></circle>')
+            body.append(text(x, y + 18, f"{v:.1f}×" if v >= 10 else f"{v:.2f}×", th["muted"], 11, "middle"))
+        s = f"{name} · {metric}: SYMBEX {b:.1f} %, INT8 {i:.1f} %"
+        w = 6.6 * len(s)
+        if len(pts) == 1:                               # one dot: the label on its right, clear of the zero line
+            box = (x1 + 10, y - 6, x1 + 10 + w, y + 6)
+        else:
+            bx = max(left + 4, min((x1 + x2) / 2 - w / 2, left + pw - w))
+            box = (bx, y - 20, bx + w, y - 8)
+            if any(box[0] < q[2] and q[0] < box[2] and box[1] < q[3] and q[1] < box[3] for q in placed):
+                box = (bx, y + 22, bx + w, y + 34)      # the label above collides: put it under the numbers
+        placed.append(box)
+        placed.append((x1 - 20, y + 6, x2 + 20, y + 22))  # the speed-up numbers under the dots
+        body.append(text(box[0], box[3] - 1, s, th["text"], 12))
+    return svg(width, height, "Accuracy cost against speed-up per benchmark, ESP32 and ESP32-S3", body)
 
 
 def pareto_points(placement):
@@ -415,11 +518,17 @@ def main():
         print(f"\n    Pareto, ResNet-8, {title} (test %, ms){'':>4}front: {', '.join(p[1] for p in pareto_front(pts))}")
         for method, label, t, v, sd, keys in pts:
             print(f"    {label:<34}{v:>6.2f} +- {sd:.2f}{ms(t):>8}  {', '.join(SOURCES[k] for k in keys)}")
+    cost = cost_rows(speed)
+    print("\n    accuracy cost (INT8 - SYMBEX, test) and speed-up")
+    for name, metric, i, b, up, keys in cost:
+        print(f"    {name:<34}{metric:<18}{i:>6.2f} - {b:6.2f} = {i - b:+6.2f}  "
+              f"{', '.join(f'{c} {v:.2f}x' for c, v in up.items())}  {', '.join(source(k) for k in keys)}")
     print()
     for mode, th in THEMES.items():
         suffix = "" if mode == "light" else "_dark"
         write(f"speedup{suffix}.svg", speedup_svg(speed, th))
         write(f"flash{suffix}.svg", flash_svg(flash, th))
+        write(f"cost{suffix}.svg", cost_svg(cost, th))
         write(f"pareto_mlp{suffix}.svg", pareto_svg(panels, ceiling, th))
         write(f"pareto_resnet8{suffix}.svg", pareto_svg(resnet, None, th, RESNET_TITLE, ("SYMBEX", "INT8"), 2,
                                                          label_all=True))
