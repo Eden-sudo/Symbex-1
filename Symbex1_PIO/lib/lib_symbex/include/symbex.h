@@ -3,16 +3,20 @@
  * #include "symbex.h" is all an application needs.
  *
  * Layout of the library:
- *   core/     types, shared constants and the network runners (dense and convolutional)
- *   hal/      the hardware interface (generic C, ESP32-S3 PIE): popcount, XNOR and AND counts
+ *   core/     types, shared constants, the format of exported headers (symbex_format.h) and the network
+ *             runners (dense and convolutional)
+ *   hal/      the hardware interface (generic C, ESP32-S3 PIE, RP2350 first-layer kernels): popcount, XNOR and AND
+ *             counts
  *   ops/      bit operations, bit packing, 1-bit multiply-accumulate and the AND arithmetic
- *   layers/   dense (fully connected) and conv (convolution, BPR input encoding, binary pooling) layers
+ *   layers/   dense (1 bit, ternary) and conv layers: the fully binary 2D and 1D networks (symbex_bool, symbex_bool1d)
+ *             that the CDT exports today, and the convolution, BPR encoding and binary pooling of the earlier engine
  */
 
 #ifndef SYMBEX_H
 #define SYMBEX_H
 
 /* core */
+#include "core/symbex_format.h"
 #include "core/symbex_types.h"
 #include "core/symbex_core.h"
 #include "core/network/symbex_network_dense.h"
@@ -34,6 +38,8 @@
 #include "layers/conv/symbex_conv2d.h"
 #include "layers/conv/symbex_bpr.h"
 #include "layers/conv/symbex_binary_pool.h"
-/* pending: layers/conv/symbex_conv1d.h */
+#include "layers/conv/symbex_bool.h"
+#include "layers/conv/symbex_bool1d.h"
+#include "layers/conv/symbex_bool_vertical.h"
 
 #endif /* SYMBEX_H */

@@ -1,0 +1,52 @@
+{
+ "board": "uno",
+ "weights": "flash",
+ "popcount": "swar",
+ "input_bits": 1,
+ "fp32_sha256": "9dd155035e5f9a5881b2475bd1b85aadf8eb9b3a990087ab0872deedda5bfa2b",
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 8.0,
+   "val_accuracy": 91.66666666666667,
+   "test_accuracy": 94.44444444444444,
+   "flash_kb": 13.3671875,
+   "arithmetic": "xnor",
+   "chip_accuracy": 94.44444444444444,
+   "latency_ms": 19.166,
+   "equal": 100.0,
+   "ram_kb": 0.392578125,
+   "other_latency_ms": null
+  },
+  {
+   "seed": 43,
+   "width": 8.0,
+   "val_accuracy": 92.36111111111111,
+   "test_accuracy": 94.72222222222223,
+   "flash_kb": 13.3671875,
+   "arithmetic": "xnor",
+   "chip_accuracy": 94.72222222222221,
+   "latency_ms": 19.124,
+   "equal": 100.0,
+   "ram_kb": 0.392578125,
+   "other_latency_ms": null
+  },
+  {
+   "seed": 44,
+   "width": 8.0,
+   "val_accuracy": 92.36111111111111,
+   "test_accuracy": 94.44444444444444,
+   "flash_kb": 13.3671875,
+   "arithmetic": "xnor",
+   "chip_accuracy": 94.44444444444444,
+   "latency_ms": 19.192,
+   "equal": 100.0,
+   "ram_kb": 0.392578125,
+   "other_latency_ms": null
+  }
+ ],
+ "val_accuracy": "92.13 +- 0.40",
+ "test_accuracy": "94.54 +- 0.16",
+ "latency_ms": "19.16 +- 0.03",
+ "chip_accuracy": "94.54 +- 0.16"
+}

@@ -1,0 +1,31 @@
+{
+ "board": "pico2_arm",
+ "hal": "generic: SWAR fallback in software, rp2350 first layer: usada8",
+ "popcount": "swar",
+ "weights": "flash",
+ "first_layer": "mask",
+ "n": 360,
+ "equal_simulation": 100.0,
+ "accuracy": 95.0,
+ "median_ms": 0.4765,
+ "min_ms": 0.447,
+ "layers": [
+  {
+   "step": "layer 0: 64 -> 256 (1-bit input x 1 bit) + thresholds",
+   "median_ms": 0.436
+  },
+  {
+   "step": "layer 1: 256 -> 10 (1 bit x 1 bit) + argmax",
+   "median_ms": 0.037
+  }
+ ],
+ "ram": {
+  "buffers": 112,
+  "input_bytes": 64,
+  "popcount_table": 0,
+  "stack_used": 808,
+  "weights_in_ram": 0,
+  "total": 984
+ },
+ "model_flash": 3512
+}

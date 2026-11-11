@@ -1,0 +1,60 @@
+{
+ "arch": "m",
+ "first": "binary",
+ "seed": 42,
+ "validation": {
+  "balanced_torch": 59.10232129902939,
+  "balanced_sim": 59.10232129902939,
+  "fidelity": 100.0
+ },
+ "test": {
+  "balanced_torch": 52.987759299293884,
+  "balanced_sim": 52.987759299293884,
+  "fidelity": 100.0
+ },
+ "header": "runs/m_binary_e100_s42_bytes/model_symbex.h",
+ "flash_bytes": 3584,
+ "ram_buffers": 1704,
+ "steps": [
+  "conv 1->16 k9 L256 (uint8 input, +-1 bytes)",
+  "conv 16->32 k9 L248 + OR pool 4",
+  "conv 32->32 k9 L60 + OR pool 4",
+  "classifier"
+ ],
+ "layers": [
+  {
+   "cin": 1,
+   "cout": 16,
+   "k": 9,
+   "stride": 1,
+   "pool": 1,
+   "length": 256,
+   "out_length": 248,
+   "bit_ops": 35712
+  },
+  {
+   "cin": 16,
+   "cout": 32,
+   "k": 9,
+   "stride": 1,
+   "pool": 4,
+   "length": 248,
+   "out_length": 60,
+   "bit_ops": 1105920
+  },
+  {
+   "cin": 32,
+   "cout": 32,
+   "k": 9,
+   "stride": 1,
+   "pool": 4,
+   "length": 60,
+   "out_length": 13,
+   "bit_ops": 479232
+  }
+ ],
+ "images": 1000,
+ "first_bytes": true,
+ "exactness": 100.0,
+ "exactness_native": 100.0
+}

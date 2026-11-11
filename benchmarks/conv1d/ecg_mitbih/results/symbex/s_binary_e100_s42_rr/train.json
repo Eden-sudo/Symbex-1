@@ -1,0 +1,174 @@
+{
+ "arch": "s",
+ "layers": [
+  [
+   "conv",
+   8,
+   9
+  ],
+  [
+   "conv",
+   16,
+   9
+  ],
+  [
+   "pool",
+   4
+  ],
+  [
+   "conv",
+   16,
+   9
+  ],
+  [
+   "pool",
+   4
+  ]
+ ],
+ "first": "binary",
+ "seed": 42,
+ "epochs": 100,
+ "lr": 0.005,
+ "augment": false,
+ "fold": null,
+ "rr": true,
+ "best_epoch": 22,
+ "validation": {
+  "accuracy": 66.02448979591836,
+  "balanced": 63.31787986578577,
+  "sensitivity": {
+   "N": 69.22,
+   "S": 69.29,
+   "V": 34.76,
+   "F": 80.0
+  },
+  "ppv": {
+   "N": 98.34,
+   "S": 11.71,
+   "V": 50.25,
+   "F": 0.55
+  },
+  "confusion": [
+   [
+    7485,
+    921,
+    334,
+    2073
+   ],
+   [
+    16,
+    194,
+    59,
+    11
+   ],
+   [
+    109,
+    540,
+    397,
+    96
+   ],
+   [
+    1,
+    2,
+    0,
+    12
+   ]
+  ]
+ },
+ "test": {
+  "accuracy": 69.43907546106145,
+  "balanced": 60.42509856336354,
+  "sensitivity": {
+   "N": 68.75,
+   "S": 89.77,
+   "V": 74.68,
+   "F": 8.51
+  },
+  "ppv": {
+   "N": 99.34,
+   "S": 25.98,
+   "V": 44.39,
+   "F": 0.45
+  },
+  "confusion": [
+   [
+    30403,
+    4026,
+    2684,
+    7111
+   ],
+   [
+    113,
+    1649,
+    36,
+    39
+   ],
+   [
+    31,
+    667,
+    2404,
+    117
+   ],
+   [
+    57,
+    6,
+    292,
+    33
+   ]
+  ]
+ },
+ "features": 208,
+ "history": [
+  {
+   "epoch": 10,
+   "validation_balanced": 28.180253120803332,
+   "validation_accuracy": 19.044897959183675
+  },
+  {
+   "epoch": 20,
+   "validation_balanced": 41.73121700033001,
+   "validation_accuracy": 73.37142857142858
+  },
+  {
+   "epoch": 30,
+   "validation_balanced": 46.911145636501644,
+   "validation_accuracy": 67.82040816326531
+  },
+  {
+   "epoch": 40,
+   "validation_balanced": 36.27890092790778,
+   "validation_accuracy": 59.265306122448976
+  },
+  {
+   "epoch": 50,
+   "validation_balanced": 43.22086768284543,
+   "validation_accuracy": 58.073469387755104
+  },
+  {
+   "epoch": 60,
+   "validation_balanced": 44.0032791903339,
+   "validation_accuracy": 78.05714285714286
+  },
+  {
+   "epoch": 70,
+   "validation_balanced": 33.175449031631764,
+   "validation_accuracy": 60.36734693877551
+  },
+  {
+   "epoch": 80,
+   "validation_balanced": 41.64351314597264,
+   "validation_accuracy": 76.12244897959184
+  },
+  {
+   "epoch": 90,
+   "validation_balanced": 39.74840811471146,
+   "validation_accuracy": 70.91428571428573
+  },
+  {
+   "epoch": 100,
+   "validation_balanced": 44.81240964691119,
+   "validation_accuracy": 74.2530612244898
+  }
+ ],
+ "validation_pred": null
+}

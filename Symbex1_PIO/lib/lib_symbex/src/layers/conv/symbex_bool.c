@@ -18,7 +18,7 @@ static inline uint32_t pf_now(void) { return 0; }       /* no cycle counter here
 const char* const symbex_pf_names[SYMBEX_PF_N] = {
     "thermometer (input encoding)", "conv: window copy (interior)", "conv: window copy (borders)",
     "conv: popcount of the window (AND form)", "conv: count, whole layer (HAL)", "conv: thresholds + output bits",
-    "OR pool 2x2", "OR shortcut", "classifier"};
+    "OR pool 2x2", "OR shortcut", "classifier", "int8 stem (whole)"};
 uint64_t symbex_pf_cycles[SYMBEX_PF_N];
 uint32_t symbex_pf_calls[SYMBEX_PF_N];
 uint32_t symbex_pf_counter_cost;
@@ -38,13 +38,13 @@ void symbex_pf_reset(void) {
 int symbex_bool_force_mode = 0;
 
 /* appends the `nbits` bits of a map pixel (src, bits above nbits are 0) to the window at bit `off` (window zeroed);
-   npal = words of the window: nothing is written past it */
-static inline void put_bits(uint32_t* win, const uint32_t* src, int nbits, int off, int npal) {
+   win_words = words of the window: nothing is written past it */
+static inline void put_bits(uint32_t* win, const uint32_t* src, int nbits, int off, int win_words) {
     for (int j = 0; nbits > 0; j++, nbits -= 32, off += 32) {
         const uint32_t v = src[j];
         const int w = off >> 5, sh = off & 31;
         win[w] |= v << sh;
-        if (sh && w + 1 < npal) win[w + 1] |= v >> (32 - sh);
+        if (sh && w + 1 < win_words) win[w + 1] |= v >> (32 - sh);
     }
 }
 
@@ -52,9 +52,9 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
                       uint32_t* window, int32_t* scratch) {
     const int xor_form = symbex_bool_force_mode ? symbex_bool_force_mode == 2 : symbex_hal_prefers_xor();
     const int pin = (L->in_ch + 31) / 32, pout = (L->out_ch + 31) / 32, n_out = L->out_ch;
-    const int k = L->kernel, pad = k / 2, kk = k * k, fila = k * pin;
+    const int k = L->kernel, pad = k / 2, kk = k * k, row_run = k * pin;
     const int cin = L->in_ch, dense = (cin & 31) != 0;   /* channels not a multiple of 32: the window is packed */
-    const int npal = (kk * cin + 31) / 32;               /* words of the window (= kk * pin when not packed) */
+    const int win_words = (kk * cin + 31) / 32;               /* words of the window (= kk * pin when not packed) */
     const int H = L->in_h, W = L->in_w, s = L->stride, st = L->row_words;
     const int32_t* thr = L->thresholds;
     const int16_t* wc = L->weight_counts;
@@ -67,7 +67,7 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
             adj[o] = thr[o] + 2 * tot;
         }
     }
-    for (int i = npal; i < st; i++) window[i] = 0;   /* row padding, once: the copies below never write there */
+    for (int i = win_words; i < st; i++) window[i] = 0;   /* row padding, once: the copies below never write there */
     int invalid[SYMBEX_BOOL_MAX_KK];
     for (int oy = 0; oy < L->out_h; oy++) {
         for (int ox = 0; ox < L->out_w; ox++) {
@@ -96,12 +96,12 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
                 nv = kk;
             } else if (dense) {
                 /* packed: the window is the bits of its k*k pixels one after the other (pixel q at bit q * cin) */
-                for (int i = 0; i < npal; i++) window[i] = 0;
+                for (int i = 0; i < win_words; i++) window[i] = 0;
                 for (int kh = 0; kh < k; kh++) {
                     for (int kw = 0; kw < k; kw++) {
                         const int y = y0 + kh, x = x0 + kw, q = kh * k + kw;
                         if (y >= 0 && y < H && x >= 0 && x < W) {
-                            put_bits(window, &in[(y * W + x) * pin], cin, q * cin, npal);
+                            put_bits(window, &in[(y * W + x) * pin], cin, q * cin, win_words);
                             nv++;
                         } else {
                             invalid[ni++] = q;
@@ -109,12 +109,12 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
                     }
                 }
             } else if (interior) {
-                /* the k rows of the window are k runs of `fila` words of the map: a word loop (memcpy's fixed cost
+                /* the k rows of the window are k runs of `row_run` words of the map: a word loop (memcpy's fixed cost
                    was most of the time for copies this small) */
                 for (int kh = 0; kh < k; kh++) {
                     const uint32_t* src = &in[((y0 + kh) * W + x0) * pin];
-                    uint32_t* dst = &window[kh * fila];
-                    for (int i = 0; i < fila; i++) dst[i] = src[i];
+                    uint32_t* dst = &window[kh * row_run];
+                    for (int i = 0; i < row_run; i++) dst[i] = src[i];
                 }
                 nv = kk;
             } else {
@@ -141,7 +141,7 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
                 /* differences = count(window XOR weights); outside the image the window is 0, so there it counted the
                    weight bits themselves: taken out with the per-pixel weight counts. bit = nbits - 2 d >= thr */
                 PF_T(t_cnt);
-                symbex_xor_popcount_rows_n(window, L->weights, npal, st, n_out, cnt);
+                symbex_xor_popcount_rows_n(window, L->weights, win_words, st, n_out, cnt);
                 PF_ADD(SYMBEX_PF_COUNT, t_cnt);
                 PF_T(t_thr);
                 for (int ow = 0, o = 0; ow < pout; ow++) {
@@ -165,10 +165,10 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
                    - nbits + 2 * (weight bits outside the image) */
                 PF_T(t_pcx);
                 int32_t pcx;
-                symbex_and_popcount_rows_n(window, window, npal, st, 1, &pcx);    /* popcount(window): one call */
+                symbex_and_popcount_rows_n(window, window, win_words, st, 1, &pcx);    /* popcount(window): one call */
                 PF_ADD(SYMBEX_PF_WINDOW_POPCOUNT, t_pcx);
                 PF_T(t_cnt);
-                symbex_and_popcount_rows_n(window, L->weights, npal, st, n_out, cnt);
+                symbex_and_popcount_rows_n(window, L->weights, win_words, st, n_out, cnt);
                 PF_ADD(SYMBEX_PF_COUNT, t_cnt);
                 PF_T(t_thr);
                 const int32_t c0 = 2 * pcx - nbits;
@@ -227,6 +227,252 @@ void symbex_thermometer(const uint8_t* img, uint16_t h, uint16_t w, uint8_t leve
         }
     }
     PF_ADD(SYMBEX_PF_THERMOMETER, t_all);
+}
+
+/* the int8 stem's dot products: out[r] = sum_{i < n} x[i] * w[r * stride + i]; x and the rows zero padded to
+   stride bytes (a multiple of 4), x 16-byte aligned and SYMBEX_BOOL_STEM_I8_WINDOW bytes */
+#if defined(__ARM_FEATURE_SIMD32) || defined(SYMBEX_HAL_TEST_SMLAD)
+#if defined(__ARM_FEATURE_SIMD32)
+#include <arm_acle.h>
+#define STEM_SXTB16(v) __sxtb16(v)
+#define STEM_ROR8(v) __ror((v), 8)
+#define STEM_SMLAD(a, b, acc) __smlad((a), (b), (acc))
+#else               /* the tests: the same steps in plain C (SXTB16, ROR, SMLAD as the Arm manual defines them) */
+static inline uint32_t STEM_SXTB16(uint32_t v) {
+    return (uint32_t)(uint16_t)(int16_t)(int8_t)(v & 0xFFu) | ((uint32_t)(uint16_t)(int16_t)(int8_t)(v >> 16) << 16);
+}
+static inline uint32_t STEM_ROR8(uint32_t v) { return (v >> 8) | (v << 24); }
+static inline int32_t STEM_SMLAD(uint32_t a, uint32_t b, int32_t acc) {
+    return acc + (int32_t)(int16_t)(a & 0xFFFFu) * (int16_t)(b & 0xFFFFu)
+               + (int32_t)(int16_t)(a >> 16) * (int16_t)(b >> 16);
+}
+#endif
+#endif
+
+static void stem_i8_dot_rows(const int8_t* x, int n, const int8_t* w, int stride, int n_rows, int32_t* out) {
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+    (void)stride;
+    symbex_s8_dot_rows(x, n, w, stride, n_rows, out);        /* PIE: 16 products per instruction */
+#elif defined(__ARM_FEATURE_SIMD32) || defined(SYMBEX_HAL_TEST_SMLAD)
+    /* SMLAD: two 16 x 16 products per instruction; SXTB16 splits 4 bytes into the even and the odd pair. The window's
+       pairs are split once, then every row costs 2 SXTB16 + 2 SMLAD per 4 bytes. */
+    (void)n;
+    uint32_t xe[SYMBEX_BOOL_STEM_I8_WINDOW / 4], xo[SYMBEX_BOOL_STEM_I8_WINDOW / 4];
+    const int nw = stride >> 2;
+    const uint32_t* xw = (const uint32_t*)(const void*)x;
+    for (int i = 0; i < nw; i++) { xe[i] = STEM_SXTB16(xw[i]); xo[i] = STEM_SXTB16(STEM_ROR8(xw[i])); }
+    for (int r = 0; r < n_rows; r++) {
+        const uint32_t* ww = (const uint32_t*)(const void*)(w + r * stride);
+        int32_t a = 0, b = 0;
+        for (int i = 0; i < nw; i++) {
+            const uint32_t v = ww[i];
+            a = STEM_SMLAD(xe[i], STEM_SXTB16(v), a);
+            b = STEM_SMLAD(xo[i], STEM_SXTB16(STEM_ROR8(v)), b);
+        }
+        out[r] = a + b;
+    }
+#else
+    /* plain C, 4 rows per pass (each window byte loaded once for 4 products) */
+    int r = 0;
+    for (; r + 4 <= n_rows; r += 4) {
+        const int8_t *r0 = w + r * stride, *r1 = r0 + stride, *r2 = r1 + stride, *r3 = r2 + stride;
+        int32_t a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+        for (int i = 0; i < n; i++) {
+            const int32_t u = x[i];
+            a0 += u * r0[i]; a1 += u * r1[i]; a2 += u * r2[i]; a3 += u * r3[i];
+        }
+        out[r] = a0; out[r + 1] = a1; out[r + 2] = a2; out[r + 3] = a3;
+    }
+    for (; r < n_rows; r++) {
+        const int8_t* r0 = w + r * stride;
+        int32_t a0 = 0;
+        for (int i = 0; i < n; i++) a0 += (int32_t)x[i] * r0[i];
+        out[r] = a0;
+    }
+#endif
+}
+
+#if !defined(CONFIG_IDF_TARGET_ESP32S3)
+/* a whole 3 x 3 int8 stem (padding 1, stride 1 or 2) without windows, on every board but the S3 (PIE has its own):
+   the image kept as a ring of 3 padded rows (pixel ^ 0x80 = pixel - 128, a zero pixel left and right, zero rows above
+   and below); then per strip of up to STEM3_STRIP output pixels of an output row, per channel, per kernel row, that
+   row's 9 weights stay in registers while the strip's pixels stream past, sums in acc[]. SMLAD (Cortex-M33 and other
+   DSP cores): the strip's 3 rows are split once into even / odd 16-bit halves (5 words per pixel and kernel row:
+   bytes 0-3, 4-7 and 8), so the inner loop is 5 loads + 5 SMLAD. Plain C (Hazard3, ESP32): 2 channels per pass, each
+   input byte loaded once for both. Measured on the Pico 2, ResNet-8's stem: M33 14.6 -> 9.2 ms, Hazard3 19.1 -> 12.3
+   ms (benchmarks/experiments/chip_kernels/stem_i8_pico_bench.py). 0 = done; -1 = not this kernel's (in_w past
+   STEM3_MAX_W), nothing written. Stack: ~0.6 KB of rows + 128 bytes (+ 0.9 KB with SMLAD). */
+#define STEM3_MAX_W 64
+#define STEM3_RING_BYTES ((((STEM3_MAX_W + 2) * 3 + 3) + 3) & ~3)  /* padded row + 3 bytes read past it (zero weights) */
+#define STEM3_STRIP 16
+
+static inline uint32_t stem3_ld32(const int8_t* p) { uint32_t v; memcpy(&v, p, 4); return v; }
+
+static int stem3_rows(const uint8_t* img, int H, int W, int s, int out_h, int out_w, const int8_t* w, int row_bytes,
+                      const int32_t* thr, int n_out, uint32_t* out) {
+    if (W > STEM3_MAX_W || (s != 1 && s != 2)) return -1;
+    int8_t ring[3][STEM3_RING_BYTES] __attribute__((aligned(4)));
+    int32_t acc[STEM3_STRIP], acc2[STEM3_STRIP];
+#if defined(__ARM_FEATURE_SIMD32) || defined(SYMBEX_HAL_TEST_SMLAD)
+    uint32_t xs[3][STEM3_STRIP * 5];
+    (void)acc2;
+#endif
+    const int pout = (n_out + 31) / 32;
+    memset(out, 0, (size_t)out_h * out_w * pout * 4);
+    int last = -2;                                           /* the last input row in the ring (-1, H: zero rows) */
+    for (int oy = 0; oy < out_h; oy++) {
+        const int iy0 = oy * s - 1;
+        for (int r = last + 1 > iy0 ? last + 1 : iy0; r <= iy0 + 2; r++) {
+            int8_t* p = ring[(r + 3) % 3];
+            memset(p, 0, STEM3_RING_BYTES);
+            if (r >= 0 && r < H) {
+                const uint8_t* src = img + (size_t)r * W * 3;
+                for (int i = 0; i < W * 3; i++) p[3 + i] = (int8_t)(src[i] ^ 0x80u);
+            }
+        }
+        last = iy0 + 2;
+        const int8_t* rows[3] = {ring[(iy0 + 3) % 3], ring[(iy0 + 4) % 3], ring[(iy0 + 5) % 3]};
+        uint32_t* o_row = out + (size_t)oy * out_w * pout;
+        for (int x0 = 0; x0 < out_w; x0 += STEM3_STRIP) {
+            const int np = out_w - x0 < STEM3_STRIP ? out_w - x0 : STEM3_STRIP;
+#if defined(__ARM_FEATURE_SIMD32) || defined(SYMBEX_HAL_TEST_SMLAD)
+            for (int kh = 0; kh < 3; kh++)
+                for (int i = 0; i < np; i++) {
+                    const int8_t* q = rows[kh] + (x0 + i) * s * 3;
+                    uint32_t* d = &xs[kh][i * 5];
+                    const uint32_t v0 = stem3_ld32(q), v1 = stem3_ld32(q + 4), v2 = (uint8_t)q[8];
+                    d[0] = STEM_SXTB16(v0);
+                    d[1] = STEM_SXTB16(STEM_ROR8(v0));
+                    d[2] = STEM_SXTB16(v1);
+                    d[3] = STEM_SXTB16(STEM_ROR8(v1));
+                    d[4] = STEM_SXTB16(v2);
+                }
+            for (int c = 0; c < n_out; c++) {
+                for (int i = 0; i < np; i++) acc[i] = 0;
+                const int8_t* wc = w + c * row_bytes;
+                for (int kh = 0; kh < 3; kh++) {
+                    const uint32_t v0 = stem3_ld32(wc + kh * 9), v1 = stem3_ld32(wc + kh * 9 + 4),
+                                   v2 = (uint8_t)wc[kh * 9 + 8];
+                    const uint32_t e0 = STEM_SXTB16(v0), o0 = STEM_SXTB16(STEM_ROR8(v0)), e1 = STEM_SXTB16(v1),
+                                   o1 = STEM_SXTB16(STEM_ROR8(v1)), e2 = STEM_SXTB16(v2);
+                    const uint32_t* xp = xs[kh];
+                    for (int i = 0; i < np; i++, xp += 5) {
+                        int32_t a = acc[i];
+                        a = STEM_SMLAD(xp[0], e0, a);
+                        a = STEM_SMLAD(xp[1], o0, a);
+                        a = STEM_SMLAD(xp[2], e1, a);
+                        a = STEM_SMLAD(xp[3], o1, a);
+                        a = STEM_SMLAD(xp[4], e2, a);
+                        acc[i] = a;
+                    }
+                }
+                const int32_t t_c = thr[c];
+                const uint32_t m = 1u << (c % 32);
+                uint32_t* o = o_row + x0 * pout + c / 32;
+                for (int i = 0; i < np; i++, o += pout)
+                    if (acc[i] >= t_c) *o |= m;
+            }
+#else
+            for (int c = 0; c < n_out; c += 2) {
+                const int two = c + 1 < n_out;
+                for (int i = 0; i < np; i++) acc[i] = acc2[i] = 0;
+                for (int kh = 0; kh < 3; kh++) {
+                    const int8_t* wk = w + c * row_bytes + kh * 9;
+                    const int8_t* wl = two ? wk + row_bytes : wk;  /* one channel left: computed twice, kept once */
+                    const int32_t w0 = wk[0], w1 = wk[1], w2 = wk[2], w3 = wk[3], w4 = wk[4], w5 = wk[5], w6 = wk[6],
+                                  w7 = wk[7], w8 = wk[8];
+                    const int32_t u0 = wl[0], u1 = wl[1], u2 = wl[2], u3 = wl[3], u4 = wl[4], u5 = wl[5], u6 = wl[6],
+                                  u7 = wl[7], u8 = wl[8];
+                    const int8_t* xp = rows[kh] + x0 * s * 3;
+                    const int step = s * 3;
+                    for (int i = 0; i < np; i++, xp += step) {
+                        const int32_t x0_ = xp[0], x1 = xp[1], x2 = xp[2], x3 = xp[3], x4 = xp[4], x5 = xp[5],
+                                      x6 = xp[6], x7 = xp[7], x8 = xp[8];
+                        acc[i] += x0_ * w0 + x1 * w1 + x2 * w2 + x3 * w3 + x4 * w4 + x5 * w5 + x6 * w6 + x7 * w7
+                                  + x8 * w8;
+                        acc2[i] += x0_ * u0 + x1 * u1 + x2 * u2 + x3 * u3 + x4 * u4 + x5 * u5 + x6 * u6 + x7 * u7
+                                   + x8 * u8;
+                    }
+                }
+                for (int q = 0; q < 1 + two; q++) {
+                    const int cc = c + q;
+                    const int32_t t_c = thr[cc];
+                    const int32_t* aq = q ? acc2 : acc;
+                    const uint32_t m = 1u << (cc % 32);
+                    uint32_t* o = o_row + x0 * pout + cc / 32;
+                    for (int i = 0; i < np; i++, o += pout)
+                        if (aq[i] >= t_c) *o |= m;
+                }
+            }
+#endif
+        }
+    }
+    return 0;
+}
+#endif
+
+SYMBEX_FAST_CODE void symbex_bool_stem_i8(const struct SymbexBoolStemI8* L, const uint8_t* img, uint32_t* out,
+                                          int8_t* window, int32_t* scratch) {
+    PF_T(t_all);
+    const int k = L->kernel, pad = k / 2, s = L->stride, H = L->in_h, W = L->in_w;
+    const int n = k * k * 3, n_out = L->out_ch, pout = (n_out + 31) / 32;
+    const int32_t* thr = L->thresholds;
+    int32_t* dot = scratch;
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+    /* PIE: the whole 3 x 3 layer, 16 channels per instruction (refuses what it cannot run exactly: then the path below) */
+    if (k == 3 && symbex_s8_stem3_bits(img, H, W, s, L->out_h, L->out_w, L->weights, L->row_bytes, thr, n_out,
+                                       out) == 0) {
+        PF_ADD(SYMBEX_PF_STEM_I8, t_all);
+        return;
+    }
+#else
+    /* every other board: the 3 x 3 stem without windows (stem3_rows; refuses images wider than STEM3_MAX_W) */
+    if (k == 3 && stem3_rows(img, H, W, s, L->out_h, L->out_w, L->weights, L->row_bytes, thr, n_out, out) == 0) {
+        PF_ADD(SYMBEX_PF_STEM_I8, t_all);
+        return;
+    }
+#endif
+    memset(window, 0, SYMBEX_BOOL_STEM_I8_WINDOW);           /* past n: zero, for the padded rows and PIE's blocks */
+    for (int oy = 0; oy < L->out_h; oy++) {
+        const int iy0 = oy * s - pad;
+        for (int ox = 0; ox < L->out_w; ox++) {
+            const int ix0 = ox * s - pad;
+            /* the window [kh][kw][color] as int8: pixel - 128 is pixel XOR 0x80; outside the image 0 (= pixel 128,
+               the zero padding of the centered input the network was trained on) */
+            if (iy0 >= 0 && ix0 >= 0 && iy0 + k <= H && ix0 + k <= W) {
+                for (int kh = 0; kh < k; kh++) {
+                    const uint8_t* src = img + ((iy0 + kh) * W + ix0) * 3;
+                    int8_t* dst = window + kh * k * 3;
+                    for (int i = 0; i < k * 3; i++) dst[i] = (int8_t)(src[i] ^ 0x80u);
+                }
+            } else {
+                for (int kh = 0; kh < k; kh++) {
+                    const int iy = iy0 + kh;
+                    for (int kw = 0; kw < k; kw++) {
+                        const int ix = ix0 + kw;
+                        int8_t* dst = window + (kh * k + kw) * 3;
+                        if (iy >= 0 && iy < H && ix >= 0 && ix < W) {
+                            const uint8_t* src = img + (iy * W + ix) * 3;
+                            dst[0] = (int8_t)(src[0] ^ 0x80u);
+                            dst[1] = (int8_t)(src[1] ^ 0x80u);
+                            dst[2] = (int8_t)(src[2] ^ 0x80u);
+                        } else {
+                            dst[0] = dst[1] = dst[2] = 0;
+                        }
+                    }
+                }
+            }
+            stem_i8_dot_rows(window, n, L->weights, L->row_bytes, n_out, dot);
+            uint32_t* o_px = &out[(oy * L->out_w + ox) * pout];
+            for (int ow = 0, o = 0; ow < pout; ow++) {
+                uint32_t bits = 0;
+                const int end = (ow + 1) * 32 < n_out ? (ow + 1) * 32 : n_out;
+                for (int b = 0; o < end; o++, b++) bits |= (uint32_t)(dot[o] >= thr[o]) << b;
+                o_px[ow] = bits;
+            }
+        }
+    }
+    PF_ADD(SYMBEX_PF_STEM_I8, t_all);
 }
 
 void symbex_bool_or_pool(const uint32_t* in, uint32_t* out, uint16_t ch, uint16_t h, uint16_t w) {
@@ -288,6 +534,46 @@ int symbex_bool_classify(const uint32_t* bits, uint16_t n_words, uint32_t n_bits
     for (int o = 0; o < n_classes; o++) {
         const int32_t d = pcx + weight_counts[o] - 2 * scratch[o];
         const int64_t logit = (int64_t)scale[o] * ((int32_t)n_bits - 2 * d) + bias[o];
+        if (o == 0 || logit > best_logit) { best_logit = logit; best = o; }
+    }
+    PF_ADD(SYMBEX_PF_CLASSIFY, t_all);
+    return best;
+}
+
+SYMBEX_FAST_CODE int symbex_bool_pool_head(const struct SymbexBoolPoolHead* head, const uint32_t* map,
+                                           uint32_t* counts, int32_t* scratch) {
+    PF_T(t_all);
+    const int k = head->window, ppx = (head->channels + 31) / 32, rw = head->row_words, np = head->n_planes;
+    const int nwy = head->in_h / k, nwx = head->in_w / k, nc = head->n_classes;
+    memset(counts, 0, (size_t)np * rw * 4);
+    for (int wy = 0; wy < nwy; wy++)                 /* bit-sliced counters: add each pixel's word to its window's */
+        for (int wx = 0; wx < nwx; wx++)
+            for (int dy = 0; dy < k; dy++)
+                for (int dx = 0; dx < k; dx++) {
+                    const uint32_t* px = map + ((size_t)(wy * k + dy) * head->in_w + wx * k + dx) * ppx;
+                    uint32_t* at = counts + (wy * nwx + wx) * ppx;
+                    for (int j = 0; j < ppx; j++) {
+                        uint32_t carry = px[j];
+                        for (int p = 0; p < np && carry; p++) {
+                            const uint32_t c = at[p * rw + j];
+                            at[p * rw + j] = c ^ carry;
+                            carry &= c;
+                        }
+                    }
+                }
+    int32_t* cnt = scratch;
+    int32_t* dot = scratch + nc;
+    for (int o = 0; o < nc; o++) dot[o] = 0;
+    for (int p = 0; p < np; p++)
+        for (int q = 0; q < 8; q++) {
+            symbex_and_popcount_rows(counts + p * rw, head->weight_planes + (size_t)q * nc * rw, rw, nc, cnt);
+            for (int o = 0; o < nc; o++)
+                dot[o] += (q == 7 ? -128 * cnt[o] : cnt[o] * (1 << q)) * (1 << p);
+        }
+    int best = 0;
+    int64_t best_logit = 0;
+    for (int o = 0; o < nc; o++) {
+        const int64_t logit = (int64_t)head->scale[o] * dot[o] + head->bias[o];
         if (o == 0 || logit > best_logit) { best_logit = logit; best = o; }
     }
     PF_ADD(SYMBEX_PF_CLASSIFY, t_all);

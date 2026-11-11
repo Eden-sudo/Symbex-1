@@ -4,6 +4,13 @@
 #define SYMBEX_BOOL_MODEL_H
 #include <stdint.h>
 #include "layers/conv/symbex_bool.h"
+#include "core/symbex_format.h"
+#if SYMBEX_FORMAT < 1 || SYMBEX_FORMAT_MIN > 1
+#error "model_symbex.h was exported in header format 1, which this lib_symbex does not read: export it again with the CDT (or use the library it was exported for)"
+#endif
+/* fields added to the library after this export start at 0 / NULL (core/symbex_format.h) */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #ifndef SYMBEX_ROM
 #define SYMBEX_ROM const           /* -DSYMBEX_ROM= : weights in RAM */
 #endif
@@ -82,10 +89,10 @@ static SYMBEX_ROM int16_t BC3[16] = {
     4, 4, 3, 5, 3, 4, 4, 4, 2, 6, 3, 2,
     4, 4, 3, 2,
 };
-static const struct SymbexBoolConv BS1 = {8, 16, 1, 1, 4, 4, 4, 4, 4, BW3, BT3, BC3};
+static const struct SymbexBoolConv BS1 = {.in_ch = 8, .out_ch = 16, .kernel = 1, .stride = 1, .in_h = 4, .in_w = 4, .out_h = 4, .out_w = 4, .row_words = 4, .weights = BW3, .thresholds = BT3, .weight_counts = BC3};
 static const struct SymbexBoolBlock B_BLOCKS[] = {
-    {{8, 8, 3, 1, 8, 8, 8, 8, 4, BW1, BT1, BC1}, NULL, 0},
-    {{8, 16, 3, 2, 8, 8, 4, 4, 4, BW2, BT2, BC2}, &BS1, 1},
+    {.conv = {.in_ch = 8, .out_ch = 8, .kernel = 3, .stride = 1, .in_h = 8, .in_w = 8, .out_h = 8, .out_w = 8, .row_words = 4, .weights = BW1, .thresholds = BT1, .weight_counts = BC1}, .shortcut = NULL, .shortcut_pool = 0},
+    {.conv = {.in_ch = 8, .out_ch = 16, .kernel = 3, .stride = 2, .in_h = 8, .in_w = 8, .out_h = 4, .out_w = 4, .row_words = 4, .weights = BW2, .thresholds = BT2, .weight_counts = BC2}, .shortcut = &BS1, .shortcut_pool = 1},
 };
 static SYMBEX_ROM uint32_t FC_W[64] __attribute__((aligned(16))) = {
     0x00008E85u, 0x0000D3F5u, 0x00002E3Au, 0x0000C527u, 0x000033B6u, 0x0000711Du, 0x0000D944u, 0x000068CCu, 0x0000AA7Bu, 0x0000ECD6u, 0x0000D657u, 0x00002C6Eu,
@@ -110,7 +117,7 @@ static uint32_t B_MAP2[16] __attribute__((aligned(16)));
 static uint32_t B_MAP3[16] __attribute__((aligned(16)));
 static uint32_t B_WINDOW[4] __attribute__((aligned(16)));
 static int32_t B_SCRATCH[32];
-static const struct SymbexBoolNet symbex_net = {8, 8, 4, {12, 8, 3, 1, 8, 8, 8, 8, 4, BW0, BT0, BC0}, B_BLOCKS, 2, FC_W, 16, 4, 256, 16, FC_C, FC_S, FC_B, {B_MAP0, B_MAP1, B_MAP2, B_MAP3}, B_WINDOW, B_SCRATCH, NULL, 0, 0};   /* no per-cell head: a classifier */
+static const struct SymbexBoolNet symbex_net = {.in_h = 8, .in_w = 8, .levels = 4, .stem = {.in_ch = 12, .out_ch = 8, .kernel = 3, .stride = 1, .in_h = 8, .in_w = 8, .out_h = 8, .out_w = 8, .row_words = 4, .weights = BW0, .thresholds = BT0, .weight_counts = BC0}, .blocks = B_BLOCKS, .n_blocks = 2, .fc_weights = FC_W, .fc_row_words = 16, .n_classes = 4, .fc_bits = 256, .fc_words = 16, .fc_weight_counts = FC_C, .fc_scale = FC_S, .fc_bias = FC_B, .maps = {B_MAP0, B_MAP1, B_MAP2, B_MAP3}, .window = B_WINDOW, .scratch = B_SCRATCH};   /* no per-cell head: a classifier */
 
 #define SYMBEX_MLP_N_INPUTS 192      /* uint8 RGB, HWC */
 #define SYMBEX_MLP_N_CLASSES 4
@@ -123,4 +130,5 @@ static const char* const symbex_mlp_steps[SYMBEX_MLP_N_STEPS] = {
     "classifier",
 };
 static inline int symbex_mlp_infer(const uint8_t* x) { return symbex_bool_net_run(&symbex_net, x); }
+#pragma GCC diagnostic pop
 #endif /* SYMBEX_BOOL_MODEL_H */

@@ -1,116 +1,419 @@
-# har_ultracompact — binary 1D convolutions for sensor data (in preparation)
+# har_ultracompact — binary 1D convolutions for human activity recognition
 
-Human activity recognition from accelerometer signals, with binary **1D** convolutional networks, compared against the
-closest prior work: the binary inference library of **Daghero et al., "Ultra-compact Binary Neural Networks for Human
-Activity Recognition on RISC-V Processors"** (ACM Computing Frontiers 2021), whose code is public
-(`github.com/francescodaghero/ultracompactBNN`).
+Human activity recognition from a phone's accelerometer (UniMiB-SHAR, 17 activities) with **binary 1D convolutional
+networks**. It compares two binary libraries first: SYMBEX and the closest prior work, the binary inference library of
+**Daghero et al., "Ultra-compact Binary Neural Networks for Human Activity Recognition on RISC-V Processors"** (ACM
+Computing Frontiers 2021, `github.com/francescodaghero/ultracompactBNN`). The comparison uses their four networks,
+their processor and their own code. INT8 is the reference: TensorFlow Lite Micro and the INT8 / INT4 / INT2 baselines
+of `tools/lowbit`, with the same architectures, measured on real boards.
 
-The plan is a comparison in their own environment, so their numbers can be reproduced first:
+The README follows the order of the work:
 
-| | Their library | SYMBEX |
+1. **Binary vs binary**: SYMBEX and ultracompactBNN on their processor.
+2. **Binary vs INT8**: SYMBEX and TFLite Micro on real boards.
+3. **Where fully binary stops paying (a working theory)**: the first layer with int8 weights, an unexpected gain
+   found while running their network in SYMBEX, and what it suggests about when binary weights pay off (still to be
+   tested beyond this benchmark).
+
+## Results in short
+
+- **Binary vs binary, in their own environment** (RI5CY core in GVSoC, their code unchanged): SYMBEX needs **1.07-1.37×
+  fewer instructions** than ultracompactBNN on all four networks of their Table 1 (3 seeds). This holds with **their
+  own trained network** too (same int8 first layer, same weights, same accuracy): **1.06-1.37×**. Every output is exact:
+  equal to the integer simulation, window by window.
+- **Against INT8 on real boards** (TFLite Micro, the same architectures, weights in flash), all binary: SYMBEX is
+  **5.3-10.4× faster** on the ESP32, **1.47-1.90× faster** on the ESP32-S3 and **3.3-7.9× faster** on the Pico 2's
+  Cortex-M33 (TFLite with CMSIS-NN). It takes **2-10× less RAM** and
+  **6.5-10× less flash**. INT8 is more accurate on these small networks: about 9 points on the large ones, 23 on the
+  smallest.
+- **Where fully binary stops paying: a working theory.** Binary network work usually keeps the first layer in higher
+  precision because it is a small share of the work. SYMBEX's measurements suggest the reason and the boundary: the
+  gain of binary weights depends on the **data**. A binary input makes the first layer one more binary layer (32
+  products per bit count), where fully binary should win. An 8-bit input (here the accelerometer) costs about one
+  operation per input whether the weights have 1 bit or 8. There the int8 first layer is **faster than the fully
+  binary one** on every board measured (equal on the M33's largest network; on the classic ESP32's largest
+  network the bits are faster since the Nov 7 short-layer fix: 12.78 vs 14.07 ms), because the chips multiply bytes faster
+  than they count bit planes (on the ESP32-S3, a new PIE kernel: **1.8-2.5×** for that layer, **1.26-1.70×** for the
+  whole network). It is also **more accurate**: **+4.5-4.8 points** on the two small networks, equal on the large
+  ones. Measured on one task (activity recognition) and checked quickly on two others: a theory to test further, not a
+  general rule.
+- **A third factor: the size of the layer.** In a quick test on the ESP32-S3, mlp_fashion's 784 → 128 first layer
+  stays faster with 1-bit weights, because its int8 weights (100 KB) do not fit the flash cache (section 3).
+- **Exact on every board:** ESP32, ESP32-S3 and both cores of the Raspberry Pi Pico 2 (Hazard3 RISC-V, Cortex-M33),
+  1,000 windows per run, 100 % equal to the simulation in every run.
+
+## 1. Binary vs binary: SYMBEX and ultracompactBNN on their processor
+
+### The setup
+
+| | ultracompactBNN | SYMBEX |
 |---|---|---|
-| Processor | RI5CY (PULP), simulated with GVSoC | the same |
-| Compiler | PULP RISC-V GCC (`__builtin_pulp_cnt`: hardware bit count) | the same, the same instruction |
-| Layers | their kernels, unchanged | lib_symbex with 1D support |
-| Data | UniMiB-SHAR, their architectures | the same |
+| Processor | RI5CY (PULP), simulated with GVSoC (pulp-open) | the same |
+| Compiler | PULP GCC, `-O3 -flto` | the same |
+| Bit count | `p.cnt` (hardware) | the same instruction |
+| First layer | int8 input × int8 weights (`sdotsp4`) | uint8 input × 1-bit weights (`p.sdotusp4`), or their int8 weights |
+| Other layers | their 1-bit kernels, fused max pool | `symbex_bool1d`: XOR + bit count, fused OR pool |
+| Networks | Table 1 of their paper, UniMiB-SHAR: min, max-10%, max-5%, max | the same |
 
-Plus TensorFlow Lite Micro INT8 with the same architectures, and the same networks on the boards of the other benchmarks.
+The main measure is the **instruction count**. Their chip, PULPissimo, is no longer a buildable target in GVSoC, and
+the memory of the pulp-open platform is slower for the core (about 2.2 cycles per instruction for both libraries).
+Instructions do not depend on the simulated memory; cycles are reported too.
 
-## Done so far
+### Whole networks (instructions, mean of 3 seeds; > 1: SYMBEX does less work)
 
-- **Their data layout is understood and checked:** `ucbnn_check.py` writes their layer data (bit streams, most
-  significant bit first, time-major) and runs their 1D convolution, compiled with plain gcc, against the expected
-  output: **60/60 random layers equal, bit by bit**. Their library supports power-of-2 output channel counts, as their
-  paper states.
-- **The simulator runs:** `pulp/Dockerfile` builds the PULP compiler, the PULP SDK and GVSoC (pulp-open target, whose
-  fabric controller is a RI5CY core) on Ubuntu 22.04.
-- **Their kernels run unchanged in it:** compiled with their flags (`-O3 -flto`); only their measuring program was
-  ported to the current SDK (`pi_perf_*` instead of `rt_perf_*`, the same warm-up and repeat counts as their
-  `stats.h`). Their output is exact on every layer.
-
-### The measure: instructions first
-
-Their chip, PULPissimo, is no longer a buildable target in the current GVSoC, so the comparison runs on the pulp-open
-platform, the same kind of core (RI5CY). Its memory is slower for the core: measured, about **2.2 cycles per
-instruction** for both libraries (94 461 cycles for 43 616 instructions on the first layer), so the core spends more
-than half its time waiting for memory. Their published cycles therefore cannot be compared with GVSoC cycles (estimate,
-from the full-network cycle count in their paper: their code runs about 40 % slower here than on PULPissimo; to be
-checked once their networks run whole).
-
-The main measure is the **instruction count**: it does not depend on the simulated memory, and both libraries run on
-the same core, with the same compiler and the same bit count instruction (`p.cnt`). Cycles are reported too.
-
-```
-python ucbnn_check.py --repo <path to the ultracompactBNN clone>
-cd pulp && docker build -t symbex-pulp .
-docker run --rm -it -v ~/Proyectos:/work symbex-pulp        # then, inside: cd /opt/pulp-sdk/tests/hello && make clean all run
-```
-
-## Results so far (working notes: conclusions come at the end)
-
-### 1. One convolution layer, the same layer through both libraries (GVSoC, RI5CY)
-
-Same bits, weights and thresholds; the same core, compiler and flags (PULP GCC, `-O3 -flto`); both count bits with
-the `p.cnt` instruction (SYMBEX: the generic HAL with `-DSYMBEX_POPCOUNT_FORCE_NATIVE`; checked in its binary). Both
-outputs exact on every layer. `ucbnn_gvsoc.py --symbex`:
-
-| Layer (L_in × C_in × C_out × K) | MAC | ultracompactBNN instr / cycles | SYMBEX v1 instr / cycles | Instr ratio | Cycle ratio |
+| Network (Table 1) | ultracompactBNN | SYMBEX, all binary | ratio | SYMBEX, their network (int8 first layer) | ratio |
 |---|---|---|---|---|---|
-| 151 × 3 × 8 × 15 | 49 320 | 43 616 / 94 461 | 22 347 / 51 944 | **1.95×** | **1.82×** |
-| 137 × 8 × 8 × 15 | 118 080 | 53 514 / 114 286 | 36 001 / 78 015 | **1.49×** | **1.46×** |
-| 64 × 16 × 16 × 7 | 103 936 | 32 003 / 68 320 | 27 507 / 64 268 | 1.16× | 1.06× |
-| 128 × 32 × 32 × 15 | 1 751 040 | 317 789 / 703 884 | 286 547 / 641 450 | 1.11× | 1.10× |
-| 64 × 32 × 32 × 7 | 415 744 | 76 895 / 164 871 | 85 412 / 206 541 | 0.90× | 0.80× |
-| 32 × 64 × 64 × 3 | 368 640 | 69 015 / 149 593 | 78 652 / 202 383 | 0.88× | 0.74× |
+| min | 19 559 | 18 201 | **1.07×** | 18 530 | **1.06×** |
+| max-10% | 183 372 | 133 498 | **1.37×** | 133 398 | **1.37×** |
+| max-5% | 473 697 | 385 094 | **1.23×** | 385 262 | **1.23×** |
+| max | 499 645 | 405 104 | **1.23×** | 405 215 | **1.23×** |
 
-Ratio = ultracompactBNN / SYMBEX (> 1: SYMBEX faster).
+In cycles: 1.26-1.38× on the three large networks; on min, 0.94-0.95× (their code takes fewer cycles there).
 
-Notes:
-- **Few channels** (their target, "ultra-compact"): SYMBEX v1 needs up to 1.95× fewer instructions. It cuts each window
-  once and counts every output channel against it; their kernel re-aligns the bits with shifts and masks word by word.
-- **Many channels, short kernels:** their kernel needs up to 1.14× fewer instructions (1.35× fewer cycles). Its hand-made
-  2 × 2 unrolling reads each weight once for two time steps and keeps the sums in registers; SYMBEX v1 reads each weight
-  row once per output and keeps the counts in memory before the thresholds.
-- **The environment:** the pulp-open platform of the current GVSoC (PULPissimo, their chip, is no longer a buildable
-  target); its memory is slower for the core than PULPissimo's: about 2.2 cycles per instruction for both libraries, so
-  instructions are the cleaner comparison and both are reported.
-- **Channel counts:** their library gives wrong outputs with output channel counts that are not powers of 2 (5, 7:
-  checked on the PC); SYMBEX takes any count.
+Per layer (max-10%, seed 42): first layer 1.07×, binary conv 8→32 k7 + pool 1.59×, binary conv 32→32 k7 + pool 1.14×,
+classifier 0.64× (about 1,000 instructions, under 1 % of the network). The binary layers are where SYMBEX gains; the
+first layer costs about the same in both libraries, with 1-bit or int8 weights (section 3 explains why).
 
-### 2. SYMBEX v2: two windows per pass over the weights
+### Accuracy (test subjects, integer simulation = what the chip runs; mean ± std, 3 seeds)
 
-Where the compiler counts bits with one instruction, the 1D convolution now counts two time steps per pass: each weight
-word is read once for two windows, the sums stay in registers and meet their thresholds at once (the HAL row functions
-stay in use on the ESP32 and the ESP32-S3). Same layers, same environment:
+| Network | SYMBEX, all binary | ultracompactBNN (int8 first layer) | Daghero et al. published* |
+|---|---|---|---|
+| min | 32.7 ± 2.7 % | 37.5 ± 1.6 % | 33.0 % |
+| max-10% | 53.4 ± 1.9 % | 57.9 ± 0.3 % | 58.6 % |
+| max-5% | 56.8 ± 0.7 % | 57.0 ± 1.2 % | 65.1 % |
+| max | 58.8 ± 0.9 % | 58.5 ± 2.6 % | 68.0 % |
 
-| Layer (L_in × C_in × C_out × K) | ultracompactBNN instr / cycles | SYMBEX v2 instr / cycles | Instr ratio | Cycle ratio |
+\*Their split is not published, so their numbers are not directly comparable. SYMBEX with their network (int8 first
+layer) has their accuracy by construction: it is the same network, run exactly.
+
+## 2. Binary vs INT8 on real boards
+
+### Accuracy of the integer baselines (test, mean ± std)
+
+| Network | SYMBEX (1 bit) | TFLite INT8 | INT8 QAT | INT4 QAT | INT2 QAT | FP32 |
+|---|---|---|---|---|---|---|
+| min | 32.7 ± 2.7 % | 56.1 ± 4.2 % | 51.3 ± 0.1 % | 51.0 ± 1.2 % | 35.7 ± 0.3 % | 50.6 % |
+| max-10% | 53.4 ± 1.9 % | 62.4 ± 2.0 % | 59.9 ± 0.2 % | 59.5 ± 1.0 % | 51.8 ± 3.2 % | 59.8 % |
+| max-5% | 56.8 ± 0.7 % | 66.2 ± 2.6 % | 69.1 ± 0.3 % | 69.6 ± 0.1 % | 65.4 ± 0.9 % | 68.6 % |
+| max | 58.8 ± 0.9 % | 67.9 ± 0.9 % | 68.0 ± 0.1 % | 67.6 ± 0.3 % | 66.5 ± 1.2 % | 67.6 % |
+
+TFLite INT8: three float networks (seeds 42-44), each quantized after training. QAT (`tools/lowbit`, Brevitas): the
+seed-42 float network, quantization-aware training with 3 seeds. As in mlp_fashion, **INT2 QAT is more accurate per byte
+than SYMBEX** on the large networks (+8 points with about 1.5× the weight bytes); SYMBEX's case is speed and memory.
+
+### Latency, weights in flash (median, ms; 1,000 validation windows, mean of 3 seeds)
+
+The all-binary network runs its first layer in one of two forms, with the same weights, thresholds and outputs:
+"bits" (the 8 bit planes of the input, built once per inference, counted against the 1-bit rows) or "±1 bytes" (the
+first-layer weights stored as +1 / −1 bytes and run by the int8 kernel, `har_export.py --first-bytes`).
+
+| Network | ESP32: first layer in bits | ±1 bytes | TFLite INT8 | SYMBEX vs TFLite |
 |---|---|---|---|---|
-| 151 × 3 × 8 × 15 | 43 616 / 94 461 | 22 101 / 51 366 | **1.97×** | **1.84×** |
-| 137 × 8 × 8 × 15 | 53 514 / 114 286 | 28 450 / 62 387 | **1.88×** | **1.83×** |
-| 64 × 16 × 16 × 7 | 32 003 / 68 320 | 23 420 / 55 039 | **1.37×** | **1.24×** |
-| 64 × 32 × 32 × 7 | 76 895 / 164 871 | 71 032 / 154 210 | **1.08×** | **1.07×** |
-| 128 × 32 × 32 × 15 | 317 789 / 703 884 | 267 729 / 561 362 | **1.19×** | **1.25×** |
-| 32 × 64 × 64 × 3 | 69 015 / 149 593 | 61 040 / 137 426 | **1.13×** | **1.09×** |
+| min | 1.11 | **0.78** | 4.17 | **5.3×** |
+| max-10% | 4.10 | **4.01** | 31.23 | **7.8×** |
+| max-5% | 11.21 | **10.99** | 114.22 | **10.4×** |
+| max | **12.78** | 14.08 | 115.62 | **9.0×** |
 
-SYMBEX v2 needs fewer instructions and fewer cycles on every layer, both outputs exact: 1.07-1.25× with many channels,
-1.8× with few, the ultra-compact networks their library was designed for.
+| Network | ESP32-S3: first layer in bits | ±1 bytes | TFLite INT8 | SYMBEX vs TFLite |
+|---|---|---|---|---|
+| min | 0.83 | **0.49** | 0.72 | **1.47×** |
+| max-10% | 2.36 | **1.83** | 2.93 | **1.60×** |
+| max-5% | 4.87 | **3.76** | 7.14 | **1.90×** |
+| max | 4.83 | **3.83** | 7.11 | **1.85×** |
 
-## Next
+| Network | Pico 2 M33: bits | ±1 bytes | TFLite INT8 (CMSIS-NN) | SYMBEX vs TFLite |
+|---|---|---|---|---|
+| min | 1.22 | **0.82** | 2.71 | **3.3×** |
+| max-10% | 4.09 | **3.64** | 12.00 | **3.3×** |
+| max-5% | 10.48 | **9.89** | 78.04 | **7.9×** |
+| max | **11.72** | 11.79 | 77.70 | **6.6×** |
 
-1. UniMiB-SHAR data and the architectures of their Table 1: the whole networks through both libraries on GVSoC
-   (instructions as the main measure).
-2. TensorFlow Lite Micro INT8 with the same architectures.
-3. Real hardware: the Raspberry Pi Pico 2 (RP2350), below.
+| Network | Pico 2 Hazard3: bits | ±1 bytes | TFLite INT8 (reference kernels) |
+|---|---|---|---|
+| min | 1.31 | **0.57** | 17.29 |
+| max-10% | 3.59 | **2.56** | 225.72 |
+| max-5% | 8.26 | **5.99** | 1159.86 |
+| max | 10.67 | **8.59** | 1133.74 |
 
-### Why the Pico 2 too
+Every run in these tables is 100 % equal to the simulation; the spread between the 3 seeds is at most 0.03 ms (on the
+S3 at most 0.004 ms). The ESP32's bits columns were measured again on Nov 7, after a faster method for short
+first layers (`symbex_swar_u8_masked_sum` counts the last partial word 4 inputs at a time; before: 1.53 / 4.60 /
+14.71 / 14.77 ms in flash, 1.58 / 4.43 / 13.28 / 13.40 ms in RAM); the other boards do not use that code. The S3's ±1 bytes column uses the PIE kernel of section 3; before it, the bits were faster there
+(max: 4.83 vs 8.70 ms).
 
-GVSoC simulates the memory only approximately, and that already distorted the cycles. The Pico 2 is real silicon:
+SYMBEX counting modes: `swar` on the ESP32 and the ESP32-S3 (no lookup table: 1.3-2.8 KB of RAM; `lut16` is up to 8 %
+faster on the ESP32, for 64 KB more, and gives the same speed on the S3), native `cpop` on the Hazard3, `lut16` on the M33 (`swar`:
+1.25 / 4.92 / 14.49 / 15.49 ms all binary with bits, 2.2-3.4 KB of RAM instead of 67 KB).
 
-- Its RISC-V core (Hazard3) has a native bit count instruction (`cpop`, extension Zbb), the counterpart of `p.cnt`
-  (from its datasheet; to be checked on the board). There the cycles and the time are real, with real memory.
-- **Fairness:** their code uses PULP's own extensions (hardware loops, post-increment loads) that the Hazard3 does not
-  have. On the Pico 2 their code runs below what it was designed for, and the results will say so.
-- Its Cortex-M33 core measures INT8 with CMSIS-NN, Arm's standard library.
+TFLite Micro on the Pico 2 (`har_tflite.py --board pico2_arm | pico2_riscv`, TFLite Micro at a pinned commit, 1,000
+validation windows, 3 seeds, the spread at most 0.01 ms): every run gives 100 % the same class as the PC interpreter.
+On the M33 TFLite runs CMSIS-NN, its optimized kernels for that core: the fair comparison, SYMBEX **3.3-7.9×
+faster**. On the Hazard3 TFLite has only its plain reference kernels (no optimized kernels exist for that core), so
+its 30-194× gap is a reference, not a like-for-like comparison. TFLite's flash / arena on the Pico 2: 7.3 / 2.8 KB
+(min), 20.5 / 7.4 KB (max-10%), 41.8 / 12.7 KB (max-5%), 42.5 / 12.2 KB (max), M33.
 
-The two measurements complement each other: GVSoC is the comparison in their environment (instructions), the Pico 2
-is the figure on real hardware (cycles and time).
+### Latency, weights in RAM (median, ms)
+
+| Network | ESP32: all binary (lut16) | int8 first layer (lut16) | TFLite INT8 | S3: all binary, bits | ±1 bytes | int8 first layer | TFLite INT8 |
+|---|---|---|---|---|---|---|---|
+| min | 1.15 | 0.79 | 3.74 | 0.83 | **0.49** | **0.49** | 0.71 |
+| max-10% | 3.93 | 3.74 | 28.72 | 2.36 | **1.83** | **1.83** | 2.93 |
+| max-5% | 9.77 | 9.33 | 100.97 | 4.87 | **3.76** | **3.76** | 6.40 |
+| max | **11.39** | 12.30 | 102.70 | 4.83 | **3.83** | **3.84** | 6.16 |
+
+TFLite with the weights in RAM copies the whole model at boot. On the S3, SYMBEX takes the same time with the weights in
+flash or in RAM (its weights fit the cache: 0.7-6.5 KB). On the Pico 2, the weights in RAM change SYMBEX's latency by
+under 10 %.
+
+### Memory (max network)
+
+| | SYMBEX all binary, bits | first layer as ±1 bytes | SYMBEX int8 first layer | TFLite INT8 |
+|---|---|---|---|---|
+| Flash (weights + thresholds) | **5.6 KB** | 6.5 KB | 6.5 KB | 42.5 KB |
+| RAM (no lookup table) | **2.4-2.7 KB** | 2.4-2.7 KB | 2.4-2.7 KB | 10.3 KB (ESP32) / 25.5 KB (S3) of arena |
+
+The ±1 bytes cost little flash: the 1-bit rows are padded to 4 words (128 bits) for the 45 weights of a row, so bytes
+take 2.8× that layer's rows, not 8×. Smallest network (min): SYMBEX 0.7 KB of flash (bits or bytes), 1.3-1.6 KB of
+RAM; TFLite 7.3 KB of flash, 2.7-2.9 KB of arena.
+
+### Notes
+
+- **The ESP32-S3 has SIMD on both sides:** TFLite runs on ESP-NN, which uses the S3's PIE vector unit for its int8
+  products; SYMBEX uses it to count bits and, since section 3, for the first layer too. The classic ESP32 has no SIMD
+  for either: there SYMBEX is 5.3-10.4× faster.
+- **The first layer decides the whole network:** the binary layers after it take the same time in every variant
+  (Hazard3, max: 2.81 vs 2.86 ms; S3, max: 2.65 ms with bits, bytes or int8), so the differences between the columns
+  are the first layer alone. All binary with bits, it is 32-92 % of the network.
+- **The first layer was 1.1-4.4× faster in this version** (bit planes built once for the whole input instead of per
+  step, no padding of the window to 128 inputs except for the S3's PIE, a running sum): Hazard3 min 5.45 → 1.31 ms,
+  M33 2.13 → 1.22 ms, ESP32 2.37 → 1.53 ms (1.11 ms after the Nov 7 short-layer fix); the S3 already had its PIE path (0.84 → 0.83 ms).
+
+## 3. Where fully binary stops paying: the first layer (a working theory)
+
+### How it came up
+
+To compare with ultracompactBNN on equal terms, SYMBEX also had to run **their** network, which keeps the first layer
+in int8 (section 1). On the boards that layer first ran on a generic C kernel. Writing a PIE kernel for it on the
+ESP32-S3 (`symbex_s8_dot_rows`: 16 products per `ee.vmulas.s8.accx`, rows at any alignment so the weights stay in
+flash) made the first layer **1.8-2.5× faster than SYMBEX's own bit planes**, which had been the fastest form on the
+S3. The same kernel runs the all-binary network's first layer as ±1 bytes, at the same speed.
+
+### What the earlier work says, and what this suggests (a working theory)
+
+Most binary networks keep the first layer, and often the last, in higher precision. The BNN paper of Hubara et al.
+(2016) points out that the first layer of an image network is small in parameters and in work. XNOR-Net (Rastegari et
+al., 2016) keeps its first and last layers in full precision. Daghero et al. keep the first layer in int8. The usual
+reading is that binarizing those layers **does not give a significant gain**.
+
+SYMBEX started from the opposite bet: **everything binary**, the first layer included. These measurements suggest
+where that bet holds and where it reaches its limit. Our working theory: the answer is neither "always" nor "never";
+**it depends on the data, the hardware and the size of the layer.** It rests on one task measured in full (this one)
+and a quick check of two others (below); more tasks and chips are needed to confirm it.
+
+What the theory expects (the evidence so far in the last row):
+
+| | Binary input (bits, or data that a few bits describe well) | 8-bit input (sensor values, pixels) |
+|---|---|---|
+| First layer | one more binary layer: 32 products per bit count | about one operation per input, 1-bit or 8-bit weights |
+| Expected best form | **fully binary** | **int8 first layer**, where the chip has a fast multiply-accumulate and the weights fit its memory |
+| Evidence so far | indirect: no benchmark here has a binary input yet; the binary layers, 1.14-1.59× fewer instructions than ultracompactBNN, 0.19 cycles per product (Hazard3) | the int8 first layer is faster than the bits on all four boards (M33, max: within 1 %; ESP32, max: the bits are faster, 12.78 vs 14.07 ms) and more accurate (tables below) |
+
+If the theory holds, the earlier practice is right for 8-bit data, for a reason it did not state: with an 8-bit
+input, the first layer does not gain from 1-bit weights at all. And on chips that multiply bytes fast (here all four
+boards, most of all the ESP32-S3's PIE), the int8 first layer **beats the fully binary network** in speed, not only in
+accuracy. The last layer (the classifier) weighs little here: 0.009 ms of 3.84 ms (0.2 %) on the S3.
+
+### The theory: binary weights pay off only where the input is binary too
+
+In a binary layer both operands are bits: one XOR + bit count covers 32 products (0.19 cycles per product on the
+Hazard3, max). The first layer is different: its input is 8-bit (the accelerometer). With 1-bit weights,
+
+raw = Σ x·(±1) = 2·Σ_q 2^q·count(P_q AND w) − Σ x, over the 8 bit planes P_q of the input,
+
+so each 32 inputs cost 8 × (AND + count + shift + add) per output channel: about **one operation per input**. A
+multiply-accumulate also costs one operation per input (or 1/16 of one with SIMD), **whatever the width of the weight**.
+So in the first layer, 1-bit weights save only memory, never time. Where a chip multiplies faster than it counts bits,
+the bytes win; and once the layer runs on bytes, the weights can just as well be int8: same kernel, same time, more
+accuracy. Memory is the one place 1-bit weights still pay: when the layer is large, its int8 weights can outgrow the
+cache (mlp_fashion, below).
+
+### Measured: int8 first layer vs all binary (3 seeds)
+
+| Network | Accuracy, all binary | int8 first layer | gain | Flash, all binary (bits) | int8 first layer |
+|---|---|---|---|---|---|
+| min | 32.7 ± 2.7 % | 37.5 ± 1.6 % | **+4.8** | 0.7 KB | 0.8 KB |
+| max-10% | 53.4 ± 1.9 % | 57.9 ± 0.3 % | **+4.5** | 2.9 KB | 3.1 KB |
+| max-5% | 56.8 ± 0.7 % | 57.0 ± 1.2 % | +0.2 | 5.6 KB | 5.7 KB |
+| max | 58.8 ± 0.9 % | 58.5 ± 2.6 % | −0.3 | 5.6 KB | 6.5 KB |
+
+Latency of the int8 first layer (weights in flash, ms, mean of 3 seeds; in parentheses the all-binary network as ±1
+bytes, the same kernel):
+
+| Network | ESP32 | ESP32-S3 | Pico 2 Hazard3 | Pico 2 M33 | TFLite INT8, ESP32 / S3 |
+|---|---|---|---|---|---|
+| min | 0.77 (0.78) | 0.49 (0.49) | 0.56 (0.57) | 0.84 (0.82) | 4.17 / 0.72 |
+| max-10% | 4.00 (4.01) | 1.83 (1.83) | 2.59 (2.56) | 3.66 (3.64) | 31.23 / 2.93 |
+| max-5% | 10.98 (10.99) | 3.76 (3.76) | 6.00 (5.99) | 9.90 (9.89) | 114.22 / 7.14 |
+| max | 14.07 (14.08) | 3.84 (3.83) | 8.59 (8.59) | 11.81 (11.79) | 115.62 / 7.11 |
+
+The first layer alone on the ESP32-S3 (ms, from the per-step times of `chip_test.py`):
+
+| Network | bits | int8 (PIE) | faster | whole network, bits → int8 |
+|---|---|---|---|---|
+| min | 0.57 | 0.23 | 2.5× | 0.83 → 0.49 ms (1.70×) |
+| max-10% | 0.97 | 0.45 | 2.2× | 2.36 → 1.83 ms (1.29×) |
+| max-5% | 2.06 | 0.96 | 2.2× | 4.87 → 3.76 ms (1.29×) |
+| max | 2.18 | 1.19 | 1.8× | 4.83 → 3.84 ms (1.26×) |
+
+Every run is 100 % equal to the simulation (48 runs on the S3: 4 networks × 3 forms × 3 seeds, flash and RAM). With the
+int8 first layer, SYMBEX is still **5.4-10.4× faster than TFLite on the ESP32 and 1.47-1.90× on the S3**, with
+6.5-10× less flash. TFLite stays more accurate: 4.5 points on max-10%, about 9 on the large networks, 19 on min.
+
+### Does it carry over to the other benchmarks? A quick check
+
+The same question for mlp_fashion and ResNet-8 on the ESP32-S3, with the real library kernels and random weights at the
+real shapes (`benchmarks/experiments/chip_kernels/int8_first_bench.py`, results in `experiments/chip_kernels/results/int8_first_bench_s3.json`,
+every method equal to a C reference on the chip):
+
+| First layer | today (1-bit weights) | int8 weights | |
+|---|---|---|---|
+| mlp_fashion 784 → 128, weights in flash | **0.261 ms** | 6.633 ms | int8 25× slower |
+| mlp_fashion 784 → 128, weights in RAM | 0.261 ms | **0.221 ms** | 1.18× (the kernel alone: 0.89×) |
+| ResNet-8 stem, 32×32 × 16 channels | 7.84 ms (whole stem, `fine_profile`); counts alone 4.98 ms | **4.52 ms** (whole stem) | estimate: ~3 ms of 39.2 ms |
+
+- **mlp_fashion: no.** Its first layer has 100 KB of int8 weights, which do not fit the S3's flash cache, while the
+  1-bit weights (14 KB) do. In RAM, the two forms are within 18 %, as the theory predicts. The MLP keeps its 1-bit
+  first layer.
+- **ResNet-8: a small gain, an estimate.** An int8 stem would save about 3 ms of the 39.2 ms (~8 %, comparing the
+  microbenchmark with the profile of the real stem). It needs an int8 stem in the CDT and retraining; it is future work.
+- **Why conv1d gains and the others do not:** its first layer is small (32 rows × 45 weights: 1.4 KB in int8), so the
+  int8 weights cost almost no flash and stay in the cache; the gain is the speed of the kernel and the accuracy of the
+  weights, at no cost. The three factors together decide: 8-bit data, a chip that multiplies fast, a layer that fits.
+  When the layer is large (the MLP), the 1-bit weights win through memory, and the fully binary network is still the
+  right choice.
+
+## Decisions (and why)
+
+- **Binary vs binary is the main comparison:** the question this benchmark answers is whether SYMBEX's binary layers
+  beat the binary library built for this task, on its own processor, with its own code and networks. INT8 is the
+  reference that anyone deploying a network would use.
+- **Their code is unchanged, with one exception:** the thresholds of their int8 first layer are `int16_t`, but int8 ×
+  int8 products over 15 × 3 taps reach ±58,000 in the trained networks (max). In the copied sources they become
+  `int32_t` (on RV32 an int32 load is the same instruction). Their pooled kernels get `dim_out` = the steps the pool
+  uses.
+- **Each library runs its first layer as designed:** ultracompactBNN with int8 weights, SYMBEX with 1-bit weights.
+  Both networks are trained with the same recipe. SYMBEX also runs their network (int8 first layer), so the strict
+  comparison (same network, same precision per layer) is there too.
+- **Bits or bytes for the first layer is a choice per chip, not per network:** the same 1-bit weights and thresholds,
+  exported both ways, give the same outputs. With the S3's PIE kernel, the bytes are now the fastest form on every
+  chip measured (on the M33, max, the two are within 1 %); an automatic choice in the CDT should still measure both.
+- **The S3's int8 kernel lives in the library** (`hal/esp32s3`, `symbex_s8_dot_rows`), as it is general: any first
+  layer with int8 or ±1-byte weights uses it. The threshold shift for the uint8 input (T − 128·Σw) is computed once per
+  layer, in 64 bits and clamped, so any threshold stays exact.
+- **SYMBEX's PULP first layer lives in this folder** (`pulp/symbex_u8_pulp.c`, `p.sdotusp4`), as their whole library is
+  PULP-specific. The library itself only gained general pieces: `symbex_bool1d`'s faster binary layers, the optional
+  int8 first-layer weights (`SymbexBool1D.weights_i8`) and the `-DSYMBEX_BOOL1D_U8_EXTERNAL` hook.
+- **Their library is not ported to the boards:** it exists only for PULP, and any port would be ours. On the boards
+  the reference is TFLite Micro.
+- **Split by subjects:** the 30 people are drawn once (numpy seed 0): 6 for test (3, 5, 11, 12, 22, 27), 4 for
+  validation, 20 for training, the same for every seed. A window of one person never appears in two splits.
+- **One recipe for every network:** Adam, learning rate 5e-3 with cosine decay, 100 epochs, batches of 128, no
+  augmentation, seeds 42 / 43 / 44. The checkpoint is the best validation epoch; the test subjects are scored once.
+- **Input:** the accelerometer divided by 19.58 m/s² (±2 g, the phone's range) × 127 → int8. SYMBEX takes uint8 =
+  int8 + 128; the offset folds into the first thresholds.
+- **INT8 from the same float network:** the Keras network of `har_tflite.py` is moved to PyTorch for `tools/lowbit`
+  (checked: the same class on every validation window), so TFLite INT8 and the QAT baselines start from the same
+  model.
+
+## Earlier: single layers (October 2026, before the whole networks)
+
+The first measurements ran one layer at a time, on six shapes. They used SYMBEX's earlier kernels (one or two windows
+per pass): the whole-network tables above replace them. With those kernels, layers whose window fits one word and has
+few output channels were slower than ultracompactBNN (0.47× on min's 4 → 4 k7 layers); the current kernel for those
+layers (`conv_word`) makes them 1.21-1.50× faster than theirs.
+
+| Layer (L_in × C_in × C_out × K) | ultracompactBNN instr | SYMBEX v2 instr | ratio |
+|---|---|---|---|
+| 151 × 3 × 8 × 15 | 43 616 | 22 101 | 1.97× |
+| 137 × 8 × 8 × 15 | 53 514 | 28 450 | 1.88× |
+| 64 × 16 × 16 × 7 | 32 003 | 23 420 | 1.37× |
+| 64 × 32 × 32 × 7 | 76 895 | 71 032 | 1.08× |
+| 128 × 32 × 32 × 15 | 317 789 | 267 729 | 1.19× |
+| 32 × 64 × 64 × 3 | 69 015 | 61 040 | 1.13× |
+
+Their library also needs output channel counts that are powers of 2 (5 or 7 give wrong outputs, checked on the PC);
+SYMBEX takes any count.
+
+## Files
+
+| File | What it does |
+|---|---|
+| `har_data.py` | UniMiB-SHAR (AF-17) → int8 windows, the subject split → `data/har_unimib.npz` |
+| `model.py` | the four networks of Table 1, binary; first layer `binary` (1-bit weights) or `int8` |
+| `har_train.py` | trains one network, or `--all`: 4 networks × 2 first layers × 3 seeds |
+| `har_export.py` | integers, simulation, `model_symbex.h`, the C check on the PC (EXACTNESS 100 %); `--first-bytes`: the 1-bit first layer as ±1 bytes, in `runs/<run>_bytes/` |
+| `har_gvsoc.py` | the whole networks through both libraries: `--pc` (gcc, exactness) or GVSoC (instructions, cycles per layer) |
+| `pulp/symbex_u8_pulp.c` | SYMBEX's first layer for PULP (`p.sdotusp4`), 1-bit or int8 weights |
+| `har_tflite.py` | the same architectures in Keras → INT8 → TFLite Micro on the ESP32 / ESP32-S3 (`--weights ram`) and the Pico 2 (`--board pico2_arm`, `pico2_riscv`) |
+| `har_lowbit.py` | INT8 / INT4 / INT2 baselines with `tools/lowbit`, from the same float networks |
+| `ucbnn_check.py`, `ucbnn_gvsoc.py` | the single-layer checks and measurements (section "Earlier") |
+| `pulp/Dockerfile` | PULP GCC, PULP SDK and GVSoC (pulp-open) on Ubuntu 22.04 |
+| `../../experiments/chip_kernels/int8_first_bench.py` | the quick check of section 3: an int8 first layer for mlp_fashion and ResNet-8 on the S3 |
+
+## Reproduce
+
+**Without training:** [`reference/`](reference/README.md) holds seed 42 of the max network, fully binary, ready to compile or
+measure, next to its INT8 model.
+
+```
+cd benchmarks/conv1d/har_ultracompact                       # environment env_bench
+python har_data.py                                          # needs UniMiB-SHAR in ../../data/unimib_shar/
+python har_train.py --all
+for r in runs/*_e100_s4?; do python har_export.py $r; done
+for r in runs/*_binary_e100_s4?; do python har_export.py $r --first-bytes; done   # the first layer as +-1 bytes
+python har_gvsoc.py --repo ~/Proyectos/ultracompactBNN --pc runs/max_int8_e100_s42 runs/max_binary_e100_s42
+
+# GVSoC (Docker; --user so that runs/ is not owned by root)
+cd pulp && docker build -t symbex-pulp . && cd ..
+docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -v ~/Proyectos:/work symbex-pulp bash -c \
+  "source /opt/pulp-sdk/configs/pulp-open.sh; export PATH=/opt/gvsoc/install/bin:\$PATH; pip3 install -q --user numpy; \
+   cd /work/Symbex1/benchmarks/conv1d/har_ultracompact && \
+   python3 har_gvsoc.py --repo /work/ultracompactBNN runs/max_int8_e100_s42 runs/max_binary_e100_s42"
+
+# INT8 references
+python har_tflite.py --all
+python har_tflite.py --arch max --seed 42 --board esp32 --port /dev/ttyUSB0
+python har_tflite.py --arch max --seed 42 --board s3 --port /dev/ttyACM0 --usb --weights ram
+python har_lowbit.py --arch max
+
+# SYMBEX on the boards (from tools/)
+python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s42 --board esp32 --port /dev/ttyUSB0 --popcount swar
+python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_int8_e100_s42 --board s3 --port /dev/ttyACM0 --usb --popcount swar
+python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_int8_e100_s42 --board s3 --port /dev/ttyACM0 --usb --popcount swar --weights ram
+python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s42 --board pico2_riscv --port /dev/ttyACM0
+python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s42 --board pico2_arm --port /dev/ttyACM0 --weights ram
+python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s42_bytes --board pico2_riscv --port /dev/ttyACM0
+
+# The quick check of section 3 (ESP32-S3)
+python ../../experiments/chip_kernels/int8_first_bench.py --port /dev/ttyACM0
+```
+
+Results: `results/symbex/` (SYMBEX on GVSoC, accuracy), `results/ucbnn/` (ultracompactBNN on GVSoC), `results/tflite/`,
+`results/lowbit/`, `runs/<run>/chip_<board>_<popcount>_<weights>_mask.json` (SYMBEX on the boards).
+
+## Future work
+
+1. **Testing the theory of section 3:** a task with a binary input (fully binary should win there), the int8 first
+   layer on other 8-bit tasks and chips, and the layer-size limit measured on whole networks, not only kernels.
+2. **Networks sized for binary, with the int8 first layer** (wider binary layers), compared with INT8 sized the same
+   way, as in ResNet-8 and mlp_fashion: how speed, accuracy and size change, and the way to close the accuracy gap.
+3. **Bits or bytes chosen automatically:** a kernel search (`tools/dev/kernel_search.py`) that measures both forms per
+   chip and layer shape and lets the CDT pick, like `arithmetic = "auto"`.
+4. **First-layer kernels per chip:** SMLAD on the M33 (the S3's PIE kernel is done), with a running sum of the input
+   where the instruction has no sign.
+5. **An int8 stem for ResNet-8:** about 8 % of the network on the S3 (estimate from `int8_first_bench.py`), to be
+   trained and measured.
+6. **Early exit in the OR pool, per channel:** measured on the PC, half of the steps of the first binary layer can be
+   skipped (a channel that already gave 1 in its pool window); it trades against the 4-channel blocks, to be measured.
+7. **The binary layers on chips without a native bit count** (ESP32, S3, M33): the blocked kernels of the RI5CY.
+8. The rest of the ESP32 grid (`swar` with the weights in RAM), energy per inference (INA226).

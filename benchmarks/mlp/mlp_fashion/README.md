@@ -146,22 +146,48 @@ The same seed-42 exports on the ESP32 (240 MHz, one core), the current library a
 
 | Model | Flash | Weights in flash | RAM | Weights in RAM |
 |---|---|---|---|---|
-| **SYMBEX 1 bit x1** (`--popcount swar`) | 34.3 KB | **6.754 ms** | 3.4 KB | **3.840 ms** (37.7 KB) |
-| SYMBEX 1 bit x1.5 | 54.5 KB | 12.949 ms | 3.9 KB | 5.805 ms (58.3 KB) |
-| SYMBEX 1 bit x2 | 76.5 KB | 17.788 ms | 4.4 KB | 7.809 ms (80.8 KB) |
+| **SYMBEX 1 bit x1** (`--popcount swar`) | 34.3 KB | **6.583 ms** | 3.4 KB | **3.678 ms** (37.7 KB) |
+| SYMBEX 1 bit x1.5 | 54.5 KB | 12.709 ms | 3.9 KB | 5.562 ms (58.3 KB) |
+| SYMBEX 1 bit x2 | 76.5 KB | 17.470 ms | 4.4 KB | 7.484 ms (80.8 KB) |
 | ternary x1 (`lut16`) | 59.9 KB | 19.997 ms | 66.3 KB | 12.137 ms (126.3 KB) |
 | ternary x1.5 (`lut16`) | 95.8 KB | 31.031 ms | 66.9 KB | 18.541 ms (162.7 KB) |
 | INT2 QAT x1, ESP-NN | 61.9 KB | 30.352 ms | 11.1 KB | does not start (likely: no 235 KB block for the unpacked weights) |
 | INT4 QAT x1, ESP-NN | 119.2 KB | 34.610 ms | 11.1 KB | does not start (same) |
 | INT8 QAT x1, ESP-NN | 233.9 KB | 41.377 ms | 3.1 KB | does not fit (DRAM overflowed by 74 KB) |
 | INT8 TFLite x1 | 242.2 KB | 41.966 ms | 4.8 KB (arena) | does not fit |
-| **SYMBEX 784-128-512** (sized for binary) | 27.3 KB | **3.635 ms** | 4.4 KB | **2.186 ms** (31.6 KB) |
+| **SYMBEX 784-128-512** (sized for binary) | 27.3 KB | **3.546 ms** | 4.4 KB | **2.105 ms** (31.6 KB) |
 | INT8 TFLite 784-128-512 (same shape) | 187 KB | 31.108 ms | 6.7 KB (arena) | not measured |
 
-- In flash, SYMBEX x1 is 4.5x faster than the fastest integer model (INT2) and 6.2x faster than TFLite INT8; the
-  binary-sized 784-128-512 is 8.6x faster than TFLite INT8 of the same shape. With the weights in RAM only the
+- In flash, SYMBEX x1 is 4.6x faster than the fastest integer model (INT2) and 6.4x faster than TFLite INT8; the
+  binary-sized 784-128-512 is 8.8x faster than TFLite INT8 of the same shape. With the weights in RAM only the
   binary and ternary models run.
 - The ternary kernel is slow here too (20 ms): the next kernel to rewrite.
+
+### The Raspberry Pi Pico 2 (RP2350, 150 MHz)
+
+The same exports on both cores of the Pico 2 (`--board pico2_riscv` / `pico2_arm`); board = simulation, 100 % on every
+run. The Hazard3 RISC-V cores count bits with their native instruction; the Cortex-M33 has none and uses the 64 KB table
+(`lut16`), with its `usada8` instruction for the 8-bit first layer.
+
+| Model | Hazard3, weights in flash | Cortex-M33, weights in flash | Hazard3, weights in RAM | Cortex-M33, weights in RAM |
+|---|---|---|---|---|
+| **SYMBEX 784-128-512** (sized for binary, 3 seeds) | **4.414 ms** (4.8 KB RAM) | **4.565 ms** (68.7 KB) | **1.405 ms** (32.1 KB) | **1.529 ms** (96.0 KB) |
+| TFLite INT8 784-128-512 (same shape) | 37.53 ms (6.7 KB) | 31.35 ms (6.7 KB) | 9.61 ms | 2.89 ms |
+| SYMBEX is faster by | **8.5x** | **6.9x** | **6.8x** | **1.9x** |
+| SYMBEX 1 bit x1.5 (3 seeds) | 10.32 ms (4.3 KB) | 11.07 ms (68.2 KB) | -- | -- |
+| TFLite INT8 784-256-128 | -- | 42.33 ms (4.9 KB) | -- | 3.71 ms |
+
+- **On the Pico 2 the flash costs 3x:** 784-128-512 runs in 4.4 ms with the weights in flash and 1.4 ms in RAM (on the
+  S3: 0.42 / 0.41 ms). The weights (21 KB) fit in the RP2350's RAM (520 KB), so RAM is the natural choice there.
+- **The two cores are close:** the Hazard3 is 3-8 % faster and needs no table (4.8 KB of RAM against 69 KB).
+- On the M33, the `usada8` first layer beats bit planes (4.565 against 7.202 ms in flash, 1.529 against 5.883 in RAM).
+- **TFLite INT8 on the Pico 2:** TensorFlow Lite Micro built from source at a pinned commit (`fashion_tflite.py
+  --board pico2_arm|pico2_riscv`), with Arm's CMSIS-NN kernels on the M33 (DSP on) and the reference kernels on
+  Hazard3 (TFLite Micro has no optimized kernels for it). 1000 validation images, the chip's class equals the PC
+  interpreter's on 100 %. SYMBEX is 6.9x faster with the weights in flash and 1.9x in RAM on the M33, where CMSIS-NN
+  helps most (2.89 ms against 9.61 ms with the reference kernels). INT8 is more accurate on the same 1000 images: 88.6 % against
+  87.2 +- 0.5 % (SYMBEX seeds 42, 43, 44: 87.5, 87.4, 86.6 %).
+- The three SYMBEX seeds give the same latency to 0.003 ms.
 
 ### How the ESP32-S3 computes a binary layer
 
@@ -256,7 +282,7 @@ On the chip (x1.5, 1,000 images, 100 % equal to the simulation; counting mode `s
 
 ### PopLUT probe: codebook-compressed binary weights (PC only)
 
-`../../experiments/poplut_probe.py` tests whether the 1-bit weights of a trained SYMBEX x2 model can be stored as indices into a small
+`../../experiments/other_probes/poplut_probe.py` tests whether the 1-bit weights of a trained SYMBEX x2 model can be stored as indices into a small
 codebook of 32-bit words (each word: a codebook index plus a complement bit). The codebook is learned by binary
 k-means in Hamming distance, then the rest of the model is fine-tuned for 3 epochs. Base: SYMBEX x2, seed 42, 86.34 %,
 66,880 B of 1-bit weights.
@@ -279,10 +305,13 @@ x2 model was trained before the validation fix (last checkpoint, no selection); 
 the chip; the C lookup kernel does not exist yet.
 
 ```
-python ../../experiments/poplut_probe.py --modelo runs/symbex_local_s42/model_binarized.pth
+python ../../experiments/other_probes/poplut_probe.py --modelo runs/symbex_local_s42/model_binarized.pth
 ```
 
 ## How to reproduce
+
+**Without training:** [`reference/`](reference/README.md) holds seed 42 of the MLP sized for binary (784-128-512-10), ready to compile or
+measure, next to its INT8 model.
 
 | Script | What it does |
 |---|---|
@@ -295,8 +324,8 @@ python ../../experiments/poplut_probe.py --modelo runs/symbex_local_s42/model_bi
 
 From `benchmarks/mlp/mlp_fashion/`, environment `env_bench`.
 
-**Option A -- the same FP32 models (recommended).** The FP32 starting models are published in `models/` (the only
-models in the repository). `model.get_fp32` uses them when present; every result file records the sha256 of the
+**Option A -- the same FP32 models (recommended).** The FP32 starting models are published in `models/`.
+`model.get_fp32` uses them when present; every result file records the sha256 of the
 model it started from (`fp32_sha256`).
 
 | File | Shape | sha256 |
@@ -336,6 +365,13 @@ python earlier/fashion_int4.py --bits 8 --epocas 15 --semillas 3 --shape 128-512
 python fashion_tflite.py --shape 128-512 --board s3 --port /dev/ttyACM0 --usb  # its TFLite INT8, flash
 python fashion_tflite.py --shape 128-512 --board s3 --port /dev/ttyACM0 --usb --model-ram
 python ../../../tools/chip_test.py runs/sizing/h128_512_s42 --board s3 --port /dev/ttyACM0 --usb --popcount swar  # minimum RAM
+# Raspberry Pi Pico 2 (both cores; also --weights ram); copies of the reports in results/symbex/
+python ../../../tools/chip_test.py runs/sizing/h128_512_s42 --board pico2_riscv --port /dev/ttyACM0 --popcount lut16
+python ../../../tools/chip_test.py runs/sizing/h128_512_s42 --board pico2_arm --port /dev/ttyACM0 --popcount lut16
+python ../../../tools/chip_test.py runs/symbex_s42 --board pico2_riscv --port /dev/ttyACM0 --popcount lut16   # x1.5; s43, s44
+python fashion_tflite.py --shape 128-512 --board pico2_arm --port /dev/ttyACM1      # TFLite INT8 + CMSIS-NN (M33), flash
+python fashion_tflite.py --shape 128-512 --board pico2_arm --port /dev/ttyACM1 --model-ram
+python fashion_tflite.py --shape 128-512 --board pico2_riscv --port /dev/ttyACM1    # reference kernels (Hazard3)
 ```
 
 The earlier results (1-bit input, the classic ESP32, the INT baselines of `earlier/fashion_int4.py`, the Pareto plot):

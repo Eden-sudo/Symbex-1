@@ -13,10 +13,69 @@ from .core import AVR_BOARDS, BOARD_MHZ, BOARDS, PICO_BOARDS, flash, lib_sources
 AVR_BAUD = 115200                          # an ATmega328P at 16 MHz is reliable at this speed, not at 921600
 
 
-def _build_flags(popcount, weights, first_layer):
+VERTICAL_ENGINES = ("vertical", "vertical_prepared", "vertical_compact")   # chip_test.py --engine, besides standard
+RAM_CODE_SECTIONS = (".iram1.symbex", ".time_critical.symbex")   # SYMBEX_FAST_CODE with -DSYMBEX_CODE_IN_RAM
+
+
+def _elf32_sections_and_symbols(path):
+    """an ELF32 little-endian file -> ({section index: name}, [(symbol name, section index, size)]). Read here, so no
+    toolchain tool is needed; None for anything else"""
+    import struct
+    data = open(path, "rb").read()
+    if data[:4] != b"\x7fELF" or data[4] != 1 or data[5] != 1:
+        return None
+    shoff, = struct.unpack_from("<I", data, 0x20)
+    shentsize, shnum, shstrndx = struct.unpack_from("<HHH", data, 0x2E)
+    secs = [struct.unpack_from("<IIIIIIIIII", data, shoff + i * shentsize) for i in range(shnum)]
+
+    def text(table, at):
+        return data[table + at:data.index(b"\0", table + at)].decode(errors="replace")
+    names = {i: text(secs[shstrndx][4], sec[0]) for i, sec in enumerate(secs)}
+    symbols = []
+    for sec in secs:
+        if sec[1] != 2:                                                # SHT_SYMTAB
+            continue
+        strtab = secs[sec[6]][4]                                       # sh_link: its string table
+        for off in range(sec[4], sec[4] + sec[5], 16):
+            st_name, _, st_size, _, _, st_shndx = struct.unpack_from("<IIIBBH", data, off)
+            if st_name and st_size:
+                symbols.append((text(strtab, st_name), st_shndx, st_size))
+    return names, symbols
+
+
+def ram_code_bytes(project_dir):
+    """bytes of lib_symbex code the firmware runs from RAM (SYMBEX_FAST_CODE, hal/symbex_hal.h): the functions the
+    object files put in those sections, at their size in the linked firmware.elf (functions the linker dropped do not
+    count; alignment padding and literal pools do not either: ResNet-8 vertical on the S3, 4955 B counted against 5016 B
+    of .iram0.text growth). None if the project was not built."""
+    import glob
+    import os
+    build = glob.glob(os.path.join(project_dir, ".pio", "build", "*", "firmware.elf"))
+    if not build:
+        return None
+    marked = set()
+    for o in glob.glob(os.path.join(os.path.dirname(build[0]), "src", "**", "*.o"), recursive=True):
+        r = _elf32_sections_and_symbols(o)
+        if r:
+            names, symbols = r
+            marked |= {n for n, shndx, _ in symbols if names.get(shndx, "").startswith(RAM_CODE_SECTIONS)}
+    r = _elf32_sections_and_symbols(build[0])
+    if not r:
+        return None
+    return sum(size for n, size in {n: size for n, _, size in r[1] if n in marked}.items())
+
+
+def _build_flags(popcount, weights, first_layer, engine="standard", code="flash"):
     """Compiler flags of the model test: popcount method, where the weights live, first-layer kernel (XNOR
-    headers only; the AND arithmetic has a single one)."""
+    headers only; the AND arithmetic has a single one), engine of the fully binary conv headers (vertical:
+    symbex_bool_vertical.h; vertical_prepared: the same with its lists and thresholds prepared in RAM;
+    vertical_compact: the lists prepared, the thresholds compact), where the
+    engine's inner loops run (code="ram": -DSYMBEX_CODE_IN_RAM, see SYMBEX_FAST_CODE in hal/symbex_hal.h)."""
     return ((["-DSYMBEX_POPCOUNT_NO_LUT16"] if popcount == "swar" else [])
+            + (["-DSYMBEX_CODE_IN_RAM"] if code == "ram" else [])
+            + (["-DSYMBEX_BOOL_VERTICAL"] if engine in VERTICAL_ENGINES else [])
+            + (["-DSYMBEX_BOOL_VERTICAL_PREPARED"] if engine == "vertical_prepared" else [])
+            + (["-DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT"] if engine == "vertical_compact" else [])
             + (["-DSYMBEX_ROM="] if weights == "ram" else [])
             + (["-DSYMBEX_U8_SIMPLE"] if first_layer == "simple" else [])
             # planes: also the RP2350's bit-plane first-layer kernel (hal/rp2350; for AND headers too; no effect elsewhere)
@@ -24,16 +83,40 @@ def _build_flags(popcount, weights, first_layer):
 
 
 USB_BOARDS = {"s3"}                        # boards with a native USB-Serial-JTAG port (usb=True)
+# flash_config="fast": the flash read in quad mode (QIO, the ESP-IDF default is DIO) and, on the ESP32-S3, the largest
+# caches (32 KB instructions, 64 KB data; defaults 16 / 32 KB). Same code and results; flash-bound layers may run faster
+FAST_FLASH_SDKCONFIG = {"esp32": "CONFIG_ESPTOOLPY_FLASHMODE_QIO=y\n",
+                        "s3": "CONFIG_ESPTOOLPY_FLASHMODE_QIO=y\nCONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y\n"
+                              "CONFIG_ESP32S3_DATA_CACHE_64KB=y\n"}
 
 
 def generate_project(project_dir, header_path, lib_path, board, port, baud, popcount="lut16",
-                     weights="flash", first_layer="mask", int8_path=None, usb=False):
+                     weights="flash", first_layer="mask", int8_path=None, usb=False, engine="standard", code="flash",
+                     flash_config="default"):
     """PlatformIO project: the exported header, the lib_symbex sources it needs, and the firmware (ESP-IDF on the
     ESP32 boards; Arduino on AVR boards, with the weights in flash: PROGMEM, read by the library; Arduino-Pico on the
     Pico 2, firmware/model_test_pico.cpp, the generic HAL: lut16 on the Cortex-M33, cpop on Hazard3).
     usb=True: the firmware talks over the chip's native USB-Serial-JTAG port instead of UART0 (the ESP32-S3)."""
     if usb and board not in USB_BOARDS:
         raise ValueError(f"chip: --usb needs a board with a native USB-Serial-JTAG port ({sorted(USB_BOARDS)})")
+    if flash_config not in ("default", "fast"):
+        raise ValueError("chip: flash_config must be default or fast")
+    if flash_config == "fast" and board not in FAST_FLASH_SDKCONFIG:
+        raise ValueError(f"chip: --flash-config fast is for the ESP-IDF boards ({sorted(FAST_FLASH_SDKCONFIG)})")
+    if engine in VERTICAL_ENGINES:
+        with open(header_path) as f:
+            text = f.read()
+            if engine == "vertical_prepared" and "SYMBEX_BOOL_VERTICAL_PREPARED" not in text:
+                raise ValueError("chip: --engine vertical_prepared needs a header exported with the prepared option "
+                                 "(export again with the current CDT)")
+            if engine == "vertical_compact" and "SYMBEX_BOOL_VERTICAL_PREPARED_COMPACT" not in text:
+                raise ValueError("chip: --engine vertical_compact needs a header exported with the compact option "
+                                 "(export again with the current CDT)")
+            if "symbex_bool_net_run_vertical" not in text:
+                raise ValueError("chip: --engine vertical needs a fully binary conv header exported with vertical support "
+                                 "(export again with the current CDT; the header's #error says why a network has none)")
+        if board in AVR_BOARDS:
+            raise ValueError("chip: the vertical engine is for 32-bit boards")
     extra = {"model_symbex.h": header_path}
     if board in AVR_BOARDS:
         write_project(project_dir, board, port, lib_sources(lib_path, ("symbex_dense.c", "symbex_hal_generic.c")),
@@ -47,7 +130,8 @@ def generate_project(project_dir, header_path, lib_path, board, port, baud, popc
                 raise ValueError("chip: this integer model runs on ESP-NN kernels (ESP32 boards only)")
         names = tuple(n for n in lib_sources(lib_path) if n != "symbex_hal_esp32s3.c")
         write_project(project_dir, board, port, lib_sources(lib_path, names), "model_test_pico.cpp",
-                      {"BAUD_RATE": baud}, extra, _build_flags(popcount, weights, first_layer), lib_path=lib_path)
+                      {"BAUD_RATE": baud}, extra, _build_flags(popcount, weights, first_layer, engine, code),
+                      lib_path=lib_path)
         return
     defines = {"BAUD_RATE": baud}
     if int8_path:
@@ -58,20 +142,23 @@ def generate_project(project_dir, header_path, lib_path, board, port, baud, popc
     if usb:
         defines.update(SYMBEX_USB_SERIAL_JTAG=1)
     write_project(project_dir, board, port, lib_sources(lib_path), "model_test.c", defines, extra,
-                  _build_flags(popcount, weights, first_layer),
+                  _build_flags(popcount, weights, first_layer, engine, code),
                   ["espressif/esp-nn"] if (int8_path or needs_esp_nn) else (),
-                  "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\n" if usb else "", lib_path=lib_path)
+                  ("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\n" if usb else "")
+                  + (FAST_FLASH_SDKCONFIG[board] if flash_config == "fast" else ""), lib_path=lib_path)
 
 
 def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="esp32", port="/dev/ttyUSB0",
                   baud=921600, n=1000, upload=True, popcount="lut16", model_flash=None, verbose=True,
-                  weights="flash", first_layer="mask", int8=None, usb=False):
+                  weights="flash", first_layer="mask", int8=None, usb=False, engine="standard", code="flash",
+                    flash_config="default"):
     """Flashes the exported model and measures it on the board: equality with the integer simulation (must be
     100%), accuracy, latency (total and per layer) and RAM. x / y / expected: validation images (uint8), labels
     and the classes of the integer simulation. Returns a dict, or raises RuntimeError with what went wrong.
     int8 (optional): dict(header=..., expected=classes of its integer simulation, flash=bytes) to run the INT8
     reference of the original model on the same chip and the same images (Espressif's ESP-NN kernel).
-    usb=True: through the board's native USB-Serial-JTAG port (port is then e.g. /dev/ttyACM0), not its UART."""
+    usb=True: through the board's native USB-Serial-JTAG port (port is then e.g. /dev/ttyACM0), not its UART.
+    flash_config="fast": quad-mode flash and the largest caches (FAST_FLASH_SDKCONFIG)."""
 
 
     import time
@@ -80,10 +167,15 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
             print("    [!] Pico 2: the INT8 reference runs on ESP-NN (ESP32 boards only): not measured here")
         int8 = None
     generate_project(project_dir, header_path, lib_path, board, port, baud, popcount, weights, first_layer,
-                     int8["header"] if int8 else None, usb)
+                     int8["header"] if int8 else None, usb, engine, code, flash_config)
     if upload:
         flash(project_dir, verbose, f"{BOARDS[board]} on {port} (popcount {popcount}, weights in {weights}, "
-                                    f"first layer {first_layer}" + (", native USB" if usb else "") + ")")
+                                    f"first layer {first_layer}" + (", native USB" if usb else "")
+                                    + (", vertical engine" if engine == "vertical" else "")
+                                    + (", vertical engine, prepared" if engine == "vertical_prepared" else "")
+                                    + (", vertical engine, compact" if engine == "vertical_compact" else "")
+                                    + (", engine code in RAM" if code == "ram" else "")
+                                    + (", fast flash and caches" if flash_config == "fast" else "") + ")")
     n = min(n, len(x))
     pred, totals, per_step, names, ram, stack = [], [], [], {}, None, None
     pred8, totals8, per_step8, info8 = [], [], [], None
@@ -154,15 +246,21 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
     medians = np.median(per_step, axis=0) / 1000
     buffers, input_bytes, table, stack_total = ram
     stack_used = None if stack is None else stack_total - stack
+    code_ram = 0
+    if code == "ram":   # only the build this run flashed says what runs from RAM (--no-upload: unknown, not zero)
+        code_ram = ram_code_bytes(project_dir) if upload else None
+        if code_ram is None and verbose:
+            print("    [!] --code ram: the engine code in RAM is unknown (no build flashed by this run): "
+                  "ram.code_in_ram = null, not in ram.total")
     out = dict(board=board, hal=hal, popcount=popcount, weights=weights, first_layer=first_layer, n=n,
                equal_simulation=100 * float((pred == expected[:n]).mean()),
                accuracy=100 * float((pred == y[:n]).mean()), median_ms=float(np.median(totals)) / 1000,
                min_ms=float(np.min(totals)) / 1000,
                layers=[dict(step=names.get(i, f"step {i}"), median_ms=float(m)) for i, m in enumerate(medians)],
                ram=dict(buffers=buffers, input_bytes=input_bytes, popcount_table=table, stack_used=stack_used,
-                        weights_in_ram=(model_flash or 0) if weights == "ram" else 0,
+                        weights_in_ram=(model_flash or 0) if weights == "ram" else 0, code_in_ram=code_ram,
                         total=buffers + input_bytes + table + (stack_used or 0)
-                        + ((model_flash or 0) if weights == "ram" else 0)),
+                        + ((model_flash or 0) if weights == "ram" else 0) + (code_ram or 0)),
                model_flash=model_flash)
     if int8:
         p8 = np.array(pred8)

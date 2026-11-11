@@ -56,3 +56,14 @@ Results of all three: `runs/` (not published).
 Not here, next to the library: `python ../../Symbex1_PIO/lib/lib_symbex/tests/run_tests.py` (every function of
 lib_symbex against numpy, with four hardware layers; `--stress` adds sanitizers and boundary sizes), and `pytest` from the
 repository root (the Python export and the C engine against numpy references).
+
+## docs_charts.py — the charts of docs/
+
+Reads the result files of the benchmarks (`benchmarks/*/results/`) and draws the charts of [`docs/`](../../docs/) as SVG
+(light and dark), with plain Python: no plotting library needed.
+
+```
+python docs_charts.py      # writes docs/assets/*.svg and prints every number with the file it came from
+```
+
+Run it again after a benchmark is re-measured.

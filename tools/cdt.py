@@ -82,7 +82,8 @@ DEFAULTS = {
     "target": {"budget": 0.25, "tolerance": 0.99, "options": ["bin", 2, 4, 8], "max_accuracy_drop": 2.0,
                "search_epochs": 5, "widths": [1.0, 1.5, 2.0]},
     "training": {"epochs": 150, "distill": True, "temperature": 4.0, "alpha": 0.85, "learning_rate": 1e-3,
-                 "batch_size": 256, "checkpoint": "last", "seed": 42, "data_on_gpu": False, "compile": ""},
+                 "batch_size": 256, "checkpoint": "last", "seed": 42, "data_on_gpu": False, "compile": "",
+                 "binary_optimizer": "adam", "bop_gamma": 1e-4, "bop_tau": 1e-8},
     "output": {"directory": "", "verbose": True, "lib_path": "../Symbex1_PIO/lib/lib_symbex",
                "validation_samples": 2000, "arithmetic": "auto", "int8_reference": False},
     "chip": {"board": "", "port": "/dev/ttyUSB0", "baud": 921600, "samples": 1000, "upload": True,
@@ -235,6 +236,12 @@ def validate_config(cfg):
         errors.append("[training] epochs and batch_size must be >= 1")
     if not (0 <= tr["alpha"] <= 1):
         errors.append("[training] alpha must be in [0, 1]")
+    if tr["binary_optimizer"] not in ("adam", "bop"):
+        errors.append("[training] binary_optimizer must be \"adam\" (default) or \"bop\"")
+    elif tr["binary_optimizer"] == "bop" and m["method"] != "boolean":
+        errors.append("[training] binary_optimizer = \"bop\" is only for method \"boolean\"")
+    if not (0 < tr["bop_gamma"] <= 1) or tr["bop_tau"] < 0:
+        errors.append("[training] bop_gamma must be in (0, 1] and bop_tau >= 0")
     if errors:
         sys.exit("[X] Configuration errors:\n    " + "\n    ".join(errors))
 
@@ -332,8 +339,8 @@ def load_model(cfg):
 
 def load_data(cfg):
     """Returns (train, validation, test) datasets. Validation drives every selection (search, checkpoint);
-    test is touched once, for the final report. Formats without a separate test set (npy, imagefolder
-    without a test/ folder) return test=None and the final report falls back to validation."""
+    test is touched once, for the final report. Formats without a separate test set (npy without test.npy,
+    imagefolder without a test/ folder) return test=None and the final report falls back to validation."""
     import numpy as np
     import torch
     from torch.utils.data import TensorDataset, random_split
@@ -374,11 +381,20 @@ def load_data(cfg):
             x = x.permute(0, 3, 1, 2).contiguous()           # NHWC -> NCHW
         x = normalize(x)
         y = torch.from_numpy(y)
-        rv = os.path.join(folder, "val.npy")
+        # optional masks over the whole array (True = that sample): test.npy is held out (evaluated once, at the
+        # end); val.npy is the validation set, else validation_split of what is left
+        rv, rt = os.path.join(folder, "val.npy"), os.path.join(folder, "test.npy")
+        held = torch.from_numpy(np.load(rt).astype(bool)) if os.path.exists(rt) else torch.zeros(len(y), dtype=torch.bool)
+        if len(held) != len(y):
+            sys.exit(f"[X] test.npy has {len(held)} entries and y.npy {len(y)}")
+        test = TensorDataset(x[held], y[held]) if held.any() else None
         if os.path.exists(rv):
             val = torch.from_numpy(np.load(rv).astype(bool))
-            return TensorDataset(x[~val], y[~val]), TensorDataset(x[val], y[val]), None
-        return split(TensorDataset(x, y)) + (None,)
+            if len(val) != len(y) or (val & held).any():
+                sys.exit("[X] val.npy must have one entry per sample and share none with test.npy")
+            keep = ~val & ~held
+            return TensorDataset(x[keep], y[keep]), TensorDataset(x[val], y[val]), test
+        return split(TensorDataset(x[~held], y[~held])) + (test,)
 
     import torchvision
     import torchvision.transforms as T
@@ -594,7 +610,7 @@ def _predictions(model, val_l, dev):
 
 def stage_train(model, train, val, estimate_res, cfg, out_dir, kind="mlp", test=None):
     if cfg["model"]["method"] == "boolean":
-        from compiler_core.export import boolean
+        from compiler_core.train import boolean
         return boolean.train(model, train, val, cfg, out_dir, test)
     import torch
     from torch.utils.data import DataLoader
@@ -972,7 +988,7 @@ def _option(v):
 
 def load_trained(model, train, estimate_res, cfg, out_dir):
     if cfg["model"]["method"] == "boolean":
-        from compiler_core.export import boolean
+        from compiler_core.train import boolean
         return boolean.load_trained(model, out_dir)
     """Rebuilds the trained binarized model from out_dir (train.json + model_binarized.pth), without training:
     the original model, widened as the search chose, binarized with the chosen plan, with the saved weights."""

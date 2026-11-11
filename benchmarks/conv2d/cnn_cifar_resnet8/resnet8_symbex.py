@@ -5,6 +5,14 @@ resnet8_symbex.py -- the cnn_cifar_resnet8 benchmark: a fully binary ResNet-8, t
     python resnet8_symbex.py --width 1 --seeds 3 --board s3 --port /dev/ttyUSB0   # ... and measure on the board
     python resnet8_symbex.py --width 1 --seeds 3 --board esp32 --weights ram
     python resnet8_symbex.py --width 2 --seeds 3                                   # twice the channels
+    python resnet8_symbex.py --seeds 3 --board pico2_riscv --port /dev/ttyACM0 --popcount lut16   # Pico 2 (or pico2_arm)
+    python resnet8_symbex.py --variant int8stem --seeds 3   # stem / shortcut study: base | int8stem | add | int8stem_add
+    python resnet8_symbex.py --variant int8stem --seeds 3 --board s3 --port /dev/ttyACM0   # the int8 stem on a board
+    python resnet8_symbex.py --variant int8stem_pool2 --seeds 3   # int8 stem + pooled int8 classifier, Bop (most accurate x1)
+    python resnet8_symbex.py --seeds 3 --board s3 --summary   # the summary from runs measured with tools/chip_test.py
+    python resnet8_symbex.py --seeds 3 --board s3 --summary --engine vertical   # ... measured with --engine vertical
+    python resnet8_symbex.py --seeds 3 --board s3 --summary --engine vertical_prepared   # ... lists prepared in RAM
+    python resnet8_symbex.py --seeds 3 --board s3 --summary --engine vertical_compact    # ... thresholds compact
 
 Run from benchmarks/conv2d/cnn_cifar_resnet8/ (main environment, .venv; a GPU helps). The network (model.py) has the shape of
 the MLPerf Tiny ResNet-8 that resnet8_tflite.py measures in INT8 (--width 1: the same 16-32-64 channels); only what
@@ -13,8 +21,14 @@ binarization imposes changes: a thermometer input, 1-bit weights and activations
 exports it to lib_symbex (layers/conv/symbex_bool) and, with --board, measures it with the same firmware and the same
 tables as every other benchmark (100% equal to the integer simulation, accuracy, latency per layer, RAM).
 Each seed lands in runs/w<width>_s<seed>/; a seed already trained is only exported again (seconds; the export depends
-on the board), --redo trains it again. Summary: results/symbex_seeds_<board>_<popcount>[_ram]_w<width>.json
-(results/symbex_seeds_pc_w<width>.json without a board).
+on the board), --redo trains it again. Summary: results/symbex/symbex_seeds_<board>_<popcount>[_ram]_w<width>.json
+(results/symbex/symbex_seeds_pc_w<width>.json without a board; with --epochs, in results/sizing/). --summary runs no CDT: it
+rebuilds the summary from the chip_<board>_<popcount>_<weights>_mask.json files that tools/chip_test.py leaves in each
+run folder (the S3's native USB port: chip_test.py runs/w1_s42 --board s3 --port /dev/ttyACM0 --usb).
+--engine vertical (with --summary): the runs measured with chip_test.py --engine vertical (the vertical engine,
+docs/vertical.md), summarized into results/symbex/symbex_seeds_<board>_<popcount>[_ram]_w<width>_vertical.json;
+--engine vertical_prepared the same with its lists and thresholds prepared in RAM (_vertical_prepared.json);
+--engine vertical_compact with the lists prepared and the thresholds compact (_vertical_compact.json).
 """
 import argparse
 import json
@@ -31,9 +45,10 @@ def load(path):
     return json.load(open(path)) if os.path.exists(path) else {}
 
 
-def config_for(width, out_dir, spec=None):
+def config_for(width, out_dir, spec=None, variant=None):
     """symbex.toml with this network's definition and starting weights, written into the run folder. spec: a variant
-    of the sizing study ("16-32-64/2-2-2": channels / blocks per stage) instead of a width"""
+    of the sizing study ("16-32-64/2-2-2": channels / blocks per stage) instead of a width; variant: one of the stem /
+    shortcut study (model.VARIANTS, x1 channels)"""
     sys.path.insert(0, HERE)
     import importlib.util
     import model as m
@@ -44,6 +59,10 @@ def config_for(width, out_dir, spec=None):
         mod = importlib.util.module_from_spec(sp)
         sp.loader.exec_module(mod)
         init = m.initial_weights(getattr(mod, cls), os.path.join("models", f"bool_resnet8_{m.spec_name(spec)}_init.pth"))
+    elif variant and variant != "base":
+        name = m.VARIANTS[variant]
+        init = m.initial_weights(getattr(m, name), os.path.join("models", f"bool_resnet8_{variant}_init.pth"))
+        definition = f"{os.path.join(HERE, 'model.py')}:{name}"
     else:
         name = "BoolResNet8x1" if width == 1 else "BoolResNet8x2"
         init = m.initial_weights(getattr(m, name), os.path.join("models", f"bool_resnet8_x{width:g}_init.pth"))
@@ -51,6 +70,9 @@ def config_for(width, out_dir, spec=None):
     text = open("symbex.toml").read()
     text = re.sub(r'(?m)^file = .*$', f'file = "{os.path.abspath(init)}"', text)
     text = re.sub(r'(?m)^definition = .*$', f'definition = "{definition}"', text)
+    if variant in m.BOP_VARIANTS:                    # the recipe of the training-gap study: Bop for the 1-bit weights
+        text = re.sub(r'(?m)^(compile = .*)$', r'\1\nbinary_optimizer = "bop"', text)
+        assert 'binary_optimizer = "bop"' in text
     text = re.sub(r'(?m)^directory = "\.\./\.\./data/cifar10"', f'directory = "{os.path.normpath(os.path.join(HERE, "..", "..", "data", "cifar10"))}"', text)
     text = re.sub(r'(?m)^lib_path = .*$', f'lib_path = "{os.path.normpath(os.path.join(HERE, "..", "..", "..", "Symbex1_PIO", "lib", "lib_symbex"))}"', text)
     os.makedirs(out_dir, exist_ok=True)
@@ -63,42 +85,80 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--width", type=float, default=1, choices=[1, 2], help="1: 16-32-64 channels (the INT8 reference's)")
     ap.add_argument("--seeds", type=int, default=1, help="number of seeds: 42, 43, ... (default 1)")
-    ap.add_argument("--board", choices=["esp32", "s3"], help="measure on this board")
+    ap.add_argument("--board", choices=["esp32", "s3", "pico2_arm", "pico2_riscv"],
+                    help="measure on this board (pico2_arm / pico2_riscv: the Pico 2's Cortex-M33 / Hazard3)")
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--weights", choices=["flash", "ram"], default="flash", help="where the weights live on the board")
     ap.add_argument("--popcount", choices=["swar", "lut16"], default="swar", help="counting mode (swar: minimum RAM)")
     ap.add_argument("--epochs", type=int, default=0, help="override [training] epochs (a quick check)")
     ap.add_argument("--redo", action="store_true", help="train again seeds that are already trained")
+    ap.add_argument("--summary", action="store_true",
+                    help="run no CDT: summarize the runs' chip_<board>_<popcount>_<weights>_mask.json (needs --board)")
+    ap.add_argument("--engine", choices=["standard", "vertical", "vertical_prepared", "vertical_compact"],
+                    default="standard",
+                    help="with --summary: the runs measured with tools/chip_test.py --engine vertical[_prepared|_compact]")
+    ap.add_argument("--variant", choices=["base", "int8stem", "add", "int8stem_add", "int8stem_pool2"], default="",
+                    help="the stem / shortcut study (x1 channels, own run folders runs/w1_<variant>_s<seed>): base = "
+                         "the network as it is; int8stem = int8 stem on the pixels; add = added shortcuts instead of OR; "
+                         "int8stem_pool2 = int8 stem + pooled int8 classifier (2x2 windows), trained with Bop. "
+                         "base, int8stem and int8stem_pool2 are exported and measured like the default network (the int8 stem: "
+                         "lib_symbex's optional int8 first layer); add and int8stem_add are trained only (PC, "
+                         "validation accuracy): the boolean export takes OR shortcuts only")
     ap.add_argument("--spec", default="", help='a variant of the sizing study: "16-32-64/2-2-2" = channels / blocks '
                                                'per stage (replaces --width)')
     args = ap.parse_args()
+    if args.summary and not args.board:
+        sys.exit("[X] --summary needs --board")
+    if args.engine != "standard" and not args.summary:
+        sys.exit(f"[X] --engine {args.engine}: measure with tools/chip_test.py --engine {args.engine}, then summarize "
+                 "with --summary")
+    train_only = args.variant in ("add", "int8stem_add")       # added shortcuts: not in lib_symbex
+    if args.variant and (args.spec or args.width != 1):
+        sys.exit("[X] --variant: x1 channels (no --spec, --width)")
+    if train_only and (args.board or args.summary):
+        sys.exit(f"[X] --variant {args.variant}: trained on the PC only (no --board, --summary): added shortcuts are "
+                 "not in lib_symbex")
+    vert = "" if args.engine == "standard" else "_" + args.engine
     os.chdir(HERE)
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join("results", "symbex"), exist_ok=True)
     rows = []
     if args.spec:
         sys.path.insert(0, HERE)
         from model import spec_name
         name = spec_name(args.spec) + (f"_e{args.epochs}" if args.epochs else "")
     else:
-        name = f"w{args.width:g}" + (f"_e{args.epochs}" if args.epochs else "")
+        name = f"w{args.width:g}" + (f"_{args.variant}" if args.variant else "") + (f"_e{args.epochs}" if args.epochs else "")
     for seed in [42 + i for i in range(args.seeds)]:
         out_dir = os.path.join("runs", f"{name}_s{seed}")
-        trained = os.path.exists(os.path.join(out_dir, "model_binarized.pth")) and os.path.exists(os.path.join(out_dir, "train.json"))
-        cmd = [sys.executable, CDT, config_for(args.width, out_dir, args.spec or None), "--seed", str(seed),
-               "--output-directory", out_dir]
-        if trained and not args.redo:
-            print(f"\n[*] seed {seed}: already trained in {out_dir} (--redo to train it again): exporting again")
-            cmd += ["--from", "export"]
-        if args.epochs:
-            cmd += ["--epochs", str(args.epochs)]
-        if args.board:
-            cmd += ["--board", args.board, "--port", args.port, "--weights", args.weights, "--popcount", args.popcount]
+        chip_file = f"chip_{args.board}_{args.popcount}_{args.weights}_mask{vert}.json" if args.summary else "chip.json"
+        if args.summary:
+            if not os.path.exists(os.path.join(out_dir, chip_file)):
+                print(f"[!] seed {seed}: no {os.path.join(out_dir, chip_file)}: skipped")
+                continue
         else:
-            cmd += ["--to", "export"]
-        print("\n[*] " + " ".join(os.path.relpath(c) if os.path.isabs(c) else c for c in cmd[1:]))
-        if subprocess.run(cmd).returncode != 0:
-            print(f"[X] the CDT failed on seed {seed}")
-        tr, ex, ch = (load(os.path.join(out_dir, f)) for f in ("train.json", "export.json", "chip.json"))
+            trained = os.path.exists(os.path.join(out_dir, "model_binarized.pth")) and os.path.exists(os.path.join(out_dir, "train.json"))
+            if train_only and trained and not args.redo:
+                print(f"\n[*] seed {seed}: already trained in {out_dir} (--redo to train it again)")
+            cmd = [sys.executable, CDT, config_for(args.width, out_dir, args.spec or None, args.variant or None), "--seed", str(seed),
+                   "--output-directory", out_dir]
+            if trained and not args.redo and not train_only:
+                print(f"\n[*] seed {seed}: already trained in {out_dir} (--redo to train it again): exporting again")
+                cmd += ["--from", "export"]
+            if args.epochs:
+                cmd += ["--epochs", str(args.epochs)]
+            if args.board:
+                cmd += ["--board", args.board, "--port", args.port, "--weights", args.weights, "--popcount", args.popcount]
+            elif train_only:
+                cmd += ["--to", "train"]
+            else:
+                cmd += ["--to", "export"]
+            if train_only and trained and not args.redo:
+                cmd = None
+            if cmd:
+                print("\n[*] " + " ".join(os.path.relpath(c) if os.path.isabs(c) else c for c in cmd[1:]))
+                if subprocess.run(cmd).returncode != 0:
+                    print(f"[X] the CDT failed on seed {seed}")
+        tr, ex, ch = (load(os.path.join(out_dir, f)) for f in ("train.json", "export.json", chip_file))
         # test accuracy: acc_test since the CDT keeps a validation split apart (train.json n_test); in runs made before,
         # the CDT validated on the test set itself, so their acc_last IS the test accuracy
         test_acc = tr.get("acc_test") if "acc_test" in tr else tr.get("acc_last")
@@ -128,10 +188,14 @@ def main():
         import statistics
         sd = statistics.stdev(accs) if len(accs) > 1 else 0.0
         print(f"    test accuracy over {len(accs)} seed(s): {statistics.mean(accs):.2f} +- {sd:.2f} %")
+    if args.summary and not rows:
+        sys.exit("[X] --summary: no measured seed for this board and setting")
     tag = f"{args.board}_{args.popcount}{'_ram' if args.weights == 'ram' else ''}" if args.board else "pc"
-    path = os.path.join("results", f"symbex_seeds_{tag}_{name}.json")
-    json.dump(dict(width=args.width, spec=args.spec or None, board=args.board, weights=args.weights, popcount=args.popcount,
-                   seeds=rows),
+    folder = os.path.join("results", "sizing") if args.epochs else os.path.join("results", "symbex")     # quick --epochs runs: the sizing study
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, f"symbex_seeds_{tag}_{name}{vert}.json")
+    json.dump(dict(width=args.width, spec=args.spec or None, variant=args.variant or None, board=args.board, weights=args.weights, popcount=args.popcount,
+                   engine=args.engine, seeds=rows),
               open(path, "w"), indent=1)
     print(f"    -> {path}")
 

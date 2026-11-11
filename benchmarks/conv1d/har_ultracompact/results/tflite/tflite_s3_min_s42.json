@@ -1,0 +1,11 @@
+{
+ "arch": "min",
+ "seed": 42,
+ "board": "s3",
+ "windows": 1000,
+ "equal_to_pc": 100.0,
+ "median_ms": 0.715,
+ "min_ms": 0.671,
+ "model_kb": 7.2890625,
+ "arena_kb": 2.85546875
+}

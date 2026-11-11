@@ -1,0 +1,3 @@
+# per-fold cross-validation files (every beat's prediction): rebuilt by --cv, kept out of the repository
+results/tflite/cv/
+results/symbex/cv/*_f?/

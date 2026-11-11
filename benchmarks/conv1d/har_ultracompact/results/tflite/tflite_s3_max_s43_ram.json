@@ -1,0 +1,12 @@
+{
+ "arch": "max",
+ "seed": 43,
+ "board": "s3",
+ "weights": "ram",
+ "windows": 1000,
+ "equal_to_pc": 100.0,
+ "median_ms": 6.155,
+ "min_ms": 6.112,
+ "model_kb": 42.5,
+ "arena_kb": 25.49609375
+}

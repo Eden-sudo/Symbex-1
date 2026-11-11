@@ -1,0 +1,31 @@
+{
+ "board": "s3",
+ "hal": "esp32s3: PIE pie_swar (AND / XOR layers) + SWAR (single words, XNOR layers)",
+ "popcount": "swar",
+ "weights": "flash",
+ "first_layer": "mask",
+ "n": 360,
+ "equal_simulation": 100.0,
+ "accuracy": 93.05555555555556,
+ "median_ms": 0.206,
+ "min_ms": 0.206,
+ "layers": [
+  {
+   "step": "layer 0: 64 -> 256 (1-bit input x 1 bit) + thresholds",
+   "median_ms": 0.193
+  },
+  {
+   "step": "layer 1: 256 -> 10 (1 bit x 1 bit) + argmax",
+   "median_ms": 0.013
+  }
+ ],
+ "ram": {
+  "buffers": 112,
+  "input_bytes": 64,
+  "popcount_table": 0,
+  "stack_used": 804,
+  "weights_in_ram": 0,
+  "total": 980
+ },
+ "model_flash": 3512
+}

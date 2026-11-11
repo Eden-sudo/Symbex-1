@@ -7,7 +7,7 @@ train_bench.py -- how fast does the CDT train, and what does it use? A developme
     python train_bench.py --try-compile                # also torch.compile (slow to start: compiles first)
 
 Run from tools/dev/ (environment env_bench). It trains the binary ResNet-8 of benchmarks/conv2d/cnn_cifar_resnet8 (model.py,
-BoolResNet8x1) on CIFAR-10 with the training step of the CDT's boolean method (compiler_core/export/boolean.py: crop +
+BoolResNet8x1) on CIFAR-10 with the training step of the CDT's boolean method (compiler_core/train/boolean.py: crop +
 flip on the GPU, cross-entropy, Adam) for --steps batches after --warmup batches, and measures:
     speed      images per second and ms per step (warm-up excluded)
     GPU        mean utilization (nvidia-smi: the whole GPU, other programs included) and peak memory of this training
@@ -40,7 +40,7 @@ import torch.nn.functional as F
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))           # tools/: compiler_core
-from compiler_core.export.boolean import _augment                                             # noqa: E402
+from compiler_core.train.boolean import _augment                                              # noqa: E402
 
 CONFIGS = {"cpu": dict(data="cpu"), "gpu": dict(data="gpu"), "gpu+cl": dict(data="gpu", cl=True),
            "gpu+bf16": dict(data="gpu", bf16=True), "gpu+all": dict(data="gpu", cl=True, bf16=True),

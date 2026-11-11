@@ -1,0 +1,346 @@
+"""
+docs_charts.py -- the charts of docs/, drawn from the result files of the benchmarks.
+
+    python docs_charts.py            # writes docs/assets/*.svg (light and dark) and prints the numbers it used
+
+No plotting library: the SVG is written directly, so the charts can be re-created with plain Python anywhere.
+Every number comes from a JSON file under benchmarks/*/results/ (the paths are in SOURCES and printed with each row);
+nothing is typed in by hand. When a benchmark is re-measured, run this again and the charts follow.
+
+Charts:
+  speedup.svg   how many times faster the fully binary network runs than the official INT8 one (TensorFlow Lite
+                Micro), same network, same chip, weights in flash for both (plus the MLP with weights in RAM)
+  flash.svg     flash used by each model, SYMBEX vs. INT8 (the whole model: weights, thresholds, scales)
+  pareto_mlp.svg  accuracy against latency, MLP on Fashion-MNIST, ESP32-S3, weights in flash and in RAM: INT8 /
+                INT4 / INT2 (tools/lowbit, QAT) and SYMBEX networks sized for binary, the same recipe (validation,
+                3 seeds, distillation), with the Pareto front (docs/methodology.md)
+Each one also as <name>_dark.svg, for GitHub's dark theme (the pages pick one with <picture>).
+"""
+import json
+import os
+import statistics
+from xml.sax.saxutils import escape
+
+ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+BENCH = os.path.join(ROOT, "benchmarks")
+OUT_DIR = os.path.join(ROOT, "docs", "assets")
+
+RESNET = "conv2d/cnn_cifar_resnet8/results"
+FOMO = "conv2d/fomo_voc_person/results"
+FASHION = "mlp/mlp_fashion/results"
+SOURCES = {
+    "resnet_s3": f"{RESNET}/symbex/symbex_seeds_s3_swar_w1.json",
+    "resnet_s3_int8": f"{RESNET}/tflite/tflite_s3.json",
+    "resnet_esp32": f"{RESNET}/symbex/symbex_seeds_esp32_lut16_w1.json",
+    "resnet_esp32_int8": f"{RESNET}/tflite/tflite_esp32.json",
+    "fomo_s3": f"{FOMO}/symbex/symbex_seeds_s3_swar_c32-32-128_b1-2-2_w40_e100.json",
+    "fomo_s3_int8": f"{FOMO}/tflite/tflite_s3_c32-32-128_b1-2-2_w20_e60.json",
+    "fomo_esp32": f"{FOMO}/symbex/symbex_seeds_esp32_lut16_c32-32-128_b1-2-2_w40_e100.json",
+    "mlp_sizing": f"{FASHION}/sizing/fashion_sizing.json",
+    "mlp_s3_int8": f"{FASHION}/tflite/tflite_s3_h128_512.json",
+    "mlp_s3_int8_ram": f"{FASHION}/tflite/tflite_s3_h128_512_ram.json",
+    "mlp_esp32": f"{FASHION}/symbex/symbex_h128_512_s42_chip_esp32_swar_flash.json",
+    "mlp_esp32_int8": f"{FASHION}/tflite/tflite_esp32_h128_512.json",
+    "mlp_lowbit": f"{FASHION}/lowbit/lowbit.json",
+    "mlp_lowbit_s3_flash": f"{FASHION}/lowbit/lowbit_esp_nn_s3_flash.json",
+    "mlp_lowbit_s3_ram": f"{FASHION}/lowbit/lowbit_esp_nn_s3_ram.json",
+}
+MLP_SHAPE = "784-128-512-10"
+
+# Colors: the first four slots of a color-blind-checked categorical palette, stepped for each theme (SYMBEX, INT8,
+# INT4, INT2: the first two as in every chart). Text never takes a series color; every point of the Pareto chart is
+# labelled, because INT4's and INT2's colors are below 3:1 on the light background.
+THEMES = {
+    "light": dict(text="#0b0b0b", muted="#52514e", grid="#e4e3df", base="#8f8e88",
+                  series=["#2a78d6", "#eb6834", "#1baf7a", "#eda100"], surface="#ffffff"),
+    "dark": dict(text="#f0efec", muted="#c3c2b7", grid="#3a3a38", base="#8f8e88",
+                 series=["#3987e5", "#d95926", "#199e70", "#c98500"], surface="#0d1117"),
+}
+FONT = "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
+
+
+def load(key):
+    with open(os.path.join(BENCH, SOURCES[key])) as f:
+        return json.load(f)
+
+
+def seeds_mean(d, field):
+    return statistics.mean(s[field] for s in d["seeds"])
+
+
+def mlp_row():
+    d = load("mlp_sizing")
+    return next(r for r in d["rows"] if r["shape"] == MLP_SHAPE)
+
+
+def speedup_rows():
+    """(label, SYMBEX ms, INT8 ms or None when INT8 does not fit, source keys)."""
+    mlp = mlp_row()
+    return [
+        ("MLP · ESP32-S3", mlp["ms_measured"]["s3 flash"], load("mlp_s3_int8")["median_ms"],
+         ["mlp_sizing", "mlp_s3_int8"]),
+        ("MLP · ESP32-S3, weights in RAM", mlp["ms_measured"]["s3 ram"], load("mlp_s3_int8_ram")["median_ms"],
+         ["mlp_sizing", "mlp_s3_int8_ram"]),
+        ("MLP · ESP32", load("mlp_esp32")["median_ms"], load("mlp_esp32_int8")["median_ms"],
+         ["mlp_esp32", "mlp_esp32_int8"]),
+        ("ResNet-8 · ESP32-S3", seeds_mean(load("resnet_s3"), "latency_ms"), load("resnet_s3_int8")["latency_ms"],
+         ["resnet_s3", "resnet_s3_int8"]),
+        ("ResNet-8 · ESP32", seeds_mean(load("resnet_esp32"), "latency_ms"),
+         load("resnet_esp32_int8")["latency_ms"], ["resnet_esp32", "resnet_esp32_int8"]),
+        ("FOMO person · ESP32-S3", seeds_mean(load("fomo_s3"), "latency_ms"), load("fomo_s3_int8")["latency_ms"],
+         ["fomo_s3", "fomo_s3_int8"]),
+        ("FOMO person · ESP32", seeds_mean(load("fomo_esp32"), "latency_ms"), None, ["fomo_esp32"]),
+    ]
+
+
+def flash_rows():
+    """(label, SYMBEX KB, INT8 KB, source keys)."""
+    return [
+        (f"MLP {MLP_SHAPE}", mlp_row()["flash_kb"], load("mlp_s3_int8")["flash_kb"], ["mlp_sizing", "mlp_s3_int8"]),
+        ("ResNet-8 (CIFAR-10)", seeds_mean(load("resnet_s3"), "flash_kb"), load("resnet_s3_int8")["model_kb"],
+         ["resnet_s3", "resnet_s3_int8"]),
+        ("FOMO person detection", seeds_mean(load("fomo_s3"), "flash_kb"), load("fomo_s3_int8")["model_kb"],
+         ["fomo_s3", "fomo_s3_int8"]),
+    ]
+
+
+def ms(v):
+    return f"{v:.2f}" if v < 10 else f"{v:.1f}"
+
+
+def text(x, y, s, color, size=13, anchor="start", weight="normal"):
+    return (f'<text x="{x:.1f}" y="{y:.1f}" fill="{color}" font-size="{size}" text-anchor="{anchor}" '
+            f'font-weight="{weight}">{escape(s)}</text>')
+
+
+def bar(x, y, w, h, color, r=4):
+    """A bar anchored at x, its data end (the right one) rounded."""
+    r = min(r, w / 2, h / 2)
+    return (f'<path d="M{x:.1f},{y:.1f} H{x + w - r:.1f} Q{x + w:.1f},{y:.1f} {x + w:.1f},{y + r:.1f} '
+            f'V{y + h - r:.1f} Q{x + w:.1f},{y + h:.1f} {x + w - r:.1f},{y + h:.1f} H{x:.1f} Z" fill="{color}"/>')
+
+
+def svg(width, height, title, body):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+            f'viewBox="0 0 {width} {height}" font-family="{FONT}" role="img">\n'
+            f'<title>{escape(title)}</title>\n' + "\n".join(body) + "\n</svg>\n")
+
+
+def axis_ticks(vmax, step):
+    return [step * i for i in range(int(vmax // step) + 1)]
+
+
+def speedup_svg(rows, th):
+    width, left, right, top, row_h = 820, 230, 200, 80, 34
+    height = top + row_h * len(rows) + 40
+    vmax = max(i / s for _, s, i, _ in rows if i is not None)
+    vmax = 5 * (int(vmax // 5) + 1)
+    plot_w = width - left - right
+    xs = lambda v: left + plot_w * v / vmax
+    body = [text(16, 26, "Latency on the chip: how many times faster than INT8", th["text"], 16, weight="bold"),
+            text(16, 46, "Same network, same chip, TensorFlow Lite Micro INT8; weights in flash unless noted",
+                 th["muted"], 12)]
+    bottom = top + row_h * len(rows)
+    for t in axis_ticks(vmax, 5):
+        body.append(f'<line x1="{xs(t):.1f}" y1="{top - 6}" x2="{xs(t):.1f}" y2="{bottom}" stroke="{th["grid"]}"/>')
+        body.append(text(xs(t), bottom + 18, f"{t}×", th["muted"], 11, "middle"))
+    for k, (label, s, i, _) in enumerate(rows):
+        y = top + row_h * k
+        body.append(text(left - 12, y + row_h / 2 + 4, label, th["text"], 13, "end"))
+        if i is None:
+            body.append(text(left + 6, y + row_h / 2 + 4, f"SYMBEX {ms(s)} ms · INT8 does not fit in the chip",
+                             th["muted"], 12))
+            continue
+        ratio = i / s
+        factor = f"{ratio:.1f}×" if ratio >= 10 else f"{ratio:.2f}×"
+        body.append(bar(left, y + 8, xs(ratio) - left, row_h - 16, th["series"][0]))
+        body.append(text(xs(ratio) + 8, y + row_h / 2 + 4, factor, th["text"], 13, weight="bold"))
+        body.append(text(xs(ratio) + 16 + 8.5 * len(factor), y + row_h / 2 + 4, f"{ms(s)} vs {ms(i)} ms",
+                         th["muted"], 11))       # 8.5 px: about one bold 13 px character
+    body.append(f'<line x1="{xs(1):.1f}" y1="{top - 6}" x2="{xs(1):.1f}" y2="{bottom}" stroke="{th["base"]}" '
+                f'stroke-dasharray="3 3"/>')
+    body.append(text(xs(1) + 4, top - 10, "1× = as fast as INT8", th["muted"], 10))
+    return svg(width, height, "SYMBEX speed-up over TensorFlow Lite Micro INT8", body)
+
+
+def flash_svg(rows, th):
+    width, left, right, top, group_h, bh = 820, 230, 90, 84, 62, 18
+    height = top + group_h * len(rows) + 36
+    vmax = max(i for _, _, i, _ in rows)
+    vmax = 50 * (int(vmax // 50) + 1)
+    plot_w = width - left - right
+    xs = lambda v: left + plot_w * v / vmax
+    body = [text(16, 26, "Flash used by the model", th["text"], 16, weight="bold"),
+            text(16, 46, "KB, the whole model (weights, thresholds, scales); INT8 = the .tflite file", th["muted"], 12)]
+    for k, name in enumerate(["SYMBEX (1 bit)", "INT8 (TFLite Micro)"]):
+        lx = left + 170 * k
+        body.append(f'<rect x="{lx}" y="58" width="12" height="12" rx="2" fill="{th["series"][k]}"/>')
+        body.append(text(lx + 18, 69, name, th["text"], 12))
+    bottom = top + group_h * len(rows)
+    for t in axis_ticks(vmax, 50):
+        body.append(f'<line x1="{xs(t):.1f}" y1="{top - 4}" x2="{xs(t):.1f}" y2="{bottom}" stroke="{th["grid"]}"/>')
+        body.append(text(xs(t), bottom + 18, f"{t}", th["muted"], 11, "middle"))
+    for k, (label, s, i, _) in enumerate(rows):
+        y = top + group_h * k + 10
+        body.append(text(left - 12, y + bh + 5, label, th["text"], 13, "end"))
+        for j, v in enumerate((s, i)):
+            yy = y + j * (bh + 2)                   # 2 px gap between the two bars of a group
+            body.append(bar(left, yy, xs(v) - left, bh, th["series"][j]))
+            note = f"{v:.1f}" + (f"  ({i / s:.1f}× less)" if j == 0 else "")
+            body.append(text(xs(v) + 6, yy + bh - 4, note, th["text"] if j == 0 else th["muted"], 12,
+                             weight="bold" if j == 0 else "normal"))
+    return svg(width, height, "Flash used by the model: SYMBEX vs. INT8", body)
+
+
+def pareto_points(placement):
+    """(method, label, ms, validation mean, sd, source keys) for the MLP on the ESP32-S3, weights in flash or ram.
+    INT8 / INT4 / INT2: tools/lowbit QAT of 784-256-128-10, accuracy over 3 seeds, latency of seed 42 (dense
+    multiply-accumulate: the time does not depend on the weight values). SYMBEX: the networks sized for binary, same
+    recipe (15 epochs, distillation, 3 seeds, validation), latency measured."""
+    low, chip = load("mlp_lowbit"), load(f"mlp_lowbit_s3_{placement}")
+    shape = low["shape"].rsplit("-", 1)[0]
+    pts = []
+    for bits in ("8", "4", "2"):
+        v = [s["validation"] for s in low["bits"][bits]["qat"]["seeds"]]
+        t = next(r["latency_ms"] for r in chip if r["bits"] == int(bits))
+        pts.append((f"INT{bits}", f"INT{bits}", t, statistics.mean(v), statistics.stdev(v),
+                    ["mlp_lowbit", f"mlp_lowbit_s3_{placement}"]))
+    for r in load("mlp_sizing")["rows"]:
+        if f"s3 {placement}" in (r.get("ms_measured") or {}):
+            pts.append(("SYMBEX", r["shape"].rsplit("-", 1)[0].split("-", 1)[1], r["ms_measured"][f"s3 {placement}"],
+                        r["val"], r["val_sd"], ["mlp_sizing"]))
+    return pts
+
+
+def pareto_front(pts):
+    """The points no other point beats on both axes (faster and at least as accurate), fastest first."""
+    front, best = [], -1.0
+    for p in sorted(pts, key=lambda p: (p[2], -p[3])):
+        if p[3] > best:
+            front.append(p)
+            best = p[3]
+    return front
+
+
+def pareto_svg(panels, ceiling, th):
+    import math
+    methods = ["SYMBEX", "INT8", "INT4", "INT2"]
+    width, top, pw, ph, gap, left = 900, 124, 370, 300, 60, 70
+    height = top + ph + 64
+    allp = [p for _, pts in panels for p in pts]
+    ylo = math.floor(min(p[3] - p[4] for p in allp) * 2) / 2 - 0.5
+    yhi = math.ceil(max(ceiling, max(p[3] + p[4] for p in allp)) * 2) / 2
+    ys = lambda v: top + ph * (yhi - v) / (yhi - ylo)
+    body = [text(16, 26, "Accuracy against latency: where one bit sits", th["text"], 16, weight="bold"),
+            text(16, 46, "MLP, Fashion-MNIST, ESP32-S3 · validation accuracy, mean ± sd of 3 seeds, the same recipe",
+                 th["muted"], 12),
+            text(16, 63, "INT8 / INT4 / INT2: 784-256-128, QAT, ESP-NN kernels · SYMBEX: networks sized for binary",
+                 th["muted"], 12)]
+    for k, name in enumerate(methods):
+        lx = left + 120 * k
+        body.append(f'<circle cx="{lx + 6}" cy="84" r="5" fill="{th["series"][k]}"/>')
+        body.append(text(lx + 16, 88, name + (" (1 bit)" if name == "SYMBEX" else ""), th["text"], 12))
+    body.append(f'<line x1="{left + 490}" y1="84" x2="{left + 514}" y2="84" stroke="{th["muted"]}" '
+                f'stroke-width="2"/>')
+    body.append(text(left + 520, 88, "Pareto front: nothing is both faster and more accurate", th["text"], 12))
+    for t in [ylo + 0.5 * i for i in range(int(round((yhi - ylo) / 0.5)) + 1)]:
+        body.append(text(left - 8, ys(t) + 4, f"{t:.1f} %", th["muted"], 11, "end"))
+    for n, (title, pts) in enumerate(panels):
+        x0 = left + n * (pw + gap)
+        tmin, tmax = min(p[2] for p in pts), max(p[2] for p in pts)
+        steps = [d * m for d in (0.01, 0.1, 1, 10, 100) for m in (1, 2, 5)]
+        lo = max(v for v in steps if v <= tmin * 0.4)                    # and on the left
+        hi = min(v for v in steps if v >= tmax * 3.5)                    # room for the labels on the right
+        xs = lambda v, x0=x0, lo=lo, hi=hi: x0 + pw * (math.log10(v) - math.log10(lo)) / (math.log10(hi) - math.log10(lo))
+        body.append(text(x0, top - 12, title, th["text"], 13, weight="bold"))
+        for t in [ylo + 0.5 * i for i in range(int(round((yhi - ylo) / 0.5)) + 1)]:
+            body.append(f'<line x1="{x0}" y1="{ys(t):.1f}" x2="{x0 + pw}" y2="{ys(t):.1f}" stroke="{th["grid"]}"/>')
+        for v in (v for v in steps if lo <= v <= hi):
+            body.append(f'<line x1="{xs(v):.1f}" y1="{top}" x2="{xs(v):.1f}" y2="{top + ph}" stroke="{th["grid"]}"/>')
+            body.append(text(xs(v), top + ph + 16, f"{v:g}", th["muted"], 11, "middle"))
+        body.append(text(x0 + pw / 2, top + ph + 34, "ms per inference (log scale)", th["muted"], 11, "middle"))
+        body.append(f'<line x1="{x0}" y1="{ys(ceiling):.1f}" x2="{x0 + pw}" y2="{ys(ceiling):.1f}" '
+                    f'stroke="{th["base"]}" stroke-dasharray="3 3"/>')
+        body.append(text(x0 + 4, ys(ceiling) - 5, f"FP32 {ceiling:.1f} %", th["muted"], 10))
+        front = pareto_front(pts)
+        path = [f"M{xs(front[0][2]):.1f},{ys(front[0][3]):.1f}"]
+        for p in front[1:]:                      # a staircase: each step holds its accuracy until the next point
+            path.append(f"H{xs(p[2]):.1f} V{ys(p[3]):.1f}")
+        path.append(f"H{x0 + pw:.1f}")
+        body.append(f'<path d="{" ".join(path)}" fill="none" stroke="{th["muted"]}" stroke-width="2" '
+                    f'stroke-opacity="0.6"/>')
+        # labels keep off the dots, the error bars, the front and the FP32 label
+        boxes = [(xs(p[2]) - 7, ys(p[3]) - 7, xs(p[2]) + 7, ys(p[3]) + 7) for p in pts]
+        boxes += [(xs(p[2]) - 2, ys(p[3] + p[4]), xs(p[2]) + 2, ys(p[3] - p[4])) for p in pts]
+        boxes.append((x0, ys(ceiling) - 14, x0 + 70, ys(ceiling)))
+        for a, b in zip(front, front[1:]):
+            boxes.append((xs(a[2]), ys(a[3]) - 2, xs(b[2]), ys(a[3]) + 2))
+            boxes.append((xs(b[2]) - 2, ys(b[3]), xs(b[2]) + 2, ys(a[3])))
+        boxes.append((xs(front[-1][2]), ys(front[-1][3]) - 2, x0 + pw, ys(front[-1][3]) + 2))
+        marks = []
+        for p in sorted(pts, key=lambda p: -p[3]):
+            c = th["series"][methods.index(p[0])]
+            x, y = xs(p[2]), ys(p[3])
+            body.append(f'<line x1="{x:.1f}" y1="{ys(p[3] + p[4]):.1f}" x2="{x:.1f}" y2="{ys(p[3] - p[4]):.1f}" '
+                        f'stroke="{c}" stroke-width="2"/>')
+            body.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="{c}" stroke="{th["surface"]}" '
+                        f'stroke-width="2"><title>{escape(p[0] + " " + p[1] if p[0] == "SYMBEX" else p[1])}: {p[3]:.2f} ± {p[4]:.2f} %, {ms(p[2])} ms</title>'
+                        f'</circle>')
+            marks.append((p, x, y))
+        for p, x, y in marks:                     # the label: the first free spot right, left, below or above the dot
+            if p[0] == "SYMBEX" and p not in front:
+                continue                          # selective labels: the front and every INT point (its color alone
+                                                  # is below 3:1); the others are in the table of docs/methodology.md
+            s = f"{p[1]} · {ms(p[2])} ms"
+            w = 6.1 * len(s)                      # about one 11 px character
+            spots = [(0, "start"), (0, "end"), (18, "middle"), (-14, "middle")]
+            spots += [(dy, a) for dy in sorted(range(-60, 61, 12), key=abs) if dy for a in ("start", "end")]
+            for dy, anchor in spots:
+                bx = {"start": x + 9, "end": x - 9 - w, "middle": x - w / 2}[anchor]
+                box = (bx, y + dy - 8, bx + w, y + dy + 4)
+                inside = x0 <= box[0] and box[2] <= x0 + pw
+                if inside and not any(box[0] < b[2] and b[0] < box[2] and box[1] < b[3] and b[1] < box[3]
+                                      for b in boxes):
+                    break
+            boxes.append(box)
+            if abs(dy) > 12 and anchor != "middle":   # a label away from its dot gets a thin leader line
+                ex = box[0] if anchor == "start" else box[2]
+                body.append(f'<line x1="{x:.1f}" y1="{y:.1f}" x2="{ex:.1f}" y2="{y + dy:.1f}" stroke="{th["base"]}" '
+                            f'stroke-width="1"/>')
+            body.append(text(box[0], y + dy + 4, s, th["text"], 11))
+    return svg(width, height, "Accuracy against latency, MLP on the ESP32-S3: SYMBEX vs. INT8 / INT4 / INT2", body)
+
+
+def write(name, content):
+    path = os.path.join(OUT_DIR, name)
+    with open(path, "w") as f:
+        f.write(content)
+    print(f"    -> {os.path.relpath(path, ROOT)}")
+
+
+def main():
+    os.makedirs(OUT_DIR, exist_ok=True)
+    speed, flash = speedup_rows(), flash_rows()
+    print("\n    speed-up (SYMBEX ms / INT8 ms)")
+    for label, s, i, keys in speed:
+        print(f"    {label:<34}{ms(s):>8}{ms(i) if i else 'no fit':>9}  "
+              f"{(f'{i / s:.2f}x') if i else '-':>7}  {', '.join(SOURCES[k] for k in keys)}")
+    print("\n    flash KB (SYMBEX / INT8)")
+    for label, s, i, keys in flash:
+        print(f"    {label:<34}{s:>8.1f}{i:>9.1f}  {i / s:>6.1f}x  {', '.join(SOURCES[k] for k in keys)}")
+    panels = [("ESP32-S3 · weights in flash", pareto_points("flash")), ("ESP32-S3 · weights in RAM", pareto_points("ram"))]
+    ceiling = load("mlp_lowbit")["fp32"]["validation"]
+    for title, pts in panels:
+        print(f"\n    Pareto, MLP, {title} (validation %, ms){'':>4}front: {', '.join(p[0] + ' ' + p[1] if p[0] == 'SYMBEX' else p[1] for p in pareto_front(pts))}")
+        for method, label, t, v, sd, keys in pts:
+            print(f"    {method + ' ' + label if method == 'SYMBEX' else label:<34}{v:>6.2f} +- {sd:.2f}{ms(t):>8}  {', '.join(SOURCES[k] for k in keys)}")
+    print()
+    for mode, th in THEMES.items():
+        suffix = "" if mode == "light" else "_dark"
+        write(f"speedup{suffix}.svg", speedup_svg(speed, th))
+        write(f"flash{suffix}.svg", flash_svg(flash, th))
+        write(f"pareto_mlp{suffix}.svg", pareto_svg(panels, ceiling, th))
+
+
+if __name__ == "__main__":
+    main()

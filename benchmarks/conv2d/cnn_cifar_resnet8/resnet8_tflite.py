@@ -14,7 +14,7 @@ Nobody can say the reference came out weak because of how we trained or converte
   2. finds its input convention: raw pixels 0..255 or pixels / 255 (on 2,000 images, the one that is not chance)
   3. accuracy on the PC with the TFLite interpreter, on the 10,000 test images
   4. with --board: the chip classifies the first --images test images; its predictions must equal the PC interpreter's
-Results: results/tflite_pc.json and results/tflite_<board>[_ram].json.
+Results: results/tflite/tflite_pc.json and results/tflite/tflite_<board>[_ram].json.
 """
 import argparse
 import json
@@ -74,7 +74,7 @@ def main():
     sys.path.insert(0, HERE)
     from model import cifar_u8                                  # CIFAR-10 test images, official order
     os.makedirs("models", exist_ok=True)
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join("results", "tflite"), exist_ok=True)
     os.makedirs(os.path.join("runs", "tflite"), exist_ok=True)
     if not os.path.exists(MODEL):
         print("[*] downloading the official MLPerf Tiny ResNet-8 ...")
@@ -92,7 +92,7 @@ def main():
           f"| input scale {scale:.6g}, zero point {zp}")
     json.dump(dict(model="MLPerf Tiny pretrainedResnet_quant.tflite", url=URL, int8_accuracy=acc, model_kb=len(tflite) / 1024,
                    input="pixels / 255" if divide else "raw pixels", input_scale=scale, input_zero_point=zp),
-              open("results/tflite_pc.json", "w"), indent=1)
+              open("results/tflite/tflite_pc.json", "w"), indent=1)
     if not args.board:
         return
 
@@ -120,7 +120,7 @@ def main():
     print(f"    accuracy                    : {chip_acc:.2f}%")
     print(f"    latency                     : median {np.median(times) / 1000:.2f} ms | min {times.min() / 1000:.2f} ms")
     print(f"    flash (model) / RAM (arena) : {len(tflite) / 1024:.1f} KB / {arena / 1024:.1f} KB")
-    name = f"results/tflite_{args.board}{'_ram' if args.model_ram else ''}.json"
+    name = f"results/tflite/tflite_{args.board}{'_ram' if args.model_ram else ''}.json"
     json.dump(dict(board=args.board, images=n, equal_to_pc=equal, accuracy=chip_acc, latency_ms=float(np.median(times)) / 1000,
                    latency_min_ms=float(times.min()) / 1000, model_kb=len(tflite) / 1024, arena_kb=arena / 1024,
                    model_in_ram=args.model_ram), open(name, "w"), indent=1)

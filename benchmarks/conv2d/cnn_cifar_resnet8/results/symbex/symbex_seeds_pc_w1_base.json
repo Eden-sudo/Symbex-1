@@ -1,0 +1,35 @@
+{
+ "width": 1,
+ "spec": null,
+ "variant": "base",
+ "board": null,
+ "weights": "flash",
+ "popcount": "swar",
+ "engine": "standard",
+ "seeds": [
+  {
+   "seed": 42,
+   "width": 1,
+   "val_accuracy": 71.0,
+   "test_accuracy": 71.84,
+   "flash_kb": 0.0,
+   "exactness": null
+  },
+  {
+   "seed": 43,
+   "width": 1,
+   "val_accuracy": 71.54,
+   "test_accuracy": 71.87,
+   "flash_kb": 0.0,
+   "exactness": null
+  },
+  {
+   "seed": 44,
+   "width": 1,
+   "val_accuracy": 70.96,
+   "test_accuracy": 70.31,
+   "flash_kb": 0.0,
+   "exactness": null
+  }
+ ]
+}
