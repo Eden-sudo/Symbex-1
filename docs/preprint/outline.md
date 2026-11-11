@@ -14,7 +14,7 @@ version (cs.LG, cross-list eess.SP) with the section names in English. About 8 p
 | Title | *SYMBEX-1: exact binary neural networks on commercial microcontrollers, measured against the INT8 toolchain* / *SYMBEX-1: redes neuronales binarias exactas en microcontroladores comerciales, medidas contra la cadena INT8* | candidate; Edén decides |
 | Acronym | SYMBEX-1 = **Sym**bolic **B**it **Ex**pansion, 1-bit engine (the original name). *Symbolic*: Boolean conditions instead of multiplications. *Bit expansion*: inputs and activations expanded into bit planes (thermometer stem, bit-sliced vertical engine). *1*: one bit per weight and activation. | draft; Edén decides whether to keep "expansion" |
 | Authors, affiliation | Carlos Duarte, Obed (Obed0101), Abrahan Aparicio (FOMO). Universidad Latina de Panamá, Licenciatura en Mecatrónica. | order and contribution lines: Edén decides |
-| Abstract (Spanish and English) | What: an end-to-end chain for binary networks, exact on the chip. How: trained, folded to integers, compiled to C, measured on three commercial chips against TensorFlow Lite Micro INT8, same network, 3 seeds, test once. Result: speed-up 2-28x without SIMD, 1.0-5.4x with SIMD; accuracy cost 0 to 16 points by task; 4-8x less flash. Conclusion: where binary pays and where INT8 stays. | written last, from the body |
+| Abstract (Spanish and English) | What: an end-to-end chain for binary networks, exact on the chip. How: trained, folded to integers, compiled to C, measured on three commercial chips against TensorFlow Lite Micro INT8, same network, 3 seeds, test once. Result: without SIMD (ESP32, Hazard3) whole networks 5-13x faster than INT8; with SIMD (S3, M33) 1.0-2x on the convolutional networks and up to 28x when the INT8 weights are read from flash (MLP, S3); accuracy cost 0 to 23 points by task; 3-10x less flash. Conclusion: where binary pays and where INT8 stays. | written last, from the body |
 | Keywords (Spanish and English) | redes neuronales binarias, microcontroladores, cuantización, TinyML, inferencia en el borde / binary neural networks, microcontrollers, quantization, TinyML, edge inference | draft |
 
 ## 1. Introducción / Introduction (what was done, how, why)
@@ -36,7 +36,7 @@ path", never as "the first" (eBNN, 2017, had an open Chainer -> C -> Arduino 101
 | Claim (the loop) | Source |
 |---|---|
 | One configuration file re-creates a run; stages can start or stop anywhere (`--from`, `--to`) | docs/en/cdt.md |
-| Every export is checked against the simulation on the PC and on the chip, automatically | docs/en/how-it-works.md section 6; every chip JSON |
+| Every export is checked against the simulation on the PC; on the chip when a board is configured and the run reaches the chip stage (every chip result in this paper did) | docs/en/how-it-works.md section 6; tools/cdt.py main(); every chip JSON |
 | Iteration time: ResNet-8 training in minutes on one GPU (data on GPU + CUDA graphs); export + validate in seconds | docs/en/cdt.md, tools/README.md: ResNet-8 150 epochs in 3.0 min (8.6 without data on GPU + CUDA graphs), same accuracy and exactness |
 | What the loop produced: engines (standard, vertical), stem / shortcut / head variants, training-gap study, ECG recipe by CV | the benchmark and experiment READMEs |
 
@@ -102,7 +102,7 @@ Obed's PR #36 (`docs/related-research`) lists eBNN, ultracompactBNN, Daghero 202
 |---|---|
 | Boards: ESP32 (Xtensa LX6, no SIMD), ESP32-S3 (LX7, PIE), Raspberry Pi Pico 2 (RP2350: Cortex-M33 + Hazard3) | docs/en/methodology.md |
 | Baselines: TFLite Micro INT8 with ESP-NN (ESP32, S3) and CMSIS-NN (M33), reference kernels (Hazard3); ESP-DL quick check on the S3; ultracompactBNN on GVSoC | `results/tflite/*.json` per benchmark; README "What we measured" |
-| Recipe: same architecture, same epochs / seeds 42 43 44 / split, validation carved from training, test once; mean +- sd | docs/en/methodology.md; `symbex_seeds_*.json` |
+| Recipe: same architecture, same epochs / seeds 42 43 44 / split, validation carved from training, test once; mean +- sd. **Exceptions to write down:** FOMO INT8 trained with the FP32 recipe (person weight 20, 60 epochs) vs binary weight 40, 100 epochs (matching budget = future work, README); FOMO published results calibrated on the previous split; ResNet-8 sizing variants (16-32-128 etc.) ranked on one seed; FP32 sha256 not yet in every result file | docs/en/methodology.md; fomo README 22, 88-94, 153; resnet8 README 112-114; `symbex_seeds_*.json` |
 | Low-bit baselines INT4 / INT2 / ternary: our own code (`tools/lowbit`), exploratory, not an official toolchain | `benchmarks/mlp/mlp_fashion/results/lowbit/*.json` |
 
 ## 3. Resultados y discusión / Results and discussion
@@ -146,8 +146,8 @@ Accuracy-cost table for the paper (one row per benchmark, from the files above):
 | Claim | Backed by |
 |---|---|
 | An open chain can deliver binary networks that are exact on commercial chips of three ISAs | every chip JSON (`exact` 100 %) |
-| Binary pays most without SIMD (5-28x); with SIMD a dedicated engine is needed to beat the vendor's INT8 | section 3.1, 3.2 |
-| The accuracy cost is the task's: 0 (detection, ECG) to 16 points (fine-grained images) | accuracy-cost table |
+| Binary pays most without SIMD (5-13x on whole networks); with SIMD the standard engine wins 1.0-2x on convolutional networks (28x on the MLP only because INT8 reads its weights from flash) and beating the vendor's INT8 library took the vertical engine | section 3.1, 3.2 |
+| The accuracy cost is the task's: 0 (detection, ECG), 2 (MLP), 10-16 (CIFAR-10), 9-23 (HAR, worst on the smallest network) | accuracy-cost table |
 | Future work: energy, keyword spotting (1D + energy), more chips, the vertical engine in 1D | CLAUDE-level plan; not claims |
 
 ## 5. Referencias / References

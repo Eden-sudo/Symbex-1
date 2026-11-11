@@ -42,7 +42,8 @@ times faster than INT8 with 3 to 10 times less flash. Where the chip has an int8
 by 1.0 to 2 times on the convolutional networks (28 times on the dense network with its weights in flash, where INT8
 pays for every byte read), and beating the vendor's own INT8 library took a second engine that counts 128 windows at once.
 The accuracy cost is the task's, not the method's: none on person detection and on the ECG, two points on
-Fashion-MNIST, ten points on CIFAR-10, where a study shows the binary network loses by capacity, not by training.
+Fashion-MNIST, ten points on CIFAR-10, where a study shows the binary network loses by capacity, not by training,
+and 9 to 23 points on activity recognition, worst on the smallest network.
 An 8-bit first layer and a pooled 8-bit classifier recover part of it at a small cost. `[every number in this paragraph
 is copied from the results tables of section 3; re-read them in the final pass]`
 
@@ -124,7 +125,10 @@ raw = *n* − 2·(popcount(*x*) + popcount(*w*)) + 4·popcount(*x* ∧ *w*); pop
 trained network applies in floating point are folded into one integer threshold *T* per output: the layer emits bit 1
 when raw ≥ *T* and 0 otherwise. During training the layer computes BatchNorm and then the sign, bit = [γ·(raw − μ)/σ + β ≥ 0], where μ and σ are
 the running mean and standard deviation of raw and γ and β are the learned scale and bias. For γ > 0 this is
-raw ≥ μ − βσ/γ, and since raw is an integer the threshold is *T* = ⌈μ − βσ/γ⌉; when γ < 0 the exporter negates that output's weight row so that the C always evaluates the same comparison.
+raw ≥ μ − βσ/γ, and since raw is an integer the threshold is *T* = ⌈μ − βσ/γ⌉; when γ < 0 the inequality flips to raw ≤ μ − βσ/γ, and the
+exporter negates that output's weight row (which negates raw) and uses *T* = ⌈−(μ − βσ/γ)⌉, so the C always
+evaluates the same comparison; when γ = 0 the output is constant and the threshold is set to the smallest or the
+largest integer according to the sign of β.
 Because raw is an integer and the threshold is rounded up, the folded layer gives the same bit as the floating-point
 layer for every possible input: it is not an approximation. Dense networks fold more into the same threshold (weight
 scale, bias, input normalization).
@@ -222,13 +226,19 @@ network trained with the same recipe; a network resized for binary is compared w
 binarization imposes is the only difference: the thermometer input, OR shortcuts and OR pooling instead of sums and
 maxima, bits instead of bytes.
 
-**Recipe.** One FP32 starting model per seed, shared by every method, its sha256 recorded. The same epochs,
-optimizer, seeds (42, 43, 44) and data split for every method. A validation split is carved out of the training data
-and every choice (checkpoint, threshold, variant, shape, recipe) is made on it; **the test set is used once**, on the
-final models, and each README says when. ECG chose its recipe by 4-fold patient-wise cross-validation inside the
-training set. Results are means ± standard deviation over the three seeds; a single seed is called a ranking, not a
-result; differences smaller than the standard deviations are called a tie. Figures that are not measured are called
-estimates and say where they come from.
+**Recipe.** The standard is: one FP32 starting model per seed, shared by every method, its sha256 recorded; the
+same epochs, optimizer, seeds (42, 43, 44) and data split for every method; a validation split carved out of the
+training data where every choice (checkpoint, threshold, variant, shape, recipe) is made; **the test set used once**,
+on the final models, with each README saying when. ECG chose its recipe by 4-fold patient-wise cross-validation
+inside the training set. Results are means ± standard deviation over the three seeds; a single seed is called a
+ranking, not a result; differences smaller than the standard deviations are called a tie. Figures that are not
+measured are called estimates and say where they come from.
+
+Not every published measurement meets the standard yet, and section 3 says so where it applies: the INT8 FOMO
+detector was trained with the floating-point recipe (person weight 20, 60 epochs, where it had plateaued) while the
+binary one used weight 40 and 100 epochs, and its published detection thresholds were calibrated on an earlier split;
+the ResNet-8 shapes sized for binary were ranked on one seed; the sha256 of the FP32 model is not yet in every result
+file. Where a result predates the standard, the paper labels it a ranking or an exception rather than a result.
 
 **Repeating a benchmark.** Every benchmark has the same scripts (`<bench>_symbex.py`, `<bench>_tflite.py`,
 `<bench>_lowbit.py`) and the same folders (`runs/`, `results/symbex/`, `results/tflite/`, `results/lowbit/`); the
