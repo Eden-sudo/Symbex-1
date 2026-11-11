@@ -4,12 +4,20 @@ Working outline. Every claim lists the file that backs it (`results/` JSON, a RE
 no source does not go into the paper. Numbers are copied from the JSON at writing time, never from memory; the final
 pass re-reads every file (`tools/dev/docs_charts.py` and the bench-checker do the same).
 
-Target: arXiv (cs.LG, cross-list eess.SP), about 8 pages + appendix. Working title candidates:
+Structure: the one Edén's professor asked for (front matter + 5 body sections). The same text serves the arXiv
+version (cs.LG, cross-list eess.SP) with the section names in English. About 8 pages + appendix.
 
-- *SYMBEX-1: exact binary neural networks on commercial microcontrollers, measured against the INT8 toolchain*
-- *One bit, exactly: an end-to-end chain for binary networks on microcontrollers*
+## Front matter
 
-## 1. Introduction
+| Item | Content | Status |
+|---|---|---|
+| Title | *SYMBEX-1: exact binary neural networks on commercial microcontrollers, measured against the INT8 toolchain* / *SYMBEX-1: redes neuronales binarias exactas en microcontroladores comerciales, medidas contra la cadena INT8* | candidate; Edén decides |
+| Acronym | What SYMBEX stands for, one line under the title | **Edén writes it** (not in the repository) |
+| Authors, affiliation | Carlos Duarte (Edén), Obed (Obed0101); university and course | **Edén fills in** |
+| Abstract (Spanish and English) | What: an end-to-end chain for binary networks, exact on the chip. How: trained, folded to integers, compiled to C, measured on three commercial chips against TensorFlow Lite Micro INT8, same network, 3 seeds, test once. Result: speed-up 2-28x without SIMD, 1.0-5.4x with SIMD; accuracy cost 0 to 16 points by task; 4-8x less flash. Conclusion: where binary pays and where INT8 stays. | written last, from the body |
+| Keywords (Spanish and English) | redes neuronales binarias, microcontroladores, cuantización, TinyML, inferencia en el borde / binary neural networks, microcontrollers, quantization, TinyML, edge inference | draft |
+
+## 1. Introducción / Introduction (what was done, how, why)
 
 | Claim | Source |
 |---|---|
@@ -20,7 +28,7 @@ Target: arXiv (cs.LG, cross-list eess.SP), about 8 pages + appendix. Working tit
 | Contribution 3: where binary pays and where it does not: accuracy cost 0 to >10 points by task; speed-up largest without SIMD | README "Every benchmark, side by side", section 5 below |
 | Contribution 4: the binary ResNet-8 loses by capacity, not training (study) | `benchmarks/experiments/training_gap/README.md`, `results/train_gap/*.json` |
 
-## 2. Related work (two lines, honest)
+### 1.1 Related work (two lines, honest)
 
 Verified Nov 10 (arXiv pages, repositories). Read the PDFs before writing the paragraph; the "exact C = simulation"
 and "vs INT8" columns are **to confirm from the PDFs**, absence in an abstract is not proof.
@@ -45,7 +53,9 @@ closest ancestor (open chain, MNIST, one chip, no INT8 baseline); CBin-NN the cl
 Obed's PR #36 (`docs/related-research`) lists eBNN, ultracompactBNN, Daghero 2022 (arXiv 2209.00839), the BNN survey
 (arXiv 2004.03333) and daBNN: reuse those links.
 
-## 3. Method
+## 2. Materiales y métodos / Materials and methods
+
+### 2.1 Method: the chain
 
 | Claim | Source |
 |---|---|
@@ -56,7 +66,7 @@ Obed's PR #36 (`docs/related-research`) lists eBNN, ultracompactBNN, Daghero 202
 | Compiler (CDT): config, search of widths and bits, training (Bop option), folding, export, validate, chip | docs/en/cdt.md |
 | Exactness check: fidelity (PyTorch vs integer simulation) and exactness (C vs simulation, PC and chip) | docs/en/methodology.md |
 
-## 4. Experimental setup
+### 2.2 Materials: boards, baselines, recipe
 
 | Item | Source |
 |---|---|
@@ -65,7 +75,9 @@ Obed's PR #36 (`docs/related-research`) lists eBNN, ultracompactBNN, Daghero 202
 | Recipe: same architecture, same epochs / seeds 42 43 44 / split, validation carved from training, test once; mean +- sd | docs/en/methodology.md; `symbex_seeds_*.json` |
 | Low-bit baselines INT4 / INT2 / ternary: our own code (`tools/lowbit`), exploratory, not an official toolchain | `benchmarks/mlp/mlp_fashion/results/lowbit/*.json` |
 
-## 5. Results (one subsection per benchmark)
+## 3. Resultados y discusión / Results and discussion
+
+### 3.1 Results (one subsection per benchmark)
 
 | Benchmark | Accuracy binary / INT8 | Speed, memory | Source files |
 |---|---|---|---|
@@ -80,7 +92,7 @@ Obed's PR #36 (`docs/related-research`) lists eBNN, ultracompactBNN, Daghero 202
 Accuracy-cost table for the paper (one row per benchmark, from the files above): 0 (FOMO, ECG), 2 (MLP), 9-23 (HAR),
 10-16 (ResNet-8).
 
-## 6. Analysis
+### 3.2 Discussion: where binary pays and why it loses
 
 | Claim | Source |
 |---|---|
@@ -90,7 +102,7 @@ Accuracy-cost table for the paper (one row per benchmark, from the files above):
 | An 8-bit input deserves an int8 first layer (accuracy, and speed with SIMD): stem alone S3 1.79x, Hazard3 0.62x | `benchmarks/experiments/chip_kernels/` (int8_first_bench), cnn_cifar_resnet8 README |
 | Per-layer cost: the int8 stem dominates on the Pico | `symbex_seeds_pico2_*_int8stem_pool2*.json` (per-layer fields) |
 
-## 7. Limitations (written, not hidden)
+### 3.3 Limitations (written, not hidden)
 
 - Fine-grained classification stays 10-16 points behind INT8 (CIFAR-10); HAR up to 23 on the smallest network.
 - ESP-DL beats the vertical engine with the weights in RAM on the S3 (quick check, Nov 2, not 3 seeds).
@@ -99,7 +111,22 @@ Accuracy-cost table for the paper (one row per benchmark, from the files above):
 - ECG: inter-patient accuracy limited by the data (few patients per rare class); not a clinical result.
 - Binary RNN probe (local, not in the repo): fragile to state flips; a "limits" paragraph at most.
 
-## 8. Reproducibility
+## 4. Conclusiones / Conclusions
+
+| Claim | Backed by |
+|---|---|
+| An open chain can deliver binary networks that are exact on commercial chips of three ISAs | every chip JSON (`exact` 100 %) |
+| Binary pays most without SIMD (5-28x); with SIMD a dedicated engine is needed to beat the vendor's INT8 | section 3.1, 3.2 |
+| The accuracy cost is the task's: 0 (detection, ECG) to 16 points (fine-grained images) | accuracy-cost table |
+| Future work: energy, keyword spotting (1D + energy), more chips, the vertical engine in 1D | CLAUDE-level plan; not claims |
+
+## 5. Referencias / References
+
+Every work in section 1.1, with DOI or arXiv id, plus TensorFlow Lite Micro, ESP-NN, CMSIS-NN, ESP-DL, MLPerf Tiny,
+the datasets (CIFAR-10, Fashion-MNIST, PASCAL VOC, UniMiB-SHAR, MIT-BIH) and the training-method papers. BibTeX file:
+`docs/preprint/references.bib` (to create).
+
+## Appendix: reproducibility
 
 - Repository, one script per benchmark (`*_symbex.py`, `*_tflite.py`), `tools/chip_test.py`, Docker image for GVSoC.
 - Every result JSON in `benchmarks/*/results/`; `tools/dev/docs_charts.py` draws the figures from them.
