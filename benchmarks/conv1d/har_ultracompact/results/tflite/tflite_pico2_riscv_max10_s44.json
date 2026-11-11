@@ -1,0 +1,12 @@
+{
+ "arch": "max10",
+ "seed": 44,
+ "board": "pico2_riscv",
+ "weights": "flash",
+ "windows": 1000,
+ "equal_to_pc": 100.0,
+ "median_ms": 225.716,
+ "min_ms": 225.603,
+ "model_kb": 20.6015625,
+ "arena_kb": 7.18359375
+}

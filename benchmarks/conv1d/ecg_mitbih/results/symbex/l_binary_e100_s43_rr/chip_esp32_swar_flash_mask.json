@@ -1,0 +1,42 @@
+{
+ "board": "esp32",
+ "hal": "generic: SWAR fallback in software",
+ "popcount": "swar",
+ "weights": "flash",
+ "first_layer": "mask",
+ "n": 1000,
+ "equal_simulation": 100.0,
+ "accuracy": 73.5,
+ "median_ms": 30.556,
+ "min_ms": 30.543,
+ "layers": [
+  {
+   "step": "conv 4->32 k9 L256 (uint8 input)",
+   "median_ms": 8.987
+  },
+  {
+   "step": "conv 32->64 k9 L248 + OR pool 4",
+   "median_ms": 15.453
+  },
+  {
+   "step": "conv 64->64 k9 L60 + OR pool 4",
+   "median_ms": 6.089
+  },
+  {
+   "step": "classifier",
+   "median_ms": 0.028
+  }
+ ],
+ "ram": {
+  "buffers": 3704,
+  "input_bytes": 1024,
+  "popcount_table": 0,
+  "stack_used": 504,
+  "weights_in_ram": 0,
+  "code_in_ram": 0,
+  "total": 5232
+ },
+ "model_flash": 10352,
+ "code": "flash",
+ "flash_config": "default"
+}

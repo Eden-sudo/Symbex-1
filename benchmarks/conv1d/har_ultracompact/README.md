@@ -22,7 +22,8 @@ The README follows the order of the work:
   own trained network** too (same int8 first layer, same weights, same accuracy): **1.06-1.37×**. Every output is exact:
   equal to the integer simulation, window by window.
 - **Against INT8 on real boards** (TFLite Micro, the same architectures, weights in flash), all binary: SYMBEX is
-  **5.3-10.4× faster** on the ESP32 and **1.47-1.90× faster** on the ESP32-S3. It takes **2-10× less RAM** and
+  **5.3-10.4× faster** on the ESP32, **1.47-1.90× faster** on the ESP32-S3 and **3.3-7.9× faster** on the Pico 2's
+  Cortex-M33 (TFLite with CMSIS-NN). It takes **2-10× less RAM** and
   **6.5-10× less flash**. INT8 is more accurate on these small networks: about 9 points on the large ones, 23 on the
   smallest.
 - **Where fully binary stops paying: a working theory.** Binary network work usually keeps the first layer in higher
@@ -120,12 +121,19 @@ first-layer weights stored as +1 / −1 bytes and run by the int8 kernel, `har_e
 | max-5% | 4.87 | **3.76** | 7.14 | **1.90×** |
 | max | 4.83 | **3.83** | 7.11 | **1.85×** |
 
-| Network | Pico 2 Hazard3: bits | ±1 bytes | Pico 2 M33: bits | ±1 bytes |
+| Network | Pico 2 M33: bits | ±1 bytes | TFLite INT8 (CMSIS-NN) | SYMBEX vs TFLite |
 |---|---|---|---|---|
-| min | 1.31 | **0.57** | 1.22 | **0.82** |
-| max-10% | 3.59 | **2.56** | 4.09 | **3.64** |
-| max-5% | 8.26 | **5.99** | 10.48 | **9.89** |
-| max | 10.67 | **8.59** | **11.72** | 11.79 |
+| min | 1.22 | **0.82** | 2.71 | **3.3×** |
+| max-10% | 4.09 | **3.64** | 12.00 | **3.3×** |
+| max-5% | 10.48 | **9.89** | 78.04 | **7.9×** |
+| max | **11.72** | 11.79 | 77.70 | **6.6×** |
+
+| Network | Pico 2 Hazard3: bits | ±1 bytes | TFLite INT8 (reference kernels) |
+|---|---|---|---|
+| min | 1.31 | **0.57** | 17.29 |
+| max-10% | 3.59 | **2.56** | 225.72 |
+| max-5% | 8.26 | **5.99** | 1159.86 |
+| max | 10.67 | **8.59** | 1133.74 |
 
 Every run in these tables is 100 % equal to the simulation; the spread between the 3 seeds is at most 0.03 ms (on the
 S3 at most 0.004 ms). The ESP32's bits columns were measured again on Nov 7, after a faster method for short
@@ -135,7 +143,14 @@ first layers (`symbex_swar_u8_masked_sum` counts the last partial word 4 inputs 
 
 SYMBEX counting modes: `swar` on the ESP32 and the ESP32-S3 (no lookup table: 1.3-2.8 KB of RAM; `lut16` is up to 8 %
 faster on the ESP32, for 64 KB more, and gives the same speed on the S3), native `cpop` on the Hazard3, `lut16` on the M33 (`swar`:
-1.25 / 4.92 / 14.49 / 15.49 ms all binary with bits, 2.2-3.4 KB of RAM instead of 67 KB). TFLite Micro on the Pico 2 is future work.
+1.25 / 4.92 / 14.49 / 15.49 ms all binary with bits, 2.2-3.4 KB of RAM instead of 67 KB).
+
+TFLite Micro on the Pico 2 (`har_tflite.py --board pico2_arm | pico2_riscv`, TFLite Micro at a pinned commit, 1,000
+validation windows, 3 seeds, the spread at most 0.01 ms): every run gives 100 % the same class as the PC interpreter.
+On the M33 TFLite runs CMSIS-NN, its optimized kernels for that core: the fair comparison, SYMBEX **3.3-7.9×
+faster**. On the Hazard3 TFLite has only its plain reference kernels (no optimized kernels exist for that core), so
+its 30-194× gap is a reference, not a like-for-like comparison. TFLite's flash / arena on the Pico 2: 7.3 / 2.8 KB
+(min), 20.5 / 7.4 KB (max-10%), 41.8 / 12.7 KB (max-5%), 42.5 / 12.2 KB (max), M33.
 
 ### Latency, weights in RAM (median, ms)
 
@@ -339,7 +354,7 @@ SYMBEX takes any count.
 | `har_export.py` | integers, simulation, `model_symbex.h`, the C check on the PC (EXACTNESS 100 %); `--first-bytes`: the 1-bit first layer as ±1 bytes, in `runs/<run>_bytes/` |
 | `har_gvsoc.py` | the whole networks through both libraries: `--pc` (gcc, exactness) or GVSoC (instructions, cycles per layer) |
 | `pulp/symbex_u8_pulp.c` | SYMBEX's first layer for PULP (`p.sdotusp4`), 1-bit or int8 weights |
-| `har_tflite.py` | the same architectures in Keras → INT8 → TFLite Micro on the ESP32 / ESP32-S3 (`--weights ram`) |
+| `har_tflite.py` | the same architectures in Keras → INT8 → TFLite Micro on the ESP32 / ESP32-S3 (`--weights ram`) and the Pico 2 (`--board pico2_arm`, `pico2_riscv`) |
 | `har_lowbit.py` | INT8 / INT4 / INT2 baselines with `tools/lowbit`, from the same float networks |
 | `ucbnn_check.py`, `ucbnn_gvsoc.py` | the single-layer checks and measurements (section "Earlier") |
 | `pulp/Dockerfile` | PULP GCC, PULP SDK and GVSoC (pulp-open) on Ubuntu 22.04 |
@@ -401,5 +416,4 @@ Results: `results/symbex/` (SYMBEX on GVSoC, accuracy), `results/ucbnn/` (ultrac
 6. **Early exit in the OR pool, per channel:** measured on the PC, half of the steps of the first binary layer can be
    skipped (a channel that already gave 1 in its pool window); it trades against the 4-channel blocks, to be measured.
 7. **The binary layers on chips without a native bit count** (ESP32, S3, M33): the blocked kernels of the RI5CY.
-8. **TFLite Micro on the Pico 2** (CMSIS-NN on the M33), and the rest of the ESP32 grid (`swar` with the weights in
-   RAM), energy per inference (INA226).
+8. The rest of the ESP32 grid (`swar` with the weights in RAM), energy per inference (INA226).

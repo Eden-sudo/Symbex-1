@@ -6,6 +6,8 @@ in INT8 with TensorFlow Lite, the way anyone deploys a network on a microcontrol
     python har_tflite.py --all                                               # 4 architectures x seeds 42, 43, 44
     python har_tflite.py --arch max --seed 42 --board esp32 --port /dev/ttyUSB0          # ... and TFLite Micro on the board
     python har_tflite.py --arch max --seed 42 --board s3 --port /dev/ttyACM0 --usb
+    python har_tflite.py --arch max --seed 42 --board pico2_arm --port /dev/ttyACM1      # Pico 2 M33 (CMSIS-NN)
+    python har_tflite.py --arch max --seed 42 --board pico2_riscv --port /dev/ttyACM1    # Pico 2 Hazard3 (reference)
 
 Run from benchmarks/conv1d/har_ultracompact/ with the benchmark environment (env_bench: TensorFlow), after
 har_data.py. The network is the float version of model.BinaryHAR, written directly in Keras: every conv (no padding,
@@ -15,7 +17,9 @@ epochs, batches of 128, cross-entropy, no augmentation, the checkpoint of the be
 are scored once. Then:
     INT8    full-integer post-training quantization (TFLiteConverter, 500 representative training windows)
     PC      the TFLite interpreter on the validation and test windows (inputs quantized as on the chip)
-    board   TensorFlow Lite Micro (esp-tflite-micro, ESP-NN; the firmware of mlp_fashion/fashion_tflite.py) on the first
+    board   TensorFlow Lite Micro (the firmware of mlp_fashion/fashion_tflite.py: esp-tflite-micro with ESP-NN on the
+            ESP32 / S3; on the Pico 2 TFLite Micro at a pinned commit, CMSIS-NN on the M33, reference kernels on
+            Hazard3) on the first
             --windows validation windows: latency, arena, and the same class as the PC interpreter, window by window
             (the same windows chip_test.py sends to the SYMBEX network)
 Results: models/har_int8_<arch>_s<seed>.tflite (+ .weights.h5, the float Keras weights), results/tflite/tflite_pc_<arch>_s<seed>.json,
@@ -151,20 +155,16 @@ def run_pc(arch, seed, epochs, lr, tf):
     return tflite, res
 
 
-def run_board(args, tflite, ops):
+def measure_board(args, tflite, ops, x_u8, classes, project):
+    """TFLite Micro on args.board (the firmware of mlp_fashion/fashion_tflite.py, its resolver set to `ops` and its
+    input table to input_table()): (classes on the chip, times in us, arena bytes). Also used by
+    benchmarks/conv1d/ecg_mitbih/ecg_tflite.py."""
     from fashion_tflite import measure_chip, tflm_project
-    name = f"{args.arch}_s{args.seed}"
-    x, _ = load("validation")
-    n = min(args.windows, len(x))
-    x_u8 = (x[:n].astype(np.int16) + 128).astype(np.uint8).reshape(n, -1)
-    pc_pred, _ = predict_tflite(tflite, x_u8)
-    ram = "_ram" if args.weights == "ram" else ""
-    project = os.path.join("runs", "tflite", f"tflm_{args.board}_{name}{ram}")
     if not args.no_upload:
         missing = [o for o in ops if o not in TFLM_OPS]
         if missing:
             sys.exit(f"[X] ops without a TFLite Micro resolver call in TFLM_OPS: {missing}")
-        tflm_project(project, tflite, args.board, args.port, args.baud, args.arena_kb, LENGTH * AXES, CLASSES,
+        tflm_project(project, tflite, args.board, args.port, args.baud, args.arena_kb, x_u8.shape[1], classes,
                      args.weights == "ram", args.usb)
         main_cc = os.path.join(project, "src", "main.cc")
         src = open(main_cc).read()
@@ -177,7 +177,18 @@ def run_board(args, tflite, ops):
                           + " ".join(f"ops.{TFLM_OPS[o]}();" for o in ops))
         src = src.replace(old_in, "roundf(((p - 128) / 127.0f) / inp->params.scale)")   # = input_table()
         open(main_cc, "w").write(src)
-    chip, times, arena = measure_chip(project, args.board, args.port, args.baud, x_u8, not args.no_upload, args.usb)
+    return measure_chip(project, args.board, args.port, args.baud, x_u8, not args.no_upload, args.usb)
+
+
+def run_board(args, tflite, ops):
+    name = f"{args.arch}_s{args.seed}"
+    x, _ = load("validation")
+    n = min(args.windows, len(x))
+    x_u8 = (x[:n].astype(np.int16) + 128).astype(np.uint8).reshape(n, -1)
+    pc_pred, _ = predict_tflite(tflite, x_u8)
+    ram = "_ram" if args.weights == "ram" else ""
+    project = os.path.join("runs", "tflite", f"tflm_{args.board}_{name}{ram}")
+    chip, times, arena = measure_board(args, tflite, ops, x_u8, CLASSES, project)
     equal = 100 * float((chip == pc_pred).mean())
     print(f"\n    {name} INT8, TensorFlow Lite Micro on {args.board} ({n} validation windows, model in {args.weights})")
     print(f"    same class as the PC interpreter : {equal:.2f}%" + ("" if equal == 100 else "  [X]"))
@@ -197,7 +208,7 @@ def main():
     ap.add_argument("--all", action="store_true", help="every architecture x seeds 42, 43, 44 (PC only)")
     ap.add_argument("--epochs", type=int, default=100)
     ap.add_argument("--lr", type=float, default=5e-3)
-    ap.add_argument("--board", choices=["esp32", "s3"])
+    ap.add_argument("--board", choices=["esp32", "s3", "pico2_arm", "pico2_riscv"])
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--baud", type=int, default=921600)
     ap.add_argument("--usb", action="store_true", help="the ESP32-S3's native USB port (/dev/ttyACM0)")
