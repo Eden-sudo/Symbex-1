@@ -1,12 +1,27 @@
 # SYMBEX-1 roadmap
 
-The one roadmap for the team. Every agent reads it at the start of a session and updates it in the same pull request
-as the work that changes it (`.claude/skills/symbex-sync/SKILL.md`). Day-to-day progress goes to the **Team sync**
-issue, not here.
+The one roadmap for the team. Every agent reads it at the start of a session **and before opening or reviewing any
+pull request**, and updates it in the same pull request as the work that changes it
+(`.claude/skills/symbex-sync/SKILL.md`). The entry point for agents is [AGENTS.md](../AGENTS.md); the shared project
+memory is in [`.agents/memory/`](../.agents/memory/); what each merged pull request did is in
+[UPDATES.md](../UPDATES.md). Day-to-day progress goes to the **Team sync** issue, not here.
 
 State: **done** (merged), **open** (pull request open), **next** (agreed, not started), **proposed** (an idea that
-still needs the owner's agreement). FOMO and hardware policy updated 2026-10-30; other track states retain their
-2026-10-28 snapshot unless noted.
+still needs the owner's agreement). FOMO and hardware policy updated 2026-10-30; the three goals added 2026-11-10;
+other track states retain their 2026-10-28 snapshot unless noted.
+
+## The three main goals
+
+From the most mature to the most open. Each goal has its owners, who review changes in their area; anyone can
+contribute to any of them.
+
+| Goal | Owners | What it means |
+|---|---|---|
+| **An easy framework** | Eden, Obed | A PlatformIO library in which going from a trained model to a board (ESP32, Arduino-class boards, RP2350) takes a few steps, for dense networks, CNNs, FOMO and language models. |
+| **Vision with FOMO** | Abrahan | From person detection to more classes, and a camera on the board running the detector end to end. |
+| **Language models on microcontrollers** (research) | Obed, Eden | Whether a 1-bit model, with the bit-counting engine and weights read from flash or microSD only when needed, can follow short instructions reliably on one chip. The open question is quality, not the parameter count: small language models already run on the ESP32 family ([prior work](../.agents/memory/llm-research.md)). |
+
+The tracks below list the concrete items of each goal.
 
 ## Shared target and active classic ESP32 target
 
@@ -23,7 +38,18 @@ Both targets remain active, as confirmed by Obed on 2026-10-30:
 Label each result by board, owner, commit, environment and raw log. Existing classic results are not future S3
 measurements; request S3 FOMO numbers separately rather than replacing or relabelling classic experiments.
 
-## LLM on the chip (Obed)
+## Easy framework (Eden, Obed)
+
+| Item | State | Where |
+|---|---|---|
+| Engine bit-exact on the ESP32, ESP32-S3 and Pico 2 (both cores); the CDT trains, folds, exports and validates | done | `Symbex1_PIO/lib/lib_symbex`, `tools/cdt.py` |
+| The arithmetic of the first layer chosen per chip (bits or bytes), from measurements, by the CDT | next | `README.md`, "Current state and next steps" |
+| `lib_symbex` as an installable PlatformIO library (`library.json`, one example per board); today it is a folder inside `Symbex1_PIO/` and `platformio.ini` has only the S3 environment | proposed | `Symbex1_PIO/` |
+| One command from a trained model to a flashed, checked board, for every network type of the other goals | proposed | `tools/cdt.py`, `tools/chip_test.py` |
+
+## LLM on the chip (Obed, Eden)
+
+Prior work by others and the facts already checked are in [`.agents/memory/llm-research.md`](../.agents/memory/llm-research.md).
 
 | Item | State | Where |
 |---|---|---|
@@ -54,6 +80,8 @@ measurements; request S3 FOMO numbers separately rather than replacing or relabe
 | Classic ESP32 without PSRAM: lut16 weights in RAM and swar over seeds 42/43/44, plus flash/RAM captures per step | open (verified 2026-10-30) | PR #15, head `b8ed19e`; measurements reported by Abrahan on his ESP32-D0WD-V3, previous validation split |
 | Re-measure the published results with the new validation split on Abrahan's classic ESP32 (previous results used the old split) | next | `fomo_voc_person/README.md` |
 | Measure FOMO on the shared S3, with board-labelled results separate from the classic measurements | next, board request required | Request Eden's approved board turn; skill section 2 |
+| More than two classes: data loader, class weights and one threshold per class (today person / background only) | proposed | `fomo_data.py`, `fomo_train.py`, `fomo_export.py`; gaps in [`.agents/memory/fomo.md`](../.agents/memory/fomo.md) |
+| A camera on the board feeding the detector end to end (today images arrive over serial from the PC) | proposed | `Symbex1_PIO/src/main.cpp`, `tools/compiler_core/chip/measure.py` |
 
 Coordination evidence: [Abrahan reported](https://github.com/Eden-sudo/Symbex-1/pull/12#issuecomment-6526390086)
 running the original skill steps 1.2 and 1.3 read-only on Linux/zsh: Team sync resolved to #13 and mention discovery
