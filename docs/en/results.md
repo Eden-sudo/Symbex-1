@@ -52,13 +52,19 @@ on every row but one.
 | FOMO person detection (32-32-128) | ESP32 | flash | 226.3 ms / does not fit | **only SYMBEX runs** | 41.2 / 236.1 KB | 142.8 KB ¹ / does not fit |
 | Activity recognition (1D), 4 networks | ESP32-S3 | flash | 0.49-3.83 / 0.72-7.11 ms | **1.47-1.90×** | 0.7-6.5 / 7.3-42.5 KB | 1.3-2.7 / 2.7-25.5 KB |
 | Activity recognition (1D), 4 networks | ESP32 | flash | 0.78-12.78 / 4.17-115.62 ms | **5.3-10.4×** | 0.7-6.5 / 7.3-42.5 KB | 1.3-2.7 / 2.7-10.3 KB |
+| ECG beats (1D), 3 networks | ESP32-S3 | flash | 3.03-13.55 / 3.14-21.59 ms | **1.04-1.59×** | 1.3-10.1 / 11.4-68.6 KB | 3.6-5.4 / 8.7-45.9 KB |
+| ECG beats (1D), 3 networks | ESP32 | flash | 5.47-30.55 / 32.95-408.46 ms | **6.0-13.4×** | 1.3-10.1 / 11.4-68.6 KB | 3.3-5.1 / 7.3-25.3 KB |
+| ECG beats (1D), 3 networks | Pico 2, Cortex-M33 (CMSIS-NN) | flash ³ | 5.70-29.60 / 11.66-89.52 ms | **2.0-3.0×** | 1.3-10.1 / 11.4-68.6 KB | see the benchmark |
 
 - **Flash** is the whole model: weights, thresholds and scales for SYMBEX, the `.tflite` file for INT8.
 - **RAM** is what the model uses while it runs. For SYMBEX, that is the buffers, the input and the stack, measured on
   the chip. For INT8, it is TFLite Micro's arena, which also holds the input.
 - ¹ On the classic ESP32, SYMBEX counts bits with a 64 KB table in RAM, the fastest method there. Without it, ResNet-8
   needs 15 KB of RAM and runs in 71.0 ms (10.1×), and FOMO needs 79 KB and runs in 274.5 ms.
-- The 1D rows are the ranges over Daghero's four networks, from the smallest to the largest.
+- The 1D rows are ranges from the smallest network to the largest: Daghero's four for activity recognition, the
+  three (s / m / l) of the ECG benchmark.
+- ³ On the Pico 2 the large ECG pair is measured with both models in RAM: the 68.6 KB TFLite model does not fit the
+  chip's 16 KB flash cache (in flash it runs in 383 ms, 12.6×). On the M33 SYMBEX adds its 64 KB bit-count table.
 - ² The same ResNet-8 with an int8 first layer on the pixels instead of the thermometer, Bop for the binary weights and
   a pooled int8 classifier; every other layer binary (the CDT's `--variant int8stem_pool2`). 76.7 ± 0.3 % on the test
   set against 71.3 % (3 seeds), and faster than the fully binary network on every board but Hazard3 (57.9 against
@@ -149,9 +155,10 @@ Binary weights and activations cost accuracy. How much depends on the task:
 | MLP, Fashion-MNIST (784-128-512-10) | 87.5 % | 89.8 % (QAT) | −2.3 points |
 | ResNet-8, CIFAR-10 | 71.3 ± 0.8 % (73.1 % sized for binary; 76.7 ± 0.3 % with the int8 first layer and classifier ²) | 87.0 % (MLPerf Tiny) | −10 to −16 points |
 | Activity recognition, large networks | 56.8-58.8 % | 66.2-67.9 % (TFLite) | about −9 points |
+| ECG beats, balanced accuracy on unseen patients, 3 networks | 67.0-75.0 % | 70.9-72.4 % | tied within one standard deviation (3-9 points) |
 
-Detection, and small tasks with a binary input, binarize well. Classes that differ only in fine detail, like CIFAR-10's
-ten, lose the most. With a byte-wide input such as an accelerometer, an int8 first layer is both faster and more
+Detection, the ECG beats and small tasks with a binary input binarize well. Classes that differ only in fine detail,
+like CIFAR-10's ten, lose the most. With a byte-wide input such as an accelerometer, an int8 first layer is both faster and more
 accurate than a binary one (see the 1D benchmark).
 
 The same trade-off on ResNet-8 (higher is more accurate, further left is faster; latency on the chip, accuracy on the
@@ -232,6 +239,22 @@ both on a board without training ([Methodology](methodology.md)).
   less flash.
 - **Where fully binary stops paying (a working theory):** with an 8-bit input, an int8 first layer is faster than the
   binary one and more accurate.
+
+### ECG arrhythmia beats with 1D convolutions: inter-patient MIT-BIH
+
+[`benchmarks/conv1d/ecg_mitbih`](../../benchmarks/conv1d/ecg_mitbih/README.md)
+
+- **Tied with INT8 on patients never seen in training** (AAMI classes N / S / V / F, de Chazal's DS1 / DS2 split, 3
+  seeds): balanced accuracy 67.0 / 71.2 / 75.0 % binary against 70.9 / 71.9 / 72.4 % INT8 on the three networks,
+  every gap inside one standard deviation. The binary networks find more S beats, the INT8 ones more N and V.
+- **The recipe was chosen by patient-wise cross-validation** inside the training patients: three rhythm (RR) channels
+  help both methods, augmentation helps INT8 and hurts binary, so neither uses it. A second operating point with
+  fewer false alarms is also reported.
+- **Faster and smaller on four cores, exact on all of them:** 6.0-13.4× on the ESP32, 2.0-3.0× on the Pico 2's
+  Cortex-M33 against CMSIS-NN, 1.04-1.59× on the ESP32-S3; 1.3-10.1 KB of model against 11.4-68.6 KB; 39 chip runs,
+  1,000 beats each, 100 % equal to the integer simulation.
+- **Not a clinical result:** the rare classes rest on very few patients (75 % of the test S beats come from one
+  record), so the positive predictive value of S and F is low for both methods.
 
 ## The tables of each benchmark
 
@@ -317,6 +340,34 @@ ultracompactBNN), 3 seeds:
   small networks (about 9 points on the large ones).
 - **Where fully binary stops paying (a working theory):** with an 8-bit input like the accelerometer, a first layer
   with int8 weights is faster and more accurate than a binary one on every board measured.
+
+### ECG arrhythmia: binary 1D convolutions on unseen patients ([`benchmarks/conv1d/ecg_mitbih`](../../benchmarks/conv1d/ecg_mitbih/))
+
+MIT-BIH Arrhythmia Database, AAMI classes N / S / V / F, inter-patient split (DS1 trains, DS2 tests), one 256-sample
+window per beat plus three RR channels, three networks (s / m / l: 8-16-16, 16-32-32, 32-64-64 channels), the same
+layers in both methods, 3 seeds.
+
+Balanced accuracy on the test patients (mean ± standard deviation):
+
+| Network | SYMBEX binary | TFLite INT8 |
+|---|---|---|
+| s | 67.0 ± 4.6 % | 70.9 ± 6.1 % |
+| m | 71.2 ± 3.3 % | 71.9 ± 4.6 % |
+| l | **75.0 ± 5.5 %** | 72.4 ± 8.8 % |
+
+Latency per beat with the weights in flash (ms, mean over 3 seeds, standard deviations ≤ 0.02 ms), SYMBEX / INT8:
+
+| Network | ESP32-S3 (ESP-NN) | ESP32 (ESP-NN) | Pico 2 Cortex-M33 (CMSIS-NN) | Pico 2 Hazard3 (reference kernels) |
+|---|---|---|---|---|
+| s | 3.03 / 3.14 (1.04×) | 5.47 / 32.95 (6.0×) | 5.70 / 11.66 (2.0×) | 5.75 / 225.48 (39×) |
+| m | 6.06 / 6.86 (1.13×) | 11.69 / 94.48 (8.1×) | 11.74 / 35.10 (3.0×) | 10.55 / 799.95 (76×) |
+| l | 13.55 / 21.59 (1.59×) | 30.55 / 408.46 (13.4×) | 29.60 / 89.52 (3.0×, both in RAM) | 23.25 / 3554.52 (153×) |
+
+Model size 1,360 / 3,696 / 10,352 bytes against 11.4 / 23.7 / 68.6 KB; SYMBEX RAM 3.4-5.7 KB in total (TFLite arena
+7.3-45.9 KB). Hazard3 only has TFLite's reference kernels, so that column measures what runs today, not the best INT8
+can do. Every one of the 39 chip runs gives 100 % the classes of the integer simulation. The test set was scored three
+times, once per recipe; the benchmark README keeps all three and explains the second operating point (fewer false
+alarms, macro F1 52-57 % binary against 51-60 % INT8).
 
 ### Why it is faster: counting bits against multiplying
 

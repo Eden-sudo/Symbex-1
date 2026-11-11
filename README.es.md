@@ -117,6 +117,7 @@ La misma red en el mismo chip, binaria contra INT8 de TFLite Micro:
 | [FOMO](benchmarks/conv2d/fomo_voc_person/), detección de personas | **F1 31.2 / 30.1 %** | 2.0× más rápido (ESP32-S3); solo SYMBEX cabe en el ESP32 | 41 / 236 KB de flash |
 | [MLP](benchmarks/mlp/mlp_fashion/), Fashion-MNIST | 87.5 / 89.8 % | 28× (flash) y 2.1× (RAM) en el ESP32-S3, 8.8× en el ESP32 | 27 / 187 KB de flash |
 | [Convoluciones 1D](benchmarks/conv1d/har_ultracompact/), reconocimiento de actividad | INT8 unos 9 puntos mejor | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 6.5-10× menos flash |
+| [ECG](benchmarks/conv1d/ecg_mitbih/), latidos arrítmicos (entre pacientes) | balanceada 67-75 / 71-72 %, empate dentro de la dispersión | 6.0-13.4× (ESP32), 2.0-3.0× (Pico 2 M33), 1.04-1.59× (ESP32-S3) | 6.6-8.4× menos flash |
 | [Dígitos](benchmarks/mlp/mlp_digits/), en un Arduino Uno | 94.5 % (FP32 con la misma entrada 94.4 %) | 5.3 ms en un AVR de 16 MHz | 3.4 KB de flash, 0.21 KB de RAM |
 
 Contra otra librería binaria, ultracompactBNN (Daghero et al. 2021), en su propio procesador RISC-V simulado, SYMBEX
@@ -133,7 +134,9 @@ necesita 1.07-1.37× menos instrucciones en sus cuatro redes. Todas las tablas, 
    el entrenamiento: la ResNet-8 binaria ajusta el 72 % de sus imágenes de entrenamiento, su gemela de precisión completa
    el 92 %.
 3. **La detección y las tareas de sí o no se binarizan bien.** El detector de personas binario es tan preciso como el
-   INT8, 2× más rápido en el ESP32-S3, 6× más pequeño y el único que cabe en el ESP32 clásico.
+   INT8, 2× más rápido en el ESP32-S3, 6× más pequeño y el único que cabe en el ESP32 clásico. En latidos de ECG
+   (cuatro clases AAMI, pacientes de prueba nunca vistos en el entrenamiento) binaria e INT8 empatan dentro de una
+   desviación estándar, con errores distintos.
 4. **Dimensiona la red para binario.** Su mejor forma no es la de INT8: una primera capa angosta y capas binarias
    anchas (MLP 784-128-512-10), etapas iniciales más delgadas y una última más ancha (ResNet-8 16-32-128: +1.8 puntos a
    la misma velocidad).

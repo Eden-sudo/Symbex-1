@@ -116,6 +116,7 @@ The same network on the same chip, binary against TFLite Micro INT8:
 | [FOMO](benchmarks/conv2d/fomo_voc_person/), person detection | **F1 31.2 / 30.1 %** | 2.0× faster (ESP32-S3); only SYMBEX fits the ESP32 | 41 / 236 KB flash |
 | [MLP](benchmarks/mlp/mlp_fashion/), Fashion-MNIST | 87.5 / 89.8 % | 28× (flash) and 2.1× (RAM) on the ESP32-S3, 8.8× on the ESP32 | 27 / 187 KB flash |
 | [1D convolutions](benchmarks/conv1d/har_ultracompact/), activity recognition | INT8 about 9 points better | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 6.5-10× less flash |
+| [ECG](benchmarks/conv1d/ecg_mitbih/), arrhythmia beats (inter-patient) | balanced 67-75 / 71-72 %, tied within the spread | 6.0-13.4× (ESP32), 2.0-3.0× (Pico 2 M33), 1.04-1.59× (ESP32-S3) | 6.6-8.4× less flash |
 | [Digits](benchmarks/mlp/mlp_digits/), on an Arduino Uno | 94.5 % (FP32 on the same input 94.4 %) | 5.3 ms on a 16 MHz AVR | 3.4 KB flash, 0.21 KB RAM |
 
 Against another binary library, ultracompactBNN (Daghero et al. 2021), in its own simulated RISC-V processor, SYMBEX
@@ -131,7 +132,8 @@ needs 1.07-1.37× fewer instructions on its four networks. Every table, chip and
    points behind. A [study](benchmarks/experiments/training_gap/) found the cause is mostly capacity, not training: the
    binary ResNet-8 fits 72 % of its training images, its full-precision twin 92 %.
 3. **Detection and yes/no tasks binarize well.** The binary person detector is as accurate as the INT8 one, 2× faster
-   on the ESP32-S3, 6× smaller, and the only one that fits the classic ESP32.
+   on the ESP32-S3, 6× smaller, and the only one that fits the classic ESP32. On ECG beats (four AAMI classes, test
+   patients never seen in training) binary and INT8 are tied within one standard deviation, with different errors.
 4. **Size the network for binary.** Its best shape is not the INT8 one: a narrow first layer and wide binary layers
    (MLP 784-128-512-10), thinner early stages and a wider last one (ResNet-8 16-32-128: +1.8 points at the same speed).
 5. **An 8-bit input deserves an 8-bit first layer.** For the camera (ResNet-8) and the accelerometer (1D), an int8

@@ -9,7 +9,8 @@ nothing is typed in by hand. When a benchmark is re-measured, run this again and
 
 Charts:
   speedup.svg   how many times faster the fully binary network runs than the official INT8 one (TensorFlow Lite
-                Micro), same network, same chip, weights in flash for both (plus the MLP with weights in RAM)
+                Micro), same network, same chip, weights in flash for both (plus the MLP with weights in RAM); the
+                ECG row is its large 1D network (the benchmark's other two are in its README)
   flash.svg     flash used by each model, SYMBEX vs. INT8 (the whole model: weights, thresholds, scales)
   pareto_mlp.svg  accuracy against latency, MLP on Fashion-MNIST, ESP32-S3, weights in flash and in RAM: INT8 /
                 INT4 / INT2 (tools/lowbit, QAT) and SYMBEX networks sized for binary, the same recipe (validation,
@@ -60,6 +61,15 @@ for _board, _rows in RESNET_PARETO.items():
     for _label, _name in _rows:
         SOURCES[f"resnet_{_board}_{_name}"] = f"{RESNET}/symbex/symbex_seeds_{_board}_{_name}.json"
 MLP_SHAPE = "784-128-512-10"
+# the ECG benchmark writes one file per seed and board (3 seeds, RR recipe): these keys hold a list of files
+ECG = "conv1d/ecg_mitbih/results"
+ECG_SEEDS = (42, 43, 44)
+SOURCES.update({
+    "ecg_s3": [f"{ECG}/symbex/l_binary_e100_s{s}_rr/chip_s3_swar_flash_mask.json" for s in ECG_SEEDS],
+    "ecg_s3_int8": [f"{ECG}/tflite/tflite_s3_l_s{s}_rr.json" for s in ECG_SEEDS],
+    "ecg_esp32": [f"{ECG}/symbex/l_binary_e100_s{s}_rr/chip_esp32_swar_flash_mask.json" for s in ECG_SEEDS],
+    "ecg_esp32_int8": [f"{ECG}/tflite/tflite_esp32_l_s{s}_rr.json" for s in ECG_SEEDS],
+})
 
 # Colors: the first four slots of a color-blind-checked categorical palette, stepped for each theme (SYMBEX, INT8,
 # INT4, INT2: the first two as in every chart). Text never takes a series color; every point of the Pareto chart is
@@ -77,6 +87,21 @@ FONT = "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
 def load(key):
     with open(os.path.join(BENCH, SOURCES[key])) as f:
         return json.load(f)
+
+
+def files_mean(key, field):
+    """Mean of one field over a key that lists one file per seed."""
+    values = []
+    for path in SOURCES[key]:
+        with open(os.path.join(BENCH, path)) as f:
+            values.append(json.load(f)[field])
+    return statistics.mean(values)
+
+
+def source(key):
+    """The file behind a key, for the printed table; a per-seed list is shown as one pattern."""
+    v = SOURCES[key]
+    return v if isinstance(v, str) else v[0].replace(f"s{ECG_SEEDS[0]}", "s{" + ",".join(map(str, ECG_SEEDS)) + "}")
 
 
 def seeds_mean(d, field):
@@ -105,6 +130,10 @@ def speedup_rows():
         ("FOMO person · ESP32-S3", seeds_mean(load("fomo_s3"), "latency_ms"), load("fomo_s3_int8")["latency_ms"],
          ["fomo_s3", "fomo_s3_int8"]),
         ("FOMO person · ESP32", seeds_mean(load("fomo_esp32"), "latency_ms"), None, ["fomo_esp32"]),
+        ("ECG beats, large 1D net · ESP32-S3", files_mean("ecg_s3", "median_ms"), files_mean("ecg_s3_int8", "median_ms"),
+         ["ecg_s3", "ecg_s3_int8"]),
+        ("ECG beats, large 1D net · ESP32", files_mean("ecg_esp32", "median_ms"),
+         files_mean("ecg_esp32_int8", "median_ms"), ["ecg_esp32", "ecg_esp32_int8"]),
     ]
 
 
@@ -116,6 +145,8 @@ def flash_rows():
          ["resnet_s3", "resnet_s3_int8"]),
         ("FOMO person detection", seeds_mean(load("fomo_s3"), "flash_kb"), load("fomo_s3_int8")["model_kb"],
          ["fomo_s3", "fomo_s3_int8"]),
+        ("ECG beats, large 1D network", files_mean("ecg_s3", "model_flash") / 1024, files_mean("ecg_s3_int8", "model_kb"),
+         ["ecg_s3", "ecg_s3_int8"]),
     ]
 
 
@@ -368,10 +399,10 @@ def main():
     print("\n    speed-up (SYMBEX ms / INT8 ms)")
     for label, s, i, keys in speed:
         print(f"    {label:<34}{ms(s):>8}{ms(i) if i else 'no fit':>9}  "
-              f"{(f'{i / s:.2f}x') if i else '-':>7}  {', '.join(SOURCES[k] for k in keys)}")
+              f"{(f'{i / s:.2f}x') if i else '-':>7}  {', '.join(source(k) for k in keys)}")
     print("\n    flash KB (SYMBEX / INT8)")
     for label, s, i, keys in flash:
-        print(f"    {label:<34}{s:>8.1f}{i:>9.1f}  {i / s:>6.1f}x  {', '.join(SOURCES[k] for k in keys)}")
+        print(f"    {label:<34}{s:>8.1f}{i:>9.1f}  {i / s:>6.1f}x  {', '.join(source(k) for k in keys)}")
     panels = [("ESP32-S3 · weights in flash", pareto_points("flash")), ("ESP32-S3 · weights in RAM", pareto_points("ram"))]
     ceiling = load("mlp_lowbit")["fp32"]["validation"]
     for title, pts in panels:
