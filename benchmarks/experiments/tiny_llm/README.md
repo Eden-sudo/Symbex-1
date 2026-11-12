@@ -100,6 +100,36 @@ the weights of the values (p x vm < 2^32, checked; a larger one falls back to pl
 Values 25.2 -> 13.2 ms; writing the transposed cache costs 2.2 ms more (rope + cache 7.5 -> 9.7). The `lut8` column
 was measured before these attention changes.
 
+**Which layers are sensitive, and does the CDT's scan see it?** (`layer_sensitivity.py`,
+[`results/layer_sensitivity.json`](results/layer_sensitivity.json), fp32 models, 3 seeds.) The CDT's sensitivity scan
+(`tools/compiler_core/sensitivity.py`) gives one cosine per layer: the layer's output with fewer bits against its fp32
+output, one layer at a time. Here it runs as it is ("bin": 1-bit weights and 1-bit input) and with tiny_llm's own
+format (1-bit weights, 8-bit input), and both are compared with the real damage: binarize only that layer (W1A8) in
+the fp32 model and measure the validation loss of the whole model (512 windows, no retraining).
+
+| Layer type (8 blocks) | CDT cosine, bin | cosine, W1A8 | loss damage, one layer | loss damage, all 8 |
+|---|---|---|---|---|
+| q | 0.613 ± 0.006 | 0.887 ± 0.010 | 0.020 ± 0.002 | 0.32 ± 0.05 |
+| k | 0.444 ± 0.006 | 0.888 ± 0.015 | 0.028 ± 0.004 | 0.59 ± 0.15 |
+| v | 0.674 ± 0.001 | 0.807 ± 0.006 | 0.022 ± 0.002 | 0.29 ± 0.05 |
+| o | 0.669 ± 0.005 | 0.873 ± 0.002 | 0.022 ± 0.001 | 0.28 ± 0.01 |
+| w1 | 0.642 ± 0.007 | 0.871 ± 0.000 | 0.029 ± 0.001 | 0.34 ± 0.01 |
+| w3 | 0.686 ± 0.003 | 0.847 ± 0.001 | 0.025 ± 0.000 | 0.28 ± 0.01 |
+| w2 | 0.408 ± 0.002 | 0.833 ± 0.004 | 0.035 ± 0.000 | 0.47 ± 0.01 |
+| output layer (head) | 0.378 ± 0.012 | 0.912 ± 0.005 | **0.513 ± 0.012** | |
+
+- The real damage has a clear shape: the output layer alone costs 15× a block layer, block 0 costs 1.24 ± 0.18
+  (blocks 1-7: 0.13-0.24), and the last block is the next worst. The top 10 layers by damage are the same on the 3
+  seeds: the head, block 0's w1 / w2 / w3, block 7's w1 / w2 / w3, then single k layers.
+- The cosines do not see it. Rank correlation with the real damage: CDT bin 0.24 ± 0.04, W1A8 0.06 ± 0.06. They
+  share 2-3 of the top 10 (bin) and 1 (W1A8). The W1A8 cosine even ranks the head as the safest layer (highest
+  cosine) while it is the most damaging one.
+- Damages do not add up: all the blocks binarized together cost 4.63 ± 0.24, the sum of the single layers 1.44;
+  block 0 alone 1.24 against 0.29 summed.
+- This is damage before retraining. Trained binary (1.522) loses only 0.22 against fp32 (1.300), so the ranking after
+  training can differ; it is not measured. The scan is kept as it is (it measures one layer in isolation, as its own
+  notes say); for this model, the whole model's loss is the measure to use.
+
 A story from the binary model (seed 42, greedy, from "Once upon a time"):
 
 > Once upon a time, there was a little girl named Lily. She loved to play with her toys and have fun. One day, Lily
@@ -121,6 +151,8 @@ repeats itself more. Ternary sits between the two at twice the weight memory.
   now 13.2 ms on the PIE, exact). Next, in order: a 1-bit output head (8× fewer bytes; its perplexity to be
   measured), the PSRAM at 120 MHz (+40 % bandwidth, experimental in ESP-IDF), a cheaper transposed cache write.
   Seeds 43 and 44 on the chip.
+- Per-layer bits chosen by the real damage (above), checked with training: the 1-bit head, and block 0 / block 7
+  kept at more bits, each trained with the same recipe (3 seeds, validation).
 - The ternary integer model and C; a binary model with as many bytes as the ternary one.
 - Binarizing more is research, not done here: 1-bit (or few-bit) activations for the linear layers (XNOR + popcount,
   the fully binary path of the other benchmarks), a binary embedding, binary attention. How much a model this small
