@@ -64,6 +64,12 @@ int main(int argc, char **argv) {
     printf("validation: %ld / %ld tokens with every output equal (%.2f ms per token on this PC)\n",
            tokens - bad, tokens, 1000 * sec / tokens);
 
+    if (n_ids - 1 > m.seq) {
+        printf("greedy story: %d ids, longer than the context (%d): not checked (no sliding window in the C)\n",
+               n_ids, m.seq);
+        tinylm_state_free(&s);
+        return 1;
+    }
     s.pos = 0;
     int same = 1, next = 0;
     for (int i = 0; i < n_ids - 1; i++) {

@@ -8,6 +8,13 @@
 #include <stdint.h>
 
 #define TINYLM_MAGIC 0x4D4C5954
+/* Allocation hooks: FAST for the small per-token buffers (internal RAM on the chip), BIG for the KV cache (PSRAM). */
+#ifndef TINYLM_MALLOC_FAST
+#define TINYLM_MALLOC_FAST(n) malloc(n)
+#endif
+#ifndef TINYLM_MALLOC_BIG
+#define TINYLM_MALLOC_BIG(n) malloc(n)
+#endif
 #define TINYLM_EXP_N 2048
 #define TINYLM_SIG_N 1024
 
@@ -40,15 +47,19 @@ typedef struct {
     int32_t *q, *k, *v, *a;  /* dim */
     int8_t *iq;              /* max(dim, hidden) */
     uint16_t *p;             /* seq */
+    int16_t *lut;            /* max(dim, hidden) / 8 x 256: sums of every subset of 8 inputs (lut8 kernel) */
     int pos;
 } TinyState;
 
+/* Linear layers: the 8-bit table kernel (one lookup per 8 weights); -DTINYLM_REFERENCE = one bit at a time.
+   Both give the same integers. */
 /* Parse model.bin (kept in memory by the caller). Returns 0 if the header is valid. */
 int tinylm_load(TinyModel *m, const uint8_t *buf, long size);
 /* Allocate the cache and the scratch buffers (malloc). Returns 0 on success. */
 int tinylm_state_init(TinyState *s, const TinyModel *m);
 void tinylm_state_free(TinyState *s);
-/* One token: z (vocab, int64) gets the output, *hmax the final state's max (Q12). Returns argmax(z). */
+/* One token: z (vocab, int64) gets the output, *hmax the final state's max (Q12). Returns argmax(z), or -1 when
+   the context is full (pos == seq: the C has no sliding window) or the token is out of range. */
 int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t *hmax);
 
 #endif

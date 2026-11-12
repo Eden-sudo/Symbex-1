@@ -132,6 +132,7 @@ def attention(q, k, v, heads, C, S, exp_t):
     u = torch.where(causal, u, torch.iinfo(torch.int64).min)
     umax = u.amax(-1, keepdim=True)
     dist = torch.where(causal, umax - u, 0)
+    # 16129 << 20 = 127^2 (int8 q, k) * 2^24 (Q12 x Q12) * sqrt(64) / 128 (exp table step): 64-wide heads only
     x = check(dist * qm[..., None], 62, "score distance") // (16129 << 20)
     p = torch.where(causal & (x < EXP_N), exp_t[x.clamp(max=EXP_N - 1)], 0)
     P = p.sum(-1, keepdim=True)
@@ -258,6 +259,8 @@ def main():
     ap.add_argument("--export", action="store_true", help="write model.bin and check.bin for the C check")
     ap.add_argument("--check-windows", type=int, default=4, help="validation windows in check.bin")
     args = ap.parse_args()
+    if args.windows < 32 or args.windows % 32:
+        ap.error("--windows must be a multiple of 32 (float and integer losses use the same windows)")
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
     dev = "cuda"
@@ -269,6 +272,8 @@ def main():
     model.load_state_dict(ck["model"])
     model.eval()
     assert kind in ("binary", "ternary"), "the integer model needs quantized weights"
+    assert a["dim"] // a["heads"] == 64 and a["dim"] % a["heads"] == 0, \
+        "the integer attention scale (16129 << 20) assumes 64-wide heads"
     P = to_device(integerize(model, kind), dev)
     val = T.load_split("val", dev)
 

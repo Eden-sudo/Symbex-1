@@ -1,0 +1,3 @@
+.pio/
+# written by chip_run.py for each run
+src/check_data.h
