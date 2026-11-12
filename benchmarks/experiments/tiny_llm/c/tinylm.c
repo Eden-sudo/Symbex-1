@@ -13,6 +13,29 @@
 #define TINYLM_PROF(k)
 #endif
 
+/* TINYLM_DOT_ROWS(x, n, w, stride, n_rows, out): int8 row products out[r] = sum_i x[i] * w[r * stride + i] (the
+   board's PIE kernel): the output head and the attention scores run on it. TINYLM_DOT_ROWS_U8: the same with
+   unsigned bytes: the attention values run on it and the V cache is kept transposed (see tinylm_step).
+   TINYLM_DOT_ROWS_C: both hooks in plain C, to run that path on the PC (check_pc). */
+#ifdef TINYLM_DOT_ROWS_C
+static void tinylm_dot_rows_c(const int8_t *x, int n, const int8_t *w, int stride, int n_rows, int32_t *out) {
+    for (int r = 0; r < n_rows; r++, w += stride) {
+        int32_t d = 0;
+        for (int i = 0; i < n; i++) d += x[i] * w[i];
+        out[r] = d;
+    }
+}
+static void tinylm_dot_rows_u8_c(const uint8_t *x, int n, const uint8_t *w, int stride, int n_rows, int32_t *out) {
+    for (int r = 0; r < n_rows; r++, w += stride) {
+        int32_t d = 0;
+        for (int i = 0; i < n; i++) d += x[i] * w[i];
+        out[r] = d;
+    }
+}
+#define TINYLM_DOT_ROWS(x, n, w, stride, n_rows, out) tinylm_dot_rows_c((x), (n), (w), (stride), (n_rows), (out))
+#define TINYLM_DOT_ROWS_U8(x, n, w, stride, n_rows, out) tinylm_dot_rows_u8_c((x), (n), (w), (stride), (n_rows), (out))
+#endif
+
 #define QF 12
 #define MSH 30
 #define SIG_Q 6
@@ -160,7 +183,15 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             int8_t *kqh = kq + (long)h * m->seq * hd, *vqh = vq + (long)h * m->seq * hd;
             int32_t *kmh = km + (long)h * m->seq, *vmh = vm + (long)h * m->seq;
             kmh[t] = quant8(kh, hd, kqh + (long)t * hd);
+#ifdef TINYLM_DOT_ROWS_U8
+            {   /* the V cache transposed and unsigned: row i of head h = value i + 128 of positions 0..seq-1 */
+                int8_t vt[256];
+                vmh[t] = quant8(s->v + h * hd, hd, vt);
+                for (int i = 0; i < hd; i++) ((uint8_t *)vqh)[(long)i * m->seq + t] = (uint8_t)(vt[i] + 128);
+            }
+#else
             vmh[t] = quant8(s->v + h * hd, hd, vqh + (long)t * hd);
+#endif
             TINYLM_PROF(8);
             /* scores u_j = (qq . kq_j) * km_j, softmax through the exp table */
             int64_t *u = (int64_t *)s->t2;  /* hidden int32 >= 2 * seq int32: checked in init */
@@ -190,10 +221,48 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
                 P += s->p[j];
             }
             TINYLM_PROF(10);
+            int64_t acc[256];
+#ifdef TINYLM_DOT_ROWS_U8
+            /* acc_i = sum_j pv_j vq_ji, pv_j = p_j vm_j < 2^32, as row products of the transposed V cache (row i =
+               value i + 128 of every position, unsigned) with the weights byte by byte: pv_j = sum_c 256^c b_cj,
+               sum_j pv_j (vq_ji + 128) = sum_c 256^c dot_c[i], dot_c[i] <= 255 * 255 * seq < 2^31; then the 128 of
+               every position comes off: 128 * sum_j pv_j. As many bytes as the largest weight needs (at most 4,
+               pv < 2^32: checked). The same integers as the loop below. */
+            {
+                uint32_t *pv = (uint32_t *)s->t3;              /* t3: free until the feed-forward */
+                uint32_t pvmax = 0;
+                int64_t pvsum = 0;
+                int wide = 0;
+                for (int j = 0; j <= t; j++) {
+                    const int64_t w = (int64_t)s->p[j] * vmh[j];
+                    if (w >> 32) wide = 1;
+                    pv[j] = (uint32_t)w; pvsum += w;
+                    if (pv[j] > pvmax) pvmax = pv[j];
+                }
+                int nb = 1;
+                while (nb < 4 && (pvmax >> (8 * nb))) nb++;
+                for (int i = 0; i < hd; i++) acc[i] = -128 * pvsum;
+                uint8_t *b = (uint8_t *)s->iq;                 /* iq: free here; nb chunk vectors of t + 1 bytes */
+                for (int j = 0; j <= t; j++)
+                    for (int c = 0; c < nb; c++) b[(long)c * m->seq + j] = (uint8_t)(pv[j] >> (8 * c));
+                int32_t dot[256];
+                for (int c = 0; c < nb && !wide; c++) {
+                    TINYLM_DOT_ROWS_U8(b + (long)c * m->seq, t + 1, (const uint8_t *)vqh, m->seq, hd, dot);
+                    for (int i = 0; i < hd; i++) acc[i] += (int64_t)dot[i] << (8 * c);
+                }
+                if (wide) {                                    /* a weight past 32 bits: the plain sums */
+                    for (int i = 0; i < hd; i++) acc[i] = 0;
+                    for (int j = 0; j <= t; j++) {
+                        const int64_t w = (int64_t)s->p[j] * vmh[j];
+                        const uint8_t *vj = (const uint8_t *)vqh + j;
+                        for (int i = 0; i < hd; i++) acc[i] += w * ((int32_t)vj[(long)i * m->seq] - 128);
+                    }
+                }
+            }
+#else
             /* key by key (rows of the V cache read in order): sum_j p_j vm_j vq_ji. Weights pv < 2^32 (p < 2^16,
                vm >= 1) go in two 16-bit halves into int32 sums: |half * vq| < 2^16 * 127, at most seq <= 258 keys
                (tinylm_load), so no overflow; a larger weight sends the head to the int64 sums. The same integers. */
-            int64_t acc[256];
             int wide = 0;
             int32_t *pl = s->t3, *ph = s->t3 + m->seq;  /* t3: hidden >= 2 * seq (tinylm_state_init) */
             for (int j = 0; j <= t; j++) {
@@ -224,6 +293,7 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
                     for (int i = 0; i < hd; i++) acc[i] += pv * vj[i];
                 }
             }
+#endif
             TINYLM_PROF(2);
             for (int i = 0; i < hd; i++) s->a[h * hd + i] = (int32_t)rdiv(acc[i], P * 127);
             TINYLM_PROF(11);
@@ -352,8 +422,9 @@ int tinylm_state_init(TinyState *s, const TinyModel *m) {
     long kv = (long)m->layers * m->seq * m->dim, kvm = (long)m->layers * m->seq * m->heads;
     int big = m->hidden > m->dim ? m->hidden : m->dim;
     if (m->hidden < 2 * m->seq) return -1;  /* t2 doubles as the int64 score buffer */
+    if (big < 4 * m->seq) return -1;        /* iq holds the 4 byte vectors of the attention weights (TINYLM_DOT_ROWS_U8) */
     memset(s, 0, sizeof(*s));
-    s->kq = TINYLM_MALLOC_BIG(kv); s->vq = TINYLM_MALLOC_BIG(kv);
+    s->kq = TINYLM_MALLOC_BIG(kv); s->vq = TINYLM_MALLOC_BIG(kv + 16);  /* +16: the row kernel reads whole blocks */
     s->km = TINYLM_MALLOC_BIG(4 * kvm); s->vm = TINYLM_MALLOC_BIG(4 * kvm);
     s->x = TINYLM_MALLOC_FAST(4L * m->dim);
     s->t1 = TINYLM_MALLOC_FAST(4L * big); s->t2 = TINYLM_MALLOC_FAST(4L * big); s->t3 = TINYLM_MALLOC_FAST(4L * big);

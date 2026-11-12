@@ -80,21 +80,25 @@ tables and multipliers); the KV cache for 256 tokens is 1.5 MB.
 
 On the ESP32-S3 (seed 42, [`results/chip_s3_binary_d384l8_s42*.json`](results/)): **512 / 512 tokens with every
 score equal and the story 120 / 120 tokens equal, with both kernels: exact.** With lib_symbex's kernel the story runs
-at **8.28 tokens per second** (121 ms per token). A step costs more as the context fills (attention over more
+at **8.48 tokens per second** (118 ms per token). A step costs more as the context fills (attention over more
 tokens). Model load from flash 0.5-0.6 s; ~3 MB of PSRAM and ~246 KB of internal RAM stay free.
 
 | Part of a step (ms, mean of 512 tokens) | `lut8` | `--linear symbex` |
 |---|---|---|
 | 1-bit linear layers (q, k, v, o, w1, w3, w2) | 115.1 | **55.6** |
-| attention (rope + int8 cache 7.5, scores 7.5, softmax 2.1, values 25.2, division 1.6) | 43.8 | 43.9 |
+| attention (rope + int8 cache 9.7, scores 7.8, softmax 2.0, values 13.2, division 1.6) | 43.8 | **34.3** |
 | output layer (4096 x 384 int8) | 28.0 | 28.0 |
 | norms, embedding, SwiGLU | 10.5 | 10.5 |
-| **whole step** (position 0 / 255) | 197.3 (163 / 231) | **138.0** (104 / 172) |
-| **story, tokens per second** | 5.55 | **8.28** |
+| **whole step** (position 0 / 255) | 197.3 (163 / 231) | **128.5** (109 / 149) |
+| **story, tokens per second** | 5.55 | **8.48** |
 
 The attention keeps the integers of `intsim.py` and only changes how they are computed: the KV cache is stored
-head by head (a head's keys one after another), the weights of the values (p x vm < 2^32, checked; a larger one
-falls back to int64) are summed as two 16-bit halves in int32, and the softmax index needs a 32-bit division only.
+head by head (a head's keys one after another), and the softmax index needs a 32-bit division only. The values are
+row products on the PIE: each head's values are stored transposed (one row per dimension, as value + 128 in a byte),
+the weights of the values (p x vm < 2^32, checked; a larger one falls back to plain C in int64) are split into at most
+4 bytes, one unsigned 8-bit row product per byte (`ee.vmulas.u8.accx`), and the sum takes 128 x the weights back out.
+Values 25.2 -> 13.2 ms; writing the transposed cache costs 2.2 ms more (rope + cache 7.5 -> 9.7). The `lut8` column
+was measured before these attention changes.
 
 A story from the binary model (seed 42, greedy, from "Once upon a time"):
 
@@ -105,7 +109,7 @@ A story from the binary model (seed 42, greedy, from "Once upon a time"):
 ## Answer
 
 Yes: the 1-bit model writes stories with dialogue and a plot, the integer version loses nothing (1.5307 vs
-1.5306), and the C equals it on every score, on the PC and on the ESP32-S3, where it writes 8.28 tokens per second
+1.5306), and the C equals it on every score, on the PC and on the ESP32-S3, where it writes 8.48 tokens per second
 (one seed) with lib_symbex's own 8-bit x 1-bit kernel. It costs perplexity against fp32 (4.58 vs 3.67): the binary model
 repeats itself more. Ternary sits between the two at twice the weight memory.
 
@@ -113,10 +117,10 @@ repeats itself more. Ternary sits between the two at twice the weight memory.
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
   RAM: the output head (28 ms) and the attention scores are at the PSRAM's speed (58 MB/s), the linear layers are
-  half kernel and half memory (69 MB/s internal, 40 MB/s from PSRAM), and the attention values (25 ms) are plain C,
-  3.8× slower than the scores' PIE kernel over the same bytes. So, in order: a PIE kernel for the values (p split in
-  two bytes, or the s16 lanes, exact), a 1-bit output head (8× fewer bytes; its perplexity to be measured), the
-  PSRAM at 120 MHz (+40 % bandwidth, experimental in ESP-IDF). Seeds 43 and 44 on the chip.
+  half kernel and half memory (69 MB/s internal, 40 MB/s from PSRAM), and the attention values were plain C (25 ms,
+  now 13.2 ms on the PIE, exact). Next, in order: a 1-bit output head (8× fewer bytes; its perplexity to be
+  measured), the PSRAM at 120 MHz (+40 % bandwidth, experimental in ESP-IDF), a cheaper transposed cache write.
+  Seeds 43 and 44 on the chip.
 - The ternary integer model and C; a binary model with as many bytes as the ternary one.
 - Binarizing more is research, not done here: 1-bit (or few-bit) activations for the linear layers (XNOR + popcount,
   the fully binary path of the other benchmarks), a binary embedding, binary attention. How much a model this small

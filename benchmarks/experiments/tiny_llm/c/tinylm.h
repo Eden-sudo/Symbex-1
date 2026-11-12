@@ -42,7 +42,8 @@ typedef struct {
 } TinyModel;
 
 typedef struct {
-    int8_t *kq, *vq;         /* layers x heads x seq x head size */
+    int8_t *kq, *vq;         /* layers x heads x seq x head size (vq with TINYLM_DOT_ROWS_U8: ... x head size x seq,
+                                value + 128) */
     int32_t *km, *vm;        /* layers x heads x seq */
     int32_t *x, *t1, *t2, *t3; /* dim, dim, hidden, hidden scratch */
     int32_t *q, *k, *v, *a;  /* dim */
