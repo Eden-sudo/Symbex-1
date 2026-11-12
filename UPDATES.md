@@ -3,6 +3,137 @@
 A running log of what each pull request brings, what is still in progress and what comes next. One section per
 pull request, newest first.
 
+## In progress (November 10, 2026)
+
+- **Ternary dense kernel, first layer** (branch `perf/ternary-kernel`): the uint8 × ternary first layer now counts
+  with SWAR, 4 inputs per 32-bit operation (out = 2·P − M, P over the positive weights, M over every non-zero weight),
+  instead of one input per bit. It is exact in the 6 HAL configurations of `run_tests.py`, with and without
+  `--stress`, and the test now covers layers above 1,024 inputs. The speed on the chips is not measured yet; the
+  first layer took 97 % of the ternary MLP's time (S3 RAM: 11.5 of 11.9 ms).
+- **#33** (docs: `en/` / `es/` folders, `preprint/`, ResNet-8 Pareto chart, main README rewritten around the
+  trade-off): open.
+- **#36** (Obed): related research in both READMEs; open, one wording fix asked (the HAR comparison with Daghero et
+  al. is done, not planned).
+
+## PR #35: ECG MIT-BIH, binary 1D vs TFLite INT8 (November 9, 2026)
+
+- New benchmark `benchmarks/conv1d/ecg_mitbih`: AAMI classes N / S / V / F, inter-patient split (DS1 trains, DS2 is
+  the test set), three networks s / m / l (8-16-16 / 16-32-32 / 32-64-64), the same network for binary and INT8.
+- The recipe was chosen by 4-fold patient-wise cross-validation inside DS1: the RR-interval channels help both
+  methods, augmentation helps INT8 and hurts binary, so: RR channels, no augmentation.
+- **Two operating points**, both in the README:
+  - balanced accuracy (inverse-frequency class weights): binary 67.0 / 71.2 / 75.0 % vs INT8 70.9 / 71.9 / 72.4 %,
+    tied within the standard deviation; binary finds more S beats;
+  - fewer false alarms (class weights ** 0.5, checkpoint by macro F1, chosen by cross-validation): macro F1 binary
+    52.2 / 57.4 / 56.3 % vs INT8 55.8 / 59.5 / 50.8 %, 40-60 % fewer false S alarms, lower S sensitivity.
+- The limit is the data: 75 % of the test S beats come from one record (232), and F is trained on one patient and
+  tested on another. Clinically weak for S and F (positive predictive value of S 24-33 %).
+- Speed, weights in flash: ESP32 6.0-13.4×, S3 1.04-1.59×, Pico 2 M33 2.0-3.0× faster than TFLite INT8; Hazard3
+  39-153× (reference kernels only). 39 chip runs, all 100 % equal to the simulation.
+- Negative result, `ecg_detectors.py`: one small binary detector per class does not beat one network of the same
+  cost (4× s 53.2 ± 2.0 vs one m 52.8 ± 0.9 macro F1, cross-validation only).
+
+## PR #34: HAR, TFLite Micro INT8 on the Pico 2 (November 9, 2026)
+
+- `har_tflite.py --board pico2_arm | pico2_riscv`: the four UniMiB-SHAR networks, 3 seeds, every run 100 % equal to
+  the PC interpreter.
+- Cortex-M33 with CMSIS-NN (the fair comparison): 2.71 / 12.00 / 78.04 / 77.70 ms; SYMBEX is 3.3-7.9× faster.
+- Hazard3 has reference kernels only (17.3-1160 ms): a reference, not a like-for-like comparison.
+
+## PR #32: faster short first layers (November 7, 2026)
+
+- Short uint8 first layers (≤ 64 inputs, ≥ 8 neurons) use subset-sum tables; the SWAR tail takes 4 inputs at a time.
+- `dense_short_bench.py`, exact: 19 → 64 runs 2.2-2.5× faster on all four boards. ESP32 re-measured: HAR 1.3×, MLP
+  784-128-512 3.635 → 3.546 ms. Other boards unchanged.
+
+## PR #31: results/ split into method folders (November 7, 2026)
+
+- 438 result files moved (content unchanged) into `results/symbex`, `tflite`, `sizing`, `ucbnn`, `earlier` for
+  digits, ResNet-8, HAR and FOMO, like mlp_fashion. Writers, readers, READMEs and charts updated; tables unchanged.
+
+## PR #30: ResNet-8 int8 stem + Bop + pool2 in the CDT; windowless int8 stem (November 7, 2026)
+
+- `resnet8_symbex.py --variant int8stem_pool2` (`BoolResNet8Int8StemPool2`): the most accurate x1 recipe through the
+  CDT. Validation 77.30 ± 0.45 %, test 76.68 ± 0.34 % (the study: 77.48 / 77.26 %), exact on every engine.
+- `stem3_rows` in `symbex_bool.c` (every board but the S3, 3×3, rows up to 64 wide): the stem alone M33 14.6 → 9.2
+  ms, Hazard3 19.1 → 12.3 ms. Whole network, flash / RAM: M33 67.77 / 63.43, Hazard3 57.94 / 53.46, ESP32 62.52 /
+  58.23 ms (1.09-1.13×).
+- Vertical engine on the Pico 2 (flash): M33 prepared 59.12 ms is 1.15× faster than standard for 3.5× the RAM; on
+  Hazard3 the standard engine stays fastest.
+
+## PR #29: int8 stem on PIE, both engines (November 6, 2026)
+
+- S3 HAL: `symbex_s8_stem3_bits` (standard engine, 16 output channels per instruction) and `symbex_s8_stem3_planes`
+  (vertical engine, 16 pixels per instruction, signs straight into the planes).
+- ResNet-8 int8 stem + Bop + pool2, S3, 3 seeds, exact: standard 35.77 → 32.33 ms; vertical flash 13.37 → **9.73**,
+  compact 10.84 → 7.09, prepared 9.78 → 6.03 ms. The most accurate x1 is now the fastest: 1.52× ESP-DL in flash.
+
+## PRs #26-#28: export structure, int8 stem and pooled classifier in the vertical engine (November 5, 2026)
+
+- #26: one gcc check for every exporter (`export/c_build.py`), boolean training in `train/boolean.py`, vertical sizes
+  in `export/vertical.py`. Exported headers byte-identical; old import paths still work.
+- #27: the int8 stem and the pooled int8 classifier (`--head pool2`, a quarter of the int8 classifier's weights, the
+  same gain) in the vertical engine; the PIE stem experiment (`stem_i8_pie_bench.py`, stem 5.7× faster).
+- #28: late review fixes (the whole-map pooled head and `--dead-fix or_grad` export again).
+
+## PRs #23 / #24: where the binary ResNet-8 loses accuracy (November 5, 2026)
+
+- `benchmarks/experiments/training_gap`, 3 seeds, validation. Mostly capacity, not training: the twin with real
+  weights fits 92 % of the training images, binary 72 %.
+- Training: Bop +2.5 (now a CDT option, `binary_optimizer = "bop"`), twostep +2.35, not additive. KD: no gain.
+- Capacity: 16-48-96 / 1-3-3 reaches 77.33 %; the middle stage is worth most; width beats 2-bit activations; the
+  average shortcut +1.5-1.8 and faster. On the boards (test): 1-3-3 76.82 %, 6.5× faster than INT8 on the ESP32.
+- #24: the 188 result JSONs, split out so the review of #23 fits.
+
+## PRs #22 / #25: lib_symbex v3 and docs (November 4-5, 2026)
+
+- **Vertical engine** `symbex_bool_vertical` (bit-sliced, 128 windows per PIE register on the S3, portable C
+  elsewhere). ResNet-8, S3, 3 seeds, exact: 10.36 ms (63 KB RAM, 1.43× faster than ESP-DL in flash), compact 7.70 ms,
+  prepared 6.44 ms. `chip_test.py --engine`, `--code ram` (`SYMBEX_FAST_CODE`).
+- **int8 stem** option of the standard engine (`stem_i8`): ResNet-8 75.41 % test, S3 35.54 ms.
+- **Stable header format**: exporters write structs by field name, `SYMBEX_FORMAT` checked by `#error`, frozen
+  format-1 headers in the tests.
+- Pico 2 TFLite Micro baseline (M33 CMSIS-NN: ResNet-8 453 / 211 ms, SYMBEX 6.1× / 2.8× faster).
+- #25: `docs/` in English and Spanish (how-it-works, cdt, library, results, vertical), charts from the result JSONs
+  (`tools/dev/docs_charts.py`), ESP-DL quick check (fastest INT8 on the S3; SYMBEX still wins on the classic ESP32).
+
+## PRs #19-#21: translations, READMEs, first docs page (November 1-2, 2026)
+
+- #19: `validate/plain.py`, `poplut_probe.py`, `pareto.py` in English (Spanish names kept as aliases), two crashes
+  fixed.
+- #20: README.md / README.es.md / benchmarks/README.md with the current results.
+- #21: `docs/` index and how-it-works page.
+
+## PR #18: conv1d, where fully binary stops paying (October 31, 2026)
+
+- `symbex_s8_dot_rows` (S3 PIE, int8 × int8, 16 products per instruction) and the int8 first layer in
+  `symbex_bool1d`. HAR on the S3 vs TFLite INT8: 1.47-1.90× (was 1.09-1.47×); 48 runs exact.
+- A working theory: with an 8-bit input and a chip that multiplies bytes fast, an int8 first layer beats the fully
+  binary one in speed and accuracy.
+
+## PRs #14-#17: tools, FOMO on the classic ESP32, remeasurements (October 29-31, 2026)
+
+- #14: `chip_test.py` finds lib_symbex from its own path; `fashion_int4.py` in English; CDT label "Val".
+- #15: FOMO 32-32-128 on the classic ESP32 in RAM and with swar, 3 seeds; the flash cost measured step by step.
+- #16: Oct 28 remeasurements: Pico 2 rows for ResNet-8, FOMO and fashion; ResNet-8 S3 39.2 ms (1.33× TFLite); FOMO
+  RAM counts the input image like the TFLite arena.
+- #17: the MendCode reviewer config.
+
+## PR #11: conv1d, UniMiB-SHAR whole networks (October 29, 2026)
+
+- Daghero et al.'s four Table 1 networks, subject split, 3 seeds. On GVSoC, binary vs binary: SYMBEX runs 1.07-1.37×
+  fewer instructions than ultracompactBNN. TFLite INT8 and lowbit on the boards. Exact on PC, GVSoC, ESP32, S3 and both
+  Pico 2 cores. PULP first layer kept in the benchmark folder.
+
+## PRs #5-#10: FOMO methodology, README header (October 28, 2026)
+
+- #5: 22 tests for FOMO's detection score (`detections`, `f1_score`).
+- #6: validation labels above 255 saved as `.u32`, so `chip_test.py` checks FOMO grids.
+- #7: README banner, tagline and badges.
+- #8: `fomo_symbex.py`; the binary detector on the classic ESP32 (32-32-128, 3 seeds).
+- #9: sizing ranks the variants by validation F1; the test F1 is reported only.
+- #10: one fixed random validation split for every FOMO model and seed.
+
 ## PR #4: conv1d/pico2 (October 2026)
 
 ### Done
