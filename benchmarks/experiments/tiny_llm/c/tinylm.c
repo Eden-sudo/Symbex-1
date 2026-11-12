@@ -6,6 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Time per part of a token (optional): TINYLM_PROF(k) adds the time since the previous mark to part k
+   (0 embedding / norms, 1 q k v, 2 attention, 3 o, 4 w1 w3, 5 SwiGLU, 6 w2, 7 output head). Empty by default. */
+#ifndef TINYLM_PROF
+#define TINYLM_PROF(k)
+#endif
+
 #define QF 12
 #define MSH 30
 #define SIG_Q 6
@@ -86,10 +92,15 @@ static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int
     for (int i = 0; i < L->n_in; i++) total += q[i];
     const int groups = L->n_in / 8;
     for (int r = 0; r < L->n_out; r++) {
-        const uint8_t *w = (const uint8_t *)(L->w + (long)r * L->words_in);
+        const uint32_t *w = L->w + (long)r * L->words_in;
         const int16_t *t = s->lut;
         int32_t pos = 0;
-        for (int g = 0; g < groups; g++, t += 256) pos += t[w[g]];
+        int g = 0;
+        for (; g + 4 <= groups; g += 4, t += 1024) {     /* one 32-bit load per 4 groups (bytes little-endian) */
+            uint32_t b = w[g >> 2];
+            pos += t[b & 255] + t[256 + (b >> 8 & 255)] + t[512 + (b >> 16 & 255)] + t[768 + (b >> 24)];
+        }
+        for (; g < groups; g++, t += 256) pos += t[((const uint8_t *)w)[g]];
         int64_t acc = 2 * (int64_t)pos - total;
         out[r] = (int32_t)((acc * hmax * L->m[r] + ((int64_t)1 << (MSH - 1))) >> MSH);
     }
@@ -117,10 +128,12 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
         int8_t *kq = s->kq + (long)l * m->seq * dim, *vq = s->vq + (long)l * m->seq * dim;
         int32_t *km = s->km + (long)l * m->seq * m->heads, *vm = s->vm + (long)l * m->seq * m->heads;
         int32_t hm = norm_quant(x, B->n1, dim, s->t1, s->iq);
+        TINYLM_PROF(0);
         prepare(s, s->iq, dim);
         linear(&B->q, s, s->iq, hm, s->q);
         linear(&B->k, s, s->iq, hm, s->k);
         linear(&B->v, s, s->iq, hm, s->v);
+        TINYLM_PROF(1);
         for (int h = 0; h < m->heads; h++) {
             int8_t qq[256];
             int32_t *qh = s->q + h * hd, *kh = s->k + h * hd;
@@ -132,10 +145,17 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             /* scores u_j = (qq . kq_j) * km_j, softmax through the exp table */
             int64_t *u = (int64_t *)s->t2;  /* hidden int32 >= 2 * seq int32: checked in init */
             int64_t umax = INT64_MIN;
+#ifdef TINYLM_DOT_ROWS
+            TINYLM_DOT_ROWS(qq, hd, kq + h * hd, dim, t + 1, s->t3);  /* t3: free until the feed-forward */
+#endif
             for (int j = 0; j <= t; j++) {
+#ifdef TINYLM_DOT_ROWS
+                int32_t d = s->t3[j];
+#else
                 const int8_t *kj = kq + (long)j * dim + h * hd;
                 int32_t d = 0;
                 for (int i = 0; i < hd; i++) d += qq[i] * kj[i];
+#endif
                 u[j] = (int64_t)d * km[j * m->heads + h];
                 if (u[j] > umax) umax = u[j];
             }
@@ -145,22 +165,29 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
                 s->p[j] = xi < TINYLM_EXP_N ? m->exp_t[xi] : 0;
                 P += s->p[j];
             }
-            for (int i = 0; i < hd; i++) {
-                int64_t acc = 0;
-                for (int j = 0; j <= t; j++)
-                    acc += (int64_t)s->p[j] * vm[j * m->heads + h] * vq[(long)j * dim + h * hd + i];
-                s->a[h * hd + i] = (int32_t)rdiv(acc, P * 127);
+            /* key by key (rows of the V cache read in order, not one column at a time): the same integer sums */
+            int64_t acc[256] = {0};
+            for (int j = 0; j <= t; j++) {
+                const int64_t pv = (int64_t)s->p[j] * vm[j * m->heads + h];
+                if (!pv) continue;
+                const int8_t *vj = vq + (long)j * dim + h * hd;
+                for (int i = 0; i < hd; i++) acc[i] += pv * vj[i];
             }
+            for (int i = 0; i < hd; i++) s->a[h * hd + i] = (int32_t)rdiv(acc[i], P * 127);
         }
         int32_t am = quant8(s->a, dim, s->iq);
+        TINYLM_PROF(2);
         prepare(s, s->iq, dim);
         linear(&B->o, s, s->iq, am, s->t1);
         for (int i = 0; i < dim; i++) x[i] += s->t1[i];
+        TINYLM_PROF(3);
 
         hm = norm_quant(x, B->n2, dim, s->t1, s->iq);
+        TINYLM_PROF(0);
         prepare(s, s->iq, dim);
         linear(&B->w1, s, s->iq, hm, s->t2);
         linear(&B->w3, s, s->iq, hm, s->t3);
+        TINYLM_PROF(4);
         for (int i = 0; i < m->hidden; i++) {
             int32_t g1 = s->t2[i];
             int32_t idx = (g1 >> (QF - SIG_Q)) + TINYLM_SIG_N / 2;
@@ -169,13 +196,27 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             s->t2[i] = (int32_t)((silu * s->t3[i] + (1 << (QF - 1))) >> QF);
         }
         int32_t fm = quant8(s->t2, m->hidden, s->iq);
+        TINYLM_PROF(5);
         prepare(s, s->iq, m->hidden);
         linear(&B->w2, s, s->iq, fm, s->t1);
         for (int i = 0; i < dim; i++) x[i] += s->t1[i];
+        TINYLM_PROF(6);
     }
 
     int32_t hm = norm_quant(x, m->norm_f, dim, s->t1, s->iq);
+    TINYLM_PROF(0);
     int best = 0;
+#ifdef TINYLM_DOT_ROWS
+    /* the board's int8 row products (out[r] = sum_i x[i] * w[r * stride + i]), m->hidden rows at a time into t2 */
+    for (int r0 = 0; r0 < m->vocab; r0 += m->hidden) {
+        const int n = m->vocab - r0 < m->hidden ? m->vocab - r0 : m->hidden;
+        TINYLM_DOT_ROWS(s->iq, dim, m->emb_q + (long)r0 * dim, dim, n, s->t2);
+        for (int r = r0; r < r0 + n; r++) {
+            z[r] = (int64_t)s->t2[r - r0] * m->emb_m[r];
+            if (z[r] > z[best]) best = r;
+        }
+    }
+#else
     for (int r = 0; r < m->vocab; r++) {
         const int8_t *e = m->emb_q + (long)r * dim;
         int32_t d = 0;
@@ -183,6 +224,8 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
         z[r] = (int64_t)d * m->emb_m[r];
         if (z[r] > z[best]) best = r;
     }
+#endif
+    TINYLM_PROF(7);
     *hmax_out = hm;
     s->pos++;
     return best;

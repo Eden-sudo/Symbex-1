@@ -29,6 +29,7 @@ from compiler_core.chip.core import open_port, read_line  # noqa: E402
 
 MODEL_OFFSET = 0x310000
 PROMPT = "Once upon a time"
+PARTS = ("embedding_norms", "qkv", "attention", "o", "w1_w3", "swiglu", "w2", "output_head")  # TINYLM_PROF in tinylm.c
 
 
 def out_hash(z, hm):
@@ -102,7 +103,7 @@ def main():
                        check=True, capture_output=True, cwd="/tmp")
         time.sleep(2)
 
-    hashes, gen, info = [], [], {}
+    hashes, gen, info, prof = [], [], {}, {}
     with open_port(args.port, 115200, "usb") as s:
         t0 = time.time()
         while True:
@@ -120,10 +121,14 @@ def main():
                 if t == 255:
                     print(f"  window {w}: {sum(h[2] for h in hashes if h[0] == w)}/256 tokens equal, "
                           f"{np.mean([h[3] for h in hashes if h[0] == w]) / 1000:.1f} ms per token")
+            elif line.startswith("P:"):
+                k, us = map(int, line[2:].split(","))
+                prof[PARTS[k]] = us
             elif line.startswith("G:"):
                 tok, ok, us = map(int, line[2:].split(","))
                 gen.append((tok, ok, us))
-                print(sp.decode([tok]), end=" " if sp.id_to_piece(tok).startswith("▁") else "", flush=True)
+                piece = sp.id_to_piece(tok)
+                print((" " if piece.startswith("▁") else "") + sp.decode([tok]), end="", flush=True)
             elif line == "DONE":
                 print()
                 break
@@ -133,7 +138,7 @@ def main():
     us_tok = np.array([h[3] for h in hashes])
     us_gen = np.array([g[2] for g in gen])
     story = sp.decode(ids[1:n_prompt] + [g[0] for g in gen])
-    res = {"run": os.path.basename(run), "board": "esp32s3 N16R8", "kernel": "lut8", "model_in": "psram",
+    res = {"run": os.path.basename(run), "board": "esp32s3 N16R8", "kernel": "lut8 linear, PIE s8 dot (output, scores)", "model_in": "psram",
            "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
            "check_tokens": len(hashes), "check_equal": int(sum(h[2] for h in hashes)),
            "equal_percent": round(100 * sum(h[2] for h in hashes) / max(1, len(hashes)), 3),
@@ -143,7 +148,9 @@ def main():
                                                                             if h[1] == p]])) / 1000, 3)
                                         for p in (0, 63, 127, 255)},
            "ms_per_token_story_mean": round(us_gen.mean() / 1000, 3),
-           "tokens_per_second_story": round(1e6 / us_gen.mean(), 3), "story": story}
+           "tokens_per_second_story": round(1e6 / us_gen.mean(), 3),
+           "ms_per_token_by_part": {k: round(v / max(1, len(hashes)) / 1000, 3) for k, v in prof.items()},
+           "story": story}
     os.makedirs(os.path.join(HERE, "results"), exist_ok=True)
     out = os.path.join(HERE, "results", f"chip_s3_{os.path.basename(run)}.json")
     with open(out, "w") as f:

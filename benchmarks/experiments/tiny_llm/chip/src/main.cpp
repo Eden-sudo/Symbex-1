@@ -15,6 +15,9 @@ extern "C" {
 }
 #include "check_data.h"
 
+extern "C" uint64_t tinylm_prof[8];       /* tinylm_esp.c: cycles per part of a token */
+extern "C" void tinylm_prof_start(void);
+
 static uint64_t out_hash(const int64_t *z, int vocab, int64_t hm) {
     uint64_t h = 0;
     for (int r = 0; r < vocab; r++) h += (uint64_t)z[r] * ((uint64_t)(r + 1) * 0x9E3779B97F4A7C15ull);
@@ -55,11 +58,14 @@ void setup() {
         s.pos = 0;
         for (int t = 0; t < CHECK_TOKENS; t++) {
             int64_t a = esp_timer_get_time();
+            tinylm_prof_start();
             tinylm_step(&m, &s, check_tokens[w][t], z, &hm);
             int64_t us = esp_timer_get_time() - a;
             Serial.printf("H:%d,%d,%d,%lld\n", w, t, out_hash(z, m.vocab, hm) == check_hash[w][t], us);
         }
     }
+    /* microseconds per part over every token of the windows: "P:part,us" */
+    for (int k = 0; k < 8; k++) Serial.printf("P:%d,%llu\n", k, tinylm_prof[k] / getCpuFrequencyMhz());
 
     s.pos = 0;
     int next = 0;

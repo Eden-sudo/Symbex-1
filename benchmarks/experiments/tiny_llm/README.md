@@ -29,7 +29,15 @@ python prepare.py
 python train.py --weights binary --seeds 42 43 44          # also fp32, ternary
 python intsim.py runs/binary_d384l8_s42 --export          # integer loss + model.bin / check.bin for the C
 cd c && gcc -O2 -Wall -Wextra -o check_pc check_pc.c tinylm.c && ./check_pc ../runs/binary_d384l8_s42
+python chip_run.py runs/binary_d384l8_s42 --port /dev/ttyACM0  # ESP32-S3 N16R8, native USB port
 ```
+
+- **Chip (`chip/`, `chip_run.py`):** ESP32-S3 N16R8 at 240 MHz. `model.bin` goes to a flash partition and is copied
+  into PSRAM at start; the KV cache is in PSRAM, the per-token buffers in internal RAM. The firmware checks every
+  token of 2 validation windows (a hash of the 4096 scores and the final max, against `intsim.py`) and the greedy
+  story token by token, and times each part of a step. Kernels: the linear layers add int8 inputs with a table of the
+  256 sums of every 8 inputs (one lookup per weight byte, `lut8`); the output layer and the attention scores use
+  lib_symbex's PIE int8 row products (`symbex_s8_dot_rows`, 16 products per instruction).
 
 **What is binary here, and what is not.** This is a 1-bit-*weight* model (W1A8, like BitNet), not a fully binary
 network like the other SYMBEX benchmarks:
@@ -67,6 +75,19 @@ C on the PC ([`results/c_check_pc_*.txt`](results/)): **1,024 / 1,024 tokens wit
 greedy story, on all three seeds.** `model.bin` is 3.55 MB (1.77 MB of 1-bit weights, 1.57 MB of int8 embedding,
 tables and multipliers); the KV cache for 256 tokens is 1.5 MB.
 
+On the ESP32-S3 (seed 42, [`results/chip_s3_binary_d384l8_s42.json`](results/chip_s3_binary_d384l8_s42.json)):
+**512 / 512 tokens with every score equal and the story 120 / 120 tokens equal: exact.** The story runs at
+**5.25 tokens per second** (190 ms per token). A step costs more as the context fills: 163 ms at position 0, 276 ms
+at position 255 (mean over the 512 checked tokens 219 ms). Model load from flash 0.5 s; 3.2 MB of PSRAM and 250 KB
+of internal RAM stay free.
+
+| Part of a step (mean of 512 tokens) | ms |
+|---|---|
+| 1-bit linear layers (q, k, v, o, w1, w3, w2) | 115.1 |
+| attention (scores, softmax, values) | 66.0 |
+| output layer (4096 x 384 int8) | 27.8 |
+| norms, embedding, SwiGLU | 10.5 |
+
 A story from the binary model (seed 42, greedy, from "Once upon a time"):
 
 > Once upon a time, there was a little girl named Lily. She loved to play with her toys and have fun. One day, Lily
@@ -75,14 +96,17 @@ A story from the binary model (seed 42, greedy, from "Once upon a time"):
 
 ## Answer
 
-Yes on the PC: the 1-bit model writes stories with dialogue and a plot, the integer version loses nothing (1.5307 vs
-1.5306), and the C equals it on every score. It costs perplexity against fp32 (4.58 vs 3.67): the binary model
+Yes: the 1-bit model writes stories with dialogue and a plot, the integer version loses nothing (1.5307 vs
+1.5306), and the C equals it on every score, on the PC and on the ESP32-S3, where it writes 5.25 tokens per second
+(one seed). It costs perplexity against fp32 (4.58 vs 3.67): the binary model
 repeats itself more. Ternary sits between the two at twice the weight memory.
 
 ## Future work
 
-- The chip: the S3 with the weights and the KV cache in PSRAM, fast 1-bit x int8 kernels (the C here is plain and
-  slow: ~93 ms per token on the PC), tokens per second measured. The speed is NOT measured yet.
+- The chip, faster: the 1-bit linear layers run at ~15 MB/s of weights while the output layer reads PSRAM at ~55
+  MB/s, so they are not limited by memory (a PIE kernel for 1-bit x int8 is the next step); the attention values
+  still use 64-bit products (the MB/s are computed from the measured times and the bytes read). Seeds 43 and 44 on
+  the chip.
 - The ternary integer model and C; a binary model with as many bytes as the ternary one.
 - Binarizing more is research, not done here: 1-bit (or few-bit) activations for the linear layers (XNOR + popcount,
   the fully binary path of the other benchmarks), a binary embedding, binary attention. How much a model this small
