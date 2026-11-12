@@ -114,6 +114,18 @@ def train(arch, first, seed, epochs, lr, dev, data, aug=False, fold=None, rr=Fal
     return va, te
 
 
+def fold_is_current(path, lr):
+    """True when a fold's train.json exists and was trained with this learning rate (the run name holds every other
+    setting). A fold trained with another lr is stale: it is reported and trained again, never mixed into the CV."""
+    if not os.path.exists(path):
+        return False
+    old = json.load(open(path)).get("lr", lr)
+    if old != lr:
+        print(f"    {os.path.basename(os.path.dirname(path))}: trained with lr {old} -> training again with lr {lr}")
+        return False
+    return True
+
+
 def to_dev(fold, dev, rr=False):
     data = [tuple(torch.as_tensor(a, device=dev) for a in load(s, fold, rr)) for s in ("train", "validation", "test")]
     return [(x, y.long()) for x, y in data]
@@ -127,7 +139,7 @@ def cross_validate(args, dev):
     for k in folds:
         path = os.path.join(HERE, "runs", run_name(args.arch, args.first, args.epochs, args.seed, args.augment, k,
                                                     args.rr, args.weight_power, args.select), "train.json")
-        if not os.path.exists(path):
+        if not fold_is_current(path, args.lr):
             train(args.arch, args.first, args.seed, args.epochs, args.lr, dev, to_dev(k, dev, args.rr), args.augment,
                   k, args.rr, args.weight_power, args.select)
         info = json.load(open(path))
