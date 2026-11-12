@@ -1,0 +1,11 @@
+{
+  "run": "binary_d384l8_s43",
+  "weights": "binary",
+  "val_windows": 1024,
+  "val_loss_float": 1.5311,
+  "val_loss_integer": 1.5311,
+  "val_perplexity_float": 4.623,
+  "val_perplexity_integer": 4.623,
+  "next_token_agreement_float_vs_integer": 0.9855,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She had a big, soft bed that she loved to sleep on. One day, she saw a small, sad bird outside her window. The bird was hungry and could not fly. Lily wanted to help the bird, so she went outside to find some food.\nLily found some bread and gave it to the bird. The bird ate the bread and felt better. Lily felt happy that she could help the bird. She knew that the bird needed to rest and rest. So, she went back to her house and found some bread for the bird.\nLily"
+}
