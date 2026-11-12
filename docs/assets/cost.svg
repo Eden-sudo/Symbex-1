@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="820" height="506" viewBox="0 0 820 506" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" role="img">
 <title>Accuracy cost against speed-up per benchmark, ESP32 and ESP32-S3</title>
 <text x="16.0" y="26.0" fill="#0b0b0b" font-size="16" text-anchor="start" font-weight="bold">What binary costs and what it buys</text>
-<text x="16.0" y="46.0" fill="#52514e" font-size="12" text-anchor="start" font-weight="normal">Points lost against INT8 (each task's metric, test set, mean of 3 seeds) and speed-up on the chip (weights in flash)</text>
-<text x="16.0" y="63.0" fill="#52514e" font-size="12" text-anchor="start" font-weight="normal">Same network and same recipe for both methods; lower is more accurate, further right is faster</text>
+<text x="16.0" y="46.0" fill="#52514e" font-size="12" text-anchor="start" font-weight="normal">Points lost against INT8 (each task's metric, test set; SYMBEX mean of 3 seeds) and speed-up on the chip (weights in flash)</text>
+<text x="16.0" y="63.0" fill="#52514e" font-size="12" text-anchor="start" font-weight="normal">Same network; INT8 ResNet-8 is the official MLPerf model, FOMO INT8 its float recipe; lower = more accurate</text>
 <circle cx="86" cy="84" r="5" fill="#2a78d6"/>
 <text x="96.0" y="88.0" fill="#0b0b0b" font-size="12" text-anchor="start" font-weight="normal">ESP32 (no SIMD)</text>
 <circle cx="226" cy="84" r="4" fill="#ffffff" stroke="#2a78d6" stroke-width="2"/>

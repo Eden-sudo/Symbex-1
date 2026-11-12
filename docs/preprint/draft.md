@@ -145,7 +145,8 @@ chip. **benchmarks/** holds the comparisons against the official INT8 toolchain 
 all following the same standard (section 2.2).
 
 *Figure 1. The chain. Each arrow is a stage of the CDT; the two checks at the bottom must give the same class as the
-integer simulation on 100 % of the inputs, or the export stops.*
+integer simulation on 100 % of the inputs; the CDT reports any mismatch (it does not stop the export), and every
+result in this paper comes from a run that reported 100 %.*
 
 ```mermaid
 flowchart LR

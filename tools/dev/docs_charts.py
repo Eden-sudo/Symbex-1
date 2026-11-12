@@ -288,9 +288,9 @@ def cost_svg(rows, th):
     lo, hi = 1, 50
     xs = lambda v: left + pw * (math.log10(v) - math.log10(lo)) / (math.log10(hi) - math.log10(lo))
     body = [text(16, 26, "What binary costs and what it buys", th["text"], 16, weight="bold"),
-            text(16, 46, "Points lost against INT8 (each task's metric, test set, mean of 3 seeds) and speed-up on "
-                 "the chip (weights in flash)", th["muted"], 12),
-            text(16, 63, "Same network and same recipe for both methods; lower is more accurate, further right is faster",
+            text(16, 46, "Points lost against INT8 (each task's metric, test set; SYMBEX mean of 3 seeds) and speed-up "
+                 "on the chip (weights in flash)", th["muted"], 12),
+            text(16, 63, "Same network; INT8 ResNet-8 is the official MLPerf model, FOMO INT8 its float recipe; lower = more accurate",
                  th["muted"], 12)]
     c = th["series"][THEME_SLOT["SYMBEX"]]
     body.append(f'<circle cx="{left + 6}" cy="84" r="5" fill="{c}"/>')
