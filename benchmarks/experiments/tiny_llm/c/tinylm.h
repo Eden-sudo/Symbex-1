@@ -21,6 +21,7 @@
 typedef struct {
     const uint32_t *w;  /* out rows x words_in */
     const int32_t *m;   /* out */
+    const int32_t *ones;/* out: weight bits set per row (only with TINYLM_U8_SUM_ROWS, else NULL) */
     int n_in, n_out, words_in;
 } TinyLinear;
 
@@ -51,8 +52,9 @@ typedef struct {
     int pos;
 } TinyState;
 
-/* Linear layers: the 8-bit table kernel (one lookup per 8 weights); -DTINYLM_REFERENCE = one bit at a time.
-   Both give the same integers. */
+/* Linear layers: the 8-bit table kernel (one lookup per 8 weights); -DTINYLM_REFERENCE = one bit at a time;
+   TINYLM_U8_PREPARE / TINYLM_U8_SUM_ROWS defined (c/tinylm_symbex.h) = lib_symbex's 8-bit x 1-bit kernel.
+   All give the same integers. */
 /* Parse model.bin (kept in memory by the caller). Returns 0 if the header is valid. */
 int tinylm_load(TinyModel *m, const uint8_t *buf, long size);
 /* Allocate the cache and the scratch buffers (malloc). Returns 0 on success. */

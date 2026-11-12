@@ -17,6 +17,7 @@ import os
 import subprocess
 import sys
 import time
+import zlib
 
 import numpy as np
 import torch
@@ -77,10 +78,12 @@ def write_check_data(run, windows, path):
     lines += ["  {" + ",".join(map(str, r)) + "}," for r in tok]
     lines += ["};", "static const uint64_t check_hash[CHECK_WINDOWS][CHECK_TOKENS] = {"]
     lines += ["  {" + ",".join(f"{int(v)}ull" for v in r) + "}," for r in h]
-    lines += ["};", "static const int16_t gen_ids[GEN_IDS] = {" + ",".join(map(str, ids)) + "};", ""]
+    lines += ["};", "static const int16_t gen_ids[GEN_IDS] = {" + ",".join(map(str, ids)) + "};"]
+    check_id = zlib.crc32("\n".join(lines).encode())   # the firmware prints it: proves which run it was built for
+    lines += [f"#define CHECK_ID {check_id}u", ""]
     with open(path, "w") as f:
         f.write("\n".join(lines))
-    return ids, n_prompt, sp
+    return ids, n_prompt, sp, check_id, a["seq"]
 
 
 def main():
@@ -89,14 +92,17 @@ def main():
     ap.add_argument("--port", default="/dev/ttyACM0")
     ap.add_argument("--windows", type=int, default=2, help="validation windows of 256 tokens checked on the chip")
     ap.add_argument("--no-upload", dest="upload", action="store_false")
+    ap.add_argument("--linear", choices=("lut8", "symbex"), default="lut8",
+                    help="1-bit linear layers: lut8 (tinylm.c's table) or symbex (lib_symbex's 8-bit x 1-bit kernel)")
     args = ap.parse_args()
     run = os.path.normpath(args.run)
     proj = os.path.join(HERE, "chip")
-    ids, n_prompt, sp = write_check_data(run, args.windows, os.path.join(proj, "src", "check_data.h"))
+    ids, n_prompt, sp, check_id, seq = write_check_data(run, args.windows, os.path.join(proj, "src", "check_data.h"))
     if args.upload:
         print("building and uploading the firmware...")
+        env = dict(os.environ, PLATFORMIO_BUILD_FLAGS="-DTINYLM_SYMBEX_LINEAR" if args.linear == "symbex" else "")
         subprocess.run(["pio", "run", "-d", proj, "-t", "upload", "--upload-port", args.port], check=True,
-                       capture_output=True)
+                       capture_output=True, env=env)
         print("writing model.bin to the model partition...")
         subprocess.run(["pio", "pkg", "exec", "-p", "tool-esptoolpy", "--", "esptool.py", "--port", args.port,
                         "write_flash", hex(MODEL_OFFSET), os.path.abspath(os.path.join(run, "model.bin"))],
@@ -112,14 +118,22 @@ def main():
                 s.write(b"\x55")
             elif line.startswith("ERROR"):
                 raise RuntimeError(line)
+            elif line.startswith("ID:"):
+                if int(line[3:]) != check_id:
+                    raise RuntimeError("the board was built for another run or reference set (run without "
+                                       "--no-upload)")
+                info["id"] = True
+            elif line.startswith("LINEAR:"):
+                if line[7:] != args.linear:
+                    raise RuntimeError(f"the board runs the {line[7:]} linear kernel, not {args.linear}")
             elif line.startswith("TINYLM ready") or line.startswith("LOADED"):
                 print("  " + line)
                 info[line.split()[0].lower()] = line
             elif line.startswith("H:"):
                 w, t, ok, us = map(int, line[2:].split(","))
                 hashes.append((w, t, ok, us))
-                if t == 255:
-                    print(f"  window {w}: {sum(h[2] for h in hashes if h[0] == w)}/256 tokens equal, "
+                if t == seq - 1:
+                    print(f"  window {w}: {sum(h[2] for h in hashes if h[0] == w)}/{seq} tokens equal, "
                           f"{np.mean([h[3] for h in hashes if h[0] == w]) / 1000:.1f} ms per token")
             elif line.startswith("P:"):
                 k, us = map(int, line[2:].split(","))
@@ -135,10 +149,25 @@ def main():
             if time.time() - t0 > 1800:
                 raise RuntimeError("chip: no DONE after 30 minutes")
 
+    expected = {(w, t) for w in range(args.windows) for t in range(seq)}
+    problems = []
+    if not info.get("id"):
+        problems.append("no ID line from the board")
+    if len(hashes) != len(expected) or {(h[0], h[1]) for h in hashes} != expected:
+        problems.append(f"{len(hashes)} validation records, expected each of {len(expected)} once")
+    if len(gen) != len(ids) - n_prompt:
+        problems.append(f"{len(gen)} story tokens, expected {len(ids) - n_prompt}")
+    bad = sum(1 - h[2] for h in hashes) + sum(1 - g[1] for g in gen)
+    if bad:
+        problems.append(f"{bad} outputs differ from intsim.py")
+    if problems:
+        raise RuntimeError("chip check failed, no result written: " + "; ".join(problems))
+
     us_tok = np.array([h[3] for h in hashes])
     us_gen = np.array([g[2] for g in gen])
     story = sp.decode(ids[1:n_prompt] + [g[0] for g in gen])
-    res = {"run": os.path.basename(run), "board": "esp32s3 N16R8", "kernel": "lut8 linear, PIE s8 dot (output, scores)", "model_in": "psram",
+    res = {"run": os.path.basename(run), "board": "esp32s3 N16R8", "kernel": ("lut8" if args.linear == "lut8" else "lib_symbex u8 x 1-bit (PIE)")
+           + " linear, PIE s8 dot (output, scores)", "model_in": "psram",
            "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
            "check_tokens": len(hashes), "check_equal": int(sum(h[2] for h in hashes)),
            "equal_percent": round(100 * sum(h[2] for h in hashes) / max(1, len(hashes)), 3),
@@ -152,7 +181,8 @@ def main():
            "ms_per_token_by_part": {k: round(v / max(1, len(hashes)) / 1000, 3) for k, v in prof.items()},
            "story": story}
     os.makedirs(os.path.join(HERE, "results"), exist_ok=True)
-    out = os.path.join(HERE, "results", f"chip_s3_{os.path.basename(run)}.json")
+    suffix = "" if args.linear == "lut8" else "_" + args.linear
+    out = os.path.join(HERE, "results", f"chip_s3_{os.path.basename(run)}{suffix}.json")
     with open(out, "w") as f:
         json.dump(res, f, indent=2)
     print(json.dumps({k: v for k, v in res.items() if k != "story"}, indent=2))

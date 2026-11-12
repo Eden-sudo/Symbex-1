@@ -31,13 +31,20 @@ static void fail(const char *why) {
 void setup() {
     Serial.begin(115200);
     while (Serial.read() != 0x55) delay(10);
+    Serial.printf("ID:%u\n", (unsigned)CHECK_ID);       /* which run and reference set this firmware holds */
+#ifdef TINYLM_SYMBEX_LINEAR
+    Serial.println("LINEAR:symbex");
+#else
+    Serial.println("LINEAR:lut8");
+#endif
     Serial.printf("TINYLM ready | cpu %d MHz | psram %u bytes free\n", getCpuFrequencyMhz(),
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 
     const esp_partition_t *part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, (esp_partition_subtype_t)0x40,
                                                            "model");
     if (!part) fail("no model partition");
-    uint8_t *buf = (uint8_t *)heap_caps_malloc(MODEL_BYTES, MALLOC_CAP_SPIRAM);
+    /* 16-byte aligned: every weight row of model.bin then is too (the PIE kernels load aligned rows) */
+    uint8_t *buf = (uint8_t *)heap_caps_aligned_alloc(16, MODEL_BYTES, MALLOC_CAP_SPIRAM);
     if (!buf) fail("no PSRAM for the model");
     int64_t t0 = esp_timer_get_time();
     if (esp_partition_read(part, 0, buf, MODEL_BYTES) != ESP_OK) fail("partition read");

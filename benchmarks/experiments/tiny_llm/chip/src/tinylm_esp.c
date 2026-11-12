@@ -30,4 +30,7 @@ static void tinylm_dot_rows(const int8_t *x, int n, const int8_t *w, int stride,
     symbex_s8_dot_rows(xa, n, w, stride, n_rows, out);
 }
 #define TINYLM_DOT_ROWS(x, n, w, stride, n_rows, out) tinylm_dot_rows((x), (n), (w), (stride), (n_rows), (out))
+#ifdef TINYLM_SYMBEX_LINEAR
+#include "../../c/tinylm_symbex.h"   /* linear layers on lib_symbex's 8-bit x 1-bit PIE kernel */
+#endif
 #include "../../c/tinylm.c"

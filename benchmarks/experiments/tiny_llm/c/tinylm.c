@@ -53,7 +53,22 @@ static int32_t norm_quant(const int32_t *x, const int32_t *g, int n, int32_t *h,
     return (int32_t)(hmax < 1 ? 1 : hmax);
 }
 
-#ifdef TINYLM_REFERENCE
+#if defined(TINYLM_U8_SUM_ROWS)
+/* lib_symbex's 8-bit x 1-bit kernel (c/tinylm_symbex.h): sums of the unsigned inputs x + 128 over the weight bits
+   that are 1; pos = that sum - 128 * (ones of the row), the same integer as the other kernels */
+static void prepare(TinyState *s, const int8_t *q, int n_in) { (void)s; TINYLM_U8_PREPARE(q, n_in); }
+
+static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int32_t hmax, int32_t *out) {
+    (void)s;
+    int32_t total = 0;
+    for (int i = 0; i < L->n_in; i++) total += q[i];
+    TINYLM_U8_SUM_ROWS(L->n_in, L->w, L->words_in, L->n_out, out);
+    for (int r = 0; r < L->n_out; r++) {
+        int64_t acc = 2 * (int64_t)(out[r] - 128 * L->ones[r]) - total;
+        out[r] = (int32_t)((acc * hmax * L->m[r] + ((int64_t)1 << (MSH - 1))) >> MSH);
+    }
+}
+#elif defined(TINYLM_REFERENCE)
 static void prepare(TinyState *s, const int8_t *q, int n_in) { (void)s; (void)q; (void)n_in; }
 
 static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int32_t hmax, int32_t *out) {
@@ -244,7 +259,18 @@ static int take_linear(TinyLinear *L, int n_in, int n_out, const uint8_t **p, co
     L->n_in = n_in; L->n_out = n_out; L->words_in = (n_in + 31) / 32;
     L->w = (const uint32_t *)take(p, end, 4L * n_out * L->words_in);
     L->m = (const int32_t *)take(p, end, 4L * n_out);
-    return L->w && L->m ? 0 : -1;
+    if (!L->w || !L->m) return -1;
+#if defined(TINYLM_U8_SUM_ROWS)
+    int32_t *ones = TINYLM_MALLOC_BIG(4L * n_out);  /* weight bits set per row (padding bits are 0) */
+    if (!ones) return -1;
+    for (int r = 0; r < n_out; r++) {
+        int32_t c = 0;
+        for (int j = 0; j < L->words_in; j++) c += __builtin_popcount(L->w[(long)r * L->words_in + j]);
+        ones[r] = c;
+    }
+    L->ones = ones;
+#endif
+    return 0;
 }
 
 int tinylm_load(TinyModel *m, const uint8_t *buf, long size) {
@@ -254,6 +280,9 @@ int tinylm_load(TinyModel *m, const uint8_t *buf, long size) {
     if (m->vocab <= 0 || m->dim <= 0 || m->hidden <= 0 || m->layers <= 0 || m->heads <= 0 || m->seq <= 0) return -1;
     /* the attention scale 16129 << 20 = 127^2 * 2^24 / 128 * sqrt(64) assumes 64-wide heads (as intsim.py) */
     if (m->dim % m->heads || m->dim / m->heads != 64 || m->dim % 8 || m->hidden % 8) return -1;
+#if defined(TINYLM_U8_SUM_ROWS)
+    if (m->dim > TINYLM_U8_MAX_IN || m->hidden > TINYLM_U8_MAX_IN) return -1;
+#endif
     const uint8_t *p = buf + 32, *end = buf + size;
     int hd2 = m->dim / m->heads / 2;
     m->emb_q = (const int8_t *)take(&p, end, (long)m->vocab * m->dim);
