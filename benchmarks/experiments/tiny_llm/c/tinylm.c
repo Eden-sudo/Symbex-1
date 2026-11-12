@@ -212,8 +212,9 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
                     l0 += a * v0; l1 += a * v1; l2 += a * v2; l3 += a * v3;
                     h0 += b * v0; h1 += b * v1; h2 += b * v2; h3 += b * v3;
                 }
-                acc[i] = ((int64_t)h0 << 16) + l0; acc[i + 1] = ((int64_t)h1 << 16) + l1;
-                acc[i + 2] = ((int64_t)h2 << 16) + l2; acc[i + 3] = ((int64_t)h3 << 16) + l3;
+                /* the high sums can be negative (vq is signed): multiplied, not shifted (C99 leaves the shift undefined) */
+                acc[i] = (int64_t)h0 * 65536 + l0; acc[i + 1] = (int64_t)h1 * 65536 + l1;
+                acc[i + 2] = (int64_t)h2 * 65536 + l2; acc[i + 3] = (int64_t)h3 * 65536 + l3;
             }
             if (wide) {
                 for (int i = 0; i < hd; i++) acc[i] = 0;

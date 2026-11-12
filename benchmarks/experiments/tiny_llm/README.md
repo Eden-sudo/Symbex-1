@@ -111,10 +111,12 @@ repeats itself more. Ternary sits between the two at twice the weight memory.
 
 ## Future work
 
-- The chip, faster: the linear layers read their weights at ~32 MB/s with lib_symbex's kernel while the output
-  layer reads PSRAM at ~55 MB/s; the attention values (25 ms) are plain C (a PIE version needs wider lanes than
-  QACC's 20 bits) (the MB/s are computed from the measured times and the bytes read). Seeds 43 and 44 on
-  the chip.
+- The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
+  RAM: the output head (28 ms) and the attention scores are at the PSRAM's speed (58 MB/s), the linear layers are
+  half kernel and half memory (69 MB/s internal, 40 MB/s from PSRAM), and the attention values (25 ms) are plain C,
+  3.8× slower than the scores' PIE kernel over the same bytes. So, in order: a PIE kernel for the values (p split in
+  two bytes, or the s16 lanes, exact), a 1-bit output head (8× fewer bytes; its perplexity to be measured), the
+  PSRAM at 120 MHz (+40 % bandwidth, experimental in ESP-IDF). Seeds 43 and 44 on the chip.
 - The ternary integer model and C; a binary model with as many bytes as the ternary one.
 - Binarizing more is research, not done here: 1-bit (or few-bit) activations for the linear layers (XNOR + popcount,
   the fully binary path of the other benchmarks), a binary embedding, binary attention. How much a model this small

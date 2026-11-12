@@ -14,6 +14,7 @@ docstring.
 | `stem_i8_pie_bench.py` | can the int8 stem use PIE better on the ESP32-S3? | 5.7× faster stem, now in lib_symbex (below) |
 | `stem_i8_pico_bench.py` | where does the int8 stem's time go on the Pico 2, and can it go faster? | 1.4-1.6× faster stem, now in lib_symbex (below) |
 | `dense_short_bench.py` | why is a first dense layer with few inputs (19 sensors → 64) slow? | 2.2-2.5× faster, now in lib_symbex (below) |
+| `psram_bw_bench.py` | is tiny_llm on the ESP32-S3 limited by the PSRAM or by the kernels? | the head and the attention scores by the PSRAM, the attention values by plain C, the linear layers by both (below) |
 
 Results in `results/`; the generated firmware projects in `runs/` (not in git).
 
@@ -144,4 +145,39 @@ cost per group, not measured).
 python dense_short_bench.py --port /dev/ttyACM0                      # ESP32-S3, the library in the work tree
 python dense_short_bench.py --port /dev/ttyACM0 --lib-rev master     # the library before
 python dense_short_bench.py --board pico2_arm --port /dev/ttyACM1    # esp32 /dev/ttyUSB0; pico2_riscv
+```
+
+## PSRAM or kernels: where tiny_llm's time goes (`psram_bw_bench.py`, Nov 12)
+
+The 15.7 M-parameter model of `../tiny_llm` keeps its weights (1.77 MB binary, a 1.5 MB int8 head) and its KV
+cache in the octal PSRAM of the ESP32-S3 N16R8. The same kernels ran on the same shapes with the data in PSRAM and
+in internal RAM, so each part's memory cost is measured (best of 7, every PSRAM block read from a fresh copy, as
+the model reads it once per token; `results/psram_bw_bench_s3_80.json` and `_120.json`):
+
+| Test (one call) | KB | internal RAM | PSRAM 80 MHz | PSRAM 120 MHz | limited by |
+|---|---|---|---|---|---|
+| plain C read of 32-bit words | 1536 | 320 MB/s | 25.8 ms, 61 MB/s | 18.4 ms, 85 MB/s | the PSRAM |
+| `symbex_u8_sum_bits_rows` 384 → 384 (a linear layer) | 18 | 0.267 ms (69 MB/s) | 0.465 ms (40 MB/s) | 0.412 ms (45 MB/s) | both, about half each |
+| same, 384 → 1024 / 1024 → 384 | 48 | 0.713 / 0.651 ms | 1.234 / 1.176 ms | 1.093 / 1.050 ms | both |
+| `symbex_s8_dot_rows`, the 4096 × 384 int8 head | 1536 | (512 rows: 452 MB/s) | 26.9 ms, 58 MB/s | 19.7 ms, 80 MB/s | the PSRAM only |
+| attention scores, 6 heads, position 255 | 96 | 0.282 ms (348 MB/s) | 1.656 ms (59 MB/s) | 1.233 ms (80 MB/s) | the PSRAM only |
+| attention values, 6 heads, position 255 (tinylm.c's int32 loop) | 96 | 5.141 ms (19 MB/s) | 6.325 ms (16 MB/s) | 6.016 ms | plain C: 7.7× slower than its PSRAM reads |
+
+What it says about a token (138 ms measured, seed 42, `../tiny_llm`):
+
+- The output head (28 ms) is pure PSRAM traffic: in internal RAM the same kernel runs 7.7× faster. A 1-bit head
+  (196 KB, lib_symbex's 8-bit × 1-bit kernel) would read 8× fewer bytes: ~3-5 ms (ESTIMATE from the rates above;
+  whether the model keeps its perplexity with a binary head is not measured).
+- The linear layers (55.6 ms) are half kernel, half memory: 69 MB/s in internal RAM, 40 MB/s from PSRAM, close to
+  the sum of the two times. The PSRAM at 120 MHz gains only ~10 % here.
+- The attention scores (7.5 ms) are at PSRAM speed. The attention values (25 ms) are not: the plain C loop is 3.8×
+  slower than the scores' PIE kernel over the same bytes, with the data in internal RAM or in PSRAM alike. A PIE
+  kernel for the values could bring them near the scores' time: ~18 ms per token less (ESTIMATE).
+- PSRAM at 120 MHz (`--speed 120`): +40 % raw bandwidth, head 26.9 → 19.7 ms, ~16 ms per token (ESTIMATE); it is
+  experimental in ESP-IDF (octal PSRAM, crashes when the temperature drifts ~20 °C), needs the flash at 120 MHz too
+  and ESP-IDF instead of the Arduino core tiny_llm's firmware uses. Measured here only to know its size.
+
+```
+python psram_bw_bench.py --port /dev/ttyACM0                 # PSRAM at 80 MHz (the default of every build)
+python psram_bw_bench.py --port /dev/ttyACM0 --speed 120     # experimental 120 MHz, flash at 120 too
 ```
