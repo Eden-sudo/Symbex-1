@@ -177,7 +177,7 @@ int8_reference = false
 
 [chip]
 # Measure the exported model on a real board (needs PlatformIO and the board connected).
-# "" = skip, "esp32" = classic ESP32, "s3" = ESP32-S3.
+# "" = skip, "esp32" = classic ESP32, "s3" = ESP32-S3, "pico2_arm" / "pico2_riscv" = Raspberry Pi Pico 2 (one core each).
 board = ""
 port = "/dev/ttyUSB0"
 baud = 921600

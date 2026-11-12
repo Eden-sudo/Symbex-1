@@ -56,6 +56,7 @@ void symbex_bool_conv(const struct SymbexBoolConv* L, const uint32_t* in, uint32
     const int cin = L->in_ch, dense = (cin & 31) != 0;   /* channels not a multiple of 32: the window is packed */
     const int win_words = (kk * cin + 31) / 32;               /* words of the window (= kk * pin when not packed) */
     const int H = L->in_h, W = L->in_w, s = L->stride, st = L->row_words;
+    if (kk > SYMBEX_BOOL_MAX_KK) return;        /* kernels up to 3 x 3 (invalid[] below); the exporters never exceed it */
     const int32_t* thr = L->thresholds;
     const int16_t* wc = L->weight_counts;
     int32_t* adj = scratch;                      /* AND form: thresholds + 2 * popcount of all the weights of output o */

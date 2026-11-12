@@ -91,7 +91,7 @@ def main():
         try:
             profile = run_kernels(args.board, args.port, args.lib_path, os.path.join("runs", f"kernels_{args.board}"),
                                   args.popcount, upload=not args.no_upload, with_int8=args.int8,
-                                  weights=args.weights or "flash")
+                                  weights=args.weights)
         except (RuntimeError, ValueError) as e:
             sys.exit(f"[X] {e}")
         if profile.get("checksums_ok"):
