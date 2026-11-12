@@ -292,6 +292,8 @@ def main():
         json.dump(dict(board="s3", psram_mhz=a.speed, cpu_mhz=MHZ, header=header, reps=7, best_of="cycles",
                        rows=rows, date=time.strftime("%Y-%m-%d")), f, indent=1)
     print("saved", os.path.relpath(out, ROOT))
+    if bad:
+        sys.exit(1)                         # results kept for the diagnosis, but a mismatch is a failed run
 
 
 if __name__ == "__main__":

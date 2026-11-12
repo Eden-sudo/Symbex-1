@@ -422,7 +422,9 @@ int tinylm_state_init(TinyState *s, const TinyModel *m) {
     long kv = (long)m->layers * m->seq * m->dim, kvm = (long)m->layers * m->seq * m->heads;
     int big = m->hidden > m->dim ? m->hidden : m->dim;
     if (m->hidden < 2 * m->seq) return -1;  /* t2 doubles as the int64 score buffer */
-    if (big < 4 * m->seq) return -1;        /* iq holds the 4 byte vectors of the attention weights (TINYLM_DOT_ROWS_U8) */
+#ifdef TINYLM_DOT_ROWS_U8
+    if (big < 4 * m->seq) return -1;        /* iq holds the 4 byte vectors of the attention weights */
+#endif
     memset(s, 0, sizeof(*s));
     s->kq = TINYLM_MALLOC_BIG(kv); s->vq = TINYLM_MALLOC_BIG(kv + 16);  /* +16: the row kernel reads whole blocks */
     s->km = TINYLM_MALLOC_BIG(4 * kvm); s->vm = TINYLM_MALLOC_BIG(4 * kvm);
