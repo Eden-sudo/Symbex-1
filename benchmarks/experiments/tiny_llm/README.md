@@ -28,7 +28,7 @@ only, exact in C, small enough for an ESP32-S3 with 8 MB of PSRAM?
 python prepare.py
 python train.py --weights binary --seeds 42 43 44          # also fp32, ternary
 python intsim.py runs/binary_d384l8_s42 --export          # integer loss + model.bin / check.bin for the C
-cd c && gcc -O2 -Wall -Wextra -o check_pc check_pc.c tinylm.c && ./check_pc ../runs/binary_d384l8_s42
+(cd c && gcc -O2 -Wall -Wextra -o check_pc check_pc.c tinylm.c && ./check_pc ../runs/binary_d384l8_s42)
 python chip_run.py runs/binary_d384l8_s42 --port /dev/ttyACM0                   # ESP32-S3 N16R8, native USB port
 python chip_run.py runs/binary_d384l8_s42 --port /dev/ttyACM0 --linear symbex   # linear layers on lib_symbex
 ```
@@ -80,17 +80,21 @@ tables and multipliers); the KV cache for 256 tokens is 1.5 MB.
 
 On the ESP32-S3 (seed 42, [`results/chip_s3_binary_d384l8_s42*.json`](results/)): **512 / 512 tokens with every
 score equal and the story 120 / 120 tokens equal, with both kernels: exact.** With lib_symbex's kernel the story runs
-at **7.66 tokens per second** (131 ms per token). A step costs more as the context fills (attention over more
+at **8.28 tokens per second** (121 ms per token). A step costs more as the context fills (attention over more
 tokens). Model load from flash 0.5-0.6 s; ~3 MB of PSRAM and ~246 KB of internal RAM stay free.
 
 | Part of a step (ms, mean of 512 tokens) | `lut8` | `--linear symbex` |
 |---|---|---|
 | 1-bit linear layers (q, k, v, o, w1, w3, w2) | 115.1 | **55.6** |
-| attention (scores, softmax, values) | 66.0 | 63.5 |
-| output layer (4096 x 384 int8) | 27.8 | 28.0 |
+| attention (rope + int8 cache 7.5, scores 7.5, softmax 2.1, values 25.2, division 1.6) | 43.8 | 43.9 |
+| output layer (4096 x 384 int8) | 28.0 | 28.0 |
 | norms, embedding, SwiGLU | 10.5 | 10.5 |
-| **whole step** (position 0 / 255) | 219.4 (163 / 276) | **157.6** (104 / 211) |
-| **story, tokens per second** | 5.25 | **7.66** |
+| **whole step** (position 0 / 255) | 197.3 (163 / 231) | **138.0** (104 / 172) |
+| **story, tokens per second** | 5.55 | **8.28** |
+
+The attention keeps the integers of `intsim.py` and only changes how they are computed: the KV cache is stored
+head by head (a head's keys one after another), the weights of the values (p x vm < 2^32, checked; a larger one
+falls back to int64) are summed as two 16-bit halves in int32, and the softmax index needs a 32-bit division only.
 
 A story from the binary model (seed 42, greedy, from "Once upon a time"):
 
@@ -101,14 +105,15 @@ A story from the binary model (seed 42, greedy, from "Once upon a time"):
 ## Answer
 
 Yes: the 1-bit model writes stories with dialogue and a plot, the integer version loses nothing (1.5307 vs
-1.5306), and the C equals it on every score, on the PC and on the ESP32-S3, where it writes 7.66 tokens per second
+1.5306), and the C equals it on every score, on the PC and on the ESP32-S3, where it writes 8.28 tokens per second
 (one seed) with lib_symbex's own 8-bit x 1-bit kernel. It costs perplexity against fp32 (4.58 vs 3.67): the binary model
 repeats itself more. Ternary sits between the two at twice the weight memory.
 
 ## Future work
 
-- The chip, faster: the attention is now the largest part (its values still use 64-bit products); the linear
-  layers read their weights at ~32 MB/s with lib_symbex's kernel while the output layer reads PSRAM at ~55 MB/s (the MB/s are computed from the measured times and the bytes read). Seeds 43 and 44 on
+- The chip, faster: the linear layers read their weights at ~32 MB/s with lib_symbex's kernel while the output
+  layer reads PSRAM at ~55 MB/s; the attention values (25 ms) are plain C (a PIE version needs wider lanes than
+  QACC's 20 bits) (the MB/s are computed from the measured times and the bytes read). Seeds 43 and 44 on
   the chip.
 - The ternary integer model and C; a binary model with as many bytes as the ternary one.
 - Binarizing more is research, not done here: 1-bit (or few-bit) activations for the linear layers (XNOR + popcount,

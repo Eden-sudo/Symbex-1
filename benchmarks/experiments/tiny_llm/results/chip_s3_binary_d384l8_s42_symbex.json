@@ -6,30 +6,34 @@
   "kv_cache_in": "psram",
   "cpu_mhz": 240,
   "ready": "TINYLM ready | cpu 240 MHz | psram 8386295 bytes free",
-  "loaded": "LOADED 3550752 bytes in 605 ms | internal free 246092 | psram free 3036423",
+  "loaded": "LOADED 3550752 bytes in 605 ms | internal free 246060 | psram free 3036423",
   "check_tokens": 512,
   "check_equal": 512,
   "equal_percent": 100.0,
   "story_tokens": 120,
   "story_equal": 120,
-  "ms_per_token_check_mean": 157.584,
+  "ms_per_token_check_mean": 137.989,
   "ms_per_token_at_position": {
-    "0": 103.803,
-    "63": 129.416,
-    "127": 157.24,
-    "255": 211.345
+    "0": 103.832,
+    "63": 120.791,
+    "127": 137.864,
+    "255": 171.948
   },
-  "ms_per_token_story_mean": 130.501,
-  "tokens_per_second_story": 7.663,
+  "ms_per_token_story_mean": 120.832,
+  "tokens_per_second_story": 8.276,
   "ms_per_token_by_part": {
     "embedding_norms": 4.618,
     "qkv": 14.264,
-    "attention": 63.483,
+    "attention_values": 25.154,
     "o": 5.087,
-    "w1_w3": 24.738,
-    "swiglu": 5.925,
+    "w1_w3": 24.739,
+    "swiglu": 5.89,
     "w2": 11.478,
-    "output_head": 27.99
+    "output_head": 27.99,
+    "attention_rope_cache": 7.531,
+    "attention_scores": 7.535,
+    "attention_softmax": 2.1,
+    "attention_division": 1.601
   },
   "story": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and have fun. One day, Lily found a big, red ball in her room. She was very happy and wanted to show it to her friends.\nLily went to her friend Tom's house and said, \"Look at my big, red ball! Let's play with it!\" Tom was excited and said, \"Yes, let's play!\" They took the big, red ball and started to play.\nAs they played, the big, red ball started to move! It was not a ball at"
 }

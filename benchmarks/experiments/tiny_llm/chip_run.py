@@ -30,7 +30,8 @@ from compiler_core.chip.core import open_port, read_line  # noqa: E402
 
 MODEL_OFFSET = 0x310000
 PROMPT = "Once upon a time"
-PARTS = ("embedding_norms", "qkv", "attention", "o", "w1_w3", "swiglu", "w2", "output_head")  # TINYLM_PROF in tinylm.c
+PARTS = ("embedding_norms", "qkv", "attention_values", "o", "w1_w3", "swiglu", "w2", "output_head",
+         "attention_rope_cache", "attention_scores", "attention_softmax", "attention_division")  # TINYLM_PROF in tinylm.c
 
 
 def out_hash(z, hm):

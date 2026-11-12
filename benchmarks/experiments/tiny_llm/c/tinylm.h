@@ -42,8 +42,8 @@ typedef struct {
 } TinyModel;
 
 typedef struct {
-    int8_t *kq, *vq;         /* layers x seq x dim */
-    int32_t *km, *vm;        /* layers x seq x heads */
+    int8_t *kq, *vq;         /* layers x heads x seq x head size */
+    int32_t *km, *vm;        /* layers x heads x seq */
     int32_t *x, *t1, *t2, *t3; /* dim, dim, hidden, hidden scratch */
     int32_t *q, *k, *v, *a;  /* dim */
     int8_t *iq;              /* max(dim, hidden) */

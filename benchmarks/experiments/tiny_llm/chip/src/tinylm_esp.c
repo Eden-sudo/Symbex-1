@@ -4,7 +4,7 @@
 #define TINYLM_MALLOC_BIG(n) heap_caps_malloc((n), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
 /* cycles per part of a token (main.cpp prints them): see TINYLM_PROF in tinylm.c */
 #include "xtensa/hal.h"
-uint64_t tinylm_prof[8];
+uint64_t tinylm_prof[12];
 uint32_t tinylm_prof_last;
 #define TINYLM_PROF(k) do { uint32_t c_ = xthal_get_ccount(); tinylm_prof[k] += c_ - tinylm_prof_last; \
                             tinylm_prof_last = c_; } while (0)
