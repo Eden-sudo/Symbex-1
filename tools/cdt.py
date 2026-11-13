@@ -236,6 +236,9 @@ def validate_config(cfg):
                       "\"vertical_compact\"")
     elif cfg["chip"]["engine"] not in ("auto", "standard") and cfg["model"]["method"] != "boolean":
         errors.append("[chip] engine: the vertical engine is for method \"boolean\" (fully binary conv networks)")
+    if cfg["chip"]["engine"] == "auto" and cfg["chip"]["board"] and not cfg["chip"]["upload"]:
+        errors.append("[chip] engine \"auto\" with upload = false: say which engine the board's firmware runs "
+                      "(\"standard\", \"vertical\", ...); auto only knows what it would flash")
     if cfg["chip"]["code"] not in ("flash", "ram"):
         errors.append("[chip] code must be \"flash\" or \"ram\"")
     if cfg["chip"]["first_layer"] not in ("mask", "planes", "simple"):

@@ -190,6 +190,7 @@ usb = false           # true: the ESP32-S3 through its native USB-Serial-JTAG po
                       # of its UART: flashing needs no BOOT button, same firmware and results
 # Engine of fully binary conv networks (method "boolean"); same data, same results, only the speed and RAM change:
 #   "auto"              (default) "vertical" on the ESP32-S3 when the network can run it, "standard" elsewhere
+#                       (with upload = false, name the engine the board's firmware already runs)
 #   "standard"          the engine of every board
 #   "vertical"          bit-sliced (docs/vertical.md), the fastest on the ESP32-S3
 #   "vertical_prepared" the same, its plane lists and thresholds built once into RAM at start (more RAM, faster)

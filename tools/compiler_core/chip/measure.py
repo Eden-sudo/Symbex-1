@@ -173,6 +173,9 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
 
 
     import time
+    if engine == "auto" and not upload:
+        raise ValueError("chip: engine \"auto\" without upload: the board keeps the firmware flashed before, whose engine "
+                         "this run cannot see; say which one it runs (--engine standard / vertical / ...)")
     engine = resolve_engine(engine, board, header_path)
     if board in PICO_BOARDS and int8:
         if verbose:
