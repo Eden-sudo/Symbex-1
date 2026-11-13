@@ -18,7 +18,8 @@ for run in sys.argv[1:]:
     m = TinyLM(4096, a["dim"], a["layers"], a["heads"], a["hidden"], a["seq"], a["weights"], a.get("head", "fp32"),
                tuple(a.get("int8_blocks", [])), a.get("acts", 8),
                {"ste_mode": a.get("ste", "identity"), "ste_k": a.get("ste_k", 2.0), "learn_thr": a.get("learn_thr", False)},
-               tuple(a.get("a8_inputs", [])), W2_ACTS[a.get("w2_acts", "same")], a.get("ffn_act", "silu")).to(dev)
+               tuple(a.get("a8_inputs", [])), W2_ACTS[a.get("w2_acts", "same")], a.get("ffn_act", "silu"),
+               tuple(a.get("hadamard", [])), tuple(a.get("a8_blocks", []))).to(dev)
     m.load_state_dict(ck["model"]); m.eval()
     acts = {}
     for bi, b in enumerate(m.blocks):

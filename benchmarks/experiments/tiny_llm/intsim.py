@@ -81,6 +81,10 @@ def load_model(run, vocab, dev):
         "--head binary / --int8-blocks runs have no integer model yet"
     assert not a.get("learn_thr") and a.get("w2_acts", "same") == "same" and a.get("ffn_act", "silu") == "silu", \
         "--learn-thr / --w2-acts / --ffn-act relu runs have no integer model yet"
+    for group in (("q", "k", "v"), ("w1", "w3")):        # forward() quantizes each group's input once
+        for opt in ("a8_inputs", "hadamard"):
+            assert len({n in (a.get(opt) or []) for n in group}) == 1, \
+                f"--{opt.replace('_', '-')} must list all of {'/'.join(group)} or none (they share one input)"
     model = T.TinyLM(vocab, a["dim"], a["layers"], a["heads"], a["hidden"], a["seq"], a["weights"],
                      head=a.get("head", "fp32"), acts=a.get("acts", 8), act_opts={"ste_mode": a.get("ste", "identity"), "ste_k": a.get("ste_k", 2.0)},
                      a8_inputs=tuple(a.get("a8_inputs", [])), rotate=tuple(a.get("hadamard", [])),
