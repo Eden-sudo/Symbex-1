@@ -1,0 +1,159 @@
+{
+  "weights": "binary",
+  "seed": 44,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "binary",
+    "int8_blocks": [],
+    "name": "d384l8_head1",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.6078,
+  "val_perplexity": 4.992,
+  "minutes": 32.94,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.3491,
+      "val_loss": 2.3524,
+      "minutes": 1.65
+    },
+    {
+      "step": 1000,
+      "train_loss": 2.0058,
+      "val_loss": 2.0618,
+      "minutes": 3.29
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.9312,
+      "val_loss": 1.9571,
+      "minutes": 4.94
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.9001,
+      "val_loss": 1.898,
+      "minutes": 6.59
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.8411,
+      "val_loss": 1.8504,
+      "minutes": 8.24
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.8021,
+      "val_loss": 1.8178,
+      "minutes": 9.88
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.7315,
+      "val_loss": 1.7884,
+      "minutes": 11.53
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.7218,
+      "val_loss": 1.7624,
+      "minutes": 13.18
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.778,
+      "val_loss": 1.7434,
+      "minutes": 14.83
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.7141,
+      "val_loss": 1.7246,
+      "minutes": 16.48
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.7704,
+      "val_loss": 1.7104,
+      "minutes": 18.12
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.6915,
+      "val_loss": 1.6928,
+      "minutes": 19.77
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.7014,
+      "val_loss": 1.6777,
+      "minutes": 21.42
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.6406,
+      "val_loss": 1.6608,
+      "minutes": 23.06
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.6008,
+      "val_loss": 1.6484,
+      "minutes": 24.71
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.6777,
+      "val_loss": 1.6365,
+      "minutes": 26.35
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.6324,
+      "val_loss": 1.6231,
+      "minutes": 28.0
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.593,
+      "val_loss": 1.6166,
+      "minutes": 29.65
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.5955,
+      "val_loss": 1.6092,
+      "minutes": 31.29
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.6287,
+      "val_loss": 1.6078,
+      "minutes": 32.94
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She loved to play outside in the sun. One day, she saw a big tree with a small hole in it. Lily thought it would be fun to hide in the hole.\nLily went to the tree and peeked inside. She saw a small bird. The bird was scared and said, \"Help me, please! I am stuck in the hole.\" Lily wanted to help the bird, so she used her long arms to push the bird out of the hole.\nThe bird was very happy and said, \"Thank you, Lily! You are a good friend.\" Lily smiled and said, \"You're welcome, bird. I'm glad I could help you.\" From that day on, Lily and the bird became best friends. They played together every day, and Lily always made sure to keep her little bird safe."
+}

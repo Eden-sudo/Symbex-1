@@ -1,0 +1,162 @@
+{
+  "weights": "binary",
+  "seed": 43,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "fp32",
+    "int8_blocks": [
+      0,
+      7
+    ],
+    "name": "d384l8_b07i8",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.4174,
+  "val_perplexity": 4.126,
+  "minutes": 32.92,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.1909,
+      "val_loss": 2.2162,
+      "minutes": 1.64
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.8582,
+      "val_loss": 1.9017,
+      "minutes": 3.29
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.762,
+      "val_loss": 1.7886,
+      "minutes": 4.94
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.6894,
+      "val_loss": 1.7203,
+      "minutes": 6.58
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.6237,
+      "val_loss": 1.6762,
+      "minutes": 8.23
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.6129,
+      "val_loss": 1.641,
+      "minutes": 9.87
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.538,
+      "val_loss": 1.6106,
+      "minutes": 11.52
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.5589,
+      "val_loss": 1.5834,
+      "minutes": 13.17
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.5725,
+      "val_loss": 1.5631,
+      "minutes": 14.81
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.5464,
+      "val_loss": 1.5408,
+      "minutes": 16.46
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.5295,
+      "val_loss": 1.5219,
+      "minutes": 18.1
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.4603,
+      "val_loss": 1.5037,
+      "minutes": 19.75
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.4673,
+      "val_loss": 1.4865,
+      "minutes": 21.4
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.4988,
+      "val_loss": 1.4715,
+      "minutes": 23.04
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.4638,
+      "val_loss": 1.4567,
+      "minutes": 24.69
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.428,
+      "val_loss": 1.4454,
+      "minutes": 26.33
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.4583,
+      "val_loss": 1.4351,
+      "minutes": 27.98
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.4424,
+      "val_loss": 1.426,
+      "minutes": 29.63
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.4001,
+      "val_loss": 1.4207,
+      "minutes": 31.27
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.3748,
+      "val_loss": 1.4174,
+      "minutes": 32.92
+    }
+  ],
+  "sample": "Once upon a time, there was a little boy named Tim. Tim loved to play with his toy cars. One day, he found a big, red car in his toy box. He was very happy and wanted to show it to his friend, Sam.\nTim ran to Sam's house and said, \"Look, Sam! I found a big, red car! Let's play with it!\" Sam was excited and said, \"Yes, let's play with it!\" They played with the car, making it go fast and slow. They had so much fun.\nBut then, Tim's mom came into the room. She saw the big, red car and said, \"Oh no, Tim! That car is not a toy. It is a magic car!\" Tim and Sam were very surprised. They didn't know that the magic car could make things vanish. They laughed and played with the magic car all day."
+}

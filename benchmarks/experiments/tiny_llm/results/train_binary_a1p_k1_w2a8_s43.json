@@ -1,0 +1,174 @@
+{
+  "weights": "binary",
+  "seed": 43,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      43,
+      44
+    ],
+    "head": "fp32",
+    "int8_blocks": [],
+    "acts": 1,
+    "ste": "clip",
+    "ste_k": 1.0,
+    "learn_thr": false,
+    "a8_inputs": [
+      "w2"
+    ],
+    "a8_blocks": [],
+    "w2_acts": "same",
+    "hadamard": [],
+    "ffn_act": "silu",
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "a1p_k1_w2a8",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.8056,
+  "val_perplexity": 6.084,
+  "minutes": 23.7,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.4462,
+      "val_loss": 2.4707,
+      "minutes": 1.22
+    },
+    {
+      "step": 1000,
+      "train_loss": 2.1504,
+      "val_loss": 2.1785,
+      "minutes": 2.37
+    },
+    {
+      "step": 1500,
+      "train_loss": 2.0447,
+      "val_loss": 2.0747,
+      "minutes": 3.52
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.9893,
+      "val_loss": 2.0157,
+      "minutes": 4.68
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.9296,
+      "val_loss": 1.9852,
+      "minutes": 5.83
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.9265,
+      "val_loss": 1.9566,
+      "minutes": 6.98
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.859,
+      "val_loss": 1.9379,
+      "minutes": 8.14
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.9089,
+      "val_loss": 1.9175,
+      "minutes": 9.3
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.9283,
+      "val_loss": 1.9028,
+      "minutes": 10.46
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.9029,
+      "val_loss": 1.8891,
+      "minutes": 11.62
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.8973,
+      "val_loss": 1.8782,
+      "minutes": 12.77
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.8176,
+      "val_loss": 1.8669,
+      "minutes": 13.92
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.8428,
+      "val_loss": 1.8531,
+      "minutes": 15.08
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.8685,
+      "val_loss": 1.8434,
+      "minutes": 16.26
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.8516,
+      "val_loss": 1.833,
+      "minutes": 17.43
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.8005,
+      "val_loss": 1.8251,
+      "minutes": 18.64
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.8371,
+      "val_loss": 1.8173,
+      "minutes": 20.01
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.8304,
+      "val_loss": 1.8112,
+      "minutes": 21.19
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.7908,
+      "val_loss": 1.8078,
+      "minutes": 22.48
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.7605,
+      "val_loss": 1.8056,
+      "minutes": 23.69
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She had a big, soft, soft pillow. She loved to play with her toys and read the book every day. One day, she found a big, soft pillow in her room. She was very happy and wanted to play with it.\nLily's mom told her that the pillow was not for playing. She told her that it was not a pillow, but it was a surprise. Lily was very excited and wanted to play with the pillow. She asked her mom if she could play with it, but her mom said no. Lily was sad, but she knew she had to be careful.\nLily played with the pillow and had lots of fun. She forgot about the pillow and forgot about the pillow. When she woke up, she saw that the pillow was gone. Lily was sad, but she knew she had to listen to her mom. So, she went to find her mom and told her about the pillow. Her mom smiled and said"
+}

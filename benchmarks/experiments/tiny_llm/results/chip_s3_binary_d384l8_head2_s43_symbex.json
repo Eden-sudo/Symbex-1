@@ -1,0 +1,39 @@
+{
+  "run": "binary_d384l8_head2_s43",
+  "board": "esp32s3 N16R8",
+  "kernel": "lib_symbex u8 x 1-bit (PIE) linear, PIE int2 dot (output), PIE s8 dot (scores)",
+  "model_in": "psram",
+  "kv_cache_in": "psram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | psram 8386295 bytes free",
+  "loaded": "LOADED 2372000 bytes in 437 ms | internal free 234032 | psram free 4215159",
+  "check_tokens": 512,
+  "check_equal": 512,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 109.299,
+  "ms_per_token_at_position": {
+    "0": 89.388,
+    "63": 97.778,
+    "127": 108.175,
+    "255": 129.325
+  },
+  "ms_per_token_story_mean": 98.721,
+  "tokens_per_second_story": 10.13,
+  "ms_per_token_by_part": {
+    "embedding_norms": 4.67,
+    "qkv": 14.349,
+    "attention_values": 13.274,
+    "o": 5.186,
+    "w1_w3": 24.897,
+    "swiglu": 5.893,
+    "w2": 11.507,
+    "output_head": 8.434,
+    "attention_rope_cache": 9.684,
+    "attention_scores": 7.78,
+    "attention_softmax": 2.022,
+    "attention_division": 1.6
+  },
+  "story": "Once upon a time, there was a little boy named Tim. Tim loved to play with his toy cars. One day, he saw a big, red car in his yard. Tim was very happy and wanted to play with the car.\nTim said to his mom, \"Mom, can I play with the car?\" His mom said, \"Yes, but be careful.\" Tim was very careful and played with the car. He made it go fast and slow, and it went very fast.\nTim played with the car all day. He made it go fast and slow, and it went slow. He was having so"
+}

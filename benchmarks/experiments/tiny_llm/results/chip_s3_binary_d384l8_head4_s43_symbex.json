@@ -1,0 +1,39 @@
+{
+  "run": "binary_d384l8_head4_s43",
+  "board": "esp32s3 N16R8",
+  "kernel": "lib_symbex u8 x 1-bit (PIE) linear, PIE int4 dot (output), PIE s8 dot (scores)",
+  "model_in": "psram",
+  "kv_cache_in": "psram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | psram 8386295 bytes free",
+  "loaded": "LOADED 2765216 bytes in 494 ms | internal free 235056 | psram free 3821943",
+  "check_tokens": 512,
+  "check_equal": 512,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 115.627,
+  "ms_per_token_at_position": {
+    "0": 95.738,
+    "63": 104.092,
+    "127": 114.468,
+    "255": 135.666
+  },
+  "ms_per_token_story_mean": 105.029,
+  "tokens_per_second_story": 9.521,
+  "ms_per_token_by_part": {
+    "embedding_norms": 4.646,
+    "qkv": 14.377,
+    "attention_values": 13.289,
+    "o": 5.196,
+    "w1_w3": 24.927,
+    "swiglu": 5.894,
+    "w2": 11.523,
+    "output_head": 14.682,
+    "attention_rope_cache": 9.684,
+    "attention_scores": 7.783,
+    "attention_softmax": 2.023,
+    "attention_division": 1.601
+  },
+  "story": "Once upon a time, there was a little girl named Lily. She had a big, soft bed that she loved to sleep in. One day, she went to the park with her mom and dad. They played on the swings and slides.\nWhile playing, Lily saw a big, scary dog. The dog was barking loudly. Lily was scared, but her mom and dad said, \"Don't worry, Lily. The dog is just a dog. It just wants to play.\" Lily felt better and went back to her room.\nLily and her family played on the scary dog. They had a lot of"
+}

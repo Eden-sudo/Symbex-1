@@ -1,0 +1,3 @@
+# c/check_pc runs/binary_d384l8_s44  (2026-11-12, lut8 kernel)
+validation: 1024 / 1024 tokens with every output equal (1.86 ms per token on this PC)
+greedy story: 120 tokens, the same as intsim.py

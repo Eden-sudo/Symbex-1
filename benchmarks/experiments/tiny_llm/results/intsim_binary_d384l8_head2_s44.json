@@ -1,0 +1,11 @@
+{
+  "run": "binary_d384l8_head2_s44",
+  "weights": "binary",
+  "val_windows": 1024,
+  "val_loss_float": 1.5777,
+  "val_loss_integer": 1.5776,
+  "val_perplexity_float": 4.844,
+  "val_perplexity_integer": 4.844,
+  "next_token_agreement_float_vs_integer": 0.9867,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and eat yummy food. One day, her mom made a big cake for her. Lily was very happy and excited to eat it.\nLily's mom said, \"Lily, can you please eat the cake now?\" Lily said, \"Yes, Mom!\" She ate the cake and it was very yummy. Lily felt happy and full.\nAfter eating the cake, Lily and her mom ate the cake together. It was yummy! Lily's mom said, \"I am glad you like it, Lily.\" They both"
+}

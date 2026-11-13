@@ -1,0 +1,155 @@
+{
+  "weights": "fp32",
+  "seed": 42,
+  "args": {
+    "weights": "fp32",
+    "seeds": [
+      42
+    ],
+    "name": "d384l8",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.2975,
+  "val_perplexity": 3.66,
+  "minutes": 30.33,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.172,
+      "val_loss": 2.1067,
+      "minutes": 1.56
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.7864,
+      "val_loss": 1.7946,
+      "minutes": 3.07
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.63,
+      "val_loss": 1.6812,
+      "minutes": 4.59
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.5887,
+      "val_loss": 1.6103,
+      "minutes": 6.1
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.5942,
+      "val_loss": 1.5639,
+      "minutes": 7.62
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.497,
+      "val_loss": 1.5267,
+      "minutes": 9.13
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.4817,
+      "val_loss": 1.4957,
+      "minutes": 10.64
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.456,
+      "val_loss": 1.4696,
+      "minutes": 12.16
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.4441,
+      "val_loss": 1.4462,
+      "minutes": 13.67
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.447,
+      "val_loss": 1.4245,
+      "minutes": 15.19
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.3896,
+      "val_loss": 1.4043,
+      "minutes": 16.7
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.3197,
+      "val_loss": 1.3872,
+      "minutes": 18.22
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.4132,
+      "val_loss": 1.3693,
+      "minutes": 19.73
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.4039,
+      "val_loss": 1.3528,
+      "minutes": 21.24
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.3131,
+      "val_loss": 1.3397,
+      "minutes": 22.76
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.2892,
+      "val_loss": 1.3262,
+      "minutes": 24.27
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.2704,
+      "val_loss": 1.3163,
+      "minutes": 25.79
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.2726,
+      "val_loss": 1.3079,
+      "minutes": 27.3
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.2784,
+      "val_loss": 1.3017,
+      "minutes": 28.81
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.288,
+      "val_loss": 1.2975,
+      "minutes": 30.33
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and have fun. One day, she found a big, red ball in her room. She was very happy and wanted to play with it.\nLily took the ball outside to play. She threw the ball up in the air and caught it. But then, she saw a big, scary dog. The dog was barking loudly. Lily was scared and didn't know what to do.\nLily's mom came outside and saw the dog. She told Lily to be careful and not to play near the dog. Lily listened to her mom and went back inside. She played with her big, red ball and had a great day."
+}
