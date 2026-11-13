@@ -14,6 +14,17 @@ AVR_BAUD = 115200                          # an ATmega328P at 16 MHz is reliable
 
 
 VERTICAL_ENGINES = ("vertical", "vertical_prepared", "vertical_compact")   # chip_test.py --engine, besides standard
+AUTO_VERTICAL_BOARDS = {"s3"}              # engine "auto": the vertical engine where it is the fastest (the S3's PIE)
+
+
+def resolve_engine(engine, board, header_path):
+    """engine "auto" -> "vertical" on the ESP32-S3 when the header carries the vertical engine (fully binary conv
+    networks it can run), else "standard"; any other engine is returned as it is."""
+    if engine != "auto":
+        return engine
+    with open(header_path) as f:
+        vertical = "symbex_bool_net_run_vertical" in f.read()
+    return "vertical" if board in AUTO_VERTICAL_BOARDS and vertical else "standard"
 RAM_CODE_SECTIONS = (".iram1.symbex", ".time_critical.symbex")   # SYMBEX_FAST_CODE with -DSYMBEX_CODE_IN_RAM
 
 
@@ -162,6 +173,7 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
 
 
     import time
+    engine = resolve_engine(engine, board, header_path)
     if board in PICO_BOARDS and int8:
         if verbose:
             print("    [!] Pico 2: the INT8 reference runs on ESP-NN (ESP32 boards only): not measured here")
@@ -252,7 +264,7 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
         if code_ram is None and verbose:
             print("    [!] --code ram: the engine code in RAM is unknown (no build flashed by this run): "
                   "ram.code_in_ram = null, not in ram.total")
-    out = dict(board=board, hal=hal, popcount=popcount, weights=weights, first_layer=first_layer, n=n,
+    out = dict(board=board, hal=hal, popcount=popcount, weights=weights, first_layer=first_layer, engine=engine, n=n,
                equal_simulation=100 * float((pred == expected[:n]).mean()),
                accuracy=100 * float((pred == y[:n]).mean()), median_ms=float(np.median(totals)) / 1000,
                min_ms=float(np.min(totals)) / 1000,

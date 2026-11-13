@@ -88,7 +88,7 @@ DEFAULTS = {
                "validation_samples": 2000, "arithmetic": "auto", "int8_reference": False},
     "chip": {"board": "", "port": "/dev/ttyUSB0", "baud": 921600, "samples": 1000, "upload": True,
              "popcount": "lut16", "weights": "flash", "compare_arithmetic": False, "usb": False,
-             "engine": "standard", "code": "flash", "first_layer": "mask", "flash_config": "default"},
+             "engine": "auto", "code": "flash", "first_layer": "mask", "flash_config": "default"},
     "run": {"from": "inspect", "to": "chip"},
 }
 # Stages in order. "validate" runs together with "export" (accepted as a name for it).
@@ -231,9 +231,10 @@ def validate_config(cfg):
         errors.append("[chip] popcount must be \"lut16\" (64 KB table, fastest) or \"swar\" (no table, minimum RAM)")
     if cfg["chip"]["board"] not in ("", "esp32", "s3", "uno", "pico2_arm", "pico2_riscv"):
         errors.append("[chip] board must be \"\" (no chip), \"esp32\", \"s3\", \"uno\", \"pico2_arm\" or \"pico2_riscv\"")
-    if cfg["chip"]["engine"] not in ("standard", "vertical", "vertical_prepared", "vertical_compact"):
-        errors.append("[chip] engine must be \"standard\", \"vertical\", \"vertical_prepared\" or \"vertical_compact\"")
-    elif cfg["chip"]["engine"] != "standard" and cfg["model"]["method"] != "boolean":
+    if cfg["chip"]["engine"] not in ("auto", "standard", "vertical", "vertical_prepared", "vertical_compact"):
+        errors.append("[chip] engine must be \"auto\", \"standard\", \"vertical\", \"vertical_prepared\" or "
+                      "\"vertical_compact\"")
+    elif cfg["chip"]["engine"] not in ("auto", "standard") and cfg["model"]["method"] != "boolean":
         errors.append("[chip] engine: the vertical engine is for method \"boolean\" (fully binary conv networks)")
     if cfg["chip"]["code"] not in ("flash", "ram"):
         errors.append("[chip] code must be \"flash\" or \"ram\"")
@@ -922,15 +923,15 @@ def _measure(res_export, header, cfg, out_dir, tag, int8=None):
 
 def stage_chip(res_export, cfg, out_dir):
     ch = cfg["chip"]
-    print(f"\n[6] CHIP  ({ch['board']} on {ch['port']}, {ch['samples']} validation images, weights in {ch['weights']}"
-          + ("" if ch["engine"] == "standard" else f", engine {ch['engine']}") + ")")
+    print(f"\n[6] CHIP  ({ch['board']} on {ch['port']}, {ch['samples']} validation images, weights in {ch['weights']}, "
+          f"engine {ch['engine']})")
     try:
         res = _measure(res_export, res_export["header"], cfg, out_dir, "", _int8_of(res_export, out_dir))
     except (RuntimeError, ValueError) as e:
         print(f"    [X] {e}")
         return None
     res["arithmetic"] = res_export.get("arithmetic")
-    res.update(engine=ch["engine"], code=ch["code"], first_layer=ch["first_layer"], flash_config=ch["flash_config"])
+    res.update(code=ch["code"], flash_config=ch["flash_config"])      # engine ("auto" resolved), first_layer: measured
     with open(os.path.join(out_dir, "chip.json"), "w") as fh:
         json.dump(res, fh, indent=1)
     print(f"    -> {os.path.join(out_dir, 'chip.json')}")

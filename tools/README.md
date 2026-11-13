@@ -43,7 +43,7 @@ defaults has to be written. The main ones:
 | `[training]` | `epochs`, `learning_rate`, `batch_size`, `seed` | the training |
 | | `data_on_gpu`, `compile` | faster training (below) |
 | `[output]` | `directory`, `lib_path` | where the results go; where lib_symbex is |
-| `[chip]` | `board`, `port`, `popcount`, `weights`, `engine`, `usb` | the board (`"esp32"`, `"s3"`, `"pico2_arm"`, `"pico2_riscv"`), how it counts bits, where the weights live (`"flash"` or `"ram"`), the engine of fully binary conv networks (`"standard"` or the vertical ones, the fastest on the S3), the S3's native USB port; also `code`, `first_layer`, `flash_config` (as `chip_test.py`) |
+| `[chip]` | `board`, `port`, `popcount`, `weights`, `engine`, `usb` | the board (`"esp32"`, `"s3"`, `"pico2_arm"`, `"pico2_riscv"`), how it counts bits, where the weights live (`"flash"` or `"ram"`), the engine of fully binary conv networks (`"auto"`: the vertical one on the S3, the fastest there, the standard one elsewhere), the S3's native USB port; also `code`, `first_layer`, `flash_config` (as `chip_test.py`) |
 
 Examples that work as they are: `benchmarks/conv2d/cnn_cifar_resnet8/symbex.toml` (boolean),
 `benchmarks/mlp/mlp_fashion/symbex.toml` (plain), `configs/ternary_fashion.toml` (ternary).

@@ -9,6 +9,7 @@ resnet8_symbex.py -- the cnn_cifar_resnet8 benchmark: a fully binary ResNet-8, t
     python resnet8_symbex.py --variant int8stem --seeds 3   # stem / shortcut study: base | int8stem | add | int8stem_add
     python resnet8_symbex.py --variant int8stem --seeds 3 --board s3 --port /dev/ttyACM0   # the int8 stem on a board
     python resnet8_symbex.py --variant int8stem_pool2 --seeds 3   # int8 stem + pooled int8 classifier, Bop (most accurate x1)
+    python resnet8_symbex.py --seeds 3 --board s3 --port /dev/ttyACM0 --engine vertical   # the vertical engine (S3's fastest)
     python resnet8_symbex.py --seeds 3 --board s3 --summary   # the summary from runs measured with tools/chip_test.py
     python resnet8_symbex.py --seeds 3 --board s3 --summary --engine vertical   # ... measured with --engine vertical
     python resnet8_symbex.py --seeds 3 --board s3 --summary --engine vertical_prepared   # ... lists prepared in RAM
@@ -25,8 +26,8 @@ on the board), --redo trains it again. Summary: results/symbex/symbex_seeds_<boa
 (results/symbex/symbex_seeds_pc_w<width>.json without a board; with --epochs, in results/sizing/). --summary runs no CDT: it
 rebuilds the summary from the chip_<board>_<popcount>_<weights>_mask.json files that tools/chip_test.py leaves in each
 run folder (the S3's native USB port: chip_test.py runs/w1_s42 --board s3 --port /dev/ttyACM0 --usb).
---engine vertical (with --summary): the runs measured with chip_test.py --engine vertical (the vertical engine,
-docs/vertical.md), summarized into results/symbex/symbex_seeds_<board>_<popcount>[_ram]_w<width>_vertical.json;
+--engine vertical: with --board, the CDT's chip stage measures the vertical engine (docs/vertical.md; default standard,
+the engine of the published tables); with --summary, the runs measured with chip_test.py --engine vertical, summarized into results/symbex/symbex_seeds_<board>_<popcount>[_ram]_w<width>_vertical.json;
 --engine vertical_prepared the same with its lists and thresholds prepared in RAM (_vertical_prepared.json);
 --engine vertical_compact with the lists prepared and the thresholds compact (_vertical_compact.json).
 """
@@ -96,7 +97,8 @@ def main():
                     help="run no CDT: summarize the runs' chip_<board>_<popcount>_<weights>_mask.json (needs --board)")
     ap.add_argument("--engine", choices=["standard", "vertical", "vertical_prepared", "vertical_compact"],
                     default="standard",
-                    help="with --summary: the runs measured with tools/chip_test.py --engine vertical[_prepared|_compact]")
+                    help="the engine the CDT's chip stage measures (--board), or, with --summary, the runs measured "
+                         "with tools/chip_test.py --engine vertical[_prepared|_compact]")
     ap.add_argument("--variant", choices=["base", "int8stem", "add", "int8stem_add", "int8stem_pool2"], default="",
                     help="the stem / shortcut study (x1 channels, own run folders runs/w1_<variant>_s<seed>): base = "
                          "the network as it is; int8stem = int8 stem on the pixels; add = added shortcuts instead of OR; "
@@ -109,9 +111,6 @@ def main():
     args = ap.parse_args()
     if args.summary and not args.board:
         sys.exit("[X] --summary needs --board")
-    if args.engine != "standard" and not args.summary:
-        sys.exit(f"[X] --engine {args.engine}: measure with tools/chip_test.py --engine {args.engine}, then summarize "
-                 "with --summary")
     train_only = args.variant in ("add", "int8stem_add")       # added shortcuts: not in lib_symbex
     if args.variant and (args.spec or args.width != 1):
         sys.exit("[X] --variant: x1 channels (no --spec, --width)")
@@ -147,7 +146,8 @@ def main():
             if args.epochs:
                 cmd += ["--epochs", str(args.epochs)]
             if args.board:
-                cmd += ["--board", args.board, "--port", args.port, "--weights", args.weights, "--popcount", args.popcount]
+                cmd += ["--board", args.board, "--port", args.port, "--weights", args.weights, "--popcount", args.popcount,
+                        "--engine", args.engine]                   # explicit: the CDT's "auto" would pick for us
             elif train_only:
                 cmd += ["--to", "train"]
             else:
