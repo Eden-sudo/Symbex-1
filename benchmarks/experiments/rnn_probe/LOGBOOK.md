@@ -95,6 +95,7 @@ Binary Derrida curve (state bits different at the end, mean of 3 seeds):
 | 32 | 0.48 | 1.20 % (~1.5) | 20.5 % | 31.7 % |
 | 16 | 0.87 | 0.72 % (~0.9, below 1: ordered) | 20.2 % | 29.9 % |
 
+- (Corrected Nov 12, see the last entry: P(A) = K/128, the K = 128 gap below is not 2+ damaged bits.)
 - A simple model: a neuron flips if it receives a damaged input (A) AND its count is near the threshold (B) AND the
   damaged bit pushes toward it (~1/2). ESTIMATE P(flip) ~ P(A) x P(B) x 1/2, with P(A) = 1 - (1 - 0.0078)^K:
   - K = 16: 0.118 x 0.124 x 0.5 = 0.73 % (measured 0.72 %).
@@ -156,3 +157,19 @@ fully binary RNN runs on a microcontroller, do a real literature search (not don
   do not record them (they ran with the defaults). The file tag says which option a run used (README, table "Files").
 - The literature search for binary RNNs on microcontrollers goes with the preprint review
   (`docs/preprint/related_work.md`).
+
+## 2026-11-12: review of PR #42 (MendCode)
+
+- **Margin loss (major):** in training, z uses the batch mean and variance, but the distance was rescaled with the
+  running variance, so it was measured to neither the training-time threshold nor the inference one. Fixed:
+  `--margin-ref batch` (default) uses the batch variance, the threshold the training-time sign really uses; `--margin-ref
+  mixed` keeps the first version, which every margin run above used. Their measured numbers stand (the margin and the
+  flips were measured with the inference threshold), but "M = 2 counts" is approximate. Not rerun yet.
+- **Short sequences (minor):** `--stride` could leave fewer than 10 steps and `measure` read step 9 / flipped at step 9
+  anyway (IndexError after training). Recording steps and flip times now keep only steps that exist. Checked with
+  `--stride 20` (8 steps) and `--stride 50` (4 steps). The 151-step runs are unchanged.
+- **Count model of entry 5 (minor):** the flip changes exactly 1 of 128 neurons and each row hears K distinct ones,
+  so P(A) = K/128 and no neuron gets 2 damaged inputs at the first step. Recomputed with the same B and 1/2:
+  K = 128: 1 x 0.060 x 0.5 = 3.0 % (measured 2.78); K = 32: 0.25 x 0.103 x 0.5 = 1.3 % (1.20); K = 16:
+  0.125 x 0.124 x 0.5 = 0.78 % (0.72). The corrected model fits all three within ~10 %, and the conclusion holds:
+  the number of damaged inputs a neuron hears matters, not its distance to the threshold.

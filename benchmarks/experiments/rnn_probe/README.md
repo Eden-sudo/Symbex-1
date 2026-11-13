@@ -54,11 +54,15 @@ the error grow without bound, die out, or settle? And what does that mean for ru
   input hold it down.
 - **But a binary state carries an error instead of shrinking it.** twin, tanh and int8 forget a flipped bit; binary
   keeps it, and 28 % of the predictions change. int8 reaches the same accuracy and is as robust as float.
-- **Sparsity stops the spreading** by giving each neuron fewer damaged inputs (a simple count model predicts the
-  first step: 0.73 % vs 0.72 % measured for K = 16), but it costs 5-7 points, and the state remembers less at the
-  end. On lib_symbex unstructured zeros are not free (they need the ternary kernel's mask plane).
+- **Sparsity stops the spreading** by giving each neuron fewer damaged inputs. A simple count model (a neuron flips if
+  it hears the one flipped neuron, K/128, and sits within 2 of its threshold, and the bit pushes the right way, 1/2)
+  predicts the first step: K = 128 3.0 % (measured 2.78), K = 32 1.3 % (1.20), K = 16 0.78 % (0.72). It costs 5-7
+  points of accuracy, and the state remembers less at the end. On lib_symbex unstructured zeros are not free (they need the ternary kernel's mask plane).
 - **The margin loss at λ 1** cuts the changed predictions from 28 to 9 % at the same accuracy (within the noise) and
-  costs nothing on the chip (training only). Larger λ makes training unstable or collapses it.
+  costs nothing on the chip (training only). Larger λ makes training unstable or collapses it. These runs used the
+  first version of the loss (`--margin-ref mixed`), whose distance is measured to neither threshold exactly, so
+  "M = 2 counts" is approximate; the effect itself was measured with the inference threshold. Not rerun yet with the
+  corrected default (`--margin-ref batch`).
 
 ## Answer
 
@@ -75,9 +79,10 @@ paper. Open: margin loss + sparse together, λ between 1 and 3, word-structured 
 | `rnn_h128_int8` | `rnn_probe.py --in-gain --kinds int8 --seeds 42 43 44` |
 | `rnn_h128_tri_binary` | `rnn_probe.py --in-gain --kinds binary --ste tri --tag _tri --seeds 42 43 44` |
 | `rnn_h128_k32_binary`, `_k16_` | `rnn_probe.py --in-gain --kinds binary --sparse 32 --tag _k32 --seeds 42 43 44` (16: `_k16`) |
-| `rnn_h128_m2_binary` | `rnn_probe.py --in-gain --kinds binary --margin-loss 2 --tag _m2 --seeds 42 43 44` (λ 3e-3: no effect) |
+| `rnn_h128_m2_binary` | `rnn_probe.py --in-gain --kinds binary --margin-loss 2 --margin-ref mixed --tag _m2 --seeds 42 43 44` (λ 3e-3: no effect) |
 | `rnn_h128_m2l1_binary`, `_m2l3_`, `_m2l10_` | same with `--margin-lambda 1 --tag _m2l1` (3: `_m2l3`, 10: `_m2l10`) |
 | `rnn_h128_m2l01_binary` | `--margin-lambda 0.1 --tag _m2l01 --seeds 42` (one seed: a ranking) |
 
 The first runs (binary / twin / tanh) predate the `--ste`, `--margin-loss` and `--sparse` options and do not record
-them in their JSON; they used the defaults.
+them in their JSON; they used the defaults. No JSON records `margin_ref` (added Nov 12): every margin run used
+`mixed`.

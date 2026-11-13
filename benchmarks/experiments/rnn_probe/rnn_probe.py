@@ -27,6 +27,9 @@ Weights: results/rnn_h<H>_<kind>_s<seed>.pth.
 Options for the binary kind (each one alone, against the same recipe without it):
     --ste rect|tri|tanh   surrogate gradient of the state's sign: 1{|x|<=1} (default), max(0, 1-|x|), sech^2(x)
     --margin-loss M       adds lambda * mean(max(0, M - |count - threshold|)) over every step and neuron
+    --margin-ref batch|mixed  the threshold of that distance: batch (default) = the one the training-time sign uses
+                          (batch mean and variance); mixed = the first version, used by every margin run in
+                          LOGBOOK.md: training-mode z rescaled with the running variance (neither threshold exactly)
     --sparse K            each neuron hears only K fixed random neurons of the state (mask on W_h)
 
     python rnn_probe.py --seeds 42 43 44                 # hidden 128, 60 epochs
@@ -87,10 +90,12 @@ OUT = os.path.join(HERE, "results")
 
 
 class RNN(nn.Module):
-    def __init__(self, kind, n_in, hidden, classes, in_gain=False, ste="rect", margin=0.0, sparse=0):
+    def __init__(self, kind, n_in, hidden, classes, in_gain=False, ste="rect", margin=0.0, sparse=0,
+                 margin_ref="batch"):
         super().__init__()
         self.kind, self.hidden = kind, hidden
         self.ste, self.margin, self.aux = STE[ste], margin, None
+        self.margin_ref = margin_ref
         mask = torch.ones(hidden, hidden)
         if sparse:                                   # K ones per row, fixed (the seed set by the caller)
             mask = torch.zeros(hidden, hidden).scatter_(1, torch.rand(hidden, hidden).argsort(1)[:, :sparse], 1.0)
@@ -135,7 +140,8 @@ class RNN(nn.Module):
             d = xs[:, t] + F.linear(h, wh)
             z = self.bn(d)
             if self.margin and self.training:        # |count - threshold| = |z| * sd / |gamma|, in count units
-                dist = z.abs() * torch.sqrt(self.bn.running_var + self.bn.eps) / self.bn.weight.abs()
+                var = self.bn.running_var if self.margin_ref == "mixed" else d.var(0, unbiased=False)
+                dist = z.abs() * torch.sqrt(var + self.bn.eps) / self.bn.weight.abs()
                 pen.append((self.margin - dist).clamp(min=0).mean())
             h = self.act(z)
             if flip is not None and t == flip[0]:
@@ -229,7 +235,7 @@ def derrida(net, x, seed, dev, t0, bs=2000):
 def measure(net, split, seed, dev):
     xt, yt, xv, yv = split
     T = xv.shape[1]
-    steps = sorted(set([0, 4, 9] + list(range(19, T, 20)) + [T - 1]))
+    steps = sorted(s for s in set([0, 4, 9] + list(range(19, T, 20)) + [T - 1]) if s < T)   # short with --stride
     out = dict(val_acc=sg.accuracy(net, xv, yv), train_acc=sg.accuracy(net, xt, yt))
 
     g = torch.Generator().manual_seed(seed)
@@ -251,7 +257,7 @@ def measure(net, split, seed, dev):
         out["margin2"] = {str(w): round(100 * v, 1) for w, v in within.items()}
 
     flips = {}
-    for t0 in (9, T // 4, T // 2):
+    for t0 in sorted({t for t in (9, T // 4, T // 2) if t < T - 1}):   # a flip needs at least one later step
         mask = torch.ones(len(xv), net.hidden, device=dev)
         k = max(1, round(0.01 * net.hidden))
         idx = torch.rand(len(xv), net.hidden, generator=torch.Generator().manual_seed(seed + t0)).argsort(1)[:, :k].to(dev)
@@ -282,6 +288,8 @@ def main():
     ap.add_argument("--ste", choices=sorted(STE), default="rect")
     ap.add_argument("--margin-loss", type=float, default=0.0, metavar="M")
     ap.add_argument("--margin-lambda", type=float, default=3e-3)
+    ap.add_argument("--margin-ref", choices=("batch", "mixed"), default="batch",
+                    help="threshold of the margin distance; mixed reproduces the LOGBOOK runs")
     ap.add_argument("--sparse", type=int, default=0, metavar="K")
     ap.add_argument("--tag", default="", help="suffix of the result files (one per option set)")
     args = ap.parse_args()
@@ -293,7 +301,7 @@ def main():
         for kind in args.kinds:
             torch.manual_seed(seed)
             net = RNN(kind, split[0].shape[2], args.hidden, classes, args.in_gain,
-                      args.ste, args.margin_loss, args.sparse).to(dev)
+                      args.ste, args.margin_loss, args.sparse, args.margin_ref).to(dev)
             with torch.no_grad():                    # the untrained network: BatchNorm statistics of a few batches
                 net.train()
                 for i in range(0, 2048, 256):
@@ -301,14 +309,15 @@ def main():
                 init = derrida(net, split[2], seed, dev, split[2].shape[1] // 4)
             hist, minutes = train(net, split, seed, args.epochs, args.lr, args.bs, dev, args.margin_lambda)
             res = dict(kind=kind, seed=seed, hidden=args.hidden, epochs=args.epochs, lr=args.lr, stride=args.stride, in_gain=args.in_gain, ste=args.ste,
-                       margin_loss=args.margin_loss, margin_lambda=args.margin_lambda, sparse=args.sparse,
+                       margin_loss=args.margin_loss, margin_lambda=args.margin_lambda, margin_ref=args.margin_ref,
+                       sparse=args.sparse,
                        minutes=minutes, history=hist,
                        init_derrida=init, **measure(net, split, seed, dev))
             torch.save(net.state_dict(), os.path.join(OUT, f"rnn_h{args.hidden}{args.tag}_{kind}_s{seed}.pth"))
             path = os.path.join(OUT, f"rnn_h{args.hidden}{args.tag}_{kind}_s{seed}.json")
             with open(path, "w") as f:
                 json.dump(res, f, indent=1)
-            fl = res["flip"][str(split[2].shape[1] // 4)]
+            fl = res["flip"].get(str(split[2].shape[1] // 4), dict(sign_changed_by_lag={}, preds_changed=None))
             print(f"[{kind:>6} s{seed}] val {res['val_acc']:.2f}  train {res['train_acc']:.2f}  "
                   f"probe {list(res['probe'].values())[:3]}..{list(res['probe'].values())[-1]}  "
                   f"flip@T/4 {fl['sign_changed_by_lag']}  preds {fl['preds_changed']} %  ({minutes} min)", flush=True)
