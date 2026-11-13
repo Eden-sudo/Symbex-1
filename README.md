@@ -206,6 +206,20 @@ version 3 review, errors were found in those methods; those results are not repo
 re-measured. The first convolutional engine of version 3 (with a learned int8 first layer) has been replaced by the fully
 binary engine above.
 
+## Related research
+
+These papers provide background on binary and ternary networks, embedded inference, and TinyML benchmarks. They are
+not direct performance comparisons with SYMBEX; models, hardware, and measurement conditions differ.
+
+- Daghero et al., [Ultra-compact Binary Neural Networks for Human Activity Recognition on RISC-V Processors](https://arxiv.org/abs/2205.12781) — compact binary inference and the library used in the planned HAR comparison.
+- McDanel et al., [Embedded Binarized Neural Networks](https://arxiv.org/abs/1709.02260) — binary inference under embedded memory constraints.
+- Daghero et al., [Human Activity Recognition on Microcontrollers with Quantized and Adaptive Deep Neural Networks](https://arxiv.org/abs/2209.00839) — quantized models for activity recognition.
+- [MLPerf Tiny Benchmark](https://arxiv.org/abs/2106.07597) and [MicroNets](https://arxiv.org/abs/2010.11267) — TinyML benchmarking and microcontroller architectures.
+- [XNOR-Net](https://arxiv.org/abs/1603.05279), [Bi-Real Net](https://arxiv.org/abs/1808.00278), and [ReActNet](https://arxiv.org/abs/2003.03488) — binary convolution and network design.
+- [Binary Neural Networks: A Survey](https://arxiv.org/abs/2004.03333) and [daBNN](https://arxiv.org/abs/1908.05858) — binary-network background and inference on ARM.
+- [Ternary Weight Networks](https://arxiv.org/abs/1605.04711) and [Unrolling Ternary Neural Networks](https://arxiv.org/abs/1909.04509) — ternary weights and specialized implementations.
+- [Accelerating TinyML Inference on Microcontrollers through Approximate Kernels](https://arxiv.org/abs/2409.16815) — approximate kernels for microcontrollers.
+
 ## Citation
 
 A preprint describing SYMBEX-1 is in preparation; the reference will be added here.
