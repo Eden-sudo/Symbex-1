@@ -301,6 +301,54 @@ every method equal to a C reference on the chip):
   When the layer is large (the MLP), the 1-bit weights win through memory, and the fully binary network is still the
   right choice.
 
+## 4. Bop for the binary weights (November 13, validation only)
+
+**Question.** Bop gave the binary ResNet-8 +2.5 points (benchmarks/experiments/training_gap). Does it close part of the
+gap to INT8 here?
+
+**What.** `har_train.py --optimizer bop --bop-gamma g` (the CDT's Bop for the 1-bit weights, the rest with Adam),
+the same recipe as Adam otherwise: 100 epochs, seeds 42, 43, 44, all-binary and int8 first layer, the 4 networks.
+Every choice is made on the validation subjects (`--no-test`); the test subjects are scored once, at the end, with the
+chosen recipe.
+
+**Result.** Validation accuracy, mean ± sample std over 3 seeds:
+
+| Network | first layer | Adam | Bop γ 1e-3 | Bop γ 1e-2 | Bop γ 1e-4 |
+|---|---|---|---|---|---|
+| min | binary | **44.9 ± 2.2** | 40.6 ± 3.1 | 41.9 ± 2.4 | 40.1 ± 5.2 |
+| min | int8 | **46.1 ± 2.2** | 45.1 ± 1.0 | 44.8 ± 1.4 | 46.0 ± 1.6 |
+| max-10% | binary | 62.8 ± 1.3 | **62.9 ± 1.1** | 60.8 ± 0.6 | 63.5 ± 1.4 |
+| max-10% | int8 | 63.6 ± 1.7 | 63.4 ± 1.0 | 62.7 ± 1.7 | **63.8 ± 1.1** |
+| max-5% | binary | 69.2 ± 0.6 | **69.7 ± 0.5** | 68.6 ± 1.8 | 69.6 ± 0.7 |
+| max-5% | int8 | 67.9 ± 1.4 | **69.0 ± 2.1** | 68.9 ± 1.1 | 69.0 ± 1.4 |
+| max | binary | 68.6 ± 0.9 | **71.3 ± 0.6** | 69.2 ± 1.2 | 69.1 ± 0.1 |
+| max | int8 | 69.3 ± 0.9 | 68.7 ± 1.2 | **71.1 ± 1.9** | 69.4 ± 1.0 |
+
+**Answer.** Bop helps clearly in one case: the all-binary max network, +2.7 points with γ 1e-3 (more than the spread
+of either method). Elsewhere the differences are within one standard deviation, and on the smallest network Adam is
+ahead: there the network lacks capacity, not training. γ 1e-4 (the CDT's default) is no better than Adam anywhere.
+
+**Which recipe goes to the test subjects, and why.** The plan fixed beforehand said "choose on validation" but not how
+large a gain must be; the rule below was written after seeing the table above and before any Bop run was scored on
+the test subjects:
+
+> For each network and first layer, Bop replaces Adam only if its best γ beats Adam's validation mean by more than
+> the larger of the two standard deviations. Otherwise Adam stays.
+
+- **Seed noise.** With 3 seeds, a difference smaller than one standard deviation can come from the seeds alone.
+- **Picking the best of several options flatters it.** Each row compares 4 candidates (Adam and 3 values of γ). If
+  all four were equally good, the best mean of 3 seeds would still look about 0.6 standard deviations better than it
+  is (the expected maximum of 4 normal values is 1.03 σ, and a mean of 3 seeds has σ / √3; a textbook estimate, not
+  measured here). A margin of one full standard deviation is larger than this bias.
+- **The test subjects are used once.** Adam is already scored on them (sections above); a change goes to the test
+  only when validation shows it clearly, so the test is not used to decide between near-ties.
+- **The first layer is not a choice here:** both forms (1-bit and int8) are reported, as in the rest of this README.
+
+Applied to the table: only **max, all-binary, γ 1e-3** passes (71.3 vs 68.6, margin 2.7 > 0.9). The nearest miss is
+max with an int8 first layer, γ 1e-2 (71.1 ± 1.9 vs 69.3 ± 0.9, margin 1.8 < 1.9): it stays with Adam. The chosen
+runs' saved checkpoints (the best validation epoch, as always) are scored on the test subjects without training again
+(`har_train.py --arch max --optimizer bop --bop-gamma 1e-3 --seeds 42,43,44 --score-test`).
+
 ## Decisions (and why)
 
 - **Binary vs binary is the main comparison:** the question this benchmark answers is whether SYMBEX's binary layers

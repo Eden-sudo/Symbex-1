@@ -5,6 +5,8 @@ har_train.py -- trains one binary HAR network of model.py on UniMiB-SHAR (data/h
     python har_train.py --arch max --first int8 --seed 42            # ultracompactBNN's network (int8 first weights)
     python har_train.py --all                                        # 4 architectures x 2 first layers x seeds 42-44
     python har_train.py --arch max --optimizer bop --bop-gamma 1e-3 --no-test    # Bop for the 1-bit weights, screening
+    python har_train.py --arch max --optimizer bop --bop-gamma 1e-3 --seeds 42,43,44 --score-test   # chosen recipe:
+                                                                     # score its saved checkpoints on the test subjects
 
 Run from benchmarks/conv1d/har_ultracompact/ (main environment). The same recipe for every network: Adam, learning rate
 --lr with cosine decay, --epochs epochs, batches of 128, cross-entropy, no augmentation; the whole data set lives on
@@ -95,6 +97,24 @@ def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=
     return best, te
 
 
+def score_test(arch, first, seed, epochs, optimizer, bop_gamma, dev, data):
+    """scores a screening run's saved checkpoint (chosen on validation) on the test subjects, without training again,
+    and records the result in its train.json"""
+    name = f"{arch}_{first}_e{epochs}" + (f"_bop{bop_gamma:g}" if optimizer == "bop" else "") + f"_s{seed}"
+    out = os.path.join(HERE, "runs", name)
+    info = json.load(open(os.path.join(out, "train.json")))
+    if info.get("test") is not None:
+        print(f"[*] {name}: test already scored ({info['test']:.1f}%), not scored again")
+        return info["validation"], info["test"]
+    model = BinaryHAR(arch, first).to(dev)
+    model.load_state_dict(torch.load(os.path.join(out, "model.pth"), map_location=dev))
+    te = evaluate(model, *data[2])
+    info["test"] = te
+    json.dump(info, open(os.path.join(out, "train.json"), "w"), indent=1)
+    print(f"[*] {name}: validation {info['validation']:.1f}% (epoch {info['best_epoch']}) | TEST {te:.1f}% -> {out}/")
+    return info["validation"], te
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--arch", default="max", choices=list(ARCHS))
@@ -108,6 +128,8 @@ def main():
     ap.add_argument("--bop-tau", type=float, default=1e-8, help="Bop's flip threshold (default 1e-8)")
     ap.add_argument("--seeds", help="comma-separated seeds instead of --seed, e.g. 42,43,44")
     ap.add_argument("--no-test", action="store_true", help="do not score the test subjects (screening runs)")
+    ap.add_argument("--score-test", action="store_true",
+                    help="do not train: score the saved checkpoints of these runs on the test subjects (once)")
     args = ap.parse_args()
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data = [tuple(torch.as_tensor(a, device=dev) for a in load(s)) for s in ("train", "validation", "test")]
@@ -117,6 +139,10 @@ def main():
             else [(args.arch, args.first, s) for s in seeds])
     results = {}
     for a, f, s in jobs:
+        if args.score_test:
+            results.setdefault((a, f), []).append(score_test(a, f, s, args.epochs, args.optimizer, args.bop_gamma,
+                                                             dev, data))
+            continue
         results.setdefault((a, f), []).append(train(a, f, s, args.epochs, args.lr, dev, data, args.optimizer,
                                                     args.bop_gamma, args.bop_tau, not args.no_test))
     if len(jobs) > 1:
