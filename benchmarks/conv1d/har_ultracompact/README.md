@@ -74,31 +74,39 @@ Per layer (max-10%, seed 42): first layer 1.07×, binary conv 8→32 k7 + pool 1
 classifier 0.64× (about 1,000 instructions, under 1 % of the network). The binary layers are where SYMBEX gains; the
 first layer costs about the same in both libraries, with 1-bit or int8 weights (section 3 explains why).
 
-### Accuracy (test subjects, integer simulation = what the chip runs; mean ± std, 3 seeds)
+### Accuracy (test subjects, integer simulation = what the chip runs; mean ± sample std, 3 seeds)
 
 | Network | SYMBEX, all binary | ultracompactBNN (int8 first layer) | Daghero et al. published* |
 |---|---|---|---|
-| min | 32.7 ± 2.7 % | 37.5 ± 1.6 % | 33.0 % |
-| max-10% | 53.4 ± 1.9 % | 57.9 ± 0.3 % | 58.6 % |
-| max-5% | 56.8 ± 0.7 % | 57.0 ± 1.2 % | 65.1 % |
-| max | 58.8 ± 0.9 % | 58.5 ± 2.6 % | 68.0 % |
+| min | 32.7 ± 3.3 % | 37.5 ± 1.9 % | 33.0 % |
+| max-10% | 53.4 ± 2.4 % | 57.9 ± 0.4 % | 58.6 % |
+| max-5% | 56.8 ± 0.9 % | 57.0 ± 1.5 % | 65.1 % |
+| max | 58.8 ± 1.1 % | 58.5 ± 3.2 % | 68.0 % |
 
 \*Their split is not published, so their numbers are not directly comparable. SYMBEX with their network (int8 first
 layer) has their accuracy by construction: it is the same network, run exactly.
 
 ## 2. Binary vs INT8 on real boards
 
-### Accuracy of the integer baselines (test, mean ± std)
+### Accuracy of the integer baselines (test, mean ± sample std, 3 seeds)
 
 | Network | SYMBEX (1 bit) | TFLite INT8 | INT8 QAT | INT4 QAT | INT2 QAT | FP32 |
 |---|---|---|---|---|---|---|
-| min | 32.7 ± 2.7 % | 56.1 ± 4.2 % | 51.3 ± 0.1 % | 51.0 ± 1.2 % | 35.7 ± 0.3 % | 50.6 % |
-| max-10% | 53.4 ± 1.9 % | 62.4 ± 2.0 % | 59.9 ± 0.2 % | 59.5 ± 1.0 % | 51.8 ± 3.2 % | 59.8 % |
-| max-5% | 56.8 ± 0.7 % | 66.2 ± 2.6 % | 69.1 ± 0.3 % | 69.6 ± 0.1 % | 65.4 ± 0.9 % | 68.6 % |
-| max | 58.8 ± 0.9 % | 67.9 ± 0.9 % | 68.0 ± 0.1 % | 67.6 ± 0.3 % | 66.5 ± 1.2 % | 67.6 % |
+| min | 32.7 ± 3.3 % | 56.1 ± 5.2 % | 51.3 ± 0.1 % | 51.0 ± 1.2 % | 35.7 ± 0.3 % | 50.6 % |
+| max-10% | 53.4 ± 2.4 % | 62.4 ± 2.5 % | 59.9 ± 0.2 % | 59.5 ± 1.0 % | 51.8 ± 3.2 % | 59.8 % |
+| max-5% | 56.8 ± 0.9 % | 66.2 ± 3.2 % | 69.1 ± 0.3 % | 69.6 ± 0.1 % | 65.4 ± 0.9 % | 68.6 % |
+| max | 58.8 ± 1.1 % | 67.9 ± 1.1 % | 68.0 ± 0.1 % | 67.6 ± 0.3 % | 66.5 ± 1.2 % | 67.6 % |
 
 TFLite INT8: three float networks (seeds 42-44), each quantized after training. QAT (`tools/lowbit`, Brevitas): the
-seed-42 float network, quantization-aware training with 3 seeds. As in mlp_fashion, **INT2 QAT is more accurate per byte
+seed-42 float network, quantization-aware training with 3 seeds. The FP32 column is that one float network of
+`tools/lowbit` (15 epochs, distillation, one seed), not TFLite's three float networks (100 epochs, not scored on the
+test set): on min, TFLite INT8 above FP32 (56.1 vs 50.6 %) compares two different trainings, not a quantization gain.
+The ± is the sample standard deviation (n − 1) over 3 seeds; earlier versions of this README used the population one
+(n), about 1.22× smaller.
+
+The test set has few subjects and they differ a lot: TFLite INT8 on min goes from 50.6 to 60.8 % across seeds, and
+validation is 5-12 points above test for every method (validation windows come from the training subjects). Read
+differences of a few points as within noise. As in mlp_fashion, **INT2 QAT is more accurate per byte
 than SYMBEX** on the large networks (+8 points with about 1.5× the weight bytes); SYMBEX's case is speed and memory.
 
 ### Latency, weights in flash (median, ms; 1,000 validation windows, mean of 3 seeds)
@@ -241,10 +249,10 @@ cache (mlp_fashion, below).
 
 | Network | Accuracy, all binary | int8 first layer | gain | Flash, all binary (bits) | int8 first layer |
 |---|---|---|---|---|---|
-| min | 32.7 ± 2.7 % | 37.5 ± 1.6 % | **+4.8** | 0.7 KB | 0.8 KB |
-| max-10% | 53.4 ± 1.9 % | 57.9 ± 0.3 % | **+4.5** | 2.9 KB | 3.1 KB |
-| max-5% | 56.8 ± 0.7 % | 57.0 ± 1.2 % | +0.2 | 5.6 KB | 5.7 KB |
-| max | 58.8 ± 0.9 % | 58.5 ± 2.6 % | −0.3 | 5.6 KB | 6.5 KB |
+| min | 32.7 ± 3.3 % | 37.5 ± 1.9 % | **+4.8** | 0.7 KB | 0.8 KB |
+| max-10% | 53.4 ± 2.4 % | 57.9 ± 0.4 % | **+4.5** | 2.9 KB | 3.1 KB |
+| max-5% | 56.8 ± 0.9 % | 57.0 ± 1.5 % | +0.2 | 5.6 KB | 5.7 KB |
+| max | 58.8 ± 1.1 % | 58.5 ± 3.2 % | −0.3 | 5.6 KB | 6.5 KB |
 
 Latency of the int8 first layer (weights in flash, ms, mean of 3 seeds; in parentheses the all-binary network as ±1
 bytes, the same kernel):
