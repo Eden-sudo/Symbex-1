@@ -27,6 +27,16 @@ static inline void tinylm_u8_prepare(const int8_t *q, int n_in) {
     symbex_u8_prepare(u, n_in, tinylm_u8_workspace, (n_in + 31) / 32);
 }
 
+/* the 1-bit input layers (tinylm.c linear_bits): XOR + popcount rows; the input copied to a 16-byte aligned buffer
+   (PIE needs it, and the rows: model.bin keeps them aligned) */
+static uint32_t tinylm_xor_input[TINYLM_U8_MAX_IN / 32] __attribute__((aligned(16)));
+
+static inline void tinylm_xor_rows(const uint32_t *a, const uint32_t *w, int words, int n_rows, int32_t *out) {
+    for (int j = 0; j < words; j++) tinylm_xor_input[j] = a[j];
+    symbex_xor_popcount_rows(tinylm_xor_input, w, words, n_rows, out);
+}
+
+#define TINYLM_XOR_ROWS(a, w, words, n_rows, out) tinylm_xor_rows((a), (w), (words), (n_rows), (out))
 #define TINYLM_U8_PREPARE(q, n_in) tinylm_u8_prepare((q), (n_in))
 #define TINYLM_U8_SUM_ROWS(n_in, w, words_in, n_out, out) \
     symbex_u8_sum_bits_rows(tinylm_u8_workspace, (n_in), (w), (words_in), (n_out), (out))

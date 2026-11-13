@@ -1,0 +1,173 @@
+{
+  "weights": "binary",
+  "seed": 43,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "int4",
+    "int8_blocks": [],
+    "acts": 8,
+    "ste": "identity",
+    "ste_k": 2.0,
+    "learn_thr": false,
+    "a8_inputs": [],
+    "a8_blocks": [],
+    "w2_acts": "same",
+    "hadamard": [],
+    "ffn_act": "silu",
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "d384l8_head4",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 9500,
+  "val_loss": 1.5408,
+  "val_perplexity": 4.668,
+  "minutes": 22.08,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.2909,
+      "val_loss": 2.2997,
+      "minutes": 1.1
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.9541,
+      "val_loss": 1.9827,
+      "minutes": 2.21
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.8498,
+      "val_loss": 1.8771,
+      "minutes": 3.32
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.7881,
+      "val_loss": 1.82,
+      "minutes": 4.4
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.7231,
+      "val_loss": 1.7783,
+      "minutes": 5.52
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.714,
+      "val_loss": 1.7421,
+      "minutes": 6.65
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.6421,
+      "val_loss": 1.7187,
+      "minutes": 7.75
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.6778,
+      "val_loss": 1.6912,
+      "minutes": 8.86
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.6899,
+      "val_loss": 1.6744,
+      "minutes": 9.97
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.6687,
+      "val_loss": 1.6542,
+      "minutes": 11.07
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.6548,
+      "val_loss": 1.6402,
+      "minutes": 12.17
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.5782,
+      "val_loss": 1.6193,
+      "minutes": 13.28
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.5928,
+      "val_loss": 1.6082,
+      "minutes": 14.37
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.6135,
+      "val_loss": 1.5908,
+      "minutes": 15.48
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.5918,
+      "val_loss": 1.5779,
+      "minutes": 16.59
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.5455,
+      "val_loss": 1.5643,
+      "minutes": 17.69
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.5767,
+      "val_loss": 1.5545,
+      "minutes": 18.79
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.566,
+      "val_loss": 1.5458,
+      "minutes": 19.86
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.5212,
+      "val_loss": 1.5408,
+      "minutes": 20.98
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.4986,
+      "val_loss": 1.5411,
+      "minutes": 22.08
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She had a big, red ball that she loved to play with. One day, she went to the park with her mom and dad. They played catch with a ball and had lots of fun.\nWhile playing, Lily saw a boy named Tim. Tim was playing with a ball. Lily wanted to play too, but she was scared. She said, \"No, I don't want to play with you.\" Tim was sad, but he had an idea.\nLily said, \"Let's play together!\" They played with the ball and had lots of fun. They laughed and played all day. In the end, Lily and Tim became good friends. They learned that it's good to share and play together."
+}

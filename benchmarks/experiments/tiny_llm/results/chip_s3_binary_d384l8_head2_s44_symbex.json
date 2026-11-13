@@ -1,0 +1,39 @@
+{
+  "run": "binary_d384l8_head2_s44",
+  "board": "esp32s3 N16R8",
+  "kernel": "lib_symbex u8 x 1-bit (PIE) linear, PIE int2 dot (output), PIE s8 dot (scores)",
+  "model_in": "psram",
+  "kv_cache_in": "psram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | psram 8386295 bytes free",
+  "loaded": "LOADED 2372000 bytes in 437 ms | internal free 234032 | psram free 4215159",
+  "check_tokens": 512,
+  "check_equal": 512,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 109.32,
+  "ms_per_token_at_position": {
+    "0": 89.405,
+    "63": 97.772,
+    "127": 108.199,
+    "255": 129.366
+  },
+  "ms_per_token_story_mean": 98.733,
+  "tokens_per_second_story": 10.128,
+  "ms_per_token_by_part": {
+    "embedding_norms": 4.671,
+    "qkv": 14.351,
+    "attention_values": 13.277,
+    "o": 5.186,
+    "w1_w3": 24.902,
+    "swiglu": 5.894,
+    "w2": 11.506,
+    "output_head": 8.435,
+    "attention_rope_cache": 9.683,
+    "attention_scores": 7.782,
+    "attention_softmax": 2.031,
+    "attention_division": 1.6
+  },
+  "story": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and eat yummy food. One day, her mom made a big cake for her. Lily was very happy and excited to eat it.\nLily's mom said, \"Lily, can you please eat the cake now?\" Lily said, \"Yes, Mom!\" She ate the cake and it was very yummy. Lily felt happy and full.\nAfter eating the cake, Lily and her mom ate the cake together. It was yummy! Lily's mom said, \"I am glad you like it, Lily.\" They both"
+}

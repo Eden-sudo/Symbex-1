@@ -54,14 +54,8 @@ def write_check_data(run, windows, path):
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
     dev = "cuda"
-    ck = torch.load(os.path.join(run, "model.pt"))
-    a = ck["args"]
-    assert a.get("head", "fp32") == "fp32" and not a.get("int8_blocks") and a.get("acts", 8) == 8, \
-        "--head binary / --int8-blocks / --acts 1 runs have no integer model yet"
     sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, "tok4096.model"))
-    model = T.TinyLM(sp.get_piece_size(), a["dim"], a["layers"], a["heads"], a["hidden"], a["seq"],
-                     a["weights"]).to(dev)
-    model.load_state_dict(ck["model"])
+    model, a = I.load_model(run, sp.get_piece_size(), dev)
     P = I.to_device(I.integerize(model, a["weights"]), dev)
     val = T.load_split("val", dev)
     w = val[torch.arange(windows, device=dev)[:, None] * a["seq"] + torch.arange(a["seq"], device=dev)].long()
@@ -170,7 +164,10 @@ def main():
     us_gen = np.array([g[2] for g in gen])
     story = sp.decode(ids[1:n_prompt] + [g[0] for g in gen])
     res = {"run": os.path.basename(run), "board": "esp32s3 N16R8", "kernel": ("lut8" if args.linear == "lut8" else "lib_symbex u8 x 1-bit (PIE)")
-           + " linear, PIE s8 dot (output, scores)", "model_in": "psram",
+           + ({4: " linear, PIE int4 dot (output), PIE s8 dot (scores)",
+               2: " linear, PIE int2 dot (output), PIE s8 dot (scores)"}.get(I.head_bits_of(run),
+                                                                              " linear, PIE s8 dot (output, scores)")),
+           "model_in": "psram",
            "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
            "check_tokens": len(hashes), "check_equal": int(sum(h[2] for h in hashes)),
            "equal_percent": round(100 * sum(h[2] for h in hashes) / max(1, len(hashes)), 3),

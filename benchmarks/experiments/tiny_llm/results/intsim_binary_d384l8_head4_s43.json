@@ -1,0 +1,11 @@
+{
+  "run": "binary_d384l8_head4_s43",
+  "weights": "binary",
+  "val_windows": 1024,
+  "val_loss_float": 1.5486,
+  "val_loss_integer": 1.5486,
+  "val_perplexity_float": 4.705,
+  "val_perplexity_integer": 4.705,
+  "next_token_agreement_float_vs_integer": 0.9853,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She had a big, soft bed that she loved to sleep in. One day, she went to the park with her mom and dad. They played on the swings and slides.\nWhile playing, Lily saw a big, scary dog. The dog was barking loudly. Lily was scared, but her mom and dad said, \"Don't worry, Lily. The dog is just a dog. It just wants to play.\" Lily felt better and went back to her room.\nLily and her family played on the scary dog. They had a lot of"
+}

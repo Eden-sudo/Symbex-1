@@ -32,12 +32,45 @@ static void tinylm_dot_rows_u8_c(const uint8_t *x, int n, const uint8_t *w, int 
         out[r] = d;
     }
 }
+/* the int4 rows as the S3 does them: per 16-byte group, high nibbles = byte & 0xF0 (16 x value), low nibbles =
+   (byte << 4) as int8 (16 x value), int8 products with x[32g + 16 ..] and x[32g ..], the sum / 16 */
+static void tinylm_dot_rows4_c(const int8_t *x, int n, const uint8_t *w, int n_rows, int32_t *out) {
+    for (int r = 0; r < n_rows; r++, w += n / 2) {
+        int32_t d = 0;
+        for (int g = 0; g < n / 32; g++)
+            for (int j = 0; j < 16; j++) {
+                const uint8_t b = w[g * 16 + j];
+                d += x[32 * g + j] * (int8_t)(uint8_t)(b << 4) + x[32 * g + 16 + j] * (int8_t)(b & 0xF0);
+            }
+        out[r] = d >> 4;
+    }
+}
+#define TINYLM_DOT_ROWS4(x, n, w, n_rows, out) tinylm_dot_rows4_c((x), (n), (w), (n_rows), (out))
+/* the int2 rows as the S3 does them: per 16-byte group, crumb k moved to the top bits (byte << (6 - 2k)) & 0xC0 = 64 c
+   as int8, products with x[64g + 16k ..], the sum / 64 = sum x c; the dot is 2 sum x c + sum x */
+static void tinylm_dot_rows2_c(const int8_t *x, int n, const uint8_t *w, int n_rows, int32_t *out) {
+    int32_t sx = 0;
+    for (int i = 0; i < n; i++) sx += x[i];
+    for (int r = 0; r < n_rows; r++, w += n / 4) {
+        int32_t d = 0;
+        for (int g = 0; g < n / 64; g++)
+            for (int k = 0; k < 4; k++)
+                for (int j = 0; j < 16; j++)
+                    d += x[64 * g + 16 * k + j] * (int8_t)((uint8_t)(w[g * 16 + j] << (6 - 2 * k)) & 0xC0);
+        out[r] = 2 * (d >> 6) + sx;
+    }
+}
+#define TINYLM_DOT_ROWS2(x, n, w, n_rows, out) tinylm_dot_rows2_c((x), (n), (w), (n_rows), (out))
 #define TINYLM_DOT_ROWS(x, n, w, stride, n_rows, out) tinylm_dot_rows_c((x), (n), (w), (stride), (n_rows), (out))
 #define TINYLM_DOT_ROWS_U8(x, n, w, stride, n_rows, out) tinylm_dot_rows_u8_c((x), (n), (w), (stride), (n_rows), (out))
 #endif
 
 #define QF 12
 #define MSH 30
+
+/* TINYLM_DOT_ROWS4(x, n, w, n_rows, out): out[r] = sum_i x[i] * w4[r][i] over int4 rows of n / 2 bytes (the board's
+   kernel for the int4 output head); plain C (emb4) otherwise. TINYLM_DOT_ROWS2: the same over int2 rows of n / 4
+   bytes (values 2c + 1, emb2). */
 #define SIG_Q 6
 
 static int64_t rdiv(int64_t n, int64_t d) {  /* rounded half away from zero, d > 0 */
@@ -77,12 +110,86 @@ static int32_t norm_quant(const int32_t *x, const int32_t *g, int n, int32_t *h,
     return (int32_t)(hmax < 1 ? 1 : hmax);
 }
 
+/* RMSNorm without the division: h = x g (Q12), returns the integer rms (>= 1); normalized input = h / rms */
+static int64_t norm_h(const int32_t *x, const int32_t *g, int n, int32_t *h) {
+    int64_t ss = 0;
+    for (int i = 0; i < n; i++) ss += (int64_t)x[i] * x[i];
+    int64_t rms = isqrt64(ss / n);
+    if (rms < 1) rms = 1;
+    for (int i = 0; i < n; i++) h[i] = (int32_t)(((int64_t)x[i] * g[i] + (1 << (QF - 1))) >> QF);
+    return rms;
+}
+
+/* r times the unnormalized Sylvester Hadamard matrix, block by block (butterflies: additions only) */
+static void fwht(int64_t *r, int n, int blk) {
+    for (int b = 0; b < n; b += blk)
+        for (int len = 1; len < blk; len <<= 1)
+            for (int i = b; i < b + blk; i += 2 * len)
+                for (int j = i; j < i + len; j++) {
+                    const int64_t u = r[j], v = r[j + len];
+                    r[j] = u + v;
+                    r[j + len] = u - v;
+                }
+}
+
+/* A linear layer's input, intsim.py quant_in: rotated when L->had, then int8 in s->iq (returns max, or max / rms in
+   Q12 when rms > 0) or 1 bit (s->iq = +-1, s->xb packed; returns 127 mean|input|, divided by rms the same way) */
+static int64_t in_quant(const TinyLinear *L, TinyState *s, const int32_t *h, int n, int64_t rms) {
+    int64_t v;
+    if (!L->had && L->acts == 8) {
+        v = quant8(h, n, s->iq);
+        if (rms) v = ((v << QF) + rms / 2) / rms;
+        return v < 1 ? 1 : v;
+    }
+    int64_t *r = s->r;
+    for (int i = 0; i < n; i++) r[i] = h[i];
+    if (L->had) fwht(r, n, L->had);
+    if (L->acts == 8) {
+        int64_t mx = 1;
+        for (int i = 0; i < n; i++) { const int64_t a = r[i] < 0 ? -r[i] : r[i]; if (a > mx) mx = a; }
+        for (int i = 0; i < n; i++) s->iq[i] = (int8_t)rdiv(127 * r[i], mx);
+        v = rms ? ((mx << QF) + rms / 2) / rms : mx;
+    } else {
+        int64_t sa = 0;
+        memset(s->xb, 0, 4L * (n / 32));
+        for (int i = 0; i < n; i++) {
+            const int pos = r[i] >= 0;
+            sa += pos ? r[i] : -r[i];
+            s->iq[i] = (int8_t)(pos ? 1 : -1);
+            if (pos) s->xb[i >> 5] |= 1u << (i & 31);
+        }
+        sa *= 127;
+        v = rms ? rdiv(sa << QF, (int64_t)n * rms) : rdiv(sa, n);
+    }
+    return v < 1 ? 1 : v;
+}
+
+/* 1-bit inputs x 1-bit weights: acc = n_in - 2 popcount(input XOR weight) (n_in a multiple of 32: tinylm_load).
+   TINYLM_XOR_ROWS(a, w, words, n_rows, out): out[r] = popcount(a XOR row r), rows of `words` words (c/tinylm_symbex.h:
+   lib_symbex's symbex_xor_popcount_rows, PIE on the S3); plain C by default. */
+static void linear_bits(const TinyLinear *L, const uint32_t *xb, int64_t scale, int32_t *out) {
+#ifdef TINYLM_XOR_ROWS
+    TINYLM_XOR_ROWS(xb, L->w, L->words_in, L->n_out, out);
+#endif
+    for (int r = 0; r < L->n_out; r++) {
+#ifdef TINYLM_XOR_ROWS
+        const int32_t d = out[r];
+#else
+        const uint32_t *w = L->w + (long)r * L->words_in;
+        int32_t d = 0;
+        for (int j = 0; j < L->words_in; j++) d += __builtin_popcount(w[j] ^ xb[j]);
+#endif
+        const int64_t acc = L->n_in - 2 * (int64_t)d;
+        out[r] = (int32_t)((acc * scale * L->m[r] + ((int64_t)1 << (MSH - 1))) >> MSH);
+    }
+}
+
 #if defined(TINYLM_U8_SUM_ROWS)
 /* lib_symbex's 8-bit x 1-bit kernel (c/tinylm_symbex.h): sums of the unsigned inputs x + 128 over the weight bits
    that are 1; pos = that sum - 128 * (ones of the row), the same integer as the other kernels */
 static void prepare(TinyState *s, const int8_t *q, int n_in) { (void)s; TINYLM_U8_PREPARE(q, n_in); }
 
-static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int32_t hmax, int32_t *out) {
+static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int64_t hmax, int32_t *out) {
     (void)s;
     int32_t total = 0;
     for (int i = 0; i < L->n_in; i++) total += q[i];
@@ -95,7 +202,7 @@ static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int
 #elif defined(TINYLM_REFERENCE)
 static void prepare(TinyState *s, const int8_t *q, int n_in) { (void)s; (void)q; (void)n_in; }
 
-static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int32_t hmax, int32_t *out) {
+static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int64_t hmax, int32_t *out) {
     (void)s;
     int32_t total = 0;
     for (int i = 0; i < L->n_in; i++) total += q[i];
@@ -126,7 +233,7 @@ static void prepare(TinyState *s, const int8_t *q, int n_in) {
     }
 }
 
-static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int32_t hmax, int32_t *out) {
+static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int64_t hmax, int32_t *out) {
     int32_t total = 0;
     for (int i = 0; i < L->n_in; i++) total += q[i];
     const int groups = L->n_in / 8;
@@ -146,6 +253,13 @@ static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int
 }
 #endif
 
+/* one linear layer on the input in_quant left in s: XOR + popcount for 1-bit inputs, else the int8 kernel (its
+   prepare already run on s->iq) */
+static void run_linear(const TinyLinear *L, TinyState *s, int64_t scale, int32_t *out) {
+    if (L->acts == 1) linear_bits(L, s->xb, scale, out);
+    else linear(L, s, s->iq, scale, out);
+}
+
 static void rope(int32_t *x, const int16_t *c, const int16_t *s, int hd) {
     for (int i = 0; i < hd / 2; i++) {
         int64_t x1 = x[2 * i], x2 = x[2 * i + 1];
@@ -158,20 +272,23 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
     const int dim = m->dim, hd = dim / m->heads, t = s->pos;
     if (t >= m->seq || token < 0 || token >= m->vocab) return -1;  /* context full (no sliding window) or bad token */
     int32_t *x = s->x;
-    for (int i = 0; i < dim; i++)
-        x[i] = (int32_t)(((int64_t)m->emb_q[(long)token * dim + i] * m->emb_m[token] + 128) >> 8);
+    for (int i = 0; i < dim; i++) {
+        const int e = m->emb_p ? emb4(m->emb_p + (long)token * (dim / 2), i)
+                    : m->emb_c ? emb2(m->emb_c + (long)token * (dim / 4), i) : m->emb_q[(long)token * dim + i];
+        x[i] = (int32_t)(((int64_t)e * m->emb_m[token] + 128) >> 8);
+    }
     const int16_t *C = m->cos + (long)t * (hd / 2), *S = m->sin + (long)t * (hd / 2);
 
     for (int l = 0; l < m->layers; l++) {
         const TinyBlock *B = &m->blocks[l];
         int8_t *kq = s->kq + (long)l * m->seq * dim, *vq = s->vq + (long)l * m->seq * dim;
         int32_t *km = s->km + (long)l * m->seq * m->heads, *vm = s->vm + (long)l * m->seq * m->heads;
-        int32_t hm = norm_quant(x, B->n1, dim, s->t1, s->iq);
+        int64_t hm = in_quant(&B->q, s, s->t1, dim, norm_h(x, B->n1, dim, s->t1));   /* q, k, v: one input */
         TINYLM_PROF(0);
-        prepare(s, s->iq, dim);
-        linear(&B->q, s, s->iq, hm, s->q);
-        linear(&B->k, s, s->iq, hm, s->k);
-        linear(&B->v, s, s->iq, hm, s->v);
+        if (B->q.acts == 8) prepare(s, s->iq, dim);
+        run_linear(&B->q, s, hm, s->q);
+        run_linear(&B->k, s, hm, s->k);
+        run_linear(&B->v, s, hm, s->v);
         TINYLM_PROF(1);
         for (int h = 0; h < m->heads; h++) {
             int8_t qq[256];
@@ -298,18 +415,18 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             for (int i = 0; i < hd; i++) s->a[h * hd + i] = (int32_t)rdiv(acc[i], P * 127);
             TINYLM_PROF(11);
         }
-        int32_t am = quant8(s->a, dim, s->iq);
+        int64_t am = in_quant(&B->o, s, s->a, dim, 0);
         TINYLM_PROF(8);
-        prepare(s, s->iq, dim);
-        linear(&B->o, s, s->iq, am, s->t1);
+        if (B->o.acts == 8) prepare(s, s->iq, dim);
+        run_linear(&B->o, s, am, s->t1);
         for (int i = 0; i < dim; i++) x[i] += s->t1[i];
         TINYLM_PROF(3);
 
-        hm = norm_quant(x, B->n2, dim, s->t1, s->iq);
+        hm = in_quant(&B->w1, s, s->t1, dim, norm_h(x, B->n2, dim, s->t1));          /* w1, w3: one input */
         TINYLM_PROF(0);
-        prepare(s, s->iq, dim);
-        linear(&B->w1, s, s->iq, hm, s->t2);
-        linear(&B->w3, s, s->iq, hm, s->t3);
+        if (B->w1.acts == 8) prepare(s, s->iq, dim);
+        run_linear(&B->w1, s, hm, s->t2);
+        run_linear(&B->w3, s, hm, s->t3);
         TINYLM_PROF(4);
         for (int i = 0; i < m->hidden; i++) {
             int32_t g1 = s->t2[i];
@@ -318,10 +435,10 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             int64_t silu = ((int64_t)g1 * m->sig_t[idx] + (1 << 14)) >> 15;
             s->t2[i] = (int32_t)((silu * s->t3[i] + (1 << (QF - 1))) >> QF);
         }
-        int32_t fm = quant8(s->t2, m->hidden, s->iq);
+        int64_t fm = in_quant(&B->w2, s, s->t2, m->hidden, 0);
         TINYLM_PROF(5);
-        prepare(s, s->iq, m->hidden);
-        linear(&B->w2, s, s->iq, fm, s->t1);
+        if (B->w2.acts == 8) prepare(s, s->iq, m->hidden);
+        run_linear(&B->w2, s, fm, s->t1);
         for (int i = 0; i < dim; i++) x[i] += s->t1[i];
         TINYLM_PROF(6);
     }
@@ -329,6 +446,52 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
     int32_t hm = norm_quant(x, m->norm_f, dim, s->t1, s->iq);
     TINYLM_PROF(0);
     int best = 0;
+    if (m->emb_p) {   /* int4 table: m->hidden rows at a time into t2 */
+        for (int r0 = 0; r0 < m->vocab; r0 += m->hidden) {
+            const int n = m->vocab - r0 < m->hidden ? m->vocab - r0 : m->hidden;
+#ifdef TINYLM_DOT_ROWS4
+            TINYLM_DOT_ROWS4(s->iq, dim, m->emb_p + (long)r0 * (dim / 2), n, s->t2);
+#else
+            for (int r = 0; r < n; r++) {
+                const uint8_t *e = m->emb_p + (long)(r0 + r) * (dim / 2);
+                int32_t d = 0;
+                for (int i = 0; i < dim; i++) d += emb4(e, i) * s->iq[i];
+                s->t2[r] = d;
+            }
+#endif
+            for (int r = r0; r < r0 + n; r++) {
+                z[r] = (int64_t)s->t2[r - r0] * m->emb_m[r];
+                if (z[r] > z[best]) best = r;
+            }
+        }
+        TINYLM_PROF(7);
+        *hmax_out = hm;
+        s->pos++;
+        return best;
+    }
+    if (m->emb_c) {   /* int2 table: m->hidden rows at a time into t2 */
+        for (int r0 = 0; r0 < m->vocab; r0 += m->hidden) {
+            const int n = m->vocab - r0 < m->hidden ? m->vocab - r0 : m->hidden;
+#ifdef TINYLM_DOT_ROWS2
+            TINYLM_DOT_ROWS2(s->iq, dim, m->emb_c + (long)r0 * (dim / 4), n, s->t2);
+#else
+            for (int r = 0; r < n; r++) {
+                const uint8_t *e = m->emb_c + (long)(r0 + r) * (dim / 4);
+                int32_t d = 0;
+                for (int i = 0; i < dim; i++) d += emb2(e, i) * s->iq[i];
+                s->t2[r] = d;
+            }
+#endif
+            for (int r = r0; r < r0 + n; r++) {
+                z[r] = (int64_t)s->t2[r - r0] * m->emb_m[r];
+                if (z[r] > z[best]) best = r;
+            }
+        }
+        TINYLM_PROF(7);
+        *hmax_out = hm;
+        s->pos++;
+        return best;
+    }
 #ifdef TINYLM_DOT_ROWS
     /* the board's int8 row products (out[r] = sum_i x[i] * w[r * stride + i]), m->hidden rows at a time into t2 */
     for (int r0 = 0; r0 < m->vocab; r0 += m->hidden) {
@@ -363,8 +526,16 @@ static const uint8_t *take(const uint8_t **p, const uint8_t *end, long n) {
     return r;
 }
 
-static int take_linear(TinyLinear *L, int n_in, int n_out, const uint8_t **p, const uint8_t *end) {
+static int take_linear(TinyLinear *L, int n_in, int n_out, const uint8_t **p, const uint8_t *end, int version) {
     L->n_in = n_in; L->n_out = n_out; L->words_in = (n_in + 31) / 32;
+    L->acts = 8; L->had = 0;
+    if (version >= 2) {   /* int32 acts, had, 0, 0 before the weights (16 bytes: they stay 16-byte aligned) */
+        const int32_t *f = (const int32_t *)take(p, end, 16);
+        if (!f) return -1;
+        L->acts = f[0]; L->had = f[1];
+        if (L->acts != 8 && (L->acts != 1 || n_in % 32)) return -1;
+        if (L->had && (L->had < 2 || (L->had & (L->had - 1)) || n_in % L->had)) return -1;
+    }
     L->w = (const uint32_t *)take(p, end, 4L * n_out * L->words_in);
     L->m = (const int32_t *)take(p, end, 4L * n_out);
     if (!L->w || !L->m) return -1;
@@ -383,7 +554,9 @@ static int take_linear(TinyLinear *L, int n_in, int n_out, const uint8_t **p, co
 
 int tinylm_load(TinyModel *m, const uint8_t *buf, long size) {
     const int32_t *h = (const int32_t *)buf;
-    if (size < 32 || h[0] != TINYLM_MAGIC || h[1] != 1) return -1;
+    if (size < 32 || h[0] != TINYLM_MAGIC || h[1] < 1 || h[1] > 4) return -1;
+    const int version = h[1];  /* 2: per linear layer, its input bits and Hadamard block; 3 / 4: also the int4 /
+                                  int2 table */
     m->vocab = h[2]; m->dim = h[3]; m->hidden = h[4]; m->layers = h[5]; m->heads = h[6]; m->seq = h[7];
     if (m->vocab <= 0 || m->dim <= 0 || m->hidden <= 0 || m->layers <= 0 || m->heads <= 0 || m->seq <= 0) return -1;
     /* the attention scale 16129 << 20 = 127^2 * 2^24 / 128 * sqrt(64) assumes 64-wide heads (as intsim.py) */
@@ -394,14 +567,23 @@ int tinylm_load(TinyModel *m, const uint8_t *buf, long size) {
 #endif
     const uint8_t *p = buf + 32, *end = buf + size;
     int hd2 = m->dim / m->heads / 2;
-    m->emb_q = (const int8_t *)take(&p, end, (long)m->vocab * m->dim);
+    m->emb_q = NULL; m->emb_p = NULL; m->emb_c = NULL;
+    if (version == 3) {
+        if (m->dim % 32) return -1;
+        m->emb_p = take(&p, end, (long)m->vocab * m->dim / 2);
+    } else if (version == 4) {
+        if (m->dim % 64) return -1;
+        m->emb_c = take(&p, end, (long)m->vocab * m->dim / 4);
+    } else {
+        m->emb_q = (const int8_t *)take(&p, end, (long)m->vocab * m->dim);
+    }
     m->emb_m = (const int32_t *)take(&p, end, 4L * m->vocab);
     m->norm_f = (const int32_t *)take(&p, end, 4L * m->dim);
     m->cos = (const int16_t *)take(&p, end, 2L * m->seq * hd2);
     m->sin = (const int16_t *)take(&p, end, 2L * m->seq * hd2);
     m->exp_t = (const uint16_t *)take(&p, end, 2L * TINYLM_EXP_N);
     m->sig_t = (const uint16_t *)take(&p, end, 2L * TINYLM_SIG_N);
-    if (!m->emb_q || !m->emb_m || !m->norm_f || !m->cos || !m->sin || !m->exp_t || !m->sig_t) return -1;
+    if ((!m->emb_q && !m->emb_p && !m->emb_c) || !m->emb_m || !m->norm_f || !m->cos || !m->sin || !m->exp_t || !m->sig_t) return -1;
     m->blocks = (TinyBlock *)calloc(m->layers, sizeof(TinyBlock));
     if (!m->blocks) return -1;
     for (int l = 0; l < m->layers; l++) {
@@ -409,10 +591,17 @@ int tinylm_load(TinyModel *m, const uint8_t *buf, long size) {
         B->n1 = (const int32_t *)take(&p, end, 4L * m->dim);
         B->n2 = (const int32_t *)take(&p, end, 4L * m->dim);
         if (!B->n1 || !B->n2) return -1;
-        if (take_linear(&B->q, m->dim, m->dim, &p, end) || take_linear(&B->k, m->dim, m->dim, &p, end) ||
-            take_linear(&B->v, m->dim, m->dim, &p, end) || take_linear(&B->o, m->dim, m->dim, &p, end) ||
-            take_linear(&B->w1, m->dim, m->hidden, &p, end) || take_linear(&B->w3, m->dim, m->hidden, &p, end) ||
-            take_linear(&B->w2, m->hidden, m->dim, &p, end))
+        if (take_linear(&B->q, m->dim, m->dim, &p, end, version) ||
+            take_linear(&B->k, m->dim, m->dim, &p, end, version) ||
+            take_linear(&B->v, m->dim, m->dim, &p, end, version) ||
+            take_linear(&B->o, m->dim, m->dim, &p, end, version) ||
+            take_linear(&B->w1, m->dim, m->hidden, &p, end, version) ||
+            take_linear(&B->w3, m->dim, m->hidden, &p, end, version) ||
+            take_linear(&B->w2, m->hidden, m->dim, &p, end, version))
+            return -1;
+        /* layers that share an input share its format */
+        if (B->k.acts != B->q.acts || B->v.acts != B->q.acts || B->k.had != B->q.had || B->v.had != B->q.had ||
+            B->w3.acts != B->w1.acts || B->w3.had != B->w1.had)
             return -1;
     }
     return p == end ? 0 : -1;
@@ -434,12 +623,14 @@ int tinylm_state_init(TinyState *s, const TinyModel *m) {
     s->v = TINYLM_MALLOC_FAST(4L * m->dim); s->a = TINYLM_MALLOC_FAST(4L * m->dim);
     s->iq = TINYLM_MALLOC_FAST(big); s->p = TINYLM_MALLOC_FAST(2L * m->seq);
     s->lut = TINYLM_MALLOC_FAST(2L * 256 * (big / 8));
+    s->r = TINYLM_MALLOC_FAST(8L * big); s->xb = TINYLM_MALLOC_FAST(4L * (big / 32 + 1));
     return s->kq && s->vq && s->km && s->vm && s->x && s->t1 && s->t2 && s->t3 && s->q && s->k && s->v && s->a &&
-                   s->iq && s->p && s->lut ? 0 : -1;
+                   s->iq && s->p && s->lut && s->r && s->xb ? 0 : -1;
 }
 
 void tinylm_state_free(TinyState *s) {
-    void *all[] = {s->kq, s->vq, s->km, s->vm, s->x, s->t1, s->t2, s->t3, s->q, s->k, s->v, s->a, s->iq, s->p, s->lut};
+    void *all[] = {s->kq, s->vq, s->km, s->vm, s->x, s->t1, s->t2, s->t3, s->q, s->k, s->v, s->a, s->iq, s->p, s->lut,
+                   s->r, s->xb};
     for (unsigned i = 0; i < sizeof(all) / sizeof(all[0]); i++) free(all[i]);
     memset(s, 0, sizeof(*s));
 }

@@ -143,6 +143,49 @@ the fp32 model and measure the validation loss of the whole model (512 windows, 
   fewer bytes. So the damage ranking was right about the head and right in sign for the blocks, but too weak to
   matter there. The scan is kept as it is (it measures one layer in isolation, as its own notes say).
 
+### A 4-bit or 2-bit output layer
+
+The output layer (4096 x 384, shared with the embedding) is the slowest part of a step on the S3 (28 ms): it is
+bound by the PSRAM, so fewer bytes make it faster. `train.py --head int4` (levels -7..7 x max|w| / 7 per row) and
+`--head int2` (levels {-1.5, -0.5, 0.5, 1.5} x mean|w| per row), with the same recipe and seeds; the embedding lookup
+uses the same quantized table, so the chip keeps a single table. Validation loss over 3 seeds (paired change vs. the
+float output layer of the same seed), then intsim, C and the ESP32-S3 for each seed
+([`results/train_binary_d384l8_head*_s*.json`](results/), [`results/chip_s3_binary_d384l8_head*_s*_symbex.json`](results/)):
+
+| Output layer | Validation loss | Paired change | Output layer on the S3 | Tokens per second | `model.bin` |
+|---|---|---|---|---|---|
+| int8 (after training) | 1.522 ± 0.003 | | 28.0 ms | 8.48 ± 0.00 | 3.55 MB |
+| **int4** | 1.5376 ± 0.0031 | +0.015 ± 0.003 | **14.7 ms** | **9.52 ± 0.00** | 2.77 MB |
+| int2 | 1.5709 ± 0.0044 | +0.049 ± 0.003 | **8.4 ms** | **10.13 ± 0.00** | 2.37 MB |
+| 1 bit | 1.6071 ± 0.0030 | +0.085 ± 0.005 | not taken to the chip | | |
+
+- Integer model equal to the float one (int4 1.546 / 1.546 on seed 42, int2 1.583 / 1.583; 1,024 windows) and the C
+  **exact on every seed, on the PC and on the S3** (512 / 512 tokens, story 120 / 120).
+- The S3 kernels read the packed table straight from PSRAM: int4 (two weights per byte) is split with one mask and one
+  shift (`ee.andq`, `ee.vsl.32`) into two int8 vectors, int2 (four per byte) into four, each multiplied by the PIE
+  (`ee.vmulas.s8.accx`); `model.bin` version 3 / 4 (`intsim.pack_nibbles` / `pack_crumbs`).
+- **int4 is the choice:** half the time of the output layer for a sixth of the 1-bit layer's cost. int2 is 6 % faster
+  and 0.39 MB smaller again, for three times int4's cost in loss: an option when speed or flash matter most.
+
+### 1-bit activations (W1A1) on the chip
+
+The 1-bit activations were made to train (`w1a1_diag.py`, `damage_map.py`, `hadamard_probe.py`; LOGBOOK.md): the
+clipped straight-through estimator moves W1A1 from 3.82 to 2.04, w2's input at 8 bits gives 1.8096 ± 0.0054 (3 seeds),
+and the best recipe found (a Hadamard transform before every 1-bit input, block 0 at 8 bits) 1.782 (seed 42, a
+ranking), against W1A8 1.522. That model is exact in C and on the S3 (XOR + popcount on the PIE through lib_symbex):
+**8.88 tokens per second against W1A8's 8.48**, the same flash (+896 bytes) and 8.9 KB more internal RAM, for +0.26
+loss. In a model that runs one token at a time the activations are only ~1 KB, so binarizing them saves no memory,
+and the time goes to the output layer and the attention, not the linear layers.
+
+### Rules learned for language models
+
+- Keep the activations at 8 bits (W1A8): 1-bit activations cost loss and give no speed or memory back here.
+- The output layer matters most: at 1 bit it costs the most, and on the chip it is the slowest part. Quantize it to
+  int4, not to 1 bit.
+- The memory bandwidth (PSRAM), not the arithmetic, limits a step: fewer bytes in what is read every token (output
+  layer, attention cache) is the lever.
+- The per-layer cosine scan does not predict the trained loss here: check sensitive layers by training (3 seeds).
+
 A story from the binary model (seed 42, greedy, from "Once upon a time"):
 
 > Once upon a time, there was a little girl named Lily. She loved to play with her toys and have fun. One day, Lily
@@ -153,7 +196,8 @@ A story from the binary model (seed 42, greedy, from "Once upon a time"):
 
 Yes: the 1-bit model writes stories with dialogue and a plot, the integer version loses nothing (1.5307 vs
 1.5306), and the C equals it on every score, on the PC and on the ESP32-S3, where it writes 8.48 tokens per second
-(3 seeds) with lib_symbex's own 8-bit x 1-bit kernel. It costs perplexity against fp32 (4.58 vs 3.67): the binary model
+(3 seeds) with lib_symbex's own 8-bit x 1-bit kernel, and 9.52 with a 4-bit output layer (+0.015 loss, 3 seeds,
+exact). It costs perplexity against fp32 (4.58 vs 3.67): the binary model
 repeats itself more. Ternary sits between the two at twice the weight memory.
 
 ## Future work
@@ -161,17 +205,15 @@ repeats itself more. Ternary sits between the two at twice the weight memory.
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
   RAM: the output head (28 ms) and the attention scores are at the PSRAM's speed (58 MB/s), the linear layers are
   half kernel and half memory (69 MB/s internal, 40 MB/s from PSRAM), and the attention values were plain C (25 ms,
-  now 13.2 ms on the PIE, exact). Next, in order: a 1-bit output head (8× fewer bytes; its perplexity to be
-  measured), the PSRAM at 120 MHz (+40 % bandwidth, experimental in ESP-IDF), a cheaper transposed cache write.
+  now 13.2 ms on the PIE, exact). The int4 / int2 output layer is done (above; 1 bit rejected). Next: the PSRAM at
+  120 MHz (+40 % bandwidth, experimental in ESP-IDF), a cheaper transposed cache write.
 - Ideas from [slvDev/esp32-ai](https://github.com/slvDev/esp32-ai) (an int4 TinyStories model on the same chip,
-  9.88 tokens/s on both cores, float; reviewed Nov 12, not started): a 4-bit or 2-bit output head between the int8
-  one and the rejected 1-bit one (the head is bound by the PSRAM, so fewer bytes is the lever; ESTIMATE int4 28 ->
-  ~14 ms, ~9.4 tokens/s, loss to be measured with 3 seeds first); per-layer embeddings (a large lookup table in
+  9.88 tokens/s on both cores, float; reviewed Nov 12): a 4-bit or 2-bit output head (done, above: measured 14.7 /
+  8.4 ms, 9.52 / 10.13 tokens/s); per-layer embeddings (a large lookup table in
   flash, a few rows read per token) gave them +0.098 nats at vocabulary 32768 but only +0.025 at 4096, ours, so a
   PC check at most; `noinline` on the linear kernel (inlining at -O3 slowed their step from 95 to 155 ms).
 
 - The ternary integer model and C; a binary model with as many bytes as the ternary one.
-- Binarizing more is research, not done here: 1-bit (or few-bit) activations for the linear layers (XNOR + popcount,
-  the fully binary path of the other benchmarks), a binary embedding, binary attention. How much a model this small
-  loses that way is not measured: an open question.
+- Binarizing more is research: 1-bit activations were measured (above: +0.26 loss with the best recipe, one seed,
+  no gain on the chip); a binary embedding and binary attention are not measured: an open question.
 - The test split, once, for the final numbers.

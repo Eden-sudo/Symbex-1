@@ -1,0 +1,173 @@
+{
+  "weights": "binary",
+  "seed": 44,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "int4",
+    "int8_blocks": [],
+    "acts": 8,
+    "ste": "identity",
+    "ste_k": 2.0,
+    "learn_thr": false,
+    "a8_inputs": [],
+    "a8_blocks": [],
+    "w2_acts": "same",
+    "hadamard": [],
+    "ffn_act": "silu",
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "d384l8_head4",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.5347,
+  "val_perplexity": 4.64,
+  "minutes": 22.06,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.2975,
+      "val_loss": 2.2952,
+      "minutes": 1.09
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.929,
+      "val_loss": 1.9868,
+      "minutes": 2.19
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.8478,
+      "val_loss": 1.8744,
+      "minutes": 3.3
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.8141,
+      "val_loss": 1.8182,
+      "minutes": 4.41
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.7598,
+      "val_loss": 1.7711,
+      "minutes": 5.51
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.7192,
+      "val_loss": 1.7419,
+      "minutes": 6.62
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.6605,
+      "val_loss": 1.7165,
+      "minutes": 7.72
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.6543,
+      "val_loss": 1.69,
+      "minutes": 8.82
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.6981,
+      "val_loss": 1.6689,
+      "minutes": 9.93
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.6372,
+      "val_loss": 1.6502,
+      "minutes": 11.03
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.6991,
+      "val_loss": 1.6331,
+      "minutes": 12.14
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.61,
+      "val_loss": 1.6178,
+      "minutes": 13.22
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.6289,
+      "val_loss": 1.6037,
+      "minutes": 14.33
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.567,
+      "val_loss": 1.588,
+      "minutes": 15.43
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.5233,
+      "val_loss": 1.5744,
+      "minutes": 16.54
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.5949,
+      "val_loss": 1.5619,
+      "minutes": 17.64
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.552,
+      "val_loss": 1.5523,
+      "minutes": 18.75
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.5176,
+      "val_loss": 1.5421,
+      "minutes": 19.85
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.5201,
+      "val_loss": 1.5368,
+      "minutes": 20.95
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.5566,
+      "val_loss": 1.5347,
+      "minutes": 22.05
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She had a big, red ball. Lily loved to play with her ball every day. One day, she saw a big, dangerous dog near her house. The dog was barking and running around.\nLily wanted to play with the dangerous dog. She said, \"No, dog! You can't play with my ball!\" But the dog did not listen. It jumped and barked. Lily was scared and ran away.\nLily's mom saw her and said, \"Lily, don't be scared. The dangerous dog is just playing. It won't hurt you.\" Lily felt better and went back to play with her ball. She was happy and safe."
+}

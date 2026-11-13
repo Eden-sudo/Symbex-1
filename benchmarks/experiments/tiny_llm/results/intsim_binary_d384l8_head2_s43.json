@@ -1,0 +1,11 @@
+{
+  "run": "binary_d384l8_head2_s43",
+  "weights": "binary",
+  "val_windows": 1024,
+  "val_loss_float": 1.5779,
+  "val_loss_integer": 1.578,
+  "val_perplexity_float": 4.845,
+  "val_perplexity_integer": 4.845,
+  "next_token_agreement_float_vs_integer": 0.9871,
+  "sample_integer": "Once upon a time, there was a little boy named Tim. Tim loved to play with his toy cars. One day, he saw a big, red car in his yard. Tim was very happy and wanted to play with the car.\nTim said to his mom, \"Mom, can I play with the car?\" His mom said, \"Yes, but be careful.\" Tim was very careful and played with the car. He made it go fast and slow, and it went very fast.\nTim played with the car all day. He made it go fast and slow, and it went slow. He was having so"
+}

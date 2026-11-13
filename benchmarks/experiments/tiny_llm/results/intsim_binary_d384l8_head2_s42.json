@@ -1,0 +1,11 @@
+{
+  "run": "binary_d384l8_head2_s42",
+  "weights": "binary",
+  "val_windows": 1024,
+  "val_loss_float": 1.5831,
+  "val_loss_integer": 1.5833,
+  "val_perplexity_float": 4.87,
+  "val_perplexity_integer": 4.871,
+  "next_token_agreement_float_vs_integer": 0.9857,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She had a big, red ball that she loved to play with. One day, Lily went to the park with her mom. She saw a big tree with a lot of leaves. Lily wanted to play with the leaves, but her mom said no. Lily was sad.\nLily's mom said, \"Lily, you need to learn to share the leaves with your friends. If you can't, they will not come to the park.\" Lily did not listen to her mom. She kept playing with her ball and threw the ball. The ball"
+}
