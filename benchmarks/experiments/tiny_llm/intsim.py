@@ -82,7 +82,7 @@ def load_model(run, vocab, dev):
     assert not a.get("learn_thr") and a.get("w2_acts", "same") == "same" and a.get("ffn_act", "silu") == "silu", \
         "--learn-thr / --w2-acts / --ffn-act relu runs have no integer model yet"
     for group in (("q", "k", "v"), ("w1", "w3")):        # forward() quantizes each group's input once
-        for opt in ("a8_inputs", "hadamard"):
+        for opt in ("a8_inputs", "hadamard") if a.get("acts", 8) != 8 else ("hadamard",):   # --acts 8: all 8 bits
             assert len({n in (a.get(opt) or []) for n in group}) == 1, \
                 f"--{opt.replace('_', '-')} must list all of {'/'.join(group)} or none (they share one input)"
     model = T.TinyLM(vocab, a["dim"], a["layers"], a["heads"], a["hidden"], a["seq"], a["weights"],
