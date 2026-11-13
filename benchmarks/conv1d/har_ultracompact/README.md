@@ -98,14 +98,15 @@ layer) has their accuracy by construction: it is the same network, run exactly.
 | max | 58.8 ± 1.1 % | 67.9 ± 1.1 % | 68.0 ± 0.1 % | 67.6 ± 0.3 % | 66.5 ± 1.2 % | 67.6 % |
 
 TFLite INT8: three float networks (seeds 42-44), each quantized after training. QAT (`tools/lowbit`, Brevitas): the
-seed-42 float network, quantization-aware training with 3 seeds. The FP32 column is that one float network of
-`tools/lowbit` (15 epochs, distillation, one seed), not TFLite's three float networks (100 epochs, not scored on the
-test set): on min, TFLite INT8 above FP32 (56.1 vs 50.6 %) compares two different trainings, not a quantization gain.
+seed-42 float network, quantization-aware training with 3 seeds (15 epochs, distillation). The FP32 column is that
+seed-42 TFLite float network, copied into PyTorch and scored by `tools/lowbit`: one seed, not a three-seed mean. On
+min, TFLite INT8 above FP32 (56.1 vs 50.6 %) compares a three-seed mean with one seed, not a quantization gain (the
+seed-42 INT8 network scores 50.6 % too).
 The ± is the sample standard deviation (n − 1) over 3 seeds; earlier versions of this README used the population one
 (n), about 1.22× smaller.
 
 The test set has few subjects and they differ a lot: TFLite INT8 on min goes from 50.6 to 60.8 % across seeds, and
-validation is 5-12 points above test for every method (validation windows come from the training subjects). Read
+validation (4 other subjects, none in training) is 3-12 points above test, mean over seeds, depending on method. Read
 differences of a few points as within noise. As in mlp_fashion, **INT2 QAT is more accurate per byte
 than SYMBEX** on the large networks (+8 points with about 1.5× the weight bytes); SYMBEX's case is speed and memory.
 
