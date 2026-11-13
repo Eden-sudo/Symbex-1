@@ -56,6 +56,8 @@ def write_check_data(run, windows, path):
     dev = "cuda"
     ck = torch.load(os.path.join(run, "model.pt"))
     a = ck["args"]
+    assert a.get("head", "fp32") == "fp32" and not a.get("int8_blocks") and a.get("acts", 8) == 8, \
+        "--head binary / --int8-blocks / --acts 1 runs have no integer model yet"
     sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, "tok4096.model"))
     model = T.TinyLM(sp.get_piece_size(), a["dim"], a["layers"], a["heads"], a["hidden"], a["seq"],
                      a["weights"]).to(dev)

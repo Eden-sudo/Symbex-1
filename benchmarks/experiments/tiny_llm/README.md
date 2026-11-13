@@ -78,12 +78,12 @@ C on the PC ([`results/c_check_pc_*.txt`](results/)): **1,024 / 1,024 tokens wit
 greedy story, on all three seeds.** `model.bin` is 3.55 MB (1.77 MB of 1-bit weights, 1.57 MB of int8 embedding,
 tables and multipliers); the KV cache for 256 tokens is 1.5 MB.
 
-On the ESP32-S3 (seed 42, [`results/chip_s3_binary_d384l8_s42*.json`](results/)): **512 / 512 tokens with every
-score equal and the story 120 / 120 tokens equal, with both kernels: exact.** With lib_symbex's kernel the story runs
-at **8.48 tokens per second** (118 ms per token). A step costs more as the context fills (attention over more
+On the ESP32-S3 ([`results/chip_s3_binary_d384l8_s4*.json`](results/)): **512 / 512 tokens with every score equal
+and the story 120 / 120 tokens equal: exact**, with both kernels on seed 42 and with lib_symbex's kernel on seeds 43
+and 44. With lib_symbex's kernel the story runs at **8.48 ± 0.00 tokens per second** (118 ms per token, 3 seeds). A step costs more as the context fills (attention over more
 tokens). Model load from flash 0.5-0.6 s; ~3 MB of PSRAM and ~246 KB of internal RAM stay free.
 
-| Part of a step (ms, mean of 512 tokens) | `lut8` | `--linear symbex` |
+| Part of a step (ms, mean of 512 tokens, seed 42) | `lut8` | `--linear symbex` |
 |---|---|---|
 | 1-bit linear layers (q, k, v, o, w1, w3, w2) | 115.1 | **55.6** |
 | attention (rope + int8 cache 9.7, scores 7.8, softmax 2.0, values 13.2, division 1.6) | 43.8 | **34.3** |
@@ -126,9 +126,22 @@ the fp32 model and measure the validation loss of the whole model (512 windows, 
   cosine) while it is the most damaging one.
 - Damages do not add up: all the blocks binarized together cost 4.63 ± 0.24, the sum of the single layers 1.44;
   block 0 alone 1.24 against 0.29 summed.
-- This is damage before retraining. Trained binary (1.522) loses only 0.22 against fp32 (1.300), so the ranking after
-  training can differ; it is not measured. The scan is kept as it is (it measures one layer in isolation, as its own
-  notes say); for this model, the whole model's loss is the measure to use.
+- This is damage before retraining, so it was checked with training: the same recipe as the binary base, 3 seeds
+  ([`results/train_binary_d384l8_*_s*.json`](results/), `train.py --head binary` / `--int8-blocks`):
+
+| Variant | Validation loss | Paired change vs binary | Linear-layer weights |
+|---|---|---|---|
+| binary (base) | 1.5224 ± 0.0026 | | 1.77 MB |
+| 1-bit output layer | 1.6071 ± 0.0030 | +0.085 ± 0.005 | 1.77 MB (+ head 1.57 -> 0.20 MB) |
+| blocks 0 and 7 with int8 weights (the most damaged) | 1.4205 ± 0.0027 | -0.102 ± 0.004 | 4.87 MB |
+| blocks 3 and 4 with int8 weights (control, same bytes) | 1.4272 ± 0.0017 | -0.095 ± 0.003 | 4.87 MB |
+| ternary, every block | 1.425 ± 0.003 | | 3.54 MB |
+
+- The 1-bit output layer stays costly after training (+0.085, a third of the binary-fp32 gap): not used.
+- Blocks 0 and 7 beat the middle blocks 3 and 4 on every seed, but only by 0.007 ± 0.005: 93 % of the gain comes
+  from the extra bytes, not from picking the sensitive blocks. And per byte, ternary everywhere does as well with
+  fewer bytes. So the damage ranking was right about the head and right in sign for the blocks, but too weak to
+  matter there. The scan is kept as it is (it measures one layer in isolation, as its own notes say).
 
 A story from the binary model (seed 42, greedy, from "Once upon a time"):
 
@@ -140,7 +153,7 @@ A story from the binary model (seed 42, greedy, from "Once upon a time"):
 
 Yes: the 1-bit model writes stories with dialogue and a plot, the integer version loses nothing (1.5307 vs
 1.5306), and the C equals it on every score, on the PC and on the ESP32-S3, where it writes 8.48 tokens per second
-(one seed) with lib_symbex's own 8-bit x 1-bit kernel. It costs perplexity against fp32 (4.58 vs 3.67): the binary model
+(3 seeds) with lib_symbex's own 8-bit x 1-bit kernel. It costs perplexity against fp32 (4.58 vs 3.67): the binary model
 repeats itself more. Ternary sits between the two at twice the weight memory.
 
 ## Future work
@@ -150,9 +163,13 @@ repeats itself more. Ternary sits between the two at twice the weight memory.
   half kernel and half memory (69 MB/s internal, 40 MB/s from PSRAM), and the attention values were plain C (25 ms,
   now 13.2 ms on the PIE, exact). Next, in order: a 1-bit output head (8× fewer bytes; its perplexity to be
   measured), the PSRAM at 120 MHz (+40 % bandwidth, experimental in ESP-IDF), a cheaper transposed cache write.
-  Seeds 43 and 44 on the chip.
-- Per-layer bits chosen by the real damage (above), checked with training: the 1-bit head, and block 0 / block 7
-  kept at more bits, each trained with the same recipe (3 seeds, validation).
+- Ideas from [slvDev/esp32-ai](https://github.com/slvDev/esp32-ai) (an int4 TinyStories model on the same chip,
+  9.88 tokens/s on both cores, float; reviewed Nov 12, not started): a 4-bit or 2-bit output head between the int8
+  one and the rejected 1-bit one (the head is bound by the PSRAM, so fewer bytes is the lever; ESTIMATE int4 28 ->
+  ~14 ms, ~9.4 tokens/s, loss to be measured with 3 seeds first); per-layer embeddings (a large lookup table in
+  flash, a few rows read per token) gave them +0.098 nats at vocabulary 32768 but only +0.025 at 4096, ours, so a
+  PC check at most; `noinline` on the linear kernel (inlining at -O3 slowed their step from 95 to 155 ms).
+
 - The ternary integer model and C; a binary model with as many bytes as the ternary one.
 - Binarizing more is research, not done here: 1-bit (or few-bit) activations for the linear layers (XNOR + popcount,
   the fully binary path of the other benchmarks), a binary embedding, binary attention. How much a model this small

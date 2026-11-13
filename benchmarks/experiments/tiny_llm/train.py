@@ -7,6 +7,17 @@ same recipe for all:
     python train.py --weights ternary --seeds 42 43 44     # {-1, 0, +1} x one scale per output row (BitNet b1.58)
     python train.py --weights binary  --seeds 42 43 44     # {-1, +1} x one scale per output row
     python train.py --weights ternary --steps 200 --name smoke   # quick check of the whole script
+    python train.py --weights binary --head binary --name d384l8_head1        # also a 1-bit output layer
+    python train.py --weights binary --int8-blocks 0 7 --name d384l8_b07i8    # blocks 0 and 7 with int8 weights
+    python train.py --weights binary --acts 1 --name d384l8_a1                # 1-bit inputs too (W1A1)
+
+--head binary: the output layer (tied to the embedding) gets 1-bit weights (sign x mean|w| per row, the embedding
+lookup keeps the fp32 weights) and 8-bit inputs. --int8-blocks: those blocks' linear layers get int8 weights (absmax
+per row, 127 levels) instead of --weights. Both come from layer_sensitivity.py (the head and blocks 0 / 7 are the most
+damaging layers to binarize); intsim.py and the C do not support them yet.
+--acts 1: the blocks' linear layers get 1-bit inputs (sign x mean |x| per token, identity straight-through gradient)
+instead of 8-bit ones, so every block's matrix product is 1 bit x 1 bit; the output layer, the norms and attention
+(scores, softmax, values) keep their formats. Not in intsim.py / the C yet.
 
 Quantized runs: every linear layer of the blocks has quantized weights (scale = mean |w| of the row; ternary rounds
 w / scale to -1, 0, 1, binary takes the sign) and 8-bit inputs (absmax per token, 127 levels), both through the
@@ -42,6 +53,9 @@ def quant_weight(w, kind):
     scale = w.abs().mean(dim=1, keepdim=True).clamp(min=1e-5)
     if kind == "ternary":
         return ste(w, (w / scale).round().clamp(-1, 1) * scale)
+    if kind == "int8":
+        s8 = w.abs().amax(dim=1, keepdim=True).clamp(min=1e-5) / 127.0
+        return ste(w, (w / s8).round().clamp(-127, 127) * s8)
     return ste(w, torch.where(w >= 0, 1.0, -1.0) * scale)
 
 
@@ -50,15 +64,20 @@ def quant_act8(x):
     return ste(x, (x * scale).round().clamp(-128, 127) / scale)
 
 
+def quant_act1(x):
+    scale = x.abs().mean(dim=-1, keepdim=True)
+    return ste(x, torch.where(x >= 0, 1.0, -1.0) * scale)
+
+
 class QLinear(nn.Linear):
-    def __init__(self, n_in, n_out, kind):
+    def __init__(self, n_in, n_out, kind, acts=8):
         super().__init__(n_in, n_out, bias=False)
-        self.kind = kind
+        self.kind, self.acts = kind, acts
 
     def forward(self, x):
         if self.kind == "fp32":
             return F.linear(x, self.weight)
-        return F.linear(quant_act8(x), quant_weight(self.weight, self.kind))
+        return F.linear(quant_act1(x) if self.acts == 1 else quant_act8(x), quant_weight(self.weight, self.kind))
 
 
 # ---- model ---------------------------------------------------------------------------------------------------------
@@ -69,13 +88,13 @@ def rope(x, cos, sin):
 
 
 class Block(nn.Module):
-    def __init__(self, dim, heads, hidden, kind):
+    def __init__(self, dim, heads, hidden, kind, acts=8):
         super().__init__()
         self.heads = heads
         self.n1, self.n2 = nn.RMSNorm(dim, eps=1e-5), nn.RMSNorm(dim, eps=1e-5)
-        self.q, self.k, self.v, self.o = (QLinear(dim, dim, kind) for _ in range(4))
-        self.w1, self.w3 = QLinear(dim, hidden, kind), QLinear(dim, hidden, kind)
-        self.w2 = QLinear(hidden, dim, kind)
+        self.q, self.k, self.v, self.o = (QLinear(dim, dim, kind, acts) for _ in range(4))
+        self.w1, self.w3 = QLinear(dim, hidden, kind, acts), QLinear(dim, hidden, kind, acts)
+        self.w2 = QLinear(hidden, dim, kind, acts)
 
     def forward(self, x, cos, sin):
         b, t, d = x.shape
@@ -88,10 +107,12 @@ class Block(nn.Module):
 
 
 class TinyLM(nn.Module):
-    def __init__(self, vocab, dim, layers, heads, hidden, seq, kind):
+    def __init__(self, vocab, dim, layers, heads, hidden, seq, kind, head="fp32", int8_blocks=(), acts=8):
         super().__init__()
+        self.head_kind = head
         self.emb = nn.Embedding(vocab, dim)
-        self.blocks = nn.ModuleList(Block(dim, heads, hidden, kind) for _ in range(layers))
+        self.blocks = nn.ModuleList(Block(dim, heads, hidden, "int8" if i in int8_blocks else kind, acts)
+                                    for i in range(layers))
         self.norm = nn.RMSNorm(dim, eps=1e-5)
         hd = dim // heads
         freq = 1.0 / (10000 ** (torch.arange(0, hd, 2).float() / hd))
@@ -110,6 +131,8 @@ class TinyLM(nn.Module):
         x = self.emb(idx)
         for blk in self.blocks:
             x = blk(x, self.cos[:t], self.sin[:t])
+        if self.head_kind == "binary":
+            return F.linear(quant_act8(self.norm(x)), quant_weight(self.emb.weight, "binary"))
         return F.linear(self.norm(x), self.emb.weight)
 
 
@@ -170,7 +193,7 @@ def run(args, seed):
     train, val = load_split("train", device), load_split("val", device)
     sp = spm.SentencePieceProcessor(model_file=os.path.join(DATA, "tok4096.model"))
     model = TinyLM(sp.get_piece_size(), args.dim, args.layers, args.heads, args.hidden, args.seq,
-                   args.weights).to(device)
+                   args.weights, args.head, tuple(args.int8_blocks), args.acts).to(device)
     n_lin = sum(m.weight.numel() for m in model.modules() if isinstance(m, QLinear))
     n_all = sum(p.numel() for p in model.parameters())
     decay = [p for p in model.parameters() if p.dim() >= 2]
@@ -230,6 +253,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--weights", choices=["fp32", "ternary", "binary"], required=True)
     ap.add_argument("--seeds", type=int, nargs="+", default=[42])
+    ap.add_argument("--head", choices=["fp32", "binary"], default="fp32", help="output layer weights (see above)")
+    ap.add_argument("--int8-blocks", type=int, nargs="*", default=[], help="blocks with int8 weights (see above)")
+    ap.add_argument("--acts", type=int, choices=[8, 1], default=8, help="bits of the blocks' linear inputs (see above)")
     ap.add_argument("--name", default="d384l8", help="run name (folder: runs/<weights>_<name>_s<seed>)")
     ap.add_argument("--dim", type=int, default=384)
     ap.add_argument("--layers", type=int, default=8)

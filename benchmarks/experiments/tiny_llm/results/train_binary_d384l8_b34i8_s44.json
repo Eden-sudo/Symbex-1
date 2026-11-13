@@ -1,0 +1,162 @@
+{
+  "weights": "binary",
+  "seed": 44,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "fp32",
+    "int8_blocks": [
+      3,
+      4
+    ],
+    "name": "d384l8_b34i8",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.4262,
+  "val_perplexity": 4.163,
+  "minutes": 32.93,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.1958,
+      "val_loss": 2.2004,
+      "minutes": 1.64
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.8303,
+      "val_loss": 1.8876,
+      "minutes": 3.29
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.7469,
+      "val_loss": 1.7731,
+      "minutes": 4.94
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.7072,
+      "val_loss": 1.7124,
+      "minutes": 6.58
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.6585,
+      "val_loss": 1.6683,
+      "minutes": 8.23
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.6078,
+      "val_loss": 1.6373,
+      "minutes": 9.87
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.5587,
+      "val_loss": 1.6098,
+      "minutes": 11.52
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.5492,
+      "val_loss": 1.5848,
+      "minutes": 13.17
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.591,
+      "val_loss": 1.5651,
+      "minutes": 14.81
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.5249,
+      "val_loss": 1.5442,
+      "minutes": 16.46
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.5859,
+      "val_loss": 1.5275,
+      "minutes": 18.11
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.4991,
+      "val_loss": 1.5093,
+      "minutes": 19.75
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.517,
+      "val_loss": 1.4936,
+      "minutes": 21.4
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.4583,
+      "val_loss": 1.4786,
+      "minutes": 23.04
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.4095,
+      "val_loss": 1.4654,
+      "minutes": 24.69
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.4828,
+      "val_loss": 1.4532,
+      "minutes": 26.34
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.4459,
+      "val_loss": 1.4439,
+      "minutes": 27.98
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.4066,
+      "val_loss": 1.4347,
+      "minutes": 29.63
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.4093,
+      "val_loss": 1.4294,
+      "minutes": 31.28
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.4445,
+      "val_loss": 1.4262,
+      "minutes": 32.92
+    }
+  ],
+  "sample": "Once upon a time, there was a little boy named Tim. Tim had a big, red ball. He loved to play with his ball every day. One day, Tim saw a big, red ball in the park. He wanted to play with it, but he was too small to reach it.\nTim had an idea. He would use his big, red ball to get the ball. He threw the ball up in the air and it came down. Tim was happy and laughed. He played with his ball all day long.\nBut then, something unexpected happened. The ball popped! Tim was sad. He didn't know what to do. Then, a friendly dog came to help. The dog had a long nose and a long nose. The dog used its nose to get the ball out of the ball. Tim was so happy! He thanked the dog and they played together all day."
+}
