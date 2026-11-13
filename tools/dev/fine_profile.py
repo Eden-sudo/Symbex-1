@@ -24,10 +24,8 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))           # tools/: compiler_core
-from compiler_core.chip.core import BOARDS, flash, lib_sources, open_port, read_line, wait_ready, write_project  # noqa
+from compiler_core.chip.core import BOARD_MHZ, BOARDS, flash, lib_sources, open_port, read_line, wait_ready, write_project  # noqa
 from compiler_core.chip.measure import _build_flags                                                                  # noqa
-
-MHZ = 240
 
 
 def main():
@@ -111,10 +109,10 @@ def main():
 
     totals_ms = sorted(totals)[len(totals) // 2] / 1000 if totals else 0.0
     if args.plain:
-        print(f"\n    LATENCY  ({args.board}, {MHZ} MHz, {imgs} images, popcount {args.popcount}, weights in {args.weights}; "
+        print(f"\n    LATENCY  ({args.board}, {BOARD_MHZ[args.board]} MHz, {imgs} images, popcount {args.popcount}, weights in {args.weights}; "
               f"normal library, no counters): median {totals_ms:.3f} ms")
     else:
-        print(f"\n    FINE PROFILE  ({args.board}, {MHZ} MHz, {imgs} images, popcount {args.popcount}, weights in {args.weights};"
+        print(f"\n    FINE PROFILE  ({args.board}, {BOARD_MHZ[args.board]} MHz, {imgs} images, popcount {args.popcount}, weights in {args.weights};"
               f" counters cost {cost} cycles each, subtracted)")
     print(f"\n    STEPS{'':45}{'ms/img':>9}{'%':>7}")
     print("    " + "-" * 62)
@@ -132,7 +130,7 @@ def main():
         if not calls:
             continue
         net = max(cyc - calls * cost, 0)
-        ms = net / imgs / (MHZ * 1e3)
+        ms = net / imgs / (BOARD_MHZ[args.board] * 1e3)
         measured += ms
         print(f"\n    {name}")
         print(f"      ms per image     : {ms:9.3f}   ({100 * ms / total_ms:.1f}% of the time)  " + "#" * int(round(25 * ms / total_ms)))

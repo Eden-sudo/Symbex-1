@@ -88,6 +88,9 @@ def main():
     if args.kernels:
         if args.board == "uno":
             sys.exit("[X] the kernel benchmark is for the ESP32 boards (ESP-IDF); on AVR the export always uses XNOR")
+        if args.board.startswith("pico2"):
+            sys.exit("[X] the kernel benchmark is for the ESP32 boards (its firmware is ESP-IDF): no Pico 2 version yet; "
+                     "the CDT's arithmetic = \"auto\" uses AND there (--compare-arithmetic measures XNOR too)")
         try:
             profile = run_kernels(args.board, args.port, args.lib_path, os.path.join("runs", f"kernels_{args.board}"),
                                   args.popcount, upload=not args.no_upload, with_int8=args.int8,
