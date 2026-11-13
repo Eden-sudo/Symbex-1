@@ -349,6 +349,20 @@ max with an int8 first layer, γ 1e-2 (71.1 ± 1.9 vs 69.3 ± 0.9, margin 1.8 < 
 runs' saved checkpoints (the best validation epoch, as always) are scored on the test subjects without training again
 (`har_train.py --arch max --optimizer bop --bop-gamma 1e-3 --seeds 42,43,44 --score-test`).
 
+**Test subjects (scored once).** The gain does not carry over:
+
+| max, all-binary | validation | test | test per seed (42 / 43 / 44) |
+|---|---|---|---|
+| Adam | 68.6 ± 0.9 | 58.8 ± 1.1 | 59.5 / 57.5 / 59.4 |
+| Bop γ 1e-3 | 71.3 ± 0.6 | 59.3 ± 3.1 | 59.4 / 56.1 / 62.3 |
+
+Paired by seed, Bop minus Adam is -0.1 / -1.4 / +2.9 (+0.5 on average), within the spread. On the test subjects Bop
+gives no clear gain, and the gap to TFLite INT8 (67.9 on max) stays. The +2.7 on validation was partly the validation
+subjects themselves: they are few, and the earlier sections already show validation running 5-10 points above test.
+The network, its layers and its speed are the same as with Adam, so nothing new is exported or measured on the chips;
+the Adam results above stay the reference. What may still close the gap is capacity (wider layers, sized for binary,
+with INT8 resized the same way), not the optimizer.
+
 ## Decisions (and why)
 
 - **Binary vs binary is the main comparison:** the question this benchmark answers is whether SYMBEX's binary layers
