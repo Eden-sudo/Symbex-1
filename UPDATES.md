@@ -3,14 +3,14 @@
 A running log of what each pull request brings, what is still in progress and what comes next. One section per
 pull request, newest first.
 
-## PR: three main goals, shared agent memory and team skills (November 2026)
+## PR #39: two main goals and a research track, shared agent memory and team skills (November 2026)
 
 Sits on PR #12. Docs and agent instructions only; no code or results change.
 
-- `docs/roadmap.md` opens with the project's three main goals and their owners: an easy framework (Eden, Obed), vision
-  with FOMO (Abrahan) and language models on microcontrollers, research (Obed, Eden). New framework track; FOMO gets
+- `docs/roadmap.md` opens with the project's two main goals and their owners: an easy framework (Eden, Obed), vision
+  with FOMO (Abrahan), plus a research track for language models on microcontrollers (Obed, Eden). New framework track; FOMO gets
   the items for more classes and a camera. Agents read it before opening or reviewing any pull request.
-- `README.md` / `README.es.md`: a short summary of the three goals, linking to the roadmap and to this file.
+- `README.md` / `README.es.md`: a short summary of the two goals and research track, linking to the roadmap and to this file.
 - `.agents/memory/`: shared project memory for every agent and the reviewer: team and usual work, conventions taken
   from earlier reviews, FOMO gaps, and language-model research (our microSD measurement on the S3, prior work by others).
 - Five proposed team skills in `.claude/skills/`, built from what the merged pull requests repeat and what reviews

@@ -166,15 +166,15 @@ actual y, todos menos FOMO, con el split de validación corregido. Lo siguiente:
 - **La energía** todavía no se ha medido; la latencia y la memoria sí.
 - **FOMO reentrenado** con el nuevo split de validación fijo.
 
-Los tres objetivos principales del proyecto, con sus responsables (el detalle y cada tarea abierta están en
+Los dos objetivos principales del proyecto, con sus responsables (el detalle y cada tarea abierta están en
 [docs/roadmap.md](docs/roadmap.md), en inglés; lo hecho, PR por PR, en [UPDATES.md](UPDATES.md)):
 
 - **Un framework fácil** (Edén, Obed): una librería de PlatformIO que lleve un modelo entrenado a un ESP32, una placa
   tipo Arduino o un RP2350 en pocos pasos.
 - **Visión con FOMO** (Abrahan): más clases y una cámara en la placa con el detector corriendo de punta a punta.
-- **Modelos de lenguaje en microcontroladores, investigación** (Obed, Edén): si un modelo de 1 bit puede seguir
-  instrucciones cortas de forma confiable en un solo chip. Ya hay modelos de lenguaje pequeños corriendo en la familia
-  ESP32; los nuestros todavía no están medidos.
+
+**Línea de investigación: modelos de lenguaje en microcontroladores** (Obed, Edén): si un modelo de 1 bit puede seguir
+instrucciones cortas de forma confiable en un solo chip. Aún no se presentan resultados propios; ver la [hoja de ruta](docs/roadmap.md).
 
 ## Estructura del repositorio
 

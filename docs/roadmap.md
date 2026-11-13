@@ -7,10 +7,10 @@ memory is in [`.agents/memory/`](../.agents/memory/); what each merged pull requ
 [UPDATES.md](../UPDATES.md). Day-to-day progress goes to the **Team sync** issue, not here.
 
 State: **done** (merged), **open** (pull request open), **next** (agreed, not started), **proposed** (an idea that
-still needs the owner's agreement). FOMO and hardware policy updated 2026-10-30; the three goals added 2026-11-10;
+still needs the owner's agreement). FOMO and hardware policy updated 2026-10-30; goals added 2026-11-10 and framing and selected track states updated 2026-11-12;
 other track states retain their 2026-10-28 snapshot unless noted.
 
-## The three main goals
+## The two main goals
 
 From the most mature to the most open. Each goal has its owners, who review changes in their area; anyone can
 contribute to any of them.
@@ -19,9 +19,10 @@ contribute to any of them.
 |---|---|---|
 | **An easy framework** | Eden, Obed | A PlatformIO library in which going from a trained model to a board (ESP32, Arduino-class boards, RP2350) takes a few steps, for dense networks, CNNs, FOMO and language models. |
 | **Vision with FOMO** | Abrahan | From person detection to more classes, and a camera on the board running the detector end to end. |
-| **Language models on microcontrollers** (research) | Obed, Eden | Whether a 1-bit model, with the bit-counting engine and weights read from flash or microSD only when needed, can follow short instructions reliably on one chip. The open question is quality, not the parameter count: small language models already run on the ESP32 family ([prior work](../.agents/memory/llm-research.md)). |
 
-The tracks below list the concrete items of each goal.
+**Research track: Language models on microcontrollers** (Obed, Eden): whether a 1-bit model, with the bit-counting engine and weights read from flash or microSD only when needed, can follow short instructions reliably on one chip. The open question is quality, not the parameter count: small language models already run on the ESP32 family ([prior work](../.agents/memory/llm-research.md)).
+
+The tracks below list the concrete items of the goals and research track.
 
 ## Shared target and active classic ESP32 target
 
@@ -43,11 +44,13 @@ measurements; request S3 FOMO numbers separately rather than replacing or relabe
 | Item | State | Where |
 |---|---|---|
 | Engine bit-exact on the ESP32, ESP32-S3 and Pico 2 (both cores); the CDT trains, folds, exports and validates | done | `Symbex1_PIO/lib/lib_symbex`, `tools/cdt.py` |
+| Vertical engine with int8 stem and pooled int8 classifier on ESP32-S3 and Pico 2; Pico 2 Cortex-M33 prepared: 59.12 ms | done | [Vertical engine](vertical.md), commit `67ee2c7` |
+| PIE int8 stem for both engines on ESP32-S3; ResNet-8 vertical: 13.37 → 9.73 ms | done | PR #29 |
 | The arithmetic of the first layer chosen per chip (bits or bytes), from measurements, by the CDT | next | `README.md`, "Current state and next steps" |
 | `lib_symbex` as an installable PlatformIO library (`library.json`, one example per board); today it is a folder inside `Symbex1_PIO/` and `platformio.ini` has only the S3 environment | proposed | `Symbex1_PIO/` |
 | One command from a trained model to a flashed, checked board, for every network type of the other goals | proposed | `tools/cdt.py`, `tools/chip_test.py` |
 
-## LLM on the chip (Obed, Eden)
+## LLM on the chip — research track (Obed, Eden)
 
 Prior work by others and the facts already checked are in [`.agents/memory/llm-research.md`](../.agents/memory/llm-research.md).
 
@@ -66,8 +69,9 @@ Prior work by others and the facts already checked are in [`.agents/memory/llm-r
 |---|---|---|
 | ResNet-8 on CIFAR-10, ESP32 and S3, 3 seeds, sizing study | done | `benchmarks/conv2d/cnn_cifar_resnet8` |
 | 1D convolutions, Pico 2, benchmarks grouped by network type | done | PR #4 |
-| UniMiB-SHAR whole networks: SYMBEX vs ultracompactBNN (GVSoC), TFLite INT8 and lowbit on the boards | open | PR #11, `benchmarks/conv1d/har_ultracompact` |
-| ResNet-8 sizing study: rank the variants on a validation split from the training data | next | `cnn_cifar_resnet8/README.md` |
+| UniMiB-SHAR whole networks: SYMBEX vs ultracompactBNN (GVSoC), TFLite INT8 and lowbit on the boards | done | PR #11, `benchmarks/conv1d/har_ultracompact` |
+| ResNet-8 sizing study: rank the variants on a validation split from the training data | done | `cnn_cifar_resnet8/README.md` |
+| ECG MIT-BIH: binary 1D convolutions vs TFLite INT8 | done | PR #35; #40 fixes stale CV folds |
 | Rewrite the ternary kernel (12-20 ms in `mlp_fashion`, the slowest path) | proposed | `mlp/mlp_fashion/README.md` |
 | Host the shared S3 and run the board requests | ongoing | |
 
@@ -92,6 +96,7 @@ found #15. This is collaborator-reported evidence for the earlier commands, not 
 | Item | State | Where |
 |---|---|---|
 | Re-measure `mlp_fashion` and `mlp_digits` with the current engine | next | `benchmarks/README.md` |
-| Energy for every benchmark (no claims until a meter reading exists) | waiting for a meter | |
+| Energy for every benchmark (no measurements yet; no claims until a meter reading exists) | waiting for a meter | |
+| Proposed preprint folder | open | PR #33 |
 
 Take an unassigned item by saying so in the **Team sync** issue and moving it to your track here.
