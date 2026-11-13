@@ -45,9 +45,11 @@ flash en todas las filas menos una.
 | MLP (Fashion-MNIST, 784-128-512-10) | ESP32-S3 | flash | 0.42 / 11.67 ms | **27.8×** | 27.3 / 187.0 KB | 4.6 / 6.7 KB |
 | MLP (Fashion-MNIST, 784-128-512-10) | ESP32-S3 | **RAM** | 0.414 / 0.888 ms | **2.14×** | 27.3 / 187.0 KB | 4.6 / 6.7 KB + los pesos (21 / 187 KB) |
 | MLP (Fashion-MNIST, 784-128-512-10) | ESP32 | flash | 3.55 / 31.11 ms | **8.77×** | 27.3 / 187.0 KB | 4.4 / 6.7 KB |
-| ResNet-8 (CIFAR-10) | ESP32-S3 | flash | 39.2 / 52.0 ms | **1.33×** | 24.3 / 96.2 KB | 14.8 / 80.5 KB |
+| ResNet-8 (CIFAR-10), motor vertical ⁴ | ESP32-S3 | flash | 10.4 / 52.0 ms | **5.02×** | 24.3 / 96.2 KB | 62.6 / 80.5 KB |
+| ResNet-8 (CIFAR-10), motor estándar | ESP32-S3 | flash | 39.2 / 52.0 ms | **1.33×** | 24.3 / 96.2 KB | 14.8 / 80.5 KB |
 | ResNet-8 (CIFAR-10) | ESP32 | flash | 63.3 / 717.8 ms | **11.3×** | 24.3 / 96.2 KB | 78.6 / 53.1 KB ¹ |
-| ResNet-8, receta más precisa ² | ESP32-S3 | flash | 32.3 / 52.0 ms | **1.61×** | 29.0 / 96.2 KB | 15.2 / 80.5 KB |
+| ResNet-8, receta más precisa ², motor vertical ⁴ | ESP32-S3 | flash | 9.70 / 52.0 ms | **5.36×** | 29.0 / 96.2 KB | 54.2 / 80.5 KB |
+| ResNet-8, receta más precisa ², motor estándar | ESP32-S3 | flash | 32.3 / 52.0 ms | **1.61×** | 29.0 / 96.2 KB | 15.2 / 80.5 KB |
 | ResNet-8, receta más precisa ² | ESP32 | flash | 62.5 / 717.8 ms | **11.5×** | 29.0 / 96.2 KB | 79.0 / 53.1 KB ¹ |
 | Detección de personas FOMO (32-32-128) | ESP32-S3 | flash | 126.3 / 256.9 ms | **2.03×** | 41.2 / 236.1 KB | 79.0 / 222.6 KB |
 | Detección de personas FOMO (32-32-128) | ESP32 | flash | 226.3 ms / no cabe | **solo SYMBEX corre** | 41.2 / 236.1 KB | 142.8 KB ¹ / no cabe |
@@ -64,13 +66,18 @@ flash en todas las filas menos una.
   un clasificador int8 con pooling; todas las demás capas binarias (`--variant int8stem_pool2` del CDT). 76.7 ± 0.3 %
   en el conjunto de prueba contra 71.3 % (3 semillas), y más rápida que la red completamente binaria en todas las placas
   salvo Hazard3 (57.9 frente a 56.1 ms) ([el benchmark](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md#the-most-accurate-recipe-int8-stem--bop--pooled-int8-classifier)).
+- ⁴ En el ESP32-S3 las redes convolucionales corren en el motor vertical, el propio del S3: cuenta con la lógica de 128
+  bits de su unidad SIMD, que no tiene instrucción para contar bits ([El motor vertical](vertical.md)).
+  La misma red exportada y los mismos bits de salida que el motor estándar, con más RAM (su bloque de trabajo). FOMO y
+  las redes 1D aún se miden con el motor estándar.
 
 Las gráficas se dibujan a partir de los archivos de resultados con `python tools/dev/docs_charts.py`, así que una nueva
 medición las actualiza.
 
 La diferencia la marca el chip. El ESP32 clásico no tiene SIMD, y ahí contar bits es un orden de magnitud más barato que
 multiplicar y acumular en 8 bits. El ESP32-S3 tiene una unidad SIMD (PIE) que acelera INT8, así que la diferencia es
-menor. Donde INT8 puede usar esa unidad por completo, la diferencia es la más estrecha: ResNet-8 a 1.33× y el MLP con
+menor. Donde INT8 puede usar esa unidad por completo, la diferencia es la más estrecha: ResNet-8 a 1.33× con el motor
+estándar (5.0× con el vertical) y el MLP con
 sus pesos en RAM a 2.14×. Ahí, la librería ESP-DL de Espressif es más rápida que el motor estándar de SYMBEX; en
 ResNet-8, [el motor vertical](vertical.md) le gana con los pesos en flash, y en RAM con sus modos opcionales compacto y preparado (ver
 [¿Qué tan rápido podría ser INT8?](#qué-tan-rápido-podría-ser-int8)). [Cómo funciona](how-it-works.md) explica por
@@ -180,13 +187,13 @@ medir los dos en una placa sin entrenar ([Metodología](methodology.md)).
 
 - La arquitectura es la misma que la ResNet-8 INT8 oficial de MLPerf Tiny, medida con TFLite Micro en las mismas
   placas.
-- **ESP32-S3:** 39.2 ms frente a 52.0 ms (1.33×). ESP-DL de Espressif ejecuta la misma red en 14.8 ms, 2.6× más rápido
-  que el motor estándar de SYMBEX (ver [¿Qué tan rápido podría ser INT8?](#qué-tan-rápido-podría-ser-int8)).
-- **ESP32-S3, motor vertical:** la misma red y los mismos bits en 10.36 ± 0.05 ms (3 semillas), 5.0× más rápido que
+- **ESP32-S3, motor vertical (el propio del S3):** 10.36 ± 0.05 ms (3 semillas), 5.0× más rápido que
   TFLite Micro y 1.43× más rápido que ESP-DL con los pesos en flash, 63 KB de RAM ([El motor vertical](vertical.md)).
   Sus modos opcionales construyen listas y umbrales una vez en RAM: compacto 7.70 ± 0.05 ms con 151 KB de RAM (1.27×
   más rápido que ESP-DL en RAM), preparado 6.44 ± 0.02 ms con 238 KB (8.1× más rápido que TFLite Micro, 1.52× más
   rápido que ESP-DL en RAM).
+- **ESP32-S3, motor estándar:** 39.2 ms frente a 52.0 ms (1.33×), 15 KB de RAM. ESP-DL de Espressif ejecuta la misma red en
+  14.8 ms, 2.6× más rápido que este motor (ver [¿Qué tan rápido podría ser INT8?](#qué-tan-rápido-podría-ser-int8)).
 - **ESP32:** 63.3 ms con los pesos en flash frente a 717.8 ms (11.3×); 59.7 ms con los pesos en RAM.
 - **Pico 2:** 56.1 ms en Hazard3 y 74.5 ms en el M33; en el M33 el modo preparado del motor vertical la ejecuta en
   57.4 ms (semilla 42, un ranking; [El motor vertical](vertical.md#otros-chips-pico-2)). TFLite Micro INT8 con
@@ -252,12 +259,12 @@ incluida (la imagen entra como un termómetro de bits); 3 semillas de entrenamie
 | | **SYMBEX, binaria** | MLPerf Tiny INT8 |
 |---|---|---|
 | Precisión | 71.28 ± 0.81 % | 87.0 % |
-| ESP32-S3 | **39.2 ms (1.33× más rápida)** | 52.0 ms |
+| ESP32-S3, motor vertical | **10.4 ms (5.02× más rápida)**; 39.2 ms con el motor estándar | 52.0 ms |
 | ESP32 | **59.7 ms (12.0× más rápida)**, pesos en RAM; 63.3 ms en flash | 717.8 ms |
 | Raspberry Pi Pico 2, Cortex-M33 | **74.5 ms (6.1× más rápido)** | 453.0 ms (CMSIS-NN) |
 | Raspberry Pi Pico 2, Hazard3 RISC-V | **56.1 ms** | 5702 ms (kernels de referencia, los únicos que TFLite Micro tiene para él) |
 | Flash | **24.3 KB** | 96.2 KB |
-| RAM | **15 KB** | 53-80 KB |
+| RAM | **15 KB** (62.6 KB con el motor vertical) | 53-80 KB |
 | Mismo resultado que su referencia en la PC | **100 %** | 98.1 % |
 
 **La receta más precisa.** Con una primera capa int8 sobre los píxeles y un clasificador int8 con pooling (todas las

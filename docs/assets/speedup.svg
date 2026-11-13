@@ -29,13 +29,13 @@
 <text x="352.0" y="169.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">8.77×</text>
 <text x="402.5" y="169.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">3.55 vs 31.1 ms</text>
 <text x="218.0" y="203.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">ResNet-8 · ESP32-S3</text>
-<path d="M230.0,190.0 H243.2 Q247.2,190.0 247.2,194.0 V204.0 Q247.2,208.0 243.2,208.0 H230.0 Z" fill="#2a78d6"/>
-<text x="255.2" y="203.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">1.33×</text>
-<text x="305.7" y="203.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">39.2 vs 52.0 ms</text>
-<text x="218.0" y="237.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">ResNet-8 · ESP32-S3, vertical</text>
-<path d="M230.0,224.0 H291.2 Q295.2,224.0 295.2,228.0 V238.0 Q295.2,242.0 291.2,242.0 H230.0 Z" fill="#2a78d6"/>
-<text x="303.2" y="237.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">5.02×</text>
-<text x="353.7" y="237.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">10.4 vs 52.0 ms</text>
+<path d="M230.0,190.0 H291.2 Q295.2,190.0 295.2,194.0 V204.0 Q295.2,208.0 291.2,208.0 H230.0 Z" fill="#2a78d6"/>
+<text x="303.2" y="203.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">5.02×</text>
+<text x="353.7" y="203.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">10.4 vs 52.0 ms</text>
+<text x="218.0" y="237.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">ResNet-8 · ESP32-S3, standard</text>
+<path d="M230.0,224.0 H243.2 Q247.2,224.0 247.2,228.0 V238.0 Q247.2,242.0 243.2,242.0 H230.0 Z" fill="#2a78d6"/>
+<text x="255.2" y="237.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">1.33×</text>
+<text x="305.7" y="237.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">39.2 vs 52.0 ms</text>
 <text x="218.0" y="271.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">ResNet-8 · ESP32</text>
 <path d="M230.0,258.0 H373.5 Q377.5,258.0 377.5,262.0 V272.0 Q377.5,276.0 373.5,276.0 H230.0 Z" fill="#2a78d6"/>
 <text x="385.5" y="271.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">11.3×</text>

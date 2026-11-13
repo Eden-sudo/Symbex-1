@@ -34,7 +34,7 @@ the same network on the same chip:
 </picture>
 
 The gap depends on the chip and on where the weights are. The ESP32-S3 has a SIMD unit that speeds up INT8, so there
-the gap is smallest when INT8 can use it fully (ResNet-8: 1.33×, the MLP with its weights in RAM: 2.14×), and
+the gap is smallest when INT8 can use it fully (ResNet-8: 1.33× with the standard engine, 5.0× with the S3's own vertical engine; the MLP with its weights in RAM: 2.14×), and
 Espressif's ESP-DL library is faster than SYMBEX's standard engine there (ResNet-8 in 14.8 ms vs 39.2 ms), and SYMBEX's
 [vertical engine](vertical.md) is faster than ESP-DL with the weights in flash (10.4 ms), and with the weights in RAM too with its optional compact
 mode (7.70 ms, about the same RAM); on the classic ESP32, without

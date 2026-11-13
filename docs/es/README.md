@@ -35,7 +35,7 @@ ruta de despliegue que usa casi todo el mundo, no el INT8 más rápido posible: 
 </picture>
 
 La diferencia depende del chip y de dónde están los pesos. El ESP32-S3 tiene una unidad SIMD que acelera INT8, así que
-ahí la diferencia es menor cuando INT8 puede usarla por completo (ResNet-8: 1.33×, el MLP con sus pesos en RAM: 2.14×),
+ahí la diferencia es menor cuando INT8 puede usarla por completo (ResNet-8: 1.33× con el motor estándar, 5.0× con el motor vertical propio del S3; el MLP con sus pesos en RAM: 2.14×),
 y la librería ESP-DL de Espressif es más rápida que el motor estándar de SYMBEX ahí (ResNet-8 en 14.8 ms frente a
 39.2 ms), y el [motor vertical](vertical.md) de SYMBEX es más rápido que ESP-DL con los pesos en flash (10.4 ms), y también con los pesos en RAM con su modo compacto opcional
 (7.70 ms, casi la misma RAM); en el ESP32
