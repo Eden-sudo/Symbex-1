@@ -1,0 +1,25 @@
+{
+ "run": "h128_512_s42",
+ "board": "esp32",
+ "weights": "ram",
+ "unit": "cycles",
+ "vertical_layers": [
+  {
+   "layer": 1,
+   "n_in": 128,
+   "n_out": 512
+  }
+ ],
+ "images": 100,
+ "equal_sim_standard": 100,
+ "equal_sim_vertical": 100,
+ "standard_equals_vertical": 100,
+ "correct_vertical": 87,
+ "median_standard": 491321,
+ "min_standard": 491255,
+ "median_vertical": 461230,
+ "min_vertical": 454076,
+ "ones_share": 31.66,
+ "median_standard_us": 2047.17,
+ "median_vertical_us": 1921.79
+}

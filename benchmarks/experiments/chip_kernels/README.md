@@ -15,7 +15,7 @@ docstring.
 | `stem_i8_pico_bench.py` | where does the int8 stem's time go on the Pico 2, and can it go faster? | 1.4-1.6× faster stem, now in lib_symbex (below) |
 | `dense_short_bench.py` | why is a first dense layer with few inputs (19 sensors → 64) slow? | 2.2-2.5× faster, now in lib_symbex (below) |
 | `dense_vertical_bench.py` | can a binary dense layer run vertically, 128 output neurons per PIE register? | S3: 3.3-8.6× faster on layers of 128+ neurons; whole MLP 1.41× faster (below) |
-| `mlp_vertical_chip.py` | does the vertical dense layer speed up a whole trained MLP (CDT export)? | S3, 784-128-512-10: 411.3 → 292.4 ± 0.5 µs (1.41×), exact, 3 seeds |
+| `mlp_vertical_chip.py` | does the vertical dense layer speed up a whole trained MLP (CDT export)? | 784-128-512-10, flash, exact, 3 seeds: S3 1.41×, Pico 2 1.40× (both cores), ESP32 1.16× |
 
 Results in `results/`; the generated firmware projects in `runs/` (not in git).
 
@@ -212,7 +212,21 @@ The standard time matches `chip_test.py`'s 0.42 ms, which it splits as 0.27 ms f
 0.01 ms classifier. The vertical layer takes that 0.137 ms down to ~0.02 ms (from the difference). The trained
 activations are sparse, about a quarter of them 1, which is the vertical method's good case.
 
-**Answer.** Yes. Same bits, 1.41× faster on the whole network.
+The same experiment on the other boards uses the portable C path (no SIMD: 4 × 32-bit words per plane). Median
+per image, both versions exact on every image (100 images on the ESP32, whose DRAM does not hold 200):
+
+| board | weights in flash, 3 seeds | weights in RAM, seed 42 |
+|---|---|---|
+| ESP32 | 2695.0 → **2319.2 ± 3.8 µs (1.16×)** | 2047.2 → 1921.8 µs (1.07×) |
+| Pico 2 M33 | 4464.3 → **3190.3 ± 28.6 µs (1.40×)** | 1527 → 1381 µs (1.11×) |
+| Pico 2 Hazard3 | 4297.7 → **3071.0 ± 25.9 µs (1.40×)** | 1341 → 1256 µs (1.07×) |
+
+Away from the S3, most of the gain comes from memory, not arithmetic. The vertical layer reads only the weight rows
+of the inputs that are 1 (a quarter of them), so it misses the flash cache far less. With the weights in RAM, the
+portable counts are only 7-11 % faster than lut16 / cpop.
+
+**Answer.** Yes. Same bits, 1.41× faster on the whole network on the S3, and 1.16-1.40× with the weights in flash on
+the other boards.
 
 - This puts the S3 MLP at ~0.29 ms against INT8 TFLite of the same shape at 11.7 ms in flash / 0.89 ms in RAM; the
   INT8 times are from the mlp_fashion README, measured earlier.

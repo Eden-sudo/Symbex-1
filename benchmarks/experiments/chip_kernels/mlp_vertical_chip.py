@@ -252,7 +252,8 @@ def main():
                           "-DSYMBEX_ROM=" if a.weights == "ram" else "")
             flash(project, verbose=False, what=where)
         r = read_results(a.port, a.board, where)
-        unit, per_us = TICKS[a.board]
+        # Arduino's micros() on the Pico 2 (the kernel bench counts ns with its own timer)
+        unit, per_us = ("us", 1.0) if a.board.startswith("pico2") else TICKS[a.board]
     n = r["images"]
     print(f"\n{'PC' if a.host else a.board}, {where}")
     print(f"  equal to the simulation: standard {r['equal_sim_standard']}/{n}, vertical {r['equal_sim_vertical']}/{n}; "
