@@ -9,6 +9,7 @@ resnet8_symbex.py -- the cnn_cifar_resnet8 benchmark: a fully binary ResNet-8, t
     python resnet8_symbex.py --variant int8stem --seeds 3   # stem / shortcut study: base | int8stem | add | int8stem_add
     python resnet8_symbex.py --variant int8stem --seeds 3 --board s3 --port /dev/ttyACM0   # the int8 stem on a board
     python resnet8_symbex.py --variant int8stem_pool2 --seeds 3   # int8 stem + pooled int8 classifier, Bop (most accurate x1)
+    python resnet8_symbex.py --width 1 --seeds 3 --clip       # Adam with the latent weights clipped (runs/w1_clip_s<seed>)
     python resnet8_symbex.py --seeds 3 --board s3 --summary   # the summary from runs measured with tools/chip_test.py
     python resnet8_symbex.py --seeds 3 --board s3 --summary --engine vertical   # ... measured with --engine vertical
     python resnet8_symbex.py --seeds 3 --board s3 --summary --engine vertical_prepared   # ... lists prepared in RAM
@@ -45,7 +46,7 @@ def load(path):
     return json.load(open(path)) if os.path.exists(path) else {}
 
 
-def config_for(width, out_dir, spec=None, variant=None):
+def config_for(width, out_dir, spec=None, variant=None, clip=False):
     """symbex.toml with this network's definition and starting weights, written into the run folder. spec: a variant
     of the sizing study ("16-32-64/2-2-2": channels / blocks per stage) instead of a width; variant: one of the stem /
     shortcut study (model.VARIANTS, x1 channels)"""
@@ -73,6 +74,9 @@ def config_for(width, out_dir, spec=None, variant=None):
     if variant in m.BOP_VARIANTS:                    # the recipe of the training-gap study: Bop for the 1-bit weights
         text = re.sub(r'(?m)^(compile = .*)$', r'\1\nbinary_optimizer = "bop"', text)
         assert 'binary_optimizer = "bop"' in text
+    if clip:                                         # Adam's latent 1-bit weights clamped to [-1, 1] (health.py)
+        text = re.sub(r'(?m)^(compile = .*)$', r'\1\nclip_latent = true', text)
+        assert 'clip_latent = true' in text
     text = re.sub(r'(?m)^directory = "\.\./\.\./data/cifar10"', f'directory = "{os.path.normpath(os.path.join(HERE, "..", "..", "data", "cifar10"))}"', text)
     text = re.sub(r'(?m)^lib_path = .*$', f'lib_path = "{os.path.normpath(os.path.join(HERE, "..", "..", "..", "Symbex1_PIO", "lib", "lib_symbex"))}"', text)
     os.makedirs(out_dir, exist_ok=True)
@@ -104,6 +108,9 @@ def main():
                          "base, int8stem and int8stem_pool2 are exported and measured like the default network (the int8 stem: "
                          "lib_symbex's optional int8 first layer); add and int8stem_add are trained only (PC, "
                          "validation accuracy): the boolean export takes OR shortcuts only")
+    ap.add_argument("--clip", action="store_true",
+                    help="clamp Adam's latent 1-bit weights to [-1, 1] after every step ([training] clip_latent; run "
+                         "folders get _clip). Without it a weight past 1 freezes (compiler_core/train/health.py)")
     ap.add_argument("--spec", default="", help='a variant of the sizing study: "16-32-64/2-2-2" = channels / blocks '
                                                'per stage (replaces --width)')
     args = ap.parse_args()
@@ -128,6 +135,8 @@ def main():
         name = spec_name(args.spec) + (f"_e{args.epochs}" if args.epochs else "")
     else:
         name = f"w{args.width:g}" + (f"_{args.variant}" if args.variant else "") + (f"_e{args.epochs}" if args.epochs else "")
+    if args.clip:
+        name += "_clip"
     for seed in [42 + i for i in range(args.seeds)]:
         out_dir = os.path.join("runs", f"{name}_s{seed}")
         chip_file = f"chip_{args.board}_{args.popcount}_{args.weights}_mask{vert}.json" if args.summary else "chip.json"
@@ -139,7 +148,7 @@ def main():
             trained = os.path.exists(os.path.join(out_dir, "model_binarized.pth")) and os.path.exists(os.path.join(out_dir, "train.json"))
             if train_only and trained and not args.redo:
                 print(f"\n[*] seed {seed}: already trained in {out_dir} (--redo to train it again)")
-            cmd = [sys.executable, CDT, config_for(args.width, out_dir, args.spec or None, args.variant or None), "--seed", str(seed),
+            cmd = [sys.executable, CDT, config_for(args.width, out_dir, args.spec or None, args.variant or None, args.clip), "--seed", str(seed),
                    "--output-directory", out_dir]
             if trained and not args.redo and not train_only:
                 print(f"\n[*] seed {seed}: already trained in {out_dir} (--redo to train it again): exporting again")
