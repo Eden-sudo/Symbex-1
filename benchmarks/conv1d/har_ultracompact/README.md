@@ -43,7 +43,9 @@ The README follows the order of the work:
   1,000 windows per run, 100 % equal to the simulation in every run.
 - **Accuracy: an open case.** Bop, wider networks (INT8 widened alike) and two training fixes (clipped latent weights,
   pooling before sign), a cross-validated checkpoint choice and distillation from the float network do not close the
-  gap to INT8 (sections 4, 5, 7, 8); the next ideas are listed in sections 7 and 8.
+  gap to INT8 (sections 4, 5, 7, 8). The cause is not the fixed thresholds (AdaBN does not help) but the training
+  fit; two-bit or ternary activations after the first layer recover 1-7 points on the test subjects, and the gap stays
+  4.6-14.6 points (section 9).
 
 ## 1. Binary vs binary: SYMBEX and ultracompactBNN on their processor
 
@@ -531,7 +533,7 @@ What could be tried next, ideas not measured (each chosen on validation, the tes
 1. **A steadier choice of checkpoint** (measured in section 8: about one point). The binary networks drop more from validation to test (69.3 → 58.5 on max)
    than TFLite or the Random Forest. Cross-validation over the 20 training subjects instead of 4 validation people,
    and averaging the last epochs instead of picking the best of 100, would show how much of the gap is the choice.
-2. **More than one bit after the first layer.** The working hypothesis (not measured): the accelerometer's amplitude
+2. **More than one bit after the first layer** (measured in section 9: +1 to +7 on the test subjects, the gap stays). The working hypothesis (not measured): the accelerometer's amplitude
    matters for activity recognition and a 1-bit map loses it right after the first layer; ECG's shape and RR intervals
    survive it. Two-bit activations in the first binary layer (`../../experiments/pair_bits`) would test that at a
    known cost.
@@ -614,6 +616,89 @@ networks carrying over worse to new people on this task (not measured directly).
 (two-bit activations after the first layer, augmentation for amplitude and orientation, a network designed for binary)
 are the ones that address that.
 
+## 9. Why the binary networks carry over worse, and two-bit activations (November 14)
+
+**Question.** Section 8 left one observation open: the binary networks drop more from validation to test than INT8
+or a Random Forest. A common explanation for binary networks (ReActNet, and three literature summaries we read) is
+that the fixed BatchNorm + sign thresholds break when the input statistics move, here with a new person (amplitude,
+phone orientation). Is that what happens? And does more than one bit after the first layer help?
+
+**What (a): a diagnostic, no training** (`har_shift.py`, the saved Adam networks of `har_train.py` and the float
+networks TFLite quantizes, 4 networks × 3 seeds):
+
+- the share of +1 per channel after every sign, on train, validation and test; drift = mean over channels of
+  |share(split) − share(train)|;
+- AdaBN: the BatchNorm statistics recomputed on the target windows, labels unused, once per split and once per
+  person. Measured on the validation subjects; on the test subjects it is a diagnostic only (recalibrating on them is
+  not a deployable result, and nothing here is chosen from it);
+- the phone's orientation: by person, the y axis reads about +0.9 g or −1 g while walking (the phone upside down in
+  the pocket; 12 people one way and 8 the other in training), and the accuracy of each group.
+
+**Result (a).** Validation subjects, mean ± sample std, 3 seeds:
+
+| Network | stored BN | AdaBN, all windows | AdaBN, per person | train (stored) |
+|---|---|---|---|---|
+| min, binary / int8 first / float | 44.9 / 46.1 / 61.4 | 38.0 / 40.7 / 56.8 | 28.2 / 28.2 / 35.2 | 37.3 / 41.1 / 71.8 |
+| max10 | 62.8 / 63.6 / 70.3 | 54.9 / 58.3 / 65.4 | 40.5 / 48.0 / 49.7 | 70.9 / 75.6 / 99.9 |
+| max-5% | 69.2 / 67.9 / 73.9 | 57.0 / 59.2 / 69.1 | 32.3 / 35.7 / 52.3 | 82.7 / 88.2 / 99.9 |
+| max | 68.6 / 69.3 / 73.7 | 59.8 / 62.5 / 70.1 | 44.9 / 49.3 / 57.3 | 83.8 / 88.6 / 99.9 |
+
+- **The bits barely move with new people:** per layer, the drift is 2-11 % on the validation subjects and 2-6 % on
+  the test subjects, smaller on test than on validation, although the test accuracy is lower.
+- **AdaBN does not help:** it lowers validation accuracy for every network, the float one too (binary −7 to −12
+  points, float −2 to −5). Per person it is much worse, since each person's windows have a different mix of
+  activities. On the test subjects (diagnostic only) it changes the binary networks by −0.6 to +3.4 points.
+- **The orientation is not the cause:** max, binary, test: 60.6 % for the people with the phone one way, 57.1 % the
+  other way (int8 first layer 59.8 / 57.4).
+- **The OR pool does not flatten the maps:** after the OR 42-74 % of the bits are +1. The ties of section 7 come as
+  much from windows of four −1 as from windows with several +1.
+- **What stands out is the training fit:** the binary networks reach only 37-84 % on their own training windows
+  (int8 first layer 41-89 %); the float networks 72-100 %.
+
+**What (b): two-bit and ternary activations** (`har_train.py --acts 2|ternary`, `model.py`): after every conv, 4
+levels {−1, −1/3, 1/3, 1} or 3 levels {−1, 0, 1} instead of sign (three or two thresholds per channel), weights still
+1-bit, the same Adam recipe, 4 networks × 2 first layers × 3 seeds, validation only. **Rule, written before the
+results:** a variant passes if its validation mean beats the 1-bit network with the same first layer by more than the
+larger sample std; every variant that passes is scored once on the test subjects; the headline per network is the
+passing variant with the best validation mean.
+
+**Result (b).** Validation (✓ = passes the rule) and the fit on the training windows:
+
+| Network | first layer | 1 bit | 2 bits | ternary | train: 1 bit / 2 bits / ternary |
+|---|---|---|---|---|---|
+| min | binary | 44.9 ± 2.2 | 47.9 ± 1.9 ✓ | 46.4 ± 1.2 | 37.3 / 41.9 / 40.2 |
+| min | int8 | 46.1 ± 2.2 | 49.1 ± 1.2 ✓ | **49.6 ± 0.6** ✓ | 41.1 / 45.9 / 46.2 |
+| max10 | binary | 62.8 ± 1.3 | 68.5 ± 1.6 ✓ | 66.5 ± 0.9 ✓ | 70.9 / 85.1 / 80.7 |
+| max10 | int8 | 63.6 ± 1.7 | 68.2 ± 0.8 ✓ | **69.2 ± 0.7** ✓ | 75.6 / 88.8 / 85.2 |
+| max-5% | binary | 69.2 ± 0.6 | 71.2 ± 0.3 ✓ | 70.1 ± 0.3 ✓ | 82.7 / 91.8 / 88.8 |
+| max-5% | int8 | 67.9 ± 1.4 | 69.7 ± 0.1 ✓ | **71.3 ± 1.3** ✓ | 88.2 / 96.9 / 94.1 |
+| max | binary | 68.6 ± 0.9 | 70.7 ± 0.6 ✓ | 71.1 ± 1.0 ✓ | 83.8 / 93.9 / 93.3 |
+| max | int8 | 69.3 ± 0.9 | **71.8 ± 0.4** ✓ | 71.7 ± 0.1 ✓ | 88.6 / 96.6 / 95.8 |
+
+Test subjects, scored once (all 15 passing variants; per-seed values in `results/symbex/har_acts.json`):
+
+| Network | first layer | 1 bit | 2 bits | ternary | TFLite INT8 |
+|---|---|---|---|---|---|
+| min | binary | 32.7 ± 3.3 | 38.8 ± 1.6 | (did not pass) | 56.1 ± 5.2 |
+| min | int8 | 37.5 ± 1.9 | 44.6 ± 1.1 | **41.5 ± 1.9** | |
+| max10 | binary | 53.4 ± 2.4 | 57.6 ± 3.1 | 58.0 ± 0.3 | 62.4 ± 2.5 |
+| max10 | int8 | 57.9 ± 0.4 | 59.4 ± 2.1 | **57.8 ± 3.0** | |
+| max-5% | binary | 56.8 ± 0.9 | 59.9 ± 2.3 | 59.8 ± 2.6 | 66.2 ± 3.2 |
+| max-5% | int8 | 57.0 ± 1.5 | 60.8 ± 1.2 | **58.7 ± 0.7** | |
+| max | binary | 58.8 ± 1.1 | 61.8 ± 1.2 | 60.6 ± 1.5 | 67.9 ± 1.1 |
+| max | int8 | 58.5 ± 3.2 | **60.8 ± 4.8** | 59.5 ± 1.8 | |
+
+**Answer.** The fixed thresholds are not what breaks: the bits look the same on new people and recalibrating
+BatchNorm does not help. The binary networks first of all do not fit their own training data. More than one bit
+after the first layer fixes much of that (training fit +3 to +14 points, validation +1 to +6, test +1 to +7 on 14 of
+the 15 variants; max10 int8 ternary −0.1), but the gap to INT8 stays: the variants chosen on validation (bold) are 4.6-14.6 points below
+TFLite INT8 on the test subjects (1 bit, int8 first layer: 4.5-18.6). The best test value, max with 2 bits and a binary first layer
+(61.8 %), is still below the Random Forest (62.2 %). And the drop from validation to test is unchanged (max, 2 bits:
+70.7 → 61.8): with the fit fixed, what remains is how the networks carry over to new people. Nothing is exported:
+these activations have no C kernel yet (`har_export.py` refuses them); two bits would roughly double the work of the
+binary layers (an estimate, not measured). Next, if pursued: augmentation for new people (moderate rotation, ±20°,
+and amplitude scaling 0.8-1.2, the same for INT8) on top of the two-bit networks, chosen on validation.
+
 ## Decisions (and why)
 
 - **Binary vs binary is the main comparison:** the question this benchmark answers is whether SYMBEX's binary layers
@@ -671,8 +756,9 @@ SYMBEX takes any count.
 | File | What it does |
 |---|---|
 | `har_data.py` | UniMiB-SHAR (AF-17) → int8 windows, the subject split → `data/har_unimib.npz` |
-| `model.py` | the four networks of Table 1, binary; first layer `binary` (1-bit weights) or `int8` |
-| `har_train.py` | trains one network, or `--all`: 4 networks × 2 first layers × 3 seeds; screening options `--optimizer bop`, `--clip`, `--pool-first`, `--distill`, `--cv-fold` (sections 4, 7, 8), `--no-test`, `--score-test` |
+| `model.py` | the four networks of Table 1, binary; first layer `binary` (1-bit weights) or `int8`; `acts` 1 / 2 / ternary (section 9, PC only) |
+| `har_train.py` | trains one network, or `--all`: 4 networks × 2 first layers × 3 seeds; screening options `--optimizer bop`, `--clip`, `--pool-first`, `--distill`, `--cv-fold`, `--acts` (sections 4, 7, 8, 9), `--no-test`, `--score-test` |
+| `har_shift.py` | the diagnostic of section 9: bit shares per channel, AdaBN, phone orientation (no training) |
 | `har_export.py` | integers, simulation, `model_symbex.h`, the C check on the PC (EXACTNESS 100 %); `--first-bytes`: the 1-bit first layer as ±1 bytes, in `runs/<run>_bytes/` |
 | `har_gvsoc.py` | the whole networks through both libraries: `--pc` (gcc, exactness) or GVSoC (instructions, cycles per layer) |
 | `pulp/symbex_u8_pulp.c` | SYMBEX's first layer for PULP (`p.sdotusp4`), 1-bit or int8 weights |
@@ -715,6 +801,10 @@ python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_int8_e100_s42
 python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s42 --board pico2_riscv --port /dev/ttyACM0
 python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s42 --board pico2_arm --port /dev/ttyACM0 --weights ram
 python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s42_bytes --board pico2_riscv --port /dev/ttyACM0
+
+# Section 9 (validation; the passing variants scored once with --score-test)
+python har_shift.py
+python har_train.py --arch max --first int8 --acts 2 --seeds 42,43,44 --no-test
 
 # The quick check of section 3 (ESP32-S3)
 python ../../experiments/chip_kernels/int8_first_bench.py --port /dev/ttyACM0

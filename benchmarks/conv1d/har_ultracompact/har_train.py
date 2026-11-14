@@ -30,6 +30,8 @@ INT8, moved to PyTorch by har_lowbit.py), at temperature T. Name: _kd<T>a<a>.
 --cv-fold k (README section 8): trains on 16 of the 20 training subjects and picks the checkpoint on the other 4
 (har_data.load_cv); the validation subjects are scored every epoch as people outside the choice ("outside"), and the
 average of the last --average-last epochs' weights is scored too. Name: _cv<k>; the test subjects are never scored.
+--acts 2 / ternary (README section 9): the activations after every conv in 4 levels (2 bits) or 3 levels instead of
+sign, the weights still 1-bit (model.py). Name: _a2 / _ter. An experiment on the PC: har_export.py refuses these runs.
 """
 import argparse
 import copy
@@ -45,7 +47,7 @@ import torch.nn.functional as F
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from har_data import load, load_cv                                                                    # noqa: E402
-from model import ARCHS, TABLE1, BinaryHAR, evaluate                                         # noqa: E402
+from model import ACTS, ARCHS, TABLE1, BinaryHAR, evaluate                                         # noqa: E402
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "tools"))
 from compiler_core.train.bop import Bop                                                      # noqa: E402
 
@@ -54,13 +56,14 @@ BOP_TAU = 1e-8                                                       # the defau
 
 
 def run_name(arch, first, epochs, seed, optimizer="adam", bop_gamma=1e-3, bop_tau=BOP_TAU, clip=False,
-             pool_first=False, distill=0.0, distill_alpha=0.9, cv_fold=None):
+             pool_first=False, distill=0.0, distill_alpha=0.9, cv_fold=None, acts="1"):
     """the run folder's name: the optimizer's settings are part of it, so different recipes never overwrite each other"""
     # repr: the shortest text that reads back as the same float (0.001 -> "0.001", as the recorded runs are named)
     bop = (f"_bop{bop_gamma!r}" + (f"_tau{bop_tau!r}" if bop_tau != BOP_TAU else "")) if optimizer == "bop" else ""
     kd = f"_kd{distill!r}a{distill_alpha!r}" if distill else ""
     cv = f"_cv{cv_fold}" if cv_fold is not None else ""
-    return f"{arch}_{first}_e{epochs}{bop}{'_clip' if clip else ''}{'_pf' if pool_first else ''}{kd}{cv}_s{seed}"
+    act = {"1": "", "2": "_a2", "ternary": "_ter"}[acts]
+    return f"{arch}_{first}_e{epochs}{bop}{'_clip' if clip else ''}{'_pf' if pool_first else ''}{kd}{cv}{act}_s{seed}"
 
 
 def teacher_logits(arch, seed, x, batch=2048):
@@ -79,11 +82,12 @@ def binary_weights(model):
 
 
 def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=1e-3, bop_tau=BOP_TAU, test=True,
-          clip=False, pool_first=False, distill=0.0, distill_alpha=0.9, cv_fold=None, outside=None, average_last=10):
+          clip=False, pool_first=False, distill=0.0, distill_alpha=0.9, cv_fold=None, outside=None, average_last=10,
+          acts="1"):
     (xtr, ytr), (xva, yva), (xte, yte) = data
     torch.manual_seed(seed)
     np.random.seed(seed)
-    model = BinaryHAR(arch, first, pool_first=pool_first).to(dev)
+    model = BinaryHAR(arch, first, pool_first=pool_first, acts=acts).to(dev)
     clipped = binary_weights(model) if clip and optimizer == "adam" else []
     bop = None
     if optimizer == "bop":
@@ -95,7 +99,7 @@ def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=
         opt = torch.optim.Adam(model.parameters(), lr=lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, epochs)
     name = run_name(arch, first, epochs, seed, optimizer, bop_gamma, bop_tau, clip, pool_first, distill, distill_alpha,
-                    cv_fold)
+                    cv_fold, acts)
     out = os.path.join(HERE, "runs", name)
     teacher = teacher_logits(arch, seed, xtr) if distill else None
     best, best_state, history, t0 = -1.0, None, [], time.time()
@@ -153,7 +157,8 @@ def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=
     torch.save(best_state, os.path.join(out, "model.pth"))
     json.dump(dict(arch=arch, layers=ARCHS[arch], first=first, seed=seed, epochs=epochs, lr=lr, optimizer=optimizer,
                    **(dict(bop_gamma=bop_gamma, bop_tau=bop_tau) if bop else {}), clip=clip, pool_first=pool_first,
-                   **(dict(distill=distill, distill_alpha=distill_alpha) if distill else {}), **extra,
+                   **(dict(distill=distill, distill_alpha=distill_alpha) if distill else {}),
+                   **(dict(acts=acts) if acts != "1" else {}), **extra,
                    best_epoch=best_epoch,
                    validation=best, test=te, features=model.features, history=history),
               open(os.path.join(out, "train.json"), "w"), indent=1)
@@ -163,10 +168,11 @@ def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=
 
 
 def score_test(arch, first, seed, epochs, optimizer, bop_gamma, bop_tau, dev, data, clip=False, pool_first=False,
-               distill=0.0, distill_alpha=0.9):
+               distill=0.0, distill_alpha=0.9, acts="1"):
     """scores a screening run's saved checkpoint (chosen on validation) on the test subjects, without training again,
     and records the result in its train.json; refuses a run whose recorded recipe is not the one asked for"""
-    name = run_name(arch, first, epochs, seed, optimizer, bop_gamma, bop_tau, clip, pool_first, distill, distill_alpha)
+    name = run_name(arch, first, epochs, seed, optimizer, bop_gamma, bop_tau, clip, pool_first, distill, distill_alpha,
+                    acts=acts)
     out = os.path.join(HERE, "runs", name)
     if not os.path.exists(os.path.join(out, "train.json")):
         raise SystemExit(f"{out}: no such run (train it first, with --no-test)")
@@ -174,8 +180,9 @@ def score_test(arch, first, seed, epochs, optimizer, bop_gamma, bop_tau, dev, da
     info.setdefault("optimizer", "adam")                             # runs from before --optimizer existed
     info.setdefault("clip", False)                                   # ... and before --clip / --pool-first
     info.setdefault("pool_first", False)
+    info.setdefault("acts", "1")                                     # ... and before --acts
     asked = dict(arch=arch, first=first, seed=seed, epochs=epochs, optimizer=optimizer, clip=clip, pool_first=pool_first,
-                 **(dict(bop_gamma=bop_gamma, bop_tau=bop_tau) if optimizer == "bop" else {}),
+                 acts=acts, **(dict(bop_gamma=bop_gamma, bop_tau=bop_tau) if optimizer == "bop" else {}),
                  **(dict(distill=distill, distill_alpha=distill_alpha) if distill else {}))
     wrong = {k: (info.get(k), v) for k, v in asked.items() if info.get(k) != v}
     if wrong:
@@ -183,7 +190,7 @@ def score_test(arch, first, seed, epochs, optimizer, bop_gamma, bop_tau, dev, da
     if info.get("test") is not None:
         print(f"[*] {name}: test already scored ({info['test']:.1f}%), not scored again")
         return info["validation"], info["test"]
-    model = BinaryHAR(arch, first, pool_first=pool_first).to(dev)
+    model = BinaryHAR(arch, first, pool_first=pool_first, acts=acts).to(dev)
     model.load_state_dict(torch.load(os.path.join(out, "model.pth"), map_location=dev))
     te = evaluate(model, *data[2])
     info["test"] = te
@@ -214,6 +221,8 @@ def main():
     ap.add_argument("--cv-fold", type=int, help="0..4: train on 16 training subjects, choose on the other 4; the "
                                                 "validation subjects are scored as outside people (never the test)")
     ap.add_argument("--average-last", type=int, default=10, help="with --cv-fold: epochs averaged (default 10)")
+    ap.add_argument("--acts", default="1", choices=ACTS,
+                    help="activations after every conv: 1 (sign, default), 2 (4 levels) or ternary (3 levels)")
     ap.add_argument("--seeds", help="comma-separated seeds instead of --seed, e.g. 42,43,44")
     ap.add_argument("--no-test", action="store_true", help="do not score the test subjects (screening runs)")
     ap.add_argument("--score-test", action="store_true",
@@ -237,12 +246,12 @@ def main():
         if args.score_test:
             results.setdefault((a, f), []).append(score_test(a, f, s, args.epochs, args.optimizer, args.bop_gamma,
                                                              args.bop_tau, dev, data, args.clip, args.pool_first,
-                                                             args.distill, args.distill_alpha))
+                                                             args.distill, args.distill_alpha, args.acts))
             continue
         results.setdefault((a, f), []).append(train(a, f, s, args.epochs, args.lr, dev, data, args.optimizer,
                                                     args.bop_gamma, args.bop_tau, not args.no_test, args.clip,
                                                     args.pool_first, args.distill, args.distill_alpha, args.cv_fold,
-                                                    outside, args.average_last))
+                                                    outside, args.average_last, args.acts))
     if len(jobs) > 1:
         print(f"\n    {'network':<16}{'validation %':>16}{'test %':>16}")
         for (a, f), r in results.items():

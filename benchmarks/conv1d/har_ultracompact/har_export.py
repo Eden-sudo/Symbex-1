@@ -46,6 +46,8 @@ def main():
                     help="binary runs: the 1-bit first layer as +-1 bytes (int8 kernel), written to <run>_bytes/")
     args = ap.parse_args()
     info = json.load(open(os.path.join(args.run, "train.json")))
+    if info.get("acts", "1") != "1":
+        raise SystemExit(f"[X] {args.run}: activations {info['acts']} (README section 9) have no C export yet")
     model = BinaryHAR(info["arch"], info["first"])
     model.load_state_dict(torch.load(os.path.join(args.run, "model.pth"), map_location="cpu"))
     model.eval()
