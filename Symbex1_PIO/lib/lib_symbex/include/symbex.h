@@ -38,6 +38,7 @@
 #include "layers/conv/symbex_conv2d.h"
 #include "layers/conv/symbex_bpr.h"
 #include "layers/conv/symbex_binary_pool.h"
+#include "layers/conv/symbex_fomo.h"
 #include "layers/conv/symbex_bool.h"
 #include "layers/conv/symbex_bool1d.h"
 #include "layers/conv/symbex_bool_vertical.h"
