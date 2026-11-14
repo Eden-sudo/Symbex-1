@@ -7,6 +7,20 @@ Computing Frontiers 2021, `github.com/francescodaghero/ultracompactBNN`). The co
 their processor and their own code. INT8 is the reference: TensorFlow Lite Micro and the INT8 / INT4 / INT2 baselines
 of `tools/lowbit`, with the same architectures, measured on real boards.
 
+**The four networks (names from Daghero et al., Table 1, UniMiB-SHAR).** They come from the Pareto points of the
+authors' architecture search (their section 4.5): **min** and **max** are the networks with the minimum and the
+maximum accuracy; **max-10%** and **max-5%** are the smallest networks whose accuracy is less than 10 % / 5 % below
+max. The names describe accuracy, not a parameter of the network. In the code and file names they are `min`, `max10`,
+`max5`, `max`. Every network: three convolutions with no padding, a max pool of 4 after the second and the third, one
+linear layer for the 17 classes; input 151 steps × 3 axes.
+
+| Name | conv 1 (channels, kernel) | conv 2 | conv 3 | their accuracy | their total memory |
+|---|---|---|---|---|---|
+| min | 4, 7 | 4, 7 | 4, 7 | 33.0 % | 13.3 kB |
+| max-10% | 8, 15 | 32, 7 | 32, 7 | 58.6 % | 19.7 kB |
+| max-5% | 32, 7 | 32, 15 | 32, 15 | 65.1 % | 24.0 kB |
+| max | 32, 15 | 32, 15 | 32, 15 | 68.0 % | 26.1 kB |
+
 The README follows the order of the work:
 
 1. **Binary vs binary**: SYMBEX and ultracompactBNN on their processor.
