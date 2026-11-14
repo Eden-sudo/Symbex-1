@@ -52,13 +52,35 @@ from compiler_core.export.dense import load_validation
 LIB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Symbex1_PIO", "lib", "lib_symbex")
 
 
+def choose_port(port_names):
+    if len(port_names) == 1:
+        return port_names[0]
+    if not port_names:
+        raise ValueError("No serial ports found; specify --port.")
+    raise ValueError("Multiple serial ports found: " + ", ".join(port_names) + "; specify --port.")
+
+
+def resolve_port(port):
+    if port is not None:
+        if port and not port.startswith("/") and not port.upper().startswith("COM"):
+            return "/dev/" + port                  # "ttyUSB0" -> "/dev/ttyUSB0"
+        return port
+    try:
+        from serial.tools import list_ports
+        names = [p.device for p in list_ports.comports()]
+    except (ImportError, OSError) as e:
+        raise RuntimeError(f"Cannot list serial ports: {e}; specify --port.") from e
+    return choose_port(names)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Test an exported SYMBEX model on a microcontroller")
     ap.add_argument("folder", nargs="?", default="", help="output folder of the CDT (with model_symbex.h and validation_*.u8)")
     ap.add_argument("--kernels", action="store_true", help="kernel benchmark only: the fastest arithmetic on this chip")
     ap.add_argument("--int8", action="store_true", help="with --kernels: also measure INT8 (ESP-NN) as a reference")
     ap.add_argument("--board", choices=sorted(BOARDS), default="esp32")
-    ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--port", default=None,
+                    help="use the only serial port found; specify --port if none or several are found")
     ap.add_argument("--baud", type=int, default=921600)
     ap.add_argument("--samples", type=int, default=1000, help="validation images sent to the board")
     ap.add_argument("--popcount", choices=["lut16", "swar"], default="lut16",
@@ -83,12 +105,11 @@ def main():
                     help="through the board's native USB-Serial-JTAG port (ESP32-S3, /dev/ttyACM0) instead of its UART: "
                          "flashing needs no BOOT button, same firmware and results")
     args = ap.parse_args()
-    if args.port and not args.port.startswith("/") and not args.port.upper().startswith("COM"):
-        args.port = "/dev/" + args.port                  # "ttyUSB0" -> "/dev/ttyUSB0"
     if args.kernels:
         if args.board == "uno":
             sys.exit("[X] the kernel benchmark is for the ESP32 boards (ESP-IDF); on AVR the export always uses XNOR")
         try:
+            args.port = resolve_port(args.port)
             profile = run_kernels(args.board, args.port, args.lib_path, os.path.join("runs", f"kernels_{args.board}"),
                                   args.popcount, upload=not args.no_upload, with_int8=args.int8,
                                   weights=args.weights)
@@ -122,6 +143,7 @@ def main():
     print(f"[*] {args.folder}: {len(x)} validation images available, sending {min(args.samples, len(x))}"
           + (" | with the INT8 reference" if int8 else ""))
     try:
+        args.port = resolve_port(args.port)
         res = measure_on_chip(header, x, y, sim, os.path.join(args.folder, f"chip_{args.board}"), args.lib_path,
                               args.board, args.port, args.baud, args.samples, not args.no_upload, args.popcount, flash,
                               weights=args.weights, first_layer=args.first_layer, int8=int8, usb=args.usb,
