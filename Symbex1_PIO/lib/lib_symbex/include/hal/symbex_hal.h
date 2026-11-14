@@ -40,9 +40,9 @@
    classifier it calls). With -DSYMBEX_CODE_IN_RAM they run from RAM instead of flash: the RP2350 (Pico SDK
    .time_critical sections) and the ESP32 boards (IRAM). Code read from flash goes through a small cache, so where a
    loop lands in flash changes its speed (measured on the Pico 2's Hazard3: the same engine at 60 or 70 ms after an
-   unrelated edit); in RAM the time no longer depends on it. Costs the RAM of that code. Elsewhere, or without the
-   flag, it is empty. */
-#if defined(SYMBEX_CODE_IN_RAM) && (defined(PICO_RP2350) || defined(SYMBEX_HAL_TEST_RP2350))
+   unrelated edit); in RAM the time no longer depends on it. Costs the RAM of that code. RP2350 host tests use the
+   section only for ELF objects; on other hosts, elsewhere, or without the flag, it is empty. */
+#if defined(SYMBEX_CODE_IN_RAM) && (defined(PICO_RP2350) || (defined(SYMBEX_HAL_TEST_RP2350) && defined(__ELF__)))
   #define SYMBEX_FAST_CODE __attribute__((section(".time_critical.symbex")))
 #elif defined(SYMBEX_CODE_IN_RAM) && defined(ESP_PLATFORM)
   #define SYMBEX_FAST_CODE __attribute__((section(".iram1.symbex")))
