@@ -39,11 +39,13 @@ def _tiny_ternary_case(tmp_path):
 
 def _wrapper(tmp_path):
     """A compiler wrapper in a folder with a space: logs its argv, then runs the real gcc. Returns (path, log)."""
+    gcc = shutil.which("gcc")
+    assert gcc, "needs gcc on PATH"
     folder = tmp_path / "dir with space"
     folder.mkdir()
     log = tmp_path / "argv.log"
     wrapper = folder / "cc-wrap"
-    wrapper.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{log}'\nexec '{shutil.which('gcc')}' \"$@\"\n")
+    wrapper.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{log}'\nexec '{gcc}' \"$@\"\n")
     wrapper.chmod(0o755)
     return wrapper, log
 
@@ -53,6 +55,7 @@ def _dummy_check():
 
 
 def test_cc_wrapper_is_used_and_gives_the_same_result_as_gcc(tmp_path, monkeypatch):
+    assert shutil.which("gcc"), "needs gcc on PATH"
     header, xu8, expected = _tiny_ternary_case(tmp_path)
     monkeypatch.delenv("CC", raising=False)
     baseline = validate_c(header, LIB_SYMBEX, xu8, expected)
@@ -66,6 +69,8 @@ def test_cc_wrapper_is_used_and_gives_the_same_result_as_gcc(tmp_path, monkeypat
 
 
 def test_cc_with_several_words_is_split_like_a_shell(tmp_path, monkeypatch):
+    assert shutil.which("gcc"), "needs gcc on PATH"
+    assert shutil.which("sh"), "needs sh on PATH"
     header, xu8, expected = _tiny_ternary_case(tmp_path)
     wrapper, log = _wrapper(tmp_path)
     monkeypatch.setenv("CC", f"{shutil.which('sh')} {shlex.quote(str(wrapper))}")
@@ -88,6 +93,7 @@ def test_unsplittable_cc_returns_none(monkeypatch):
 
 
 def test_without_cc_gcc_is_used_unchanged(tmp_path, monkeypatch):
+    assert shutil.which("gcc"), "needs gcc on PATH"
     header, xu8, expected = _tiny_ternary_case(tmp_path)
     monkeypatch.delenv("CC", raising=False)
     assert validate_c(header, LIB_SYMBEX, xu8, expected) == (len(xu8), len(xu8), "")
@@ -96,6 +102,7 @@ def test_without_cc_gcc_is_used_unchanged(tmp_path, monkeypatch):
 
 
 def test_without_cc_falls_back_to_cc(tmp_path, monkeypatch):
+    assert shutil.which("cc"), "needs cc on PATH"
     header, xu8, expected = _tiny_ternary_case(tmp_path)
     real_which = shutil.which
     monkeypatch.delenv("CC", raising=False)
