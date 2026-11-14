@@ -127,3 +127,24 @@ Effect on our claims:
   output is checked per input against the trained integer model, on several chips and tasks. Reword claim 15 so.
 - Binary RNN: "fully binary RNN" exists (BEP, training only). Our claim must be "not seen running on an MCU".
 - 1-bit LM on an MCU: still not seen (the ESP32 LM items are int4 / ternary / 1.58-bit, or a 7-board cluster).
+
+## Arithmetic of the vertical engine: prior work (Nov 13, web search, first pass)
+Our vertical engine (docs/vertical.md): one bit of 128 windows per register (windows as lanes), counts kept as bit
+planes and added with Boolean full adders (carry-save, Harley-Seal style), the threshold read as one bit of a biased
+counter. What was found:
+
+| Piece | Prior work | Verdict |
+|---|---|---|
+| Bit-slicing itself (one bit of many values per word, Boolean circuits) | Biham 1997, bitsliced DES (from memory: verify the citation) | known, cite |
+| Counting with carry-save adders over SIMD words (Harley-Seal) | Muła, Kurz, Lemire, "Faster Population Counts Using AVX2 Instructions" (arXiv 1611.07612) | known, cite |
+| **One counter per bit position ("vertical" / positional popcount), bit-sliced accumulators** | Klarqvist, Muła, Lemire, "Efficient Computation of Positional Population Counts Using SIMD Instructions" (arXiv 1911.02696, CCPE 2021); Clausecker, Lemire, Schintke, "Faster Positional-Population Counts for AVX2, AVX-512, and ASIMD" (arXiv 2412.16370, CCPE 2025, doi 10.1002/cpe.70435) | **known: this is our counting core.** Our lanes = their bit positions |
+| Bit-sliced neural network arithmetic on a small MCU | R. Singh, "Design and Evaluation of Bit-sliced Neural Network and Post-Quantum Implementations", M.S. thesis, WPI 2022 (advisor P. Schaumont): bit-sliced 8-bit matrix multiplication on RV32I without multiplier, 2.62x, MNIST | known for INT8 matmul; not binary, not convolution, no threshold |
+| Popcount as an adder tree in BNN hardware | Xcel-RAM (arXiv 1807.00343), FPGA compressor trees (arXiv 1806.08095) | known in hardware |
+| BNN popcount in garbled circuits | FOBNN (arXiv 2405.03136): bit counting with pure bit operations; abstract does not say bit-sliced | check the full text |
+
+Not found (first pass, 6 searches): bit-sliced BNN **convolution** with windows as lanes, weights choosing which planes
+are added (no XNOR), and the BatchNorm + sign threshold as one bit of the biased counter, on MCU SIMD without popcount.
+**Claim to use:** "we apply bit-sliced (positional) population counting, known from SIMD bitmap work, to binary
+convolution on microcontrollers: windows as lanes, the threshold folded into the counter; it is how a SIMD unit without
+a popcount instruction (ESP32-S3 PIE) runs a BNN." Not "a new arithmetic". Still to do: FOBNN full text, Biham citation,
+a search on ARM Helium / RISC-V V BNN kernels, Google Scholar "bitsliced" + "binarized".
