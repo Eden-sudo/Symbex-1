@@ -2,7 +2,7 @@
 core.py -- what every chip tool shares: the boards, the PlatformIO / ESP-IDF project, flashing, the serial port.
 
     write_project(project_dir, board, port, sources, firmware, defines, ...)   writes an ESP-IDF project
-    flash(project_dir, verbose)                                              builds and uploads it (pio)
+    flash(project_dir, verbose, upload=True)                                 builds and uploads it (pio; upload=False: build only)
     open_port(port, baud)                                                    opens the serial port + reset pulse
     wait_ready(serial, token, ...)                                           waits for the board's ready line
     lib_sources(lib_path, names)                                             paths of the lib_symbex sources
@@ -141,15 +141,20 @@ def _write_project_pico(project_dir, board, port, sources, firmware, defines, ex
                 + "build_flags = " + " ".join(flags) + "\nbuild_unflags = -Os\n")
 
 
-def flash(project_dir, verbose=True, what=""):
-    """Builds and uploads the project with PlatformIO. Raises RuntimeError if pio is missing or the build fails."""
+def flash(project_dir, verbose=True, what="", *, upload=True):
+    """Builds the project with PlatformIO and uploads it (upload=False: build only, no board needed).
+    Raises RuntimeError if pio is missing or the build or upload fails."""
     if shutil.which("pio") is None:
         raise RuntimeError("chip: PlatformIO (pio) not found")
+    action = "building and flashing" if upload else "building"
     if verbose:
-        print(f"    building and flashing{(' ' + what) if what else ''} (the first build downloads the framework)...")
-    r = subprocess.run(["pio", "run", "-d", project_dir, "--target", "upload"], capture_output=not verbose)
+        print(f"    {action}{(' ' + what) if what else ''} (the first build downloads the framework)...")
+    cmd = ["pio", "run", "-d", project_dir] + (["--target", "upload"] if upload else [])
+    r = subprocess.run(cmd, capture_output=not verbose)
     if r.returncode != 0:
-        raise RuntimeError("chip: build or upload failed (run `pio run -d " + project_dir + " -t upload` to see it)")
+        if upload:
+            raise RuntimeError("chip: build or upload failed (run `pio run -d " + project_dir + " -t upload` to see it)")
+        raise RuntimeError("chip: build failed (run `pio run -d " + project_dir + "` to see it)")
 
 
 def open_port(port, baud, reset="rts"):
