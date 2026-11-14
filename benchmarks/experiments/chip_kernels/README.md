@@ -14,6 +14,8 @@ docstring.
 | `stem_i8_pie_bench.py` | can the int8 stem use PIE better on the ESP32-S3? | 5.7× faster stem, now in lib_symbex (below) |
 | `stem_i8_pico_bench.py` | where does the int8 stem's time go on the Pico 2, and can it go faster? | 1.4-1.6× faster stem, now in lib_symbex (below) |
 | `dense_short_bench.py` | why is a first dense layer with few inputs (19 sensors → 64) slow? | 2.2-2.5× faster, now in lib_symbex (below) |
+| `dense_vertical_bench.py` | can a binary dense layer run vertically, 128 output neurons per PIE register? | S3: 3.3-8.6× faster on layers of 128+ neurons; whole MLP 1.41× faster (below) |
+| `mlp_vertical_chip.py` | does the vertical dense layer speed up a whole trained MLP (CDT export)? | 784-128-512-10, flash, exact, 3 seeds: S3 1.41×, Pico 2 1.40× (both cores), ESP32 1.16× |
 
 Results in `results/`; the generated firmware projects in `runs/` (not in git).
 
@@ -144,4 +146,98 @@ cost per group, not measured).
 python dense_short_bench.py --port /dev/ttyACM0                      # ESP32-S3, the library in the work tree
 python dense_short_bench.py --port /dev/ttyACM0 --lib-rev master     # the library before
 python dense_short_bench.py --board pico2_arm --port /dev/ttyACM1    # esp32 /dev/ttyUSB0; pico2_riscv
+```
+
+## Vertical dense layers (`dense_vertical_bench.py`, Nov 13)
+
+**Question.** The vertical engine puts 128 output pixels in the lanes of a PIE register. A dense layer has no pixels:
+does it gain if the lanes are 128 output neurons instead?
+
+**What.** The roles of data and weights swap. The weights are stored transposed: one 128-bit plane per input, holding
+that input's weight in each of 128 neurons. Per input vector, the list of inputs that are 1 is built once, with the conv
+engine's 256-entry table. The planes of those inputs are added with the conv engine's own carry-save adders
+(`hs_gather`, `count_finish`), giving c = count(x AND w) for 128 neurons at once. The threshold then becomes one
+bit-sliced add per group, out = bit 12 of 2c + (2048 − count(x)) + (2048 − E). Here E = ⌈(thr − n + 2·count(w)) / 2⌉,
+kept as 12 planes per group. Only the inputs that are 1 cost anything. The kernel is checked against plain C, bit by
+bit, on every board and on the PC (`--host`).
+
+**Result.** All measurements: random weights, best of 7, exact on every board. The table gives the time of the best
+standard method (AND with PIE on the S3, XNOR + lut16 elsewhere) against the vertical one, as a speed-up. Each cell
+shows two inputs: about half of the bits 1, then 90 % of them 1.
+
+| Layer | S3 flash | S3 RAM | ESP32 | M33 | Hazard3 |
+|---|---|---|---|---|---|
+| 128 → 512 | 131.6 → **15.2 µs** (8.6×) / 25.9 (5.1×) | same | 1.55× / 0.99× | 2.09× / 1.01× | 0.93× / 0.46× |
+| 256 → 128 | 49.0 → **11.9 µs** (4.1×) / 15.1 (3.3×) | same | 1.29× / 0.83× | 1.23× / 0.80× | 0.79× / 0.50× |
+| 512 → 512 | 824 → **192 µs** (4.3×) / 353 (2.3×) | 306 → **52 µs** (5.9×) / 80 (3.8×) | 1.45× / 0.90× | 2.03× / 0.94× | 1.73× / 0.75× |
+| 1024 → 256 | 562 → **127 µs** (4.4×) / 236 (2.3×) | 273 → **58 µs** (4.7×) / 84 (3.3×) | 1.15× / 0.75× | 2.09× / 0.93× | 1.70× / 0.75× |
+| 512 → 10 | 9.3 → 20.3 µs (0.46×) / 27.2 (0.34×) | same | 0.10× / 0.06× | 0.10× / 0.06× | 0.05× / 0.03× |
+| 128 → 10 | 3.9 → 7.1 µs (0.56×) / 8.9 (0.44×) | same | 0.13× / 0.08× | 0.13× / 0.08× | 0.06× / 0.04× |
+
+**Answer.**
+
+- **On the ESP32-S3, yes:** 3.3-8.6× faster on every layer of 128 neurons or more. Small layers (≤ 32 KB of
+  weights) run at the same speed from flash and from RAM.
+- **10-neuron classifiers: no.** They fill 10 of 128 lanes, so they stay on the standard path.
+- **Without SIMD, not reliably.** On the ESP32 and the Pico 2 the portable C wins only on wide layers with half of the
+  inputs 1, and loses at 90 %. The S3's gain comes from PIE's 128-bit logic, as in the conv engine.
+
+**Future work.**
+
+- When most inputs are 1, count the zeros instead. Then c = count(w) − count(NOT x AND w), with a second set of E
+  planes, 192 bytes per 128 neurons. ESTIMATE: the 90 % case would cost about as much as the 10 % one; not measured.
+- The uint8 first layer (784 → 128) is now 2/3 of the MLP's time. A vertical version with the input's 8 bit planes
+  (8 counts per group, added with shifts) may help. ESTIMATE ~70 µs instead of 270 µs; not measured.
+
+### The whole MLP (`mlp_vertical_chip.py`)
+
+**Question.** Does the gain survive in a real trained network?
+
+**What.** We took mlp_fashion's network sized for binary, 784-128-512-10, as exported by the CDT (AND arithmetic,
+`runs/sizing/h128_512_s*`). Its 128 → 512 layer becomes one vertical call. The transposed weights and threshold planes
+are built from the header's own data. The first layer and the classifier stay as exported. Both versions run on the
+same 200 validation images, in RAM as `chip_test.py` receives them. One method runs over all images, then the other;
+alternating them per image made their weights evict each other from the flash cache.
+
+**Result.** Measured on the ESP32-S3, median per image, 3 seeds, both versions equal to the integer simulation on
+200/200 images per seed (and on 1000/1000 on the PC, `--host`):
+
+| | as exported | 128 → 512 vertical |
+|---|---|---|
+| whole MLP, weights in flash | 411.3 ± 0.1 µs | **292.4 ± 0.5 µs (1.41×)** |
+| weights in RAM (seed 42) | 411.2 µs | 291.9 µs (same) |
+| inputs of the 128 → 512 layer that are 1 | | 24.3 / 26.3 / 27.6 % |
+
+The standard time matches `chip_test.py`'s 0.42 ms, which it splits as 0.27 ms first layer, 0.137 ms for 128 → 512 and
+0.01 ms classifier. The vertical layer takes that 0.137 ms down to ~0.02 ms (from the difference). The trained
+activations are sparse, about a quarter of them 1, which is the vertical method's good case.
+
+The same experiment on the other boards uses the portable C path (no SIMD: 4 × 32-bit words per plane). Median
+per image, both versions exact on every image (100 images on the ESP32, whose DRAM does not hold 200):
+
+| board | weights in flash, 3 seeds | weights in RAM, seed 42 |
+|---|---|---|
+| ESP32 | 2695.0 → **2319.2 ± 3.8 µs (1.16×)** | 2047.2 → 1921.8 µs (1.07×) |
+| Pico 2 M33 | 4464.3 → **3190.3 ± 28.6 µs (1.40×)** | 1527 → 1381 µs (1.11×) |
+| Pico 2 Hazard3 | 4297.7 → **3071.0 ± 25.9 µs (1.40×)** | 1341 → 1256 µs (1.07×) |
+
+Away from the S3, most of the gain comes from memory, not arithmetic. The vertical layer reads only the weight rows
+of the inputs that are 1 (a quarter of them), so it misses the flash cache far less. With the weights in RAM, the
+portable counts are only 7-11 % faster than lut16 / cpop.
+
+**Answer.** Yes. Same bits, 1.41× faster on the whole network on the S3, and 1.16-1.40× with the weights in flash on
+the other boards.
+
+- This puts the S3 MLP at ~0.29 ms against INT8 TFLite of the same shape at 11.7 ms in flash / 0.89 ms in RAM; the
+  INT8 times are from the mlp_fashion README, measured earlier.
+- Not in lib_symbex or the CDT yet: it is an experiment until it is reviewed and Edén decides.
+
+```
+python mlp_vertical_chip.py ../../mlp/mlp_fashion/runs/sizing/h128_512_s42 --port /dev/ttyACM0   # --weights ram, --host
+```
+
+```
+python dense_vertical_bench.py --host                               # the exactness check on this PC
+python dense_vertical_bench.py --port /dev/ttyACM0                  # ESP32-S3; --weights ram
+python dense_vertical_bench.py --board esp32 --port /dev/ttyUSB0    # pico2_arm / pico2_riscv /dev/ttyACM1
 ```

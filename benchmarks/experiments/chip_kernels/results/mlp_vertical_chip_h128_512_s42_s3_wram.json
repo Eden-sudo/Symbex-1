@@ -1,0 +1,25 @@
+{
+ "run": "h128_512_s42",
+ "board": "s3",
+ "weights": "ram",
+ "unit": "cycles",
+ "vertical_layers": [
+  {
+   "layer": 1,
+   "n_in": 128,
+   "n_out": 512
+  }
+ ],
+ "images": 200,
+ "equal_sim_standard": 200,
+ "equal_sim_vertical": 200,
+ "standard_equals_vertical": 200,
+ "correct_vertical": 174,
+ "median_standard": 98700,
+ "min_standard": 98641,
+ "median_vertical": 70059,
+ "min_vertical": 69578,
+ "ones_share": 31.095,
+ "median_standard_us": 411.25,
+ "median_vertical_us": 291.91
+}

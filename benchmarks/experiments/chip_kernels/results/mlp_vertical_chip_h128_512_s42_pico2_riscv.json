@@ -1,0 +1,25 @@
+{
+ "run": "h128_512_s42",
+ "board": "pico2_riscv",
+ "weights": "flash",
+ "unit": "us",
+ "vertical_layers": [
+  {
+   "layer": 1,
+   "n_in": 128,
+   "n_out": 512
+  }
+ ],
+ "images": 200,
+ "equal_sim_standard": 200,
+ "equal_sim_vertical": 200,
+ "standard_equals_vertical": 200,
+ "correct_vertical": 174,
+ "median_standard": 4300,
+ "min_standard": 4245,
+ "median_vertical": 3042,
+ "min_vertical": 2836,
+ "ones_share": 31.095,
+ "median_standard_us": 4300.0,
+ "median_vertical_us": 3042.0
+}
