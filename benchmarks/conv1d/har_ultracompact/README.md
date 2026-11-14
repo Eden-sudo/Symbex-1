@@ -363,6 +363,41 @@ The network, its layers and its speed are the same as with Adam, so nothing new 
 the Adam results above stay the reference. What may still close the gap is capacity (wider layers, sized for binary,
 with INT8 resized the same way), not the optimizer.
 
+## 5. Capacity: wider networks (November 13)
+
+**Question.** Section 4 says the gap to INT8 is not about the optimizer. Is it capacity? Do wider layers close it?
+
+**What.** `min` and `max` with every convolution's channels × 1.5 and × 2; kernels and pools stay the same (`model.py`,
+`--arch min_w15 / min_w2 / max_w15 / max_w2`): min 4 → 6 / 8 channels, max 32 → 48 / 64. TFLite INT8 is resized the
+same way (`har_tflite.py --arch ...`). Same recipe as the rest of this README: Adam, 100 epochs, seeds 42, 43, 44, the
+best validation epoch. All of it was screened on the validation subjects only (`--no-test`).
+
+**Result.** Validation accuracy, mean ± sample std over 3 seeds (× 1 = the networks of the sections above):
+
+| Network | width | SYMBEX all-binary | SYMBEX int8 first layer | TFLite INT8 | INT8 model |
+|---|---|---|---|---|---|
+| min | × 1 | 44.9 ± 2.2 | 46.1 ± 2.2 | 61.1 ± 3.4 | 7.4 KB |
+| min | × 1.5 | 49.0 ± 1.6 | 50.5 ± 0.6 | 63.2 ± 0.7 | 8.0 KB |
+| min | × 2 | 51.0 ± 0.9 | 50.9 ± 1.5 | 65.8 ± 1.4 | 8.8 KB |
+| max | × 1 | 68.6 ± 0.9 | 69.3 ± 0.9 | 73.6 ± 1.1 | 42.5 KB |
+| max | × 1.5 | 71.7 ± 0.4 | 72.9 ± 1.1 | 74.4 ± 0.5 | 82.9 KB |
+| max | × 2 | 72.7 ± 0.2 | 72.8 ± 0.6 | 76.6 ± 1.0 | 138.5 KB |
+
+Width helps both methods. On validation the gap to INT8 at the same width narrows on max (4.3-5.0 points at × 1,
+1.5-2.7 at × 1.5, 3.8-3.9 at × 2) and stays large on min (13-16 points at every width). Binary max × 1.5 / × 2 is
+close to INT8 max × 1 (71.7-72.9 vs 73.6), the "sized for binary" comparison; whether it is also faster is not measured yet.
+
+**What goes to the test subjects, and why.** This rule was written after the table above and before any wider network
+was scored on the test subjects:
+
+> Nothing is chosen here: this is a curve, not a search. Every wider network (2 widths × 2 networks × SYMBEX
+> all-binary, SYMBEX int8 first layer, TFLite INT8 × 3 seeds) is scored on the test subjects once, with its best
+> validation checkpoint and without training again. All of them are reported.
+
+- **No option is picked from the test subjects,** so the best-of-several bias of section 4 does not apply.
+- **Same architecture, same recipe:** each SYMBEX row is compared with TFLite INT8 at the same width.
+- **The × 1 rows are already scored** (sections 1-2); they are not scored again.
+
 ## Decisions (and why)
 
 - **Binary vs binary is the main comparison:** the question this benchmark answers is whether SYMBEX's binary layers
