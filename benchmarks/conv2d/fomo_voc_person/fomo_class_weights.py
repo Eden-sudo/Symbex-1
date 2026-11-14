@@ -18,7 +18,10 @@ def class_weights(y, n_classes, max_weight=50.0):
     if isinstance(n_classes, (bool, np.bool_)) or not isinstance(n_classes, numbers.Integral) or n_classes < 1:
         raise ValueError("invalid n_classes")
     if (isinstance(max_weight, (bool, np.bool_)) or not isinstance(max_weight, numbers.Real)
-            or not np.isfinite(max_weight) or max_weight < 1 or max_weight > float(np.finfo(np.float32).max)):
+            or max_weight < 1 or max_weight > float(np.finfo(np.float32).max)):
+        raise ValueError("invalid max_weight")
+    max_weight = float(max_weight)
+    if not np.isfinite(max_weight):
         raise ValueError("invalid max_weight")
     try:
         y = np.asarray(y)
@@ -30,7 +33,7 @@ def class_weights(y, n_classes, max_weight=50.0):
         raise ValueError("invalid y labels")
 
     counts = np.bincount(y.ravel().astype(np.intp), minlength=int(n_classes) + 1)
-    weights = np.full(int(n_classes) + 1, float(max_weight), dtype=np.float64)
+    weights = np.full(int(n_classes) + 1, max_weight, dtype=np.float64)
     np.divide(counts[0], counts, out=weights, where=counts > 0)
     np.clip(weights, 1.0, max_weight, out=weights)
     weights[0] = 1.0

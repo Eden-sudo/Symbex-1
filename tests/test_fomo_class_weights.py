@@ -2,6 +2,7 @@
 import builtins
 import importlib.util
 import os
+from fractions import Fraction
 
 import numpy as np
 import pytest
@@ -54,6 +55,7 @@ def test_maximum(weights):
     y = grid([140, 3, 1, 0])
     np.testing.assert_array_equal(weights(y, 3, 1), [1, 1, 1, 1])
     np.testing.assert_array_equal(weights(y, np.int64(3), np.float64(2.3)), np.array([1, 2.3, 2.3, 2.3], np.float32))
+    np.testing.assert_array_equal(weights(y, 3, Fraction(3, 2)), [1, 1.5, 1.5, 1.5])
 
 
 def test_aggregate_and_batch_order(weights):
@@ -82,7 +84,7 @@ def test_invalid_classes(weights, n):
         weights(grid([144]), n)
 
 
-@pytest.mark.parametrize("maximum", [0, -1, float('nan'), float('inf'), -float('inf'), 1e100, '2', True])
+@pytest.mark.parametrize("maximum", [0, -1, float('nan'), float('inf'), -float('inf'), 1e100, 10**100, '2', True])
 def test_invalid_maximum(weights, maximum):
     with pytest.raises(ValueError, match="max_weight"):
         weights(grid([144]), 1, maximum)
