@@ -35,7 +35,7 @@ def test_constants(fomo):
 
 
 def test_person_compatibility_with_convert(fomo, tmp_path, monkeypatch):
-    Image = pytest.importorskip('PIL.Image')
+    from PIL import Image
     data = load("fomo_data_compat", "fomo_data.py")
     objects = [obj('person', 10, 20), obj('person', 12, 21), obj('person', 50, 30, difficult='1'),
                obj('cat', 100, 40), obj('person', 140, 70)]
