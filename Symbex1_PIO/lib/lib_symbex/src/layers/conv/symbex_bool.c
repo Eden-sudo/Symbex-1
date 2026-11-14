@@ -307,7 +307,9 @@ static void stem_i8_dot_rows(const int8_t* x, int n, const int8_t* w, int stride
 #define STEM3_RING_BYTES ((((STEM3_MAX_W + 2) * 3 + 3) + 3) & ~3)  /* padded row + 3 bytes read past it (zero weights) */
 #define STEM3_STRIP 16
 
+#if defined(__ARM_FEATURE_SIMD32) || defined(SYMBEX_HAL_TEST_SMLAD)
 static inline uint32_t stem3_ld32(const int8_t* p) { uint32_t v; memcpy(&v, p, 4); return v; }
+#endif
 
 static int stem3_rows(const uint8_t* img, int H, int W, int s, int out_h, int out_w, const int8_t* w, int row_bytes,
                       const int32_t* thr, int n_out, uint32_t* out) {
