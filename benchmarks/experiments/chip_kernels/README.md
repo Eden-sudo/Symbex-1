@@ -14,7 +14,8 @@ docstring.
 | `stem_i8_pie_bench.py` | can the int8 stem use PIE better on the ESP32-S3? | 5.7× faster stem, now in lib_symbex (below) |
 | `stem_i8_pico_bench.py` | where does the int8 stem's time go on the Pico 2, and can it go faster? | 1.4-1.6× faster stem, now in lib_symbex (below) |
 | `dense_short_bench.py` | why is a first dense layer with few inputs (19 sensors → 64) slow? | 2.2-2.5× faster, now in lib_symbex (below) |
-| `dense_vertical_bench.py` | can a binary dense layer run vertically, 128 output neurons per PIE register? | S3: 3.3-8.7× faster on layers of 128+ neurons, slower on 10 (below) |
+| `dense_vertical_bench.py` | can a binary dense layer run vertically, 128 output neurons per PIE register? | S3: 3.3-8.6× faster on layers of 128+ neurons; whole MLP 1.41× faster (below) |
+| `mlp_vertical_chip.py` | does the vertical dense layer speed up a whole trained MLP (CDT export)? | S3, 784-128-512-10: 411.3 → 292.4 ± 0.5 µs (1.41×), exact, 3 seeds |
 
 Results in `results/`; the generated firmware projects in `runs/` (not in git).
 
@@ -166,16 +167,16 @@ shows two inputs: about half of the bits 1, then 90 % of them 1.
 
 | Layer | S3 flash | S3 RAM | ESP32 | M33 | Hazard3 |
 |---|---|---|---|---|---|
-| 128 → 512 | 131.6 → **15.2 µs** (8.7×) / 25.8 (5.1×) | same | 1.55× / 0.99× | 2.09× / 1.01× | 0.93× / 0.46× |
-| 256 → 128 | 49.0 → **11.8 µs** (4.1×) / 15.0 (3.3×) | same | 1.29× / 0.83× | 1.23× / 0.80× | 0.79× / 0.50× |
+| 128 → 512 | 131.6 → **15.2 µs** (8.6×) / 25.9 (5.1×) | same | 1.55× / 0.99× | 2.09× / 1.01× | 0.93× / 0.46× |
+| 256 → 128 | 49.0 → **11.9 µs** (4.1×) / 15.1 (3.3×) | same | 1.29× / 0.83× | 1.23× / 0.80× | 0.79× / 0.50× |
 | 512 → 512 | 824 → **192 µs** (4.3×) / 353 (2.3×) | 306 → **52 µs** (5.9×) / 80 (3.8×) | 1.45× / 0.90× | 2.03× / 0.94× | 1.73× / 0.75× |
 | 1024 → 256 | 562 → **127 µs** (4.4×) / 236 (2.3×) | 273 → **58 µs** (4.7×) / 84 (3.3×) | 1.15× / 0.75× | 2.09× / 0.93× | 1.70× / 0.75× |
 | 512 → 10 | 9.3 → 20.3 µs (0.46×) / 27.2 (0.34×) | same | 0.10× / 0.06× | 0.10× / 0.06× | 0.05× / 0.03× |
-| 128 → 10 | 3.9 → 7.0 µs (0.56×) / 8.9 (0.44×) | same | 0.13× / 0.08× | 0.13× / 0.08× | 0.06× / 0.04× |
+| 128 → 10 | 3.9 → 7.1 µs (0.56×) / 8.9 (0.44×) | same | 0.13× / 0.08× | 0.13× / 0.08× | 0.06× / 0.04× |
 
 **Answer.**
 
-- **On the ESP32-S3, yes:** 3.3-8.7× faster on every layer of 128 neurons or more. Small layers (≤ 32 KB of
+- **On the ESP32-S3, yes:** 3.3-8.6× faster on every layer of 128 neurons or more. Small layers (≤ 32 KB of
   weights) run at the same speed from flash and from RAM.
 - **10-neuron classifiers: no.** They fill 10 of 128 lanes, so they stay on the standard path.
 - **Without SIMD, not reliably.** On the ESP32 and the Pico 2 the portable C wins only on wide layers with half of the
@@ -185,8 +186,41 @@ shows two inputs: about half of the bits 1, then 90 % of them 1.
 
 - When most inputs are 1, count the zeros instead. Then c = count(w) − count(NOT x AND w), with a second set of E
   planes, 192 bytes per 128 neurons. ESTIMATE: the 90 % case would cost about as much as the 10 % one; not measured.
-- Next step: the whole MLP on the S3 (784-128-512-10: its 128 → 512 layer). Its activation densities are not known
-  yet: they must be measured on real images.
+- The uint8 first layer (784 → 128) is now 2/3 of the MLP's time. A vertical version with the input's 8 bit planes
+  (8 counts per group, added with shifts) may help. ESTIMATE ~70 µs instead of 270 µs; not measured.
+
+### The whole MLP (`mlp_vertical_chip.py`)
+
+**Question.** Does the gain survive in a real trained network?
+
+**What.** We took mlp_fashion's network sized for binary, 784-128-512-10, as exported by the CDT (AND arithmetic,
+`runs/sizing/h128_512_s*`). Its 128 → 512 layer becomes one vertical call. The transposed weights and threshold planes
+are built from the header's own data. The first layer and the classifier stay as exported. Both versions run on the
+same 200 validation images, in RAM as `chip_test.py` receives them. One method runs over all images, then the other;
+alternating them per image made their weights evict each other from the flash cache.
+
+**Result.** Measured on the ESP32-S3, median per image, 3 seeds, both versions equal to the integer simulation on
+200/200 images per seed (and on 1000/1000 on the PC, `--host`):
+
+| | as exported | 128 → 512 vertical |
+|---|---|---|
+| whole MLP, weights in flash | 411.3 ± 0.1 µs | **292.4 ± 0.5 µs (1.41×)** |
+| weights in RAM (seed 42) | 411.2 µs | 291.9 µs (same) |
+| inputs of the 128 → 512 layer that are 1 | | 24.3 / 26.3 / 27.6 % |
+
+The standard time matches `chip_test.py`'s 0.42 ms, which it splits as 0.27 ms first layer, 0.137 ms for 128 → 512 and
+0.01 ms classifier. The vertical layer takes that 0.137 ms down to ~0.02 ms (from the difference). The trained
+activations are sparse, about a quarter of them 1, which is the vertical method's good case.
+
+**Answer.** Yes. Same bits, 1.41× faster on the whole network.
+
+- This puts the S3 MLP at ~0.29 ms against INT8 TFLite of the same shape at 11.7 ms in flash / 0.89 ms in RAM; the
+  INT8 times are from the mlp_fashion README, measured earlier.
+- Not in lib_symbex or the CDT yet: it is an experiment until it is reviewed and Edén decides.
+
+```
+python mlp_vertical_chip.py ../../mlp/mlp_fashion/runs/sizing/h128_512_s42 --port /dev/ttyACM0   # --weights ram, --host
+```
 
 ```
 python dense_vertical_bench.py --host                               # the exactness check on this PC

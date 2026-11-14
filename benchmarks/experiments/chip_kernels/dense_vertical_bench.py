@@ -44,44 +44,15 @@ SHAPES = [(128, 512), (512, 10), (256, 128), (128, 10), (512, 512), (1024, 256)]
 DENSITIES = [0.5, 0.9]
 EP = 12                                   # planes of the threshold operands (2 c, 2048 - count(x), 2048 - E < 4096)
 
-FIRMWARE = r"""
-#include <stdio.h>
-#include <string.h>
-#include <stdint.h>
-#if defined(ESP_PLATFORM)
-#include "sdkconfig.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_cpu.h"
-#define NOW() ((uint32_t)esp_cpu_get_cycle_count())
-#define OUT printf
-#define INNER 1
-#define SCALE 1
-#elif defined(SYMBEX_HOST)                                /* the PC check (--host): exactness, ns per call */
-#include <time.h>
-static uint32_t host_ns(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)(t.tv_sec * 1000000000ull + t.tv_nsec); }
-#define NOW() host_ns()
-#define OUT printf
-#define INNER 1
-#define SCALE 1
-#else
-#include <Arduino.h>
-#define NOW() ((uint32_t)micros())
-#define OUT Serial.printf
-#define INNER 32
-#define SCALE 1000
-#endif
-#include "hal/symbex_hal.h"
-#include "layers/dense/symbex_dense.h"
-#include "ops/symbex_and.h"
-
+# the vertical dense kernel (C): the conv engine's counting, the plane list, dense_vertical; mlp_vertical_chip.py
+# uses it too. Needs VERT_MAX_IN (the widest input) defined before it.
+VERTICAL_C = r"""
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 #define VERT_PIE 1
 #endif
 
 typedef struct { uint32_t w[4]; } __attribute__((aligned(16))) vplane_t;
 #define EP 12
-#include "bench_data.h"
 
 /* ================= the conv engine's vertical counting (symbex_bool_vertical.c), unchanged ================= */
 struct VCount {
@@ -248,8 +219,9 @@ static int make_list(const uint32_t* row, int K, const ListByte* lt, uint16_t* d
 }
 
 /* ================= the vertical dense layer ================= */
-static uint16_t list_buf[MAX_IN + 16];
-static vplane_t ba[MAX_IN / 8 + 16], bb[MAX_IN / 64 + 16], cnt[16], sc[EP];
+static uint16_t list_buf[VERT_MAX_IN + 16];
+static vplane_t ba[VERT_MAX_IN / 8 + 16], bb[VERT_MAX_IN / 64 + 16], cnt[16], sc[EP];
+static uint32_t vert_ones, vert_calls;                            /* the inputs that were 1, summed over the calls */
 
 /* x: n_in bits (n_in a multiple of 8, below 2048); wt: G groups of n_in + 1 planes; e: G x EP planes of 2048 - E;
    out: G x 4 words, bit n % 32 of word n / 32 = neuron n (the usual bit layout) */
@@ -257,6 +229,7 @@ SYMBEX_FAST_CODE static void dense_vertical(const uint32_t* x, int n_in, int gro
                                             const vplane_t* e, uint32_t* out) {
     uint32_t start;
     const int n = make_list(x, n_in, LT, list_buf + 1, &start), g8 = (n + 7) >> 3;
+    vert_ones += (uint32_t)n; vert_calls++;
     const uint32_t a = 2048u - (uint32_t)n;                        /* 2048 - count(x): the same in every lane */
     for (int i = 0; i < EP; i++) { const uint32_t v = ((a >> i) & 1u) ? 0xFFFFFFFFu : 0u; sc[i].w[0] = sc[i].w[1] = sc[i].w[2] = sc[i].w[3] = v; }
     struct VCount S; S.ba = ba; S.bb = bb;
@@ -269,6 +242,42 @@ SYMBEX_FAST_CODE static void dense_vertical(const uint32_t* x, int n_in, int gro
     }
 }
 
+"""
+
+FIRMWARE = r"""
+#include <stdio.h>
+#include <string.h>
+#include <stdint.h>
+#if defined(ESP_PLATFORM)
+#include "sdkconfig.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_cpu.h"
+#define NOW() ((uint32_t)esp_cpu_get_cycle_count())
+#define OUT printf
+#define INNER 1
+#define SCALE 1
+#elif defined(SYMBEX_HOST)                                /* the PC check (--host): exactness, ns per call */
+#include <time.h>
+static uint32_t host_ns(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)(t.tv_sec * 1000000000ull + t.tv_nsec); }
+#define NOW() host_ns()
+#define OUT printf
+#define INNER 1
+#define SCALE 1
+#else
+#include <Arduino.h>
+#define NOW() ((uint32_t)micros())
+#define OUT Serial.printf
+#define INNER 32
+#define SCALE 1000
+#endif
+#include "hal/symbex_hal.h"
+#include "layers/dense/symbex_dense.h"
+#include "ops/symbex_and.h"
+
+#include "bench_data.h"
+#define VERT_MAX_IN MAX_IN
+""" + VERTICAL_C + r"""
 /* ================= timing and checks ================= */
 #define REPS 7
 static uint32_t xin[MAX_IN / 32] __attribute__((aligned(16)));
@@ -282,7 +291,7 @@ static void run_and(void) {
     symbex_and_raw(xin, L->in_features, L->weights, (L->in_features + 31) / 32, L->out_features, WCOUNT[cs], raw);
     symbex_dense_threshold(raw, THRS[cs], bits, L->out_features);
 }
-static void run_vertical(void) { dense_vertical(xin, LAYERS[cs].in_features, (LAYERS[cs].out_features + 127) / 128, WT[cs], EV[cs], bits); }
+static void run_vertical(void) { dense_vertical(xin, LAYERS[cs].in_features, (LAYERS[cs].out_features + 127) / 128, (const vplane_t*)WT[cs], (const vplane_t*)EV[cs], bits); }
 
 static uint32_t best(void (*f)(void)) {
     uint32_t b = 0xFFFFFFFFu;
@@ -404,14 +413,18 @@ def write_data(path, where, weights="flash"):
         for name in ("T", "WC"):
             f.write(f"static const int32_t* const {'THRS' if name == 'T' else 'WCOUNT'}[N_SHAPES] = {{"
                     + ", ".join(f"{name}{s}" for s in range(len(SHAPES))) + "};\n")
-        f.write("static const vplane_t* const WT[N_SHAPES] = {" + ", ".join(f"(const vplane_t*)WT{s}" for s in range(len(SHAPES))) + "};\n")
-        f.write("static const vplane_t* const EV[N_SHAPES] = {" + ", ".join(f"(const vplane_t*)EV{s}" for s in range(len(SHAPES))) + "};\n")
+        f.write("static const uint32_t* const WT[N_SHAPES] = {" + ", ".join(f"WT{s}" for s in range(len(SHAPES))) + "};\n")
+        f.write("static const uint32_t* const EV[N_SHAPES] = {" + ", ".join(f"EV{s}" for s in range(len(SHAPES))) + "};\n")
         f.write("static const uint32_t* const XS[N_SHAPES][N_DENS] = {"
                 + ", ".join("{" + ", ".join(f"X{s}_{k}" for k in range(len(DENSITIES))) + "}" for s in range(len(SHAPES)))
                 + "};\n")
 
 
-def write_project(project, port, board, weights):
+def write_project(project, port, board, weights, firmware=FIRMWARE, write_files=None, name="dense_vertical_bench",
+                  flags=""):
+    """the firmware project of `board` in `project`: lib_symbex's dense / AND code and HAL, firmware as main.c (or
+    main.cpp), write_files(src) writes the data headers and returns the firmware's banner (default: bench_data.h),
+    flags: extra compile flags"""
     src = os.path.join(project, "src")
     if os.path.isdir(src):
         import shutil
@@ -423,14 +436,17 @@ def write_project(project, port, board, weights):
         files.update([BOARD_HAL[board]])
     for name, rel in files.items():
         open(os.path.join(src, name), "wb").write(get(os.path.join("src", *rel)))
-    where = f"weights in {weights}"
-    write_data(os.path.join(src, "bench_data.h"), where, weights)
+    if write_files is None:
+        where = f"weights in {weights}"
+        write_data(os.path.join(src, "bench_data.h"), where, weights)
+    else:
+        where = write_files(src)
     if board.startswith("pico2"):
         w("platformio.ini", f"[env:{board}]\nplatform = raspberrypi\nboard = {BOARDS[board]}\nframework = arduino\n"
                             f"board_build.core = earlephilhower\nupload_protocol = picotool\nupload_port = {port}\n"
                             + ("board_build.mcu = rp2350-riscv\n" if board == "pico2_riscv" else "")
-                            + "build_flags = -Isrc/include -O2\nbuild_unflags = -Os\n")
-        w("src/main.cpp", FIRMWARE)
+                            + f"build_flags = -Isrc/include -O2 {flags}\nbuild_unflags = -Os\n")
+        w("src/main.cpp", firmware)
         return where
     w("platformio.ini", f"[env:{board}]\nplatform = espressif32\nboard = {BOARDS[board]}\nframework = espidf\n"
                         f"monitor_speed = 115200\nupload_port = {port}\n")
@@ -442,10 +458,11 @@ def write_project(project, port, board, weights):
                             "CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384\nCONFIG_ESP_TASK_WDT_EN=n\n"
                             + ("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\n" if board == "s3" else ""))
     w("CMakeLists.txt", "cmake_minimum_required(VERSION 3.16.0)\ninclude($ENV{IDF_PATH}/tools/cmake/project.cmake)\n"
-                        "project(dense_vertical_bench)\n")
+                        f"project({name})\n")
     w("src/CMakeLists.txt", 'idf_component_register(SRCS "main.c" ' + " ".join(f'"{n}"' for n in files)
-                            + ' INCLUDE_DIRS "." "include")\n')
-    w("src/main.c", FIRMWARE)
+                            + ' INCLUDE_DIRS "." "include")\n'
+                            + (f"target_compile_options(${{COMPONENT_LIB}} PRIVATE {flags})\n" if flags else ""))
+    w("src/main.c", firmware)
     return where
 
 

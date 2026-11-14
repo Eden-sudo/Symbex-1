@@ -26,8 +26,8 @@
    "n_out": 512,
    "ones": 56,
    "method": "vertical",
-   "cycles": 3638,
-   "us": 15.158,
+   "cycles": 3652,
+   "us": 15.217,
    "equal_reference": true
   },
   {
@@ -53,8 +53,8 @@
    "n_out": 512,
    "ones": 114,
    "method": "vertical",
-   "cycles": 6190,
-   "us": 25.792,
+   "cycles": 6204,
+   "us": 25.85,
    "equal_reference": true
   },
   {
@@ -80,8 +80,8 @@
    "n_out": 10,
    "ones": 262,
    "method": "vertical",
-   "cycles": 4862,
-   "us": 20.258,
+   "cycles": 4876,
+   "us": 20.317,
    "equal_reference": true
   },
   {
@@ -107,8 +107,8 @@
    "n_out": 10,
    "ones": 461,
    "method": "vertical",
-   "cycles": 6521,
-   "us": 27.171,
+   "cycles": 6535,
+   "us": 27.229,
    "equal_reference": true
   },
   {
@@ -134,8 +134,8 @@
    "n_out": 128,
    "ones": 131,
    "method": "vertical",
-   "cycles": 2842,
-   "us": 11.842,
+   "cycles": 2856,
+   "us": 11.9,
    "equal_reference": true
   },
   {
@@ -161,8 +161,8 @@
    "n_out": 128,
    "ones": 234,
    "method": "vertical",
-   "cycles": 3602,
-   "us": 15.008,
+   "cycles": 3616,
+   "us": 15.067,
    "equal_reference": true
   },
   {
@@ -188,8 +188,8 @@
    "n_out": 10,
    "ones": 58,
    "method": "vertical",
-   "cycles": 1678,
-   "us": 6.992,
+   "cycles": 1692,
+   "us": 7.05,
    "equal_reference": true
   },
   {
@@ -215,8 +215,8 @@
    "n_out": 10,
    "ones": 117,
    "method": "vertical",
-   "cycles": 2129,
-   "us": 8.871,
+   "cycles": 2143,
+   "us": 8.929,
    "equal_reference": true
   },
   {
@@ -242,8 +242,8 @@
    "n_out": 512,
    "ones": 261,
    "method": "vertical",
-   "cycles": 46080,
-   "us": 192.0,
+   "cycles": 46095,
+   "us": 192.062,
    "equal_reference": true
   },
   {
@@ -269,8 +269,8 @@
    "n_out": 512,
    "ones": 463,
    "method": "vertical",
-   "cycles": 84756,
-   "us": 353.15,
+   "cycles": 84768,
+   "us": 353.2,
    "equal_reference": true
   },
   {
@@ -287,8 +287,8 @@
    "n_out": 256,
    "ones": 516,
    "method": "and",
-   "cycles": 134983,
-   "us": 562.429,
+   "cycles": 134929,
+   "us": 562.204,
    "equal_reference": true
   },
   {
@@ -296,8 +296,8 @@
    "n_out": 256,
    "ones": 516,
    "method": "vertical",
-   "cycles": 30513,
-   "us": 127.138,
+   "cycles": 30525,
+   "us": 127.188,
    "equal_reference": true
   },
   {
@@ -323,8 +323,8 @@
    "n_out": 256,
    "ones": 917,
    "method": "vertical",
-   "cycles": 56571,
-   "us": 235.713,
+   "cycles": 56586,
+   "us": 235.775,
    "equal_reference": true
   }
  ]
