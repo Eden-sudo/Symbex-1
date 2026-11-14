@@ -4,6 +4,7 @@ in INT8 with TensorFlow Lite, the way anyone deploys a network on a microcontrol
 
     python har_tflite.py --arch max --seed 42                                # train (once) + INT8 + accuracy on the PC
     python har_tflite.py --all                                               # 4 architectures x seeds 42, 43, 44
+    python har_tflite.py --arch max_w2 --seed 42 --no-test                   # a wider network (capacity study), screening
     python har_tflite.py --arch max --seed 42 --board esp32 --port /dev/ttyUSB0          # ... and TFLite Micro on the board
     python har_tflite.py --arch max --seed 42 --board s3 --port /dev/ttyACM0 --usb
     python har_tflite.py --arch max --seed 42 --board pico2_arm --port /dev/ttyACM1      # Pico 2 M33 (CMSIS-NN)
@@ -43,6 +44,10 @@ ARCHS = {                                  # the same as model.ARCHS (kept here:
     "max5":   [("conv", 32, 7), ("conv", 32, 15), ("pool", 4), ("conv", 32, 15), ("pool", 4)],
     "max":    [("conv", 32, 15), ("conv", 32, 15), ("pool", 4), ("conv", 32, 15), ("pool", 4)],
 }
+TABLE1 = ("min", "max10", "max5", "max")   # --all trains these; the wider ones below are trained on request
+# wider versions (the capacity study, README section 5): every conv's channels x 1.5 / x 2, kernels and pools unchanged
+ARCHS.update({f"{a}_w{tag}": [(l[0], round(l[1] * w), l[2]) if l[0] == "conv" else l for l in ARCHS[a]]
+              for a in ("min", "max") for tag, w in (("15", 1.5), ("2", 2.0))})
 LENGTH, AXES, CLASSES = 151, 3, 17
 SEEDS = (42, 43, 44)
 # TFLite builtin op -> TFLite Micro resolver call (the ops a converted Keras Conv1D network uses)
@@ -134,7 +139,7 @@ def convert(arch, weights, path, tf):
     open(path, "wb").write(conv.convert())
 
 
-def run_pc(arch, seed, epochs, lr, tf):
+def run_pc(arch, seed, epochs, lr, tf, test=True):
     name = f"{arch}_s{seed}"
     path = os.path.join("models", f"har_int8_{name}.tflite")
     out = os.path.join("results", "tflite", f"tflite_pc_{name}.json")
@@ -144,14 +149,16 @@ def run_pc(arch, seed, epochs, lr, tf):
     tflite = open(path, "rb").read()
     res = dict(arch=arch, seed=seed, epochs=epochs, model=path, kb=len(tflite) / 1024,
                best_epoch=info.get("best_epoch"), validation_float=info.get("validation_float"))
-    for split in ("validation", "test"):
+    res["test"] = info.get("test")                                   # test=False: not scored (kept if it already was)
+    for split in ("validation", "test") if test else ("validation",):
         x, y = load(split)
         pred, ops = predict_tflite(tflite, (x.astype(np.int16) + 128).astype(np.uint8).reshape(len(x), -1))
         res[split] = 100 * float((pred == y).mean())
     res["ops"] = ops
     json.dump(res, open(out, "w"), indent=1)
-    print(f"    {name}: INT8 {res['kb']:.1f} KB | validation {res['validation']:.2f}% | test {res['test']:.2f}%"
-          f"  (best epoch {res['best_epoch']}) -> {out}")
+    print(f"    {name}: INT8 {res['kb']:.1f} KB | validation {res['validation']:.2f}% | "
+          + (f"test {res['test']:.2f}%" if test else "test not scored")
+          + f"  (best epoch {res['best_epoch']}) -> {out}")
     return tflite, res
 
 
@@ -208,6 +215,7 @@ def main():
     ap.add_argument("--all", action="store_true", help="every architecture x seeds 42, 43, 44 (PC only)")
     ap.add_argument("--epochs", type=int, default=100)
     ap.add_argument("--lr", type=float, default=5e-3)
+    ap.add_argument("--no-test", action="store_true", help="do not score the test subjects (screening runs)")
     ap.add_argument("--board", choices=["esp32", "s3", "pico2_arm", "pico2_riscv"])
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--baud", type=int, default=921600)
@@ -225,13 +233,13 @@ def main():
     for g in tf.config.list_physical_devices("GPU"):                 # share the GPU with other trainings
         tf.config.experimental.set_memory_growth(g, True)
     if args.all:
-        rows = [run_pc(a, s, args.epochs, args.lr, tf)[1] for a in ARCHS for s in SEEDS]
+        rows = [run_pc(a, s, args.epochs, args.lr, tf)[1] for a in TABLE1 for s in SEEDS]
         print(f"\n    INT8 (TFLite), test accuracy, mean +- std over seeds {SEEDS}")
-        for a in ARCHS:
+        for a in TABLE1:
             t = [r["test"] for r in rows if r["arch"] == a]
             print(f"    {a:<6} {np.mean(t):5.1f} +- {np.std(t, ddof=1):.1f} %   ({', '.join(f'{v:.1f}' for v in t)})")
         return
-    tflite, res = run_pc(args.arch, args.seed, args.epochs, args.lr, tf)
+    tflite, res = run_pc(args.arch, args.seed, args.epochs, args.lr, tf, not args.no_test)
     if args.board:
         run_board(args, tflite, res["ops"])
 

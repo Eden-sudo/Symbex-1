@@ -30,6 +30,10 @@ ARCHS = {                                  # Table 1 of Daghero et al., UniMiB-S
     "max5":   [("conv", 32, 7), ("conv", 32, 15), ("pool", 4), ("conv", 32, 15), ("pool", 4)],
     "max":    [("conv", 32, 15), ("conv", 32, 15), ("pool", 4), ("conv", 32, 15), ("pool", 4)],
 }
+TABLE1 = ("min", "max10", "max5", "max")   # --all trains these; the wider ones below are trained on request
+# wider versions (the capacity study, README section 5): every conv's channels x 1.5 / x 2, kernels and pools unchanged
+ARCHS.update({f"{a}_w{tag}": [(l[0], round(l[1] * w), l[2]) if l[0] == "conv" else l for l in ARCHS[a]]
+              for a in ("min", "max") for tag, w in (("15", 1.5), ("2", 2.0))})
 LENGTH, AXES, CLASSES = 151, 3, 17
 
 

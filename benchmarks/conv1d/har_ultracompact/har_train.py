@@ -33,7 +33,7 @@ import torch.nn.functional as F
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from har_data import load                                                                    # noqa: E402
-from model import ARCHS, BinaryHAR, evaluate                                                 # noqa: E402
+from model import ARCHS, TABLE1, BinaryHAR, evaluate                                         # noqa: E402
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "tools"))
 from compiler_core.train.bop import Bop                                                      # noqa: E402
 
@@ -151,7 +151,7 @@ def main():
     data = [tuple(torch.as_tensor(a, device=dev) for a in load(s)) for s in ("train", "validation", "test")]
     data = [(x, y.long()) for x, y in data]
     seeds = [int(s) for s in args.seeds.split(",")] if args.seeds else [args.seed]
-    jobs = ([(a, f, s) for a in ARCHS for f in ("binary", "int8") for s in SEEDS] if args.all
+    jobs = ([(a, f, s) for a in TABLE1 for f in ("binary", "int8") for s in SEEDS] if args.all
             else [(args.arch, args.first, s) for s in seeds])
     results = {}
     for a, f, s in jobs:
