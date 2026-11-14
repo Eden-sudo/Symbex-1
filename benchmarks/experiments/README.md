@@ -9,6 +9,7 @@ once the experiments show they really work. One folder per question, each with i
 | [`pair_bits/`](pair_bits/) | does a *pair* of bits per neuron help a fully binary network learn? | yes, on the activations: +2 to +3 points at the same memory (MLP and ResNet-8) |
 | [`training_gap/`](training_gap/) | how much of the binary ResNet-8's loss is training, and how much capacity? | mostly capacity; Bop +2.5, twostep +2.35; width, depth (1-3-3: 77.3 %), shortcuts (addpool +1.5, the 1×1 costs ~3.2 ms on the chip), int8 classifier +2.8; padding, BatchNorm, block order: nothing |
 | [`chip_kernels/`](chip_kernels/) | which counting and int8 kernels are fastest on each chip? | `pie_swar`, AND + PIE, the vertical count, the int8 stem (faster only with SIMD) |
+| [`vertical1d/`](vertical1d/) | does the vertical engine speed up the binary 1D convolutions on the ESP32-S3? | yes on long layers: HAR 1.26-1.87× faster whole network, exact, 1.85-3.52× vs TFLite INT8 (was 1.47-1.90×), for 7-19 KB more RAM |
 | [`other_probes/`](other_probes/) | single questions: PopLUT weight codebooks, arithmetics on the GPU | |
 
 Every study follows the rules of the benchmarks: seeds 42, 43 and 44, choices made on a validation split of the
