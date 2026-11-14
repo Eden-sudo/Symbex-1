@@ -191,18 +191,21 @@ most accurate network is also faster than the thermometer network on the ESP32 (
 network measured there too (3 seeds × 1,000 images, every image equal to the simulation, `results/symbex/symbex_seeds_s3_swar*_w1_int8stem_pool2*.json`): standard 32.33 ms flash / 32.32 ms RAM, vertical
 9.70 ± 0.02, compact 7.07 ± 0.02, **prepared 6.02 ± 0.01 ms** (weights in flash; 15 / 44 / 54 / 138 / 217 KB of RAM).
 
-**The vertical engine on the Pico 2** (`docs/vertical.md`), same network, 3 seeds × 1,000 images, every image equal
-to the simulation, weights in flash, lut16 (`results/symbex/symbex_seeds_pico2_*_w1_int8stem_pool2_vertical*.json`), ms (RAM):
+**The vertical engine on the Pico 2 and the classic ESP32** (`docs/vertical.md`), same network, 3 seeds × 1,000 images,
+every image equal to the simulation, weights in flash, lut16 (`results/symbex/symbex_seeds_{pico2_*,esp32_lut16}_w1_int8stem_pool2_vertical*.json`), ms (RAM):
 
 | Core | standard | vertical | compact | prepared |
 |---|---|---|---|---|
 | Cortex-M33 | 67.77 (80 KB) | 66.91 ± 0.13 (117 KB) | 60.95 ± 0.14 (200 KB) | **59.12 ± 0.14** (279 KB) |
 | Hazard3 | **57.94** (15 KB) | 71.92 ± 0.13 (53 KB) | 64.11 ± 0.14 (136 KB) | 62.66 ± 0.14 (215 KB) |
+| ESP32 (classic) | 62.52 (79 KB) | 54.68 ± 0.09 (116 KB) | **48.57 ± 0.10** (200 KB) | does not fit (51 KB over the DRAM) |
 
 On the M33 the prepared mode is the fastest (1.15× the standard engine with weights in flash, 1.07× with weights in
 RAM, 63.43 ms), for 3.5× the RAM; the Pico 2 has 520 KB. On Hazard3, with its native popcount, the standard engine
 stays the fastest and the smallest. The S3's large gain (32.33 → 9.73 ms) comes from PIE's 128-bit registers, which
-the Pico 2 does not have.
+the Pico 2 does not have. The classic ESP32 has no 128-bit registers either, and still gains: the compact mode is
+1.29× faster than the standard engine (1.14× the default mode), for 2.5× the RAM; the prepared mode's tables do not fit
+its data RAM (the linker reports 51 KB too many).
 
 ## Reproduce
 
