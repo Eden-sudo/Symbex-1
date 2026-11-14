@@ -42,7 +42,8 @@ The README follows the order of the work:
 - **Exact on every board:** ESP32, ESP32-S3 and both cores of the Raspberry Pi Pico 2 (Hazard3 RISC-V, Cortex-M33),
   1,000 windows per run, 100 % equal to the simulation in every run.
 - **Accuracy: an open case.** Bop, wider networks (INT8 widened alike) and two training fixes (clipped latent weights,
-  pooling before sign) do not close the gap to INT8 (sections 4, 5, 7); the next ideas are listed in section 7.
+  pooling before sign), a cross-validated checkpoint choice and distillation from the float network do not close the
+  gap to INT8 (sections 4, 5, 7, 8); the next ideas are listed in sections 7 and 8.
 
 ## 1. Binary vs binary: SYMBEX and ultracompactBNN on their processor
 
@@ -527,19 +528,91 @@ same engine, the binary networks tie INT8.
 
 What could be tried next, ideas not measured (each chosen on validation, the test scored once at the end):
 
-1. **A steadier choice of checkpoint.** The binary networks drop more from validation to test (69.3 → 58.5 on max)
+1. **A steadier choice of checkpoint** (measured in section 8: about one point). The binary networks drop more from validation to test (69.3 → 58.5 on max)
    than TFLite or the Random Forest. Cross-validation over the 20 training subjects instead of 4 validation people,
    and averaging the last epochs instead of picking the best of 100, would show how much of the gap is the choice.
 2. **More than one bit after the first layer.** The working hypothesis (not measured): the accelerometer's amplitude
    matters for activity recognition and a 1-bit map loses it right after the first layer; ECG's shape and RR intervals
    survive it. Two-bit activations in the first binary layer (`../../experiments/pair_bits`) would test that at a
    known cost.
-3. **Distillation from the float or INT8 network.** It gave nothing on ResNet-8 (`../../experiments/training_gap`),
+3. **Distillation from the float or INT8 network** (measured in section 8: within the spread on the test subjects). It gave nothing on ResNet-8 (`../../experiments/training_gap`),
    but it was never tried here.
 4. **Augmentation chosen for binary.** In ECG it helped INT8 and hurt the binary networks; a light version (time shift,
    small scaling) chosen on validation for both methods alike.
 5. **A network designed for binary at the same cost**, compared with INT8 resized the same way (the methodology of
    ResNet-8 and mlp_fashion), only if 1-4 leave the gap open.
+
+## 8. Checkpoint choice and distillation (November 14, validation; test scored once)
+
+**Question.** Ideas 1 and 3 of section 7: does a steadier choice of checkpoint, or distillation from the float network,
+close the gap?
+
+**What.** Two screenings, the same recipe as Adam otherwise (100 epochs, seeds 42, 43, 44), the 4 networks, both first
+layers, the test subjects not scored:
+
+- **Cross-validation inside the training subjects** (`har_train.py --cv-fold k`, `har_data.load_cv`): the 20 training
+  subjects in 5 groups of 4; each run trains on 16 and picks its checkpoint on the other 4. The 4 validation subjects
+  are scored every epoch as people outside every choice. Four ways to pick the network are compared on them: the best
+  epoch on the fold (what the earlier sections do), the epoch that maximizes the mean of the 5 fold curves, the last
+  epoch, and the weights averaged over the last 10 epochs. 120 runs.
+- **Distillation** (`--distill T --distill-alpha a`): loss (1 − a) · cross-entropy + a · T² · KL to the FP32 network
+  of the same architecture and seed (the float network `har_tflite.py` quantizes to INT8), T ∈ {2, 4},
+  a ∈ {0.5, 0.9}. 96 runs.
+
+**Result: checkpoint choice.** Accuracy on the 4 validation subjects, per seed the mean of the 5 folds, then mean ±
+sample std over 3 seeds. These networks see 16 subjects, not 20, so compare the columns with each other, not with
+the other sections:
+
+| Network | first layer | best epoch on the fold | epoch of the mean CV curve | last epoch | average of the last 10 |
+|---|---|---|---|---|---|
+| min | binary | 38.5 ± 1.1 | 37.3 ± 1.2 | 37.8 ± 1.3 | 35.5 ± 1.9 |
+| min | int8 | 41.1 ± 1.7 | 40.6 ± 2.1 | 37.7 ± 3.8 | 39.3 ± 2.5 |
+| max-10% | binary | 58.4 ± 1.2 | 59.7 ± 0.8 | 59.6 ± 0.9 | 59.4 ± 1.1 |
+| max-10% | int8 | 59.7 ± 0.8 | 59.7 ± 0.5 | 60.3 ± 0.4 | 59.5 ± 0.4 |
+| max-5% | binary | 62.7 ± 0.5 | 63.8 ± 0.6 | 64.0 ± 0.2 | 64.1 ± 0.8 |
+| max-5% | int8 | 62.6 ± 1.0 | 63.6 ± 0.8 | 63.4 ± 0.4 | 63.7 ± 1.0 |
+| max | binary | 64.7 ± 0.6 | 65.0 ± 1.3 | 65.7 ± 0.4 | 65.5 ± 0.9 |
+| max | int8 | 64.3 ± 1.2 | 65.1 ± 1.1 | 65.1 ± 1.0 | 65.3 ± 0.8 |
+
+On the three larger networks, picking the best of 100 epochs on 4 people costs about 1 point against simply taking the
+last epoch (the choice fits those 4 people); on min it is the other way round. One point is real but small: it
+explains little of the 9-point drop from validation to test of section 6.
+
+**Result: distillation.** Validation, mean ± sample std over 3 seeds; ✓ = beats Adam by more than the larger standard
+deviation (the rule of sections 4 and 7):
+
+| Network | first layer | Adam | T 2, a 0.9 | T 2, a 0.5 | T 4, a 0.9 | T 4, a 0.5 |
+|---|---|---|---|---|---|---|
+| min | binary | 44.9 ± 2.2 | 43.0 ± 1.4 | 44.4 ± 1.3 | 43.3 ± 0.8 | 41.8 ± 1.3 |
+| min | int8 | 46.1 ± 2.2 | 46.5 ± 1.5 | 46.1 ± 2.5 | 44.4 ± 2.4 | 44.5 ± 0.8 |
+| max-10% | binary | 62.8 ± 1.3 | 61.7 ± 1.7 | 62.5 ± 0.8 | 63.0 ± 0.5 | 61.9 ± 0.5 |
+| max-10% | int8 | 63.6 ± 1.7 | 64.7 ± 1.3 | 64.6 ± 2.2 | 64.4 ± 0.6 | 63.8 ± 0.8 |
+| max-5% | binary | 69.2 ± 0.6 | 69.2 ± 0.8 | 68.0 ± 0.3 | 68.9 ± 0.9 | 69.8 ± 1.3 |
+| max-5% | int8 | 67.9 ± 1.4 | 68.7 ± 0.3 | 68.4 ± 0.6 | **70.0 ± 0.4** ✓ | 69.5 ± 0.7 ✓ |
+| max | binary | 68.6 ± 0.9 | 69.5 ± 0.6 | 68.9 ± 0.6 | 69.0 ± 0.9 | 69.2 ± 0.8 |
+| max | int8 | 69.3 ± 0.9 | **70.8 ± 0.3** ✓ | 69.9 ± 0.4 | 70.6 ± 0.4 ✓ | 70.8 ± 1.7 |
+
+Distillation never helps the all-binary networks; with the int8 first layer it gains 1.5-2.1 points on the two large
+networks. **Which goes to the test subjects.** Fixed after this table and before any test score: for each network
+where some configuration passes, the passing one with the best validation mean, scored once on the test subjects
+(saved checkpoints, no training again). Each row picks the best of 4 configurations, so its validation gain is
+flattered (section 4).
+
+| Network (int8 first layer) | Adam, test | distilled, test | test per seed (42 / 43 / 44) | TFLite INT8, test |
+|---|---|---|---|---|
+| max-5%, T 4, a 0.9 | 57.0 ± 1.5 | 58.1 ± 0.4 | 57.6 / 58.2 / 58.4 | 66.2 ± 3.2 |
+| max, T 2, a 0.9 | 58.5 ± 3.2 | 58.9 ± 2.0 | 57.1 / 58.6 / 61.1 | 67.9 ± 1.1 |
+
+**Answer.** Neither closes the gap. On the test subjects distillation gives +1.1 and +0.4 points (paired by seed:
+−1.0 / +1.4 / +2.7 and +2.1 / −2.4 / +1.3), within the spread; nothing is exported. The checkpoint choice is worth
+about one point on the larger networks. Per-seed values: `results/symbex/har_cv_distill.json`.
+
+What these screenings add to the picture: on max the binary networks are about 4-5 points below INT8 on the
+validation subjects (section 5) but 9 below on the test subjects, and they drop more from validation to test than INT8 or a Random Forest
+(section 6). The noise of the checkpoint choice explains about one point of that. The rest looks like the binary
+networks carrying over worse to new people on this task (not measured directly). The ideas left from section 7
+(two-bit activations after the first layer, augmentation for amplitude and orientation, a network designed for binary)
+are the ones that address that.
 
 ## Decisions (and why)
 
@@ -599,7 +672,7 @@ SYMBEX takes any count.
 |---|---|
 | `har_data.py` | UniMiB-SHAR (AF-17) → int8 windows, the subject split → `data/har_unimib.npz` |
 | `model.py` | the four networks of Table 1, binary; first layer `binary` (1-bit weights) or `int8` |
-| `har_train.py` | trains one network, or `--all`: 4 networks × 2 first layers × 3 seeds |
+| `har_train.py` | trains one network, or `--all`: 4 networks × 2 first layers × 3 seeds; screening options `--optimizer bop`, `--clip`, `--pool-first`, `--distill`, `--cv-fold` (sections 4, 7, 8), `--no-test`, `--score-test` |
 | `har_export.py` | integers, simulation, `model_symbex.h`, the C check on the PC (EXACTNESS 100 %); `--first-bytes`: the 1-bit first layer as ±1 bytes, in `runs/<run>_bytes/` |
 | `har_gvsoc.py` | the whole networks through both libraries: `--pc` (gcc, exactness) or GVSoC (instructions, cycles per layer) |
 | `pulp/symbex_u8_pulp.c` | SYMBEX's first layer for PULP (`p.sdotusp4`), 1-bit or int8 weights |
