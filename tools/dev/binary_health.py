@@ -28,7 +28,7 @@ def checkpoints(paths):
             yield p
             continue
         for f in sorted(glob.glob(os.path.join(p, "**", "*.pth"), recursive=True)):
-            if os.sep + "runs" + os.sep in f and not os.path.basename(os.path.dirname(f)).startswith("fp32"):
+            if os.sep + "runs" + os.sep in os.path.abspath(f) and not os.path.basename(os.path.dirname(f)).startswith("fp32"):
                 yield f
 
 
