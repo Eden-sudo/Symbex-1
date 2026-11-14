@@ -14,6 +14,7 @@ docstring.
 | `stem_i8_pie_bench.py` | can the int8 stem use PIE better on the ESP32-S3? | 5.7× faster stem, now in lib_symbex (below) |
 | `stem_i8_pico_bench.py` | where does the int8 stem's time go on the Pico 2, and can it go faster? | 1.4-1.6× faster stem, now in lib_symbex (below) |
 | `dense_short_bench.py` | why is a first dense layer with few inputs (19 sensors → 64) slow? | 2.2-2.5× faster, now in lib_symbex (below) |
+| `dense_vertical_bench.py` | can a binary dense layer run vertically, 128 output neurons per PIE register? | S3: 3.3-8.7× faster on layers of 128+ neurons, slower on 10 (below) |
 
 Results in `results/`; the generated firmware projects in `runs/` (not in git).
 
@@ -144,4 +145,51 @@ cost per group, not measured).
 python dense_short_bench.py --port /dev/ttyACM0                      # ESP32-S3, the library in the work tree
 python dense_short_bench.py --port /dev/ttyACM0 --lib-rev master     # the library before
 python dense_short_bench.py --board pico2_arm --port /dev/ttyACM1    # esp32 /dev/ttyUSB0; pico2_riscv
+```
+
+## Vertical dense layers (`dense_vertical_bench.py`, Nov 13)
+
+**Question.** The vertical engine puts 128 output pixels in the lanes of a PIE register. A dense layer has no pixels:
+does it gain if the lanes are 128 output neurons instead?
+
+**What.** The roles of data and weights swap. The weights are stored transposed: one 128-bit plane per input, holding
+that input's weight in each of 128 neurons. Per input vector, the list of inputs that are 1 is built once, with the conv
+engine's 256-entry table. The planes of those inputs are added with the conv engine's own carry-save adders
+(`hs_gather`, `count_finish`), giving c = count(x AND w) for 128 neurons at once. The threshold then becomes one
+bit-sliced add per group, out = bit 12 of 2c + (2048 − count(x)) + (2048 − E). Here E = ⌈(thr − n + 2·count(w)) / 2⌉,
+kept as 12 planes per group. Only the inputs that are 1 cost anything. The kernel is checked against plain C, bit by
+bit, on every board and on the PC (`--host`).
+
+**Result.** All measurements: random weights, best of 7, exact on every board. The table gives the time of the best
+standard method (AND with PIE on the S3, XNOR + lut16 elsewhere) against the vertical one, as a speed-up. Each cell
+shows two inputs: about half of the bits 1, then 90 % of them 1.
+
+| Layer | S3 flash | S3 RAM | ESP32 | M33 | Hazard3 |
+|---|---|---|---|---|---|
+| 128 → 512 | 131.6 → **15.2 µs** (8.7×) / 25.8 (5.1×) | same | 1.55× / 0.99× | 2.09× / 1.01× | 0.93× / 0.46× |
+| 256 → 128 | 49.0 → **11.8 µs** (4.1×) / 15.0 (3.3×) | same | 1.29× / 0.83× | 1.23× / 0.80× | 0.79× / 0.50× |
+| 512 → 512 | 824 → **192 µs** (4.3×) / 353 (2.3×) | 306 → **52 µs** (5.9×) / 80 (3.8×) | 1.45× / 0.90× | 2.03× / 0.94× | 1.73× / 0.75× |
+| 1024 → 256 | 562 → **127 µs** (4.4×) / 236 (2.3×) | 273 → **58 µs** (4.7×) / 84 (3.3×) | 1.15× / 0.75× | 2.09× / 0.93× | 1.70× / 0.75× |
+| 512 → 10 | 9.3 → 20.3 µs (0.46×) / 27.2 (0.34×) | same | 0.10× / 0.06× | 0.10× / 0.06× | 0.05× / 0.03× |
+| 128 → 10 | 3.9 → 7.0 µs (0.56×) / 8.9 (0.44×) | same | 0.13× / 0.08× | 0.13× / 0.08× | 0.06× / 0.04× |
+
+**Answer.**
+
+- **On the ESP32-S3, yes:** 3.3-8.7× faster on every layer of 128 neurons or more. Small layers (≤ 32 KB of
+  weights) run at the same speed from flash and from RAM.
+- **10-neuron classifiers: no.** They fill 10 of 128 lanes, so they stay on the standard path.
+- **Without SIMD, not reliably.** On the ESP32 and the Pico 2 the portable C wins only on wide layers with half of the
+  inputs 1, and loses at 90 %. The S3's gain comes from PIE's 128-bit logic, as in the conv engine.
+
+**Future work.**
+
+- When most inputs are 1, count the zeros instead. Then c = count(w) − count(NOT x AND w), with a second set of E
+  planes, 192 bytes per 128 neurons. ESTIMATE: the 90 % case would cost about as much as the 10 % one; not measured.
+- Next step: the whole MLP on the S3 (784-128-512-10: its 128 → 512 layer). Its activation densities are not known
+  yet: they must be measured on real images.
+
+```
+python dense_vertical_bench.py --host                               # the exactness check on this PC
+python dense_vertical_bench.py --port /dev/ttyACM0                  # ESP32-S3; --weights ram
+python dense_vertical_bench.py --board esp32 --port /dev/ttyUSB0    # pico2_arm / pico2_riscv /dev/ttyACM1
 ```

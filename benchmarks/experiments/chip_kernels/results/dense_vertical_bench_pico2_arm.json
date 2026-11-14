@@ -1,0 +1,331 @@
+{
+ "board": "pico2_arm",
+ "weights": "flash",
+ "reps": "best of 7",
+ "rows": [
+  {
+   "n_in": 128,
+   "n_out": 512,
+   "ones": 56,
+   "method": "xnor",
+   "ns": 327187,
+   "us": 327.187,
+   "equal_reference": true
+  },
+  {
+   "n_in": 128,
+   "n_out": 512,
+   "ones": 56,
+   "method": "and",
+   "ns": 415687,
+   "us": 415.687,
+   "equal_reference": true
+  },
+  {
+   "n_in": 128,
+   "n_out": 512,
+   "ones": 56,
+   "method": "vertical",
+   "ns": 156593,
+   "us": 156.593,
+   "equal_reference": true
+  },
+  {
+   "n_in": 128,
+   "n_out": 512,
+   "ones": 114,
+   "method": "xnor",
+   "ns": 327250,
+   "us": 327.25,
+   "equal_reference": true
+  },
+  {
+   "n_in": 128,
+   "n_out": 512,
+   "ones": 114,
+   "method": "and",
+   "ns": 416531,
+   "us": 416.531,
+   "equal_reference": true
+  },
+  {
+   "n_in": 128,
+   "n_out": 512,
+   "ones": 114,
+   "method": "vertical",
+   "ns": 322937,
+   "us": 322.937,
+   "equal_reference": true
+  },
+  {
+   "n_in": 512,
+   "n_out": 10,
+   "ones": 262,
+   "method": "xnor",
+   "ns": 16937,
+   "us": 16.937,
+   "equal_reference": true
+  },
+  {
+   "n_in": 512,
+   "n_out": 10,
+   "ones": 262,
+   "method": "and",
+   "ns": 20218,
+   "us": 20.218,
+   "equal_reference": true
+  },
+  {
+   "n_in": 512,
+   "n_out": 10,
+   "ones": 262,
+   "method": "vertical",
+   "ns": 171312,
+   "us": 171.312,
+   "equal_reference": true
+  },
+  {
+   "n_in": 512,
+   "n_out": 10,
+   "ones": 461,
+   "method": "xnor",
+   "ns": 17000,
+   "us": 17.0,
+   "equal_reference": true
+  },
+  {
+   "n_in": 512,
+   "n_out": 10,
+   "ones": 461,
+   "method": "and",
+   "ns": 20218,
+   "us": 20.218,
+   "equal_reference": true
+  },
+  {
+   "n_in": 512,
+   "n_out": 10,
+   "ones": 461,
+   "method": "vertical",
+   "ns": 289031,
+   "us": 289.031,
+   "equal_reference": true
+  },
+  {
+   "n_in": 256,
+   "n_out": 128,
+   "ones": 131,
+   "method": "xnor",
+   "ns": 116593,
+   "us": 116.593,
+   "equal_reference": true
+  },
+  {
+   "n_in": 256,
+   "n_out": 128,
+   "ones": 131,
+   "method": "and",
+   "ns": 119000,
+   "us": 119.0,
+   "equal_reference": true
+  },
+  {
+   "n_in": 256,
+   "n_out": 128,
+   "ones": 131,
+   "method": "vertical",
+   "ns": 94593,
+   "us": 94.593,
+   "equal_reference": true
+  },
+  {
+   "n_in": 256,
+   "n_out": 128,
+   "ones": 234,
+   "method": "xnor",
+   "ns": 116531,
+   "us": 116.531,
+   "equal_reference": true
+  },
+  {
+   "n_in": 256,
+   "n_out": 128,
+   "ones": 234,
+   "method": "and",
+   "ns": 119437,
+   "us": 119.437,
+   "equal_reference": true
+  },
+  {
+   "n_in": 256,
+   "n_out": 128,
+   "ones": 234,
+   "method": "vertical",
+   "ns": 145000,
+   "us": 145.0,
+   "equal_reference": true
+  },
+  {
+   "n_in": 128,
+   "n_out": 10,
+   "ones": 58,
+   "method": "xnor",
+   "ns": 6687,
+   "us": 6.687,
+   "equal_reference": true
+  },
+  {
+   "n_in": 128,
+   "n_out": 10,
+   "ones": 58,
+   "method": "and",
+   "ns": 7531,
+   "us": 7.531,
+   "equal_reference": true
+  },
+  {
+   "n_in": 128,
+   "n_out": 10,
+   "ones": 58,
+   "method": "vertical",
+   "ns": 50906,
+   "us": 50.906,
+   "equal_reference": true
+  },
+  {
+   "n_in": 128,
+   "n_out": 10,
+   "ones": 117,
+   "method": "xnor",
+   "ns": 6625,
+   "us": 6.625,
+   "equal_reference": true
+  },
+  {
+   "n_in": 128,
+   "n_out": 10,
+   "ones": 117,
+   "method": "and",
+   "ns": 7500,
+   "us": 7.5,
+   "equal_reference": true
+  },
+  {
+   "n_in": 128,
+   "n_out": 10,
+   "ones": 117,
+   "method": "vertical",
+   "ns": 83093,
+   "us": 83.093,
+   "equal_reference": true
+  },
+  {
+   "n_in": 512,
+   "n_out": 512,
+   "ones": 261,
+   "method": "xnor",
+   "ns": 3962562,
+   "us": 3962.562,
+   "equal_reference": true
+  },
+  {
+   "n_in": 512,
+   "n_out": 512,
+   "ones": 261,
+   "method": "and",
+   "ns": 4095250,
+   "us": 4095.25,
+   "equal_reference": true
+  },
+  {
+   "n_in": 512,
+   "n_out": 512,
+   "ones": 261,
+   "method": "vertical",
+   "ns": 1948875,
+   "us": 1948.875,
+   "equal_reference": true
+  },
+  {
+   "n_in": 512,
+   "n_out": 512,
+   "ones": 463,
+   "method": "xnor",
+   "ns": 3966656,
+   "us": 3966.656,
+   "equal_reference": true
+  },
+  {
+   "n_in": 512,
+   "n_out": 512,
+   "ones": 463,
+   "method": "and",
+   "ns": 4096593,
+   "us": 4096.593,
+   "equal_reference": true
+  },
+  {
+   "n_in": 512,
+   "n_out": 512,
+   "ones": 463,
+   "method": "vertical",
+   "ns": 4236593,
+   "us": 4236.593,
+   "equal_reference": true
+  },
+  {
+   "n_in": 1024,
+   "n_out": 256,
+   "ones": 516,
+   "method": "xnor",
+   "ns": 3798968,
+   "us": 3798.968,
+   "equal_reference": true
+  },
+  {
+   "n_in": 1024,
+   "n_out": 256,
+   "ones": 516,
+   "method": "and",
+   "ns": 3871000,
+   "us": 3871.0,
+   "equal_reference": true
+  },
+  {
+   "n_in": 1024,
+   "n_out": 256,
+   "ones": 516,
+   "method": "vertical",
+   "ns": 1821343,
+   "us": 1821.343,
+   "equal_reference": true
+  },
+  {
+   "n_in": 1024,
+   "n_out": 256,
+   "ones": 917,
+   "method": "xnor",
+   "ns": 3797531,
+   "us": 3797.531,
+   "equal_reference": true
+  },
+  {
+   "n_in": 1024,
+   "n_out": 256,
+   "ones": 917,
+   "method": "and",
+   "ns": 3870343,
+   "us": 3870.343,
+   "equal_reference": true
+  },
+  {
+   "n_in": 1024,
+   "n_out": 256,
+   "ones": 917,
+   "method": "vertical",
+   "ns": 4065000,
+   "us": 4065.0,
+   "equal_reference": true
+  }
+ ]
+}
