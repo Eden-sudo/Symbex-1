@@ -36,8 +36,6 @@ def _model():
 def _validate_c_exact(header, x_u8, expected_grids):
     expected = np.asarray([boolean._grid_checksum(g) for g in expected_grids])
     equal, total, message = boolean.validate_c(header, LIB_SYMBEX, x_u8, expected)
-    if (equal, total, message) == (None, 0, "gcc not found: the C exactness check was skipped"):
-        pytest.skip(message)
     assert equal == total == len(x_u8), (equal, total, message)
     assert message == "", (equal, total, message)
 
@@ -50,9 +48,10 @@ def test_fomo_mc_export_exact(tmp_path, rng):
             if isinstance(bn, torch.nn.BatchNorm2d):
                 bn.running_mean.copy_(torch.randn(bn.num_features, generator=gen) * 3)
                 bn.running_var.copy_(torch.rand(bn.num_features, generator=gen) * 4 + 0.1)
-        # Keep the randomized statistics but put head logits on a common scale.
+        # Keep the randomized statistics but put head logits on a common scale; the quarter-step offsets keep
+        # integer dot products from tying exactly, where float32 rounding would decide the winner.
         model.head_bn.weight.copy_(torch.sqrt(model.head_bn.running_var + model.head_bn.eps))
-        model.head_bn.bias.copy_(model.head_bn.running_mean)
+        model.head_bn.bias.copy_(model.head_bn.running_mean + torch.tensor([0., .25, .5, .75]))
 
     x_u8 = rng.integers(0, 256, size=(32, 96, 96, 3), dtype=np.uint8)
     with torch.no_grad():
