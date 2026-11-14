@@ -4,7 +4,6 @@ import shlex
 import shutil
 
 import numpy as np
-import pytest
 import torch
 import torch.nn as nn
 
@@ -53,7 +52,6 @@ def _dummy_check():
     return c_build.check("unused.h", "/nonexistent", np.zeros((1, 4), np.uint8), np.zeros(1), [])
 
 
-@pytest.mark.skipif(shutil.which("gcc") is None, reason="gcc not found")
 def test_cc_wrapper_is_used_and_gives_the_same_result_as_gcc(tmp_path, monkeypatch):
     header, xu8, expected = _tiny_ternary_case(tmp_path)
     monkeypatch.delenv("CC", raising=False)
@@ -67,7 +65,6 @@ def test_cc_wrapper_is_used_and_gives_the_same_result_as_gcc(tmp_path, monkeypat
     assert any(a.endswith("main.c") for a in args)
 
 
-@pytest.mark.skipif(shutil.which("gcc") is None or shutil.which("sh") is None, reason="gcc or sh not found")
 def test_cc_with_several_words_is_split_like_a_shell(tmp_path, monkeypatch):
     header, xu8, expected = _tiny_ternary_case(tmp_path)
     wrapper, log = _wrapper(tmp_path)
@@ -90,7 +87,6 @@ def test_unsplittable_cc_returns_none(monkeypatch):
     assert "CC" in msg
 
 
-@pytest.mark.skipif(shutil.which("gcc") is None, reason="gcc not found")
 def test_without_cc_gcc_is_used_unchanged(tmp_path, monkeypatch):
     header, xu8, expected = _tiny_ternary_case(tmp_path)
     monkeypatch.delenv("CC", raising=False)
@@ -99,7 +95,6 @@ def test_without_cc_gcc_is_used_unchanged(tmp_path, monkeypatch):
     assert validate_c(header, LIB_SYMBEX, xu8, expected) == (len(xu8), len(xu8), "")
 
 
-@pytest.mark.skipif(shutil.which("cc") is None, reason="cc not found")
 def test_without_cc_falls_back_to_cc(tmp_path, monkeypatch):
     header, xu8, expected = _tiny_ternary_case(tmp_path)
     real_which = shutil.which
