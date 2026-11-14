@@ -25,7 +25,8 @@ def values(c):
 @pytest.fixture(scope='module')
 def kernel(tmp_path_factory):
     gcc = shutil.which('gcc')
-    assert gcc, 'gcc not available'
+    if gcc is None:
+        pytest.skip('gcc not available')
     tmp = tmp_path_factory.mktemp('fomo')
     probe = tmp / 'probe.c'
     probe.write_text('#include "symbex.h"\nint probe(void) { struct SymbexFomoCenter c; '
