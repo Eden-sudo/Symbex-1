@@ -75,7 +75,8 @@ otro supera en los dos ejes a la vez; "vertical" es el motor de SYMBEX para la u
 - **INT8 es la más precisa:** el modelo oficial de MLPerf Tiny llega a 87.0 % en CIFAR-10. La ResNet-8 completamente
   binaria llega a 71.3 %, y a 76.7 % con la primera capa y el clasificador en 8 bits: de 10 a 16 puntos menos.
 - **La binaria es mucho más rápida:** en el ESP32-S3, 9.70 ms contra 52.0 ms (5.4×) con el [motor vertical](docs/es/vertical.md);
-  en el ESP32 clásico, 62.5 ms contra 717.8 ms (11.5×); en la Raspberry Pi Pico 2 (Cortex-M33), 67.8 ms contra 453 ms
+  en el ESP32 clásico, 48.6 ms contra 717.8 ms (14.8×) con el modo compacto del motor vertical (200 KB de RAM; el motor
+  estándar 62.5 ms, 79 KB); en la Raspberry Pi Pico 2 (Cortex-M33), 67.8 ms contra 453 ms
   con CMSIS-NN (6.7×).
 - **Y mucho más pequeña:** 24-29 KB de flash contra 96 KB.
 
@@ -113,7 +114,7 @@ La misma red en el mismo chip, binaria contra INT8 de TFLite Micro:
 
 | Benchmark | Precisión, SYMBEX / INT8 | Velocidad | Memoria |
 |---|---|---|---|
-| [ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/), imágenes CIFAR-10 | 76.7 / 87.0 % | de 5.4× (ESP32-S3) a 11.5× (ESP32) más rápida | 29 / 96 KB de flash |
+| [ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/), imágenes CIFAR-10 | 76.7 / 87.0 % | de 5.4× (ESP32-S3) a 14.8× (ESP32) más rápida | 29 / 96 KB de flash |
 | [FOMO](benchmarks/conv2d/fomo_voc_person/), detección de personas | **F1 31.2 / 30.1 %** | 2.0× más rápido (ESP32-S3); solo SYMBEX cabe en el ESP32 | 41 / 236 KB de flash |
 | [MLP](benchmarks/mlp/mlp_fashion/), Fashion-MNIST | 87.5 / 89.8 % | 28× (flash) y 2.1× (RAM) en el ESP32-S3, 8.8× en el ESP32 | 27 / 187 KB de flash |
 | [Convoluciones 1D](benchmarks/conv1d/har_ultracompact/), reconocimiento de actividad | INT8 unos 9 puntos mejor | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 6.5-10× menos flash |
@@ -127,7 +128,7 @@ necesita 1.07-1.37× menos instrucciones en sus cuatro redes. Todas las tablas, 
 ## Lo que aprendimos
 
 1. **Lo binario rinde más donde el chip no tiene SIMD.** En el ESP32 clásico, contar bits es un orden de magnitud más
-   barato que multiplicar bytes (5.3-11.5× en redes completas). En el ESP32-S3, cuya unidad SIMD acelera INT8, el
+   barato que multiplicar bytes (5.3-14.8× en redes completas). En el ESP32-S3, cuya unidad SIMD acelera INT8, el
    motor estándar gana por 1.3-2×, y superar a la propia librería INT8 de Espressif necesitó un motor dedicado (vertical).
 2. **Lo binario no reemplaza a INT8 en clasificación fina.** En CIFAR-10 incluso la mejor receta binaria queda 10
    puntos atrás. Un [estudio](benchmarks/experiments/training_gap/) encontró que la causa es sobre todo la capacidad, no

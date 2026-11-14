@@ -50,7 +50,8 @@ flash en todas las filas menos una.
 | ResNet-8 (CIFAR-10) | ESP32 | flash | 63.3 / 717.8 ms | **11.3×** | 24.3 / 96.2 KB | 78.6 / 53.1 KB ¹ |
 | ResNet-8, receta más precisa ², motor vertical ⁴ | ESP32-S3 | flash | 9.70 / 52.0 ms | **5.36×** | 29.0 / 96.2 KB | 54.2 / 80.5 KB |
 | ResNet-8, receta más precisa ², motor estándar | ESP32-S3 | flash | 32.3 / 52.0 ms | **1.61×** | 29.0 / 96.2 KB | 15.2 / 80.5 KB |
-| ResNet-8, receta más precisa ² | ESP32 | flash | 62.5 / 717.8 ms | **11.5×** | 29.0 / 96.2 KB | 79.0 / 53.1 KB ¹ |
+| ResNet-8, receta más precisa ², motor vertical, compacto ⁵ | ESP32 | flash | 48.6 / 717.8 ms | **14.8×** | 29.0 / 96.2 KB | 199.7 / 53.1 KB ¹ |
+| ResNet-8, receta más precisa ², motor estándar | ESP32 | flash | 62.5 / 717.8 ms | **11.5×** | 29.0 / 96.2 KB | 79.0 / 53.1 KB ¹ |
 | Detección de personas FOMO (32-32-128) | ESP32-S3 | flash | 126.3 / 256.9 ms | **2.03×** | 41.2 / 236.1 KB | 79.0 / 222.6 KB |
 | Detección de personas FOMO (32-32-128) | ESP32 | flash | 226.3 ms / no cabe | **solo SYMBEX corre** | 41.2 / 236.1 KB | 142.8 KB ¹ / no cabe |
 | Reconocimiento de actividad (1D), 4 redes | ESP32-S3 | flash | 0.49-3.83 / 0.72-7.11 ms | **1.47-1.90×** | 0.7-6.5 / 7.3-42.5 KB | 1.3-2.7 / 2.7-25.5 KB |
@@ -70,6 +71,10 @@ flash en todas las filas menos una.
   bits de su unidad SIMD, que no tiene instrucción para contar bits ([El motor vertical](vertical.md)).
   La misma red exportada y los mismos bits de salida que el motor estándar, con más RAM (su bloque de trabajo). FOMO y
   las redes 1D aún se miden con el motor estándar.
+- ⁵ En el ESP32 clásico el motor vertical también gana (no tiene registros de 128 bits): 54.68 ± 0.09 ms
+  por defecto (116 KB de RAM) y 48.57 ± 0.10 ms en modo compacto (200 KB), frente a 62.52 ms del motor estándar (79 KB);
+  3 semillas, pesos en flash, exacto 100 %. El modo preparado no cabe en su DRAM
+  ([el benchmark](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md)).
 
 Las gráficas se dibujan a partir de los archivos de resultados con `python tools/dev/docs_charts.py`, así que una nueva
 medición las actualiza.
@@ -132,6 +137,7 @@ RAM cuando el modelo se carga.
 | ResNet-8, receta más precisa ², preparado | ESP32-S3 | RAM (SYMBEX: flash) | 9.8 ms (147 KB de RAM) | **6.02 ms** (217 KB de RAM) | — | SYMBEX **1.63× más rápido**, con más RAM |
 | ResNet-8 | ESP32 | flash | 712.4 ms | **63.3 ms** | 717.8 ms | SYMBEX **11.3× más rápido** |
 | ResNet-8 | ESP32 | RAM | 603.4 ms | **59.7 ms** | — | SYMBEX **10.1× más rápido** |
+| ResNet-8, receta más precisa ², motor vertical, compacto | ESP32 | flash | 712.4 ms | **48.6 ms** (200 KB de RAM) | 717.8 ms | SYMBEX **14.7× más rápido** |
 | ResNet-8, receta más precisa ² | ESP32 | flash | 712.4 ms | **62.5 ms** | 717.8 ms | SYMBEX **11.4× más rápido** |
 | ResNet-8, receta más precisa ² | ESP32 | RAM | 603.4 ms | **58.2 ms** | — | SYMBEX **10.4× más rápido** |
 | MLP 784-128-512-10 | ESP32-S3 | flash | 11.38 ms | **0.42 ms** | 11.67 ms | SYMBEX **27× más rápido** |
@@ -200,7 +206,8 @@ medir los dos en una placa sin entrenar ([Metodología](methodology.md)).
   CMSIS-NN en el M33: 453.0 ms (6.1×), 211.4 ms con el modelo en RAM; en Hazard3, con los kernels de referencia: 5702 ms.
 - **La receta más precisa** (primera capa int8 + Bop + clasificador int8 con pooling, el resto binario; en el CDT):
   76.7 ± 0.3 % en el conjunto de prueba con 29.0 KB de flash. ESP32-S3 32.3 ms (1.61×), motor vertical 9.70 / 7.07 /
-  6.02 ms (por defecto / compacto / preparado); ESP32 62.5 ms (11.5×); M33 67.8 ms (6.7×); Hazard3 57.9 ms. Lista para
+  6.02 ms (por defecto / compacto / preparado); ESP32 62.5 ms (11.5×), motor vertical 54.7 / 48.6 ms (por
+  defecto / compacto, 116 / 200 KB de RAM; el preparado no cabe); M33 67.8 ms (6.7×); Hazard3 57.9 ms. Lista para
   usar en [`reference/`](../../benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md).
 - **Memoria:** 24.3 KB de flash frente a 96.2 KB, y 15 KB de RAM frente a una arena de 53-80 KB.
 - **Precisión:** 71.3 ± 0.8 % frente a 87.0 %. Con la red dimensionada para binario (16-32-128 / 1-1-2) llega a 73.1 %
@@ -270,7 +277,7 @@ incluida (la imagen entra como un termómetro de bits); 3 semillas de entrenamie
 **La receta más precisa.** Con una primera capa int8 sobre los píxeles y un clasificador int8 con pooling (todas las
 demás capas binarias, Bop para los pesos binarios; `--variant int8stem_pool2` en el CDT), la misma ResNet-8 llega a
 **76.7 ± 0.3 %** y corre más rápido: ESP32-S3 32.3 ms (1.61×), 6.0-9.7 ms con el motor vertical; ESP32 62.5 ms
-(11.5×); Pico 2 M33 67.8 ms (6.7×), Hazard3 57.9 ms; 29 KB de flash, exacta en todas las placas. La semilla 42 está
+(11.5×), 48.6 ms con el modo compacto del motor vertical (14.8×); Pico 2 M33 67.8 ms (6.7×), Hazard3 57.9 ms; 29 KB de flash, exacta en todas las placas. La semilla 42 está
 lista para usar en [`reference/`](../../benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md).
 
 **Dimensionada para binario.** La mejor forma de una red binaria no es la de INT8: un estudio de dimensionamiento
