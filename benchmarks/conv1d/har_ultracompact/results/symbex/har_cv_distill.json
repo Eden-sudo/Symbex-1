@@ -1,0 +1,515 @@
+{
+ "note": "README section 8. cv: --cv-fold 0..4 (train on 16 training subjects, choose on the other 4), scored on the 4 validation subjects every epoch ('outside'); per seed the mean over the 5 folds of: best_on_fold (outside accuracy at the epoch with the best fold accuracy), cv_mean_epoch (outside accuracy at the epoch that maximizes the 5-fold mean curve), last_epoch, avg_last10 (weights averaged over epochs 91-100). distill: --distill T --distill-alpha a, validation per seed; test only for the configurations that passed the rule (the best validation mean among them). adam: the Adam runs of sections 1-2 (validation; test for the two scored networks). Accuracy %.",
+ "cv": {
+  "min_binary": {
+   "best_on_fold": [
+    39.26,
+    38.96,
+    37.18
+   ],
+   "cv_mean_epoch": [
+    36.03,
+    37.67,
+    38.33
+   ],
+   "last_epoch": [
+    36.33,
+    38.79,
+    38.33
+   ],
+   "avg_last10": [
+    37.36,
+    33.55,
+    35.48
+   ]
+  },
+  "min_int8": {
+   "best_on_fold": [
+    41.73,
+    39.08,
+    42.35
+   ],
+   "cv_mean_epoch": [
+    41.47,
+    38.17,
+    42.04
+   ],
+   "last_epoch": [
+    41.64,
+    34.09,
+    37.37
+   ],
+   "avg_last10": [
+    40.42,
+    36.33,
+    41.01
+   ]
+  },
+  "max10_binary": {
+   "best_on_fold": [
+    57.83,
+    57.63,
+    59.78
+   ],
+   "cv_mean_epoch": [
+    59.08,
+    59.34,
+    60.64
+   ],
+   "last_epoch": [
+    58.96,
+    59.34,
+    60.64
+   ],
+   "avg_last10": [
+    58.47,
+    60.57,
+    59.15
+   ]
+  },
+  "max10_int8": {
+   "best_on_fold": [
+    59.01,
+    59.52,
+    60.55
+   ],
+   "cv_mean_epoch": [
+    60.08,
+    59.05,
+    59.86
+   ],
+   "last_epoch": [
+    60.59,
+    60.55,
+    59.86
+   ],
+   "avg_last10": [
+    59.07,
+    59.93,
+    59.36
+   ]
+  },
+  "max5_binary": {
+   "best_on_fold": [
+    62.25,
+    63.16,
+    62.66
+   ],
+   "cv_mean_epoch": [
+    64.05,
+    63.04,
+    64.23
+   ],
+   "last_epoch": [
+    64.05,
+    63.8,
+    64.23
+   ],
+   "avg_last10": [
+    63.18,
+    64.64,
+    64.43
+   ]
+  },
+  "max5_int8": {
+   "best_on_fold": [
+    62.36,
+    63.65,
+    61.76
+   ],
+   "cv_mean_epoch": [
+    63.43,
+    64.46,
+    62.96
+   ],
+   "last_epoch": [
+    63.01,
+    63.8,
+    63.46
+   ],
+   "avg_last10": [
+    63.06,
+    64.91,
+    63.27
+   ]
+  },
+  "max_binary": {
+   "best_on_fold": [
+    64.27,
+    65.35,
+    64.59
+   ],
+   "cv_mean_epoch": [
+    63.6,
+    66.11,
+    65.36
+   ],
+   "last_epoch": [
+    65.53,
+    66.11,
+    65.42
+   ],
+   "avg_last10": [
+    64.91,
+    66.59,
+    65.12
+   ]
+  },
+  "max_int8": {
+   "best_on_fold": [
+    65.72,
+    63.4,
+    63.82
+   ],
+   "cv_mean_epoch": [
+    65.29,
+    63.93,
+    66.01
+   ],
+   "last_epoch": [
+    65.38,
+    64.01,
+    66.01
+   ],
+   "avg_last10": [
+    65.45,
+    64.42,
+    66.01
+   ]
+  }
+ },
+ "distill": {
+  "min_binary_T2.0_a0.9": {
+   "validation": [
+    44.25,
+    41.5,
+    43.32
+   ]
+  },
+  "min_binary_T2.0_a0.5": {
+   "validation": [
+    45.76,
+    44.2,
+    43.11
+   ]
+  },
+  "min_binary_T4.0_a0.9": {
+   "validation": [
+    42.8,
+    44.25,
+    42.95
+   ]
+  },
+  "min_binary_T4.0_a0.5": {
+   "validation": [
+    43.21,
+    41.29,
+    40.82
+   ]
+  },
+  "min_int8_T2.0_a0.9": {
+   "validation": [
+    47.01,
+    47.74,
+    44.88
+   ]
+  },
+  "min_int8_T2.0_a0.5": {
+   "validation": [
+    45.66,
+    48.83,
+    43.89
+   ]
+  },
+  "min_int8_T4.0_a0.9": {
+   "validation": [
+    42.95,
+    47.11,
+    43.06
+   ]
+  },
+  "min_int8_T4.0_a0.5": {
+   "validation": [
+    44.31,
+    45.4,
+    43.73
+   ]
+  },
+  "max10_binary_T2.0_a0.9": {
+   "validation": [
+    62.4,
+    59.8,
+    62.97
+   ]
+  },
+  "max10_binary_T2.0_a0.5": {
+   "validation": [
+    62.25,
+    61.78,
+    63.34
+   ]
+  },
+  "max10_binary_T4.0_a0.9": {
+   "validation": [
+    62.56,
+    63.55,
+    62.92
+   ]
+  },
+  "max10_binary_T4.0_a0.5": {
+   "validation": [
+    62.4,
+    61.62,
+    61.62
+   ]
+  },
+  "max10_int8_T2.0_a0.9": {
+   "validation": [
+    63.7,
+    64.22,
+    66.09
+   ]
+  },
+  "max10_int8_T2.0_a0.5": {
+   "validation": [
+    66.46,
+    62.19,
+    65.11
+   ]
+  },
+  "max10_int8_T4.0_a0.9": {
+   "validation": [
+    64.33,
+    63.86,
+    65.11
+   ]
+  },
+  "max10_int8_T4.0_a0.5": {
+   "validation": [
+    63.75,
+    64.59,
+    63.08
+   ]
+  },
+  "max5_binary_T2.0_a0.9": {
+   "validation": [
+    69.37,
+    68.38,
+    69.94
+   ]
+  },
+  "max5_binary_T2.0_a0.5": {
+   "validation": [
+    67.76,
+    68.33,
+    67.91
+   ]
+  },
+  "max5_binary_T4.0_a0.9": {
+   "validation": [
+    68.17,
+    69.89,
+    68.59
+   ]
+  },
+  "max5_binary_T4.0_a0.5": {
+   "validation": [
+    68.54,
+    69.68,
+    71.09
+   ]
+  },
+  "max5_int8_T2.0_a0.9": {
+   "validation": [
+    68.54,
+    69.01,
+    68.43
+   ]
+  },
+  "max5_int8_T2.0_a0.5": {
+   "validation": [
+    68.07,
+    68.07,
+    69.06
+   ]
+  },
+  "max5_int8_T4.0_a0.9": {
+   "validation": [
+    70.2,
+    69.47,
+    70.2
+   ],
+   "test": [
+    57.58,
+    58.23,
+    58.35
+   ]
+  },
+  "max5_int8_T4.0_a0.5": {
+   "validation": [
+    68.69,
+    69.99,
+    69.79
+   ]
+  },
+  "max_binary_T2.0_a0.9": {
+   "validation": [
+    69.84,
+    68.75,
+    69.84
+   ]
+  },
+  "max_binary_T2.0_a0.5": {
+   "validation": [
+    69.37,
+    68.12,
+    69.06
+   ]
+  },
+  "max_binary_T4.0_a0.9": {
+   "validation": [
+    68.07,
+    69.79,
+    69.11
+   ]
+  },
+  "max_binary_T4.0_a0.5": {
+   "validation": [
+    68.85,
+    68.59,
+    70.1
+   ]
+  },
+  "max_int8_T2.0_a0.9": {
+   "validation": [
+    71.14,
+    70.46,
+    70.72
+   ],
+   "test": [
+    57.07,
+    58.57,
+    61.05
+   ]
+  },
+  "max_int8_T2.0_a0.5": {
+   "validation": [
+    69.68,
+    69.53,
+    70.36
+   ]
+  },
+  "max_int8_T4.0_a0.9": {
+   "validation": [
+    70.98,
+    70.62,
+    70.1
+   ]
+  },
+  "max_int8_T4.0_a0.5": {
+   "validation": [
+    71.87,
+    71.76,
+    68.9
+   ]
+  }
+ },
+ "adam": {
+  "min_binary": {
+   "validation": [
+    45.81,
+    46.44,
+    42.33
+   ],
+   "test": [
+    30.46,
+    36.46,
+    31.28
+   ]
+  },
+  "min_int8": {
+   "validation": [
+    45.09,
+    48.62,
+    44.57
+   ],
+   "test": [
+    39.16,
+    37.96,
+    35.39
+   ]
+  },
+  "max10_binary": {
+   "validation": [
+    61.52,
+    62.61,
+    64.17
+   ],
+   "test": [
+    52.57,
+    56.04,
+    51.5
+   ]
+  },
+  "max10_int8": {
+   "validation": [
+    65.47,
+    63.39,
+    62.04
+   ],
+   "test": [
+    58.18,
+    57.5,
+    57.97
+   ]
+  },
+  "max5_binary": {
+   "validation": [
+    69.01,
+    68.69,
+    69.94
+   ],
+   "test": [
+    57.75,
+    56.0,
+    56.56
+   ]
+  },
+  "max5_int8": {
+   "validation": [
+    68.07,
+    69.21,
+    66.35
+   ],
+   "test": [
+    58.57,
+    56.81,
+    55.66
+   ]
+  },
+  "max_binary": {
+   "validation": [
+    69.37,
+    67.6,
+    68.85
+   ],
+   "test": [
+    59.47,
+    57.54,
+    59.43
+   ]
+  },
+  "max_int8": {
+   "validation": [
+    68.75,
+    68.69,
+    70.36
+   ],
+   "test": [
+    54.93,
+    60.93,
+    59.73
+   ]
+  }
+ }
+}

@@ -54,5 +54,16 @@ def load(split):
     return d["x"][m], d["y"][m]
 
 
+def load_cv(fold, folds=5):
+    """cross-validation inside the TRAINING subjects (README section 8): the 20 training subjects in `folds` groups of
+    consecutive ids (fold k = the k-th group); returns ((x, y) of the other training subjects, (x, y) of fold k).
+    The validation and test subjects are never in either part."""
+    d = np.load(OUT)
+    groups = np.array_split(np.sort(d["train_subjects"]), folds)
+    held, rest = groups[fold], np.concatenate([g for i, g in enumerate(groups) if i != fold])
+    m_rest, m_held = np.isin(d["subject"], rest), np.isin(d["subject"], held)
+    return (d["x"][m_rest], d["y"][m_rest]), (d["x"][m_held], d["y"][m_held])
+
+
 if __name__ == "__main__":
     main()
