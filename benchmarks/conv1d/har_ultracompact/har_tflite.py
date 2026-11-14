@@ -233,10 +233,11 @@ def main():
     for g in tf.config.list_physical_devices("GPU"):                 # share the GPU with other trainings
         tf.config.experimental.set_memory_growth(g, True)
     if args.all:
-        rows = [run_pc(a, s, args.epochs, args.lr, tf)[1] for a in TABLE1 for s in SEEDS]
-        print(f"\n    INT8 (TFLite), test accuracy, mean +- std over seeds {SEEDS}")
+        rows = [run_pc(a, s, args.epochs, args.lr, tf, not args.no_test)[1] for a in TABLE1 for s in SEEDS]
+        split = "validation" if args.no_test else "test"
+        print(f"\n    INT8 (TFLite), {split} accuracy, mean +- std over seeds {SEEDS}")
         for a in TABLE1:
-            t = [r["test"] for r in rows if r["arch"] == a]
+            t = [r[split] for r in rows if r["arch"] == a]
             print(f"    {a:<6} {np.mean(t):5.1f} +- {np.std(t, ddof=1):.1f} %   ({', '.join(f'{v:.1f}' for v in t)})")
         return
     tflite, res = run_pc(args.arch, args.seed, args.epochs, args.lr, tf, not args.no_test)
