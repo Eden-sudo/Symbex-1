@@ -1,0 +1,17 @@
+{
+ "arch": "min_w15",
+ "seed": 42,
+ "epochs": 100,
+ "model": "models/har_int8_min_w15_s42.tflite",
+ "kb": 8.0078125,
+ "best_epoch": 72,
+ "validation_float": 63.9625608921051,
+ "test": 54.24164524421594,
+ "validation": 63.338533541341654,
+ "ops": [
+  "CONV_2D",
+  "FULLY_CONNECTED",
+  "MAX_POOL_2D",
+  "RESHAPE"
+ ]
+}

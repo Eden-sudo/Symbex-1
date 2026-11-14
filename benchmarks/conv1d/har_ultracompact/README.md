@@ -363,7 +363,7 @@ The network, its layers and its speed are the same as with Adam, so nothing new 
 the Adam results above stay the reference. What may still close the gap is capacity (wider layers, sized for binary,
 with INT8 resized the same way), not the optimizer.
 
-## 5. Capacity: wider networks (November 13)
+## 5. Capacity: wider networks (November 13, test scored once)
 
 **Question.** Section 4 says the gap to INT8 is not about the optimizer. Is it capacity? Do wider layers close it?
 
@@ -397,6 +397,28 @@ was scored on the test subjects:
 - **No option is picked from the test subjects,** so the best-of-several bias of section 4 does not apply.
 - **Same architecture, same recipe:** each SYMBEX row is compared with TFLite INT8 at the same width.
 - **The × 1 rows are already scored** (sections 1-2); they are not scored again.
+
+**Test subjects (scored once).** Mean ± sample std over 3 seeds; per seed (42 / 43 / 44) in the JSONs
+(`results/symbex/har_capacity.json`, `results/tflite/tflite_pc_<arch>_s*.json`):
+
+| Network | width | SYMBEX all-binary | SYMBEX int8 first layer | TFLite INT8 | gap (best SYMBEX) |
+|---|---|---|---|---|---|
+| min | × 1 | 32.7 ± 3.3 | 37.5 ± 1.9 | 56.1 ± 5.2 | 18.6 |
+| min | × 1.5 | 39.6 ± 1.7 | 44.7 ± 2.5 | 58.8 ± 5.8 | 14.1 |
+| min | × 2 | 45.6 ± 2.1 | 45.7 ± 2.5 | 62.7 ± 3.3 | 17.0 |
+| max | × 1 | 58.8 ± 1.1 | 58.5 ± 3.2 | 67.9 ± 1.1 | 9.1 |
+| max | × 1.5 | 62.9 ± 2.5 | 58.3 ± 3.6 | 69.2 ± 2.2 | 6.3 |
+| max | × 2 | 60.0 ± 1.9 | 60.6 ± 0.4 | 69.8 ± 1.8 | 9.2 |
+
+**Answer.** Not up to × 2. Width raises SYMBEX's accuracy (min +13 points, max +2-4), but INT8 rises with it, and the
+gap at the same width stays about 14-19 points on min and 6-9 on max. Sized for binary does not reach INT8 either: the
+best wide binary network (max × 1.5, 62.9 %) is still 5 points below INT8 max × 1 (67.9 %), so there is no speed vs
+accuracy trade to measure on the chips here, and nothing is exported. As in the earlier sections, validation runs
+3-13 points above test, and max × 1.5 above max × 2 for all-binary is within that noise.
+
+On this dataset, then, the gap is neither the optimizer (section 4) nor capacity up to × 2. What is left: the
+input (3 accelerometer axes at 8 bits, the first layer's information that a 1-bit network loses early, section 3) and
+the small, varied test set. HAR is reported as an open case where binary costs accuracy.
 
 ## Decisions (and why)
 
