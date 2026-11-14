@@ -283,7 +283,9 @@ comparisons keep ESP-IDF's default.
 - **The classifier** (0.17 ms vs 0.06 ms): reading the final planes directly instead of converting them back.
 - **Small maps** (blocks 4 and 5, 8×8 and 16×16): a 128-pixel register is half used or less, and every plane list is
   used once; packing several output channels per register would fill it.
-- **The classic ESP32** (no 128-bit registers): the portable C version runs there, not measured yet.
+- **The classic ESP32** (no 128-bit registers), measured Nov 13 (ResNet-8 int8 stem + Bop + pool2, lut16, weights in
+  flash, 3 seeds, exact): standard 62.52 ms, vertical 54.68 ms (1.14×), compact 48.57 ms (1.29×, 200 KB of RAM);
+  prepared does not fit its data RAM. Still to do: a mode between compact and prepared that fits.
 
 The layer-by-layer study that led to this engine (precomputed vs run-time lists and thresholds, cold and warm cache)
 is `benchmarks/conv2d/cnn_cifar_resnet8/s3_vertical_layers.py`, with its results in `results/symbex/s3_vertical_layers*.json`.
