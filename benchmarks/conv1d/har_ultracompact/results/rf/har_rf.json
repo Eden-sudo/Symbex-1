@@ -1,0 +1,67 @@
+{
+ "grid": [
+  {
+   "trees": 100,
+   "depth": 10,
+   "validation": 59.334373374935,
+   "validation_maa": 46.02661738398406
+  },
+  {
+   "trees": 100,
+   "depth": 20,
+   "validation": 63.754550182007286,
+   "validation_maa": 51.349942830022584
+  },
+  {
+   "trees": 100,
+   "depth": null,
+   "validation": 65.47061882475299,
+   "validation_maa": 53.29101335100531
+  },
+  {
+   "trees": 300,
+   "depth": 10,
+   "validation": 59.54238169526781,
+   "validation_maa": 46.39319979272558
+  },
+  {
+   "trees": 300,
+   "depth": 20,
+   "validation": 66.14664586583463,
+   "validation_maa": 53.67723972972248
+  },
+  {
+   "trees": 300,
+   "depth": null,
+   "validation": 66.09464378575143,
+   "validation_maa": 53.24846990490295
+  }
+ ],
+ "chosen": {
+  "trees": 300,
+  "depth": 20
+ },
+ "runs": [
+  {
+   "seed": 42,
+   "validation": 66.14664586583463,
+   "validation_maa": 53.67723972972248,
+   "test": 61.78234790059983,
+   "test_maa": 51.605850231712715
+  },
+  {
+   "seed": 43,
+   "validation": 65.47061882475299,
+   "validation_maa": 53.140459182085095,
+   "test": 62.55355612682091,
+   "test_maa": 52.58250033497367
+  },
+  {
+   "seed": 44,
+   "validation": 66.14664586583463,
+   "validation_maa": 53.62605257936792,
+   "test": 62.296486718080544,
+   "test_maa": 51.892767674742004
+  }
+ ]
+}

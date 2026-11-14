@@ -420,6 +420,47 @@ On this dataset, then, the gap is neither the optimizer (section 4) nor capacity
 input (3 accelerometer axes at 8 bits, the first layer's information that a 1-bit network loses early, section 3) and
 the small, varied test set. HAR is reported as an open case where binary costs accuracy.
 
+## 6. How hard is this split? A Random Forest as a yardstick (November 13)
+
+**Question.** Daghero et al. publish 68.0 % for their max network; the same network trained here scores 58.5 % on our
+test subjects. Their split is not published. Is ours harder, or is our training of the binary networks weaker?
+
+**What.** Daghero et al. describe neither their split nor their training recipe (epochs, optimizer, subjects); they only
+say the networks come from a grid search. But they also report a Random Forest on the raw values ("RF raw", up to
+59 %), a model that needs no training recipe. Micucci et al. 2017, the data set paper, report the same model (AF-17,
+raw data, macro average accuracy, MAA): 81.48 % with subjects mixed (5-fold) and 56.53 % leaving one subject out.
+`har_rf.py` trains it on our split: trees and depth chosen on the validation subjects, then the test subjects once,
+3 seeds.
+
+**Result.** Random Forest on the raw windows (300 trees, depth 20), mean ± sample std over 3 seeds:
+
+| | validation | test (accuracy) | test (MAA) |
+|---|---|---|---|
+| this split, `har_rf.py` | 65.9 ± 0.4 | **62.2 ± 0.4** | 52.0 ± 0.5 |
+| Daghero et al., their split | | up to 59 | |
+| Micucci et al., one subject out | | | 56.53 |
+| Micucci et al., subjects mixed | | | 81.48 |
+
+**Answer.** Our split is not harder than theirs: the same kind of model scores 62.2 % here against their 59 %, and both
+are close to Micucci's subject-wise number, far from the mixed one. So Daghero et al. also held people out.
+
+This points at our training of the binary networks, not at the data:
+
+| | vs the Random Forest on the same split |
+|---|---|
+| Daghero et al., binary max (int8 first layer) | 68.0 vs 59: **+9** |
+| this README, TFLite INT8 max | 67.9 vs 62.2: +5.7 |
+| this README, SYMBEX max (all-binary / int8 first layer) | 58.8 / 58.5 vs 62.2: **−3.4 / −3.7** |
+
+A binary network below a Random Forest is a warning sign. Two cautions: their 68.0 % is one network, picked from a
+grid, perhaps on the same data it is scored on, so it may be optimistic; and the binary networks drop more from
+validation to test (69.3 → 58.5 on max) than the Random Forest (65.9 → 62.2) or TFLite (73.6 → 67.9). Picking the
+best of 100 noisy epochs on 4 validation subjects may explain part of that drop.
+
+Next (future work): the binary training recipe, compared on validation and then the test once: distillation from the
+float network, a lower learning rate and longer training, averaging checkpoints instead of picking one epoch; and
+cross-validation over the training subjects so that the choice does not rest on 4 people.
+
 ## Decisions (and why)
 
 - **Binary vs binary is the main comparison:** the question this benchmark answers is whether SYMBEX's binary layers
