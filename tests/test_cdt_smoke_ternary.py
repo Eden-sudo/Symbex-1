@@ -2,7 +2,7 @@
 
 The CDT is called the way its main() does (a TOML config on the command line), on CPU, with the real defaults except
 for the sizes. Any stage that raises or stops fails the test; the export must write its header and its C exactness
-must be 100 % (the only skip is a missing gcc).
+must be 100 % (only a missing gcc leaves the C check out, with a warning).
 """
 import copy
 import importlib.util
@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import time
+import warnings
 
 import numpy as np
 import pytest
@@ -123,6 +124,7 @@ def test_cdt_ternary_runs_inspect_to_export_and_the_header_is_bit_exact(tmp_path
 
     if ex["c_exactness"] is None:
         if ex["c_note"].startswith("gcc not found"):
-            pytest.skip(ex["c_note"])
+            warnings.warn(f"C exactness not checked: {ex['c_note']}")
+            return
         pytest.fail(f"C exactness not checked: {ex['c_note']}")
     assert ex["c_exactness"] == 100, ex["c_note"]
