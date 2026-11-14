@@ -148,8 +148,8 @@ def _fold_stem_i8(conv, bn):
 
 def fold(model, threshold=0.0):
     """the trained BoolResNet8-like model -> integer network (dict of numpy arrays). A model with head / head_bn (a
-    per-cell detector, FOMO-style) gets a per-cell head; threshold = the calibrated decision threshold on
-    (logit of class 1 - logit of class 0), folded into the integer bias of class 1"""
+    per-cell detector, FOMO-style) gets a per-cell head; a scalar threshold is folded into the bias of class 1,
+    while a sequence gives one threshold per foreground class. Without a per-cell head, threshold is ignored"""
     model = model.cpu().eval()
     kind = getattr(model, "stem_kind", "thermometer")
     if kind not in ("thermometer", "int8"):
@@ -181,9 +181,20 @@ def fold(model, threshold=0.0):
     sd = torch.sqrt(bn.running_var.detach().double() + bn.eps)
     a = (g / sd).numpy()
     c = (bn.bias.detach().double() - bn.running_mean.detach().double() * g / sd).numpy()
-    if hasattr(model, "head") and threshold:
-        c = c.copy()
-        c[1] -= threshold                                  # class 1 wins only where its margin passes the threshold
+    if hasattr(model, "head"):
+        if np.ndim(threshold) == 0:
+            if threshold:
+                c = c.copy()
+                c[1] -= threshold                          # class 1 wins only where its margin passes the threshold
+        else:
+            expected, actual = len(c) - 1, len(threshold)
+            if actual != expected:
+                raise ValueError(f"boolean export, per-cell head: threshold length {actual}, expected {expected}")
+            offsets = np.asarray(threshold, dtype=np.float64)
+            if offsets.ndim != 1:
+                raise ValueError("boolean export, per-cell head: thresholds must be one-dimensional")
+            c = c.copy()
+            c[1:] -= offsets
     for name, v in (("scale", a), ("bias", c)):
         if np.abs(v).max() * 2 ** FC_SHIFT >= 2 ** 31:
             raise ValueError(f"boolean export: the classifier {name} does not fit in int32 with {FC_SHIFT} fraction bits")
