@@ -16,7 +16,8 @@ runs/<arch>_<first>_e<epochs>_s<seed>/model.pth and train.json.
 
 --optimizer bop: the 1-bit weights (every conv but an int8 first one, and the classifier) are trained by Bop
 (tools/compiler_core/train/bop.py, the CDT's binary_optimizer = "bop"), its gamma following the learning rate's cosine;
-the rest (BatchNorms, int8 first-layer weights) stays with Adam. The run is named <arch>_<first>_e<epochs>_bop<gamma>_s<seed>.
+the rest (BatchNorms, int8 first-layer weights) stays with Adam. The run is named <arch>_<first>_e<epochs>_bop<gamma>_s<seed>
+(plus _tau<tau> when --bop-tau is not the default 1e-8, so runs with different thresholds never share a folder).
 """
 import argparse
 import copy
@@ -37,6 +38,13 @@ sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "tools"))
 from compiler_core.train.bop import Bop                                                      # noqa: E402
 
 SEEDS = (42, 43, 44)
+BOP_TAU = 1e-8                                                       # the default threshold: not written in run names
+
+
+def run_name(arch, first, epochs, seed, optimizer="adam", bop_gamma=1e-3, bop_tau=BOP_TAU):
+    """the run folder's name: the optimizer's settings are part of it, so different recipes never overwrite each other"""
+    bop = (f"_bop{bop_gamma:g}" + (f"_tau{bop_tau:g}" if bop_tau != BOP_TAU else "")) if optimizer == "bop" else ""
+    return f"{arch}_{first}_e{epochs}{bop}_s{seed}"
 
 
 def binary_weights(model):
@@ -44,7 +52,7 @@ def binary_weights(model):
     return [c.weight for i, c in enumerate(model.convs) if i > 0 or model.first == "binary"] + [model.fc.weight]
 
 
-def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=1e-3, bop_tau=1e-8, test=True):
+def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=1e-3, bop_tau=BOP_TAU, test=True):
     (xtr, ytr), (xva, yva), (xte, yte) = data
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -58,7 +66,7 @@ def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=
     else:
         opt = torch.optim.Adam(model.parameters(), lr=lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, epochs)
-    name = f"{arch}_{first}_e{epochs}" + (f"_bop{bop_gamma:g}" if bop else "") + f"_s{seed}"
+    name = run_name(arch, first, epochs, seed, optimizer, bop_gamma, bop_tau)
     out = os.path.join(HERE, "runs", name)
     best, best_state, history, t0 = -1.0, None, [], time.time()
     for ep in range(epochs):
@@ -97,12 +105,20 @@ def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=
     return best, te
 
 
-def score_test(arch, first, seed, epochs, optimizer, bop_gamma, dev, data):
+def score_test(arch, first, seed, epochs, optimizer, bop_gamma, bop_tau, dev, data):
     """scores a screening run's saved checkpoint (chosen on validation) on the test subjects, without training again,
-    and records the result in its train.json"""
-    name = f"{arch}_{first}_e{epochs}" + (f"_bop{bop_gamma:g}" if optimizer == "bop" else "") + f"_s{seed}"
+    and records the result in its train.json; refuses a run whose recorded recipe is not the one asked for"""
+    name = run_name(arch, first, epochs, seed, optimizer, bop_gamma, bop_tau)
     out = os.path.join(HERE, "runs", name)
+    if not os.path.exists(os.path.join(out, "train.json")):
+        raise SystemExit(f"{out}: no such run (train it first, with --no-test)")
     info = json.load(open(os.path.join(out, "train.json")))
+    info.setdefault("optimizer", "adam")                             # runs from before --optimizer existed
+    asked = dict(arch=arch, first=first, seed=seed, epochs=epochs, optimizer=optimizer,
+                 **(dict(bop_gamma=bop_gamma, bop_tau=bop_tau) if optimizer == "bop" else {}))
+    wrong = {k: (info.get(k), v) for k, v in asked.items() if info.get(k) != v}
+    if wrong:
+        raise SystemExit(f"{out}: recorded recipe differs from the one asked for (recorded, asked): {wrong}")
     if info.get("test") is not None:
         print(f"[*] {name}: test already scored ({info['test']:.1f}%), not scored again")
         return info["validation"], info["test"]
@@ -125,7 +141,7 @@ def main():
     ap.add_argument("--all", action="store_true", help="every architecture, both first layers, seeds 42, 43, 44")
     ap.add_argument("--optimizer", default="adam", choices=["adam", "bop"], help="for the 1-bit weights (default adam)")
     ap.add_argument("--bop-gamma", type=float, default=1e-3, help="Bop's moving-average rate (default 1e-3)")
-    ap.add_argument("--bop-tau", type=float, default=1e-8, help="Bop's flip threshold (default 1e-8)")
+    ap.add_argument("--bop-tau", type=float, default=BOP_TAU, help="Bop's flip threshold (default 1e-8)")
     ap.add_argument("--seeds", help="comma-separated seeds instead of --seed, e.g. 42,43,44")
     ap.add_argument("--no-test", action="store_true", help="do not score the test subjects (screening runs)")
     ap.add_argument("--score-test", action="store_true",
@@ -141,7 +157,7 @@ def main():
     for a, f, s in jobs:
         if args.score_test:
             results.setdefault((a, f), []).append(score_test(a, f, s, args.epochs, args.optimizer, args.bop_gamma,
-                                                             dev, data))
+                                                             args.bop_tau, dev, data))
             continue
         results.setdefault((a, f), []).append(train(a, f, s, args.epochs, args.lr, dev, data, args.optimizer,
                                                     args.bop_gamma, args.bop_tau, not args.no_test))
