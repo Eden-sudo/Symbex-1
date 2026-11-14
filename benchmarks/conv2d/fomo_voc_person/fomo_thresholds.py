@@ -6,7 +6,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from model import f1_score  # noqa: E402
+from model import f1_score
 
 
 def _real_array(value, name):
