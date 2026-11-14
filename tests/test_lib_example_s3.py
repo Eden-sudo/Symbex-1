@@ -1,6 +1,7 @@
 """The ESP32-S3 Arduino example of lib_symbex: sketch contents and a PlatformIO CI build."""
 import os
 import re
+import shutil
 import subprocess
 
 import pytest
@@ -9,7 +10,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIB = os.path.join(REPO, "Symbex1_PIO", "lib", "lib_symbex")
 EXAMPLE = os.path.join(LIB, "examples", "s3_mlp")
 SRC = os.path.join(REPO, "Symbex1_PIO", "src")
-PIO = "/Users/obed/.platformio/penv/bin/pio"
+PIO = shutil.which("pio") or os.path.expanduser("~/.platformio/penv/bin/pio")
 
 
 @pytest.mark.parametrize("name", ["model_symbex.h", "demo_input.h"])
@@ -33,8 +34,7 @@ def test_sketch_prints_computed_exactness_and_time():
 
 
 def test_example_compiles_for_esp32_s3_with_pio_ci():
-    if not os.path.exists(PIO):
-        return  # no PlatformIO installed here: nothing to compile with
+    assert os.path.isfile(PIO) and os.access(PIO, os.X_OK), "needs PlatformIO"
     r = subprocess.run(
         [PIO, "ci", "--lib", LIB, "--board", "esp32-s3-devkitc-1",
          "--project-option=platform=espressif32",
