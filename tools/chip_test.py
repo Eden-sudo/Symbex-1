@@ -28,6 +28,8 @@ Run from tools/:
 kernels, and saves it as the chip profile the CDT uses with [output] arithmetic = "auto".
 Only for headers exported with the XNOR arithmetic ([output] arithmetic = "xnor"), --first-layer chooses the
 uint8 first-layer kernel; the AND arithmetic (default) has a single one.
+--engine auto (the default): the vertical engine on the ESP32-S3 when the header carries it (fully binary conv
+networks it can run), the standard one elsewhere (--engine standard: the standard engine on the S3 too).
 --engine vertical (fully binary conv headers): the vertical engine (symbex_bool_vertical.h, docs/vertical.md), the
 fastest on the ESP32-S3; same data, same results. --engine vertical_prepared: the same engine with its plane lists
 and thresholds built once into RAM at start (optional: more RAM, faster); --engine vertical_compact: the lists
@@ -70,8 +72,10 @@ def main():
     ap.add_argument("--lib-path", default=LIB_PATH, help="lib_symbex folder (default: the one in this repository)")
     ap.add_argument("--no-upload", action="store_true", help="the firmware is already on the board")
     ap.add_argument("--no-int8", action="store_true", help="do not run the INT8 reference even if it was exported")
-    ap.add_argument("--engine", choices=["standard", "vertical", "vertical_prepared", "vertical_compact"], default="standard",
-                    help="fully binary conv headers: the standard engine or the vertical one (fastest on the ESP32-S3); "
+    ap.add_argument("--engine", choices=["auto", "standard", "vertical", "vertical_prepared", "vertical_compact"],
+                    default="auto",
+                    help="fully binary conv headers: auto (default) = vertical on the ESP32-S3 when the header carries it, "
+                         "standard elsewhere; the standard engine or the vertical one (fastest on the ESP32-S3); "
                          "vertical_prepared: its lists and thresholds prepared in RAM (more RAM, faster); "
                          "vertical_compact: lists prepared, thresholds compact (about half that RAM)")
     ap.add_argument("--code", choices=["flash", "ram"], default="flash",
@@ -88,6 +92,9 @@ def main():
     if args.kernels:
         if args.board == "uno":
             sys.exit("[X] the kernel benchmark is for the ESP32 boards (ESP-IDF); on AVR the export always uses XNOR")
+        if args.board.startswith("pico2"):
+            sys.exit("[X] the kernel benchmark is for the ESP32 boards (its firmware is ESP-IDF): no Pico 2 version yet; "
+                     "the CDT's arithmetic = \"auto\" uses AND there (--compare-arithmetic measures XNOR too)")
         try:
             profile = run_kernels(args.board, args.port, args.lib_path, os.path.join("runs", f"kernels_{args.board}"),
                                   args.popcount, upload=not args.no_upload, with_int8=args.int8,
@@ -128,6 +135,7 @@ def main():
                               engine=args.engine, code=args.code, flash_config=args.flash_config)
         res["code"] = args.code
         res["flash_config"] = args.flash_config
+        args.engine = res["engine"]                       # "auto" resolved: the file name says which engine ran
     except (RuntimeError, ValueError) as e:
         sys.exit(f"[X] {e}")
     path = os.path.join(args.folder, f"chip_{args.board}_{args.popcount}_{args.weights}_{args.first_layer}"

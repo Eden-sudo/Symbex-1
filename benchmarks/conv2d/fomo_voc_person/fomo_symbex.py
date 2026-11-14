@@ -91,7 +91,8 @@ def main():
                 os.remove(chip_json)                 # a failed measurement must not leave an older one in the summary
             if not run([sys.executable, os.path.join(TOOLS, "chip_test.py"), os.path.abspath(out_dir),
                         "--board", args.board, "--port", args.port, "--popcount", args.popcount,
-                        "--weights", args.weights, "--samples", str(args.images), "--lib-path", LIB]
+                        "--weights", args.weights, "--samples", str(args.images), "--lib-path", LIB,
+                        "--engine", "standard"]                    # the engine of its results (chip_test.py: "auto")
                        + (["--usb"] if args.usb else []), cwd=TOOLS):
                 print(f"[X] the chip measurement failed on seed {seed}")
         tr, ex = load(os.path.join(out_dir, "train.json")), load(os.path.join(out_dir, "export.json"))

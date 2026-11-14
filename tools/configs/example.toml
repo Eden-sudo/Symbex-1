@@ -186,6 +186,20 @@ upload = true         # false = the firmware is already on the board
 popcount = "lut16"    # "lut16" (64 KB table, fastest) or "swar" (no table, minimum RAM)
 weights = "flash"     # where the weights live on the board: "flash" or "ram" (faster when the model fits)
 compare_arithmetic = false   # true: also export the model with the other arithmetic and measure both on the board
+usb = false           # true: the ESP32-S3 through its native USB-Serial-JTAG port (port e.g. /dev/ttyACM0) instead
+                      # of its UART: flashing needs no BOOT button, same firmware and results
+# Engine of fully binary conv networks (method "boolean"); same data, same results, only the speed and RAM change:
+#   "auto"              (default) "vertical" on the ESP32-S3 when the network can run it, "standard" elsewhere
+#                       (with upload = false, name the engine the board's firmware already runs)
+#   "standard"          the engine of every board
+#   "vertical"          bit-sliced (docs/vertical.md), the fastest on the ESP32-S3
+#   "vertical_prepared" the same, its plane lists and thresholds built once into RAM at start (more RAM, faster)
+#   "vertical_compact"  the lists prepared, the thresholds compact (about half that RAM, a little slower)
+engine = "auto"
+code = "flash"        # where the engine's inner loops run: "flash" or "ram" (-DSYMBEX_CODE_IN_RAM; steadier timing
+                      # on the Pico 2, whose 16 KB flash cache makes it depend on the code layout)
+first_layer = "mask"  # uint8 first layer of XNOR headers (same result): "mask", "planes" (bit planes) or "simple"
+flash_config = "default"   # ESP32 boards: "fast" = flash in quad mode (QIO) and, on the S3, the largest caches
 
 [run]
 # Which stages to run, in order: inspect, estimate, train, export (export + validate), chip.
