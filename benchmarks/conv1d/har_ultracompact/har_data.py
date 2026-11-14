@@ -65,5 +65,24 @@ def load_cv(fold, folds=5):
     return (d["x"][m_rest], d["y"][m_rest]), (d["x"][m_held], d["y"][m_held])
 
 
+def augment(x, rng, degrees=20.0, scale=(0.8, 1.2)):
+    """training augmentation (README section 10), the same for every method: each window turned by a random rotation
+    (uniform axis, angle uniform in +-degrees: the phone sits a little differently in each pocket, not upside down) and
+    multiplied by one random factor in `scale` (stronger or weaker movement), then rounded and clipped to int8 as the
+    chip would read it. x: int8 N x 151 x 3; rng: numpy Generator. Returns int8 N x 151 x 3."""
+    n = len(x)
+    axis = rng.normal(size=(n, 3))
+    axis /= np.linalg.norm(axis, axis=1, keepdims=True)
+    angle = np.radians(rng.uniform(-degrees, degrees, n))
+    k = np.zeros((n, 3, 3))                                          # cross-product matrix of each axis
+    k[:, 0, 1], k[:, 0, 2], k[:, 1, 2] = -axis[:, 2], axis[:, 1], -axis[:, 0]
+    k -= k.transpose(0, 2, 1)
+    s, c = np.sin(angle)[:, None, None], np.cos(angle)[:, None, None]
+    rot = np.eye(3) + s * k + (1 - c) * (k @ k)                      # Rodrigues
+    rot *= rng.uniform(*scale, n)[:, None, None]
+    out = np.einsum("ntj,nij->nti", x.astype(np.float64), rot)
+    return np.clip(np.round(out), -128, 127).astype(np.int8)
+
+
 if __name__ == "__main__":
     main()

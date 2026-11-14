@@ -695,9 +695,84 @@ the 15 variants; max10 int8 ternary −0.1), but the gap to INT8 stays: the vari
 TFLite INT8 on the test subjects (1 bit, int8 first layer: 4.5-18.6). The best test value, max with 2 bits and a binary first layer
 (61.8 %), is still below the Random Forest (62.2 %). And the drop from validation to test is unchanged (max, 2 bits:
 70.7 → 61.8): with the fit fixed, what remains is how the networks carry over to new people. Nothing is exported:
-these activations have no C kernel yet (`har_export.py` refuses them); two bits would roughly double the work of the
-binary layers (an estimate, not measured). Next, if pursued: augmentation for new people (moderate rotation, ±20°,
+these activations had no C kernel yet; two bits would roughly double the work of the binary layers (an estimate,
+not measured; section 10 adds the kernel and measures it: 1.3-2.2×). Next, if pursued: augmentation for new people (moderate rotation, ±20°,
 and amplitude scaling 0.8-1.2, the same for INT8) on top of the two-bit networks, chosen on validation.
+
+## 10. Augmentation for new people, and the two-bit networks in C on the chips (November 14)
+
+**Question.** Section 9 fixed most of the training fit with two-bit / ternary activations, but the drop from
+validation to test stayed. (a) Does augmentation that imitates new people (another phone angle, another amplitude)
+help, for the binary networks and for INT8 alike? (b) How fast are the two-bit / ternary networks on the real chips,
+whole network, not an estimate?
+
+**What (a).** `har_data.augment`: every training window rotated about a random axis by a uniform angle in ±20° and
+scaled by one factor in 0.8-1.2, new draws every epoch (`har_train.py --augment`, `har_tflite.py --augment`), the
+same Adam / Keras recipe otherwise. Every variant of section 9 (4 networks × 2 first layers × 1 bit / 2 bits /
+ternary) and TFLite INT8, 3 seeds, validation only. **Rule, written before the results** (in the screening script):
+augmentation passes if its validation mean beats the same variant without it by more than the larger sample std;
+only passing variants are scored on the test subjects, once. Headline per network: the best validation mean among the
+variants that have a test score (without augmentation, or passing with it), against the INT8 one chosen the same way.
+
+**Result (a).** Validation, without → with augmentation (mean ± sample std, 3 seeds; ✓ = passes):
+
+| Network | first layer | 1 bit | 2 bits | ternary |
+|---|---|---|---|---|
+| min | binary | 44.9 → 43.9 | 47.9 → 50.2 ✓ | 46.4 → 45.5 |
+| min | int8 | 46.1 → 47.4 | 49.1 → **52.1 ± 0.2** ✓ | 49.6 → 49.4 |
+| max10 | binary | 62.8 → 62.3 | 68.5 → 68.2 | 66.5 → 67.1 |
+| max10 | int8 | 63.6 → 65.9 ✓ | 68.2 → 68.8 | **69.2 ± 0.7** → 67.6 |
+| max-5% | binary | 69.2 → 68.4 | 71.2 → 70.5 | 70.1 → 70.2 |
+| max-5% | int8 | 67.9 → 68.8 | 69.7 → 69.2 | **71.3 ± 1.3** → 69.4 |
+| max | binary | 68.6 → 69.4 | 70.7 → 71.6 ✓ | 71.1 → 71.7 |
+| max | int8 | 69.3 → 70.9 ✓ | **71.8 ± 0.4** → 72.1 | 71.7 → 72.1 |
+| TFLite INT8 | | min 61.1 → 60.9, max10 70.2 → 71.9 ✓, max-5% 73.7 → 74.2, max 73.6 → 73.4 | | |
+
+Test subjects of the passing variants, scored once (without → with augmentation; per seed in
+`results/symbex/har_augment.json`): min binary 2 bits 38.8 → 39.3, min int8 2 bits 44.6 → 45.7 ± 3.4, max10 int8
+1 bit 57.9 → 58.2, max binary 2 bits 61.8 → 63.0 ± 3.8, max int8 1 bit 58.5 → 64.8 ± 2.4, TFLite max10 62.4 → 64.6 ± 2.9.
+
+Headline (test, the variants chosen on validation, bold above):
+
+| Network | binary (chosen) | TFLite INT8 (chosen) | gap | gap in section 9 |
+|---|---|---|---|---|
+| min | int8 first, 2 bits, augmented: 45.7 ± 3.4 | 56.1 ± 5.2 | 10.4 | 14.6 |
+| max10 | int8 first, ternary: 57.8 ± 3.0 | augmented: 64.6 ± 2.9 | 6.8 | 4.6 |
+| max-5% | int8 first, ternary: 58.7 ± 0.7 | 66.2 ± 3.2 | 7.5 | 7.5 |
+| max | int8 first, 2 bits: 60.8 ± 4.8 | 67.9 ± 1.1 | 7.1 | 7.1 |
+
+**What (b).** A C kernel for these activations, as an experiment of this folder (`planes1d.h`, embedded by
+`acts1d.py` into `model_symbex.h`; `har_export.py` uses it for `--acts` runs). No new HAL function: a map holds two
+bit planes, and a binary layer counts each plane with lib_symbex's row functions, the same ones as the 1-bit layers
+(2 bits: plane = high / low bit, raw = 2 (n − 2 d_high) + (n − 2 d_low) from two XOR counts; ternary: plane = "+1" /
+"−1", raw from two AND counts). Each output takes the number of its ascending thresholds raw reaches (3 or 2, folded
+from BatchNorm like the 1-bit threshold); pooling = max of raw before the thresholds. First layer: the int8 one of
+section 3 (PIE on the S3). Integer simulation = PyTorch on every validation and test window (fidelity 100 %), C on the
+PC = simulation (100 %). On the chips: the four networks chosen in (a), seed 42, weights in flash, the flags of the
+1-bit rows of section 2 (`chip_test.py`), 1,000 validation windows.
+
+**Result (b).** Median ms, every run equal to the integer simulation on 100 % of the windows (in brackets: × the 1-bit
+network with the same int8 first layer; TFLite INT8 of the same architecture, flash):
+
+| Network | ESP32 | ESP32-S3 | Pico 2 M33 | Pico 2 Hazard3 |
+|---|---|---|---|---|
+| min (2 bits) | 1.06 (1.27×) · TFLite 4.17 | 0.74 (1.53×) · 0.72 | 1.19 (1.42×) · 2.71 | 0.95 (1.71×) · 17.3 |
+| max10 (ternary) | 6.51 (1.65×) · 31.2 | 2.96 (1.61×) · 2.91 | 5.43 (1.48×) · 12.0 | 4.75 (1.83×) · 226 |
+| max-5% (ternary) | 17.8 (1.80×) · 114 | 7.07 (1.88×) · 7.14 | 17.6 (1.78×) · 78.0 | 12.9 (2.16×) · 1160 |
+| max (2 bits) | 21.6 (1.66×) · 116 | 6.68 (1.74×) · 7.11 | 18.3 (1.55×) · 77.7 | 14.7 (1.71×) · 1134 |
+
+The earlier estimate (`har_acts_speed.py`, proxy networks) was close on the M33 and below the real time elsewhere;
+both are in `results/symbex/har_acts_speed.json`. On the Hazard3 the kernel uses the HAL row functions, not the inline
+two-window path of the 1-bit layers, so its numbers may be a little pessimistic there.
+
+**Answer.** (a) Augmentation helps a few variants on validation (5 binary, 1 INT8); on the test subjects most gains
+are within the spread. The chosen binary networks stay 6.8-10.4 points below TFLite INT8; min gains the most (the
+gap shrinks from 14.6 to 10.4). One unchosen variant stands out on the test subjects, max int8 first layer 1 bit
+augmented (64.8 %), but validation did not pick it, so it is not a result. (b) Two bits or ternary cost 1.3-2.2× the
+1-bit time, exact on every chip. On the ESP32, the M33 and the Hazard3 the networks stay 2.2-90× faster than TFLite
+INT8; on the S3 they tie it (0.94-1.04×), so there the extra accuracy costs the speed advantage. Next, if pursued: a
+row function that counts both planes in one pass (one load of the weights instead of two), and the vertical engine in
+1D for the S3.
 
 ## Decisions (and why)
 
@@ -757,12 +832,14 @@ SYMBEX takes any count.
 |---|---|
 | `har_data.py` | UniMiB-SHAR (AF-17) → int8 windows, the subject split → `data/har_unimib.npz` |
 | `model.py` | the four networks of Table 1, binary; first layer `binary` (1-bit weights) or `int8`; `acts` 1 / 2 / ternary (section 9, PC only) |
-| `har_train.py` | trains one network, or `--all`: 4 networks × 2 first layers × 3 seeds; screening options `--optimizer bop`, `--clip`, `--pool-first`, `--distill`, `--cv-fold`, `--acts` (sections 4, 7, 8, 9), `--no-test`, `--score-test` |
+| `har_train.py` | trains one network, or `--all`: 4 networks × 2 first layers × 3 seeds; screening options `--optimizer bop`, `--clip`, `--pool-first`, `--distill`, `--cv-fold`, `--acts`, `--augment` (sections 4, 7, 8, 9, 10), `--no-test`, `--score-test` |
 | `har_shift.py` | the diagnostic of section 9: bit shares per channel, AdaBN, phone orientation (no training) |
-| `har_export.py` | integers, simulation, `model_symbex.h`, the C check on the PC (EXACTNESS 100 %); `--first-bytes`: the 1-bit first layer as ±1 bytes, in `runs/<run>_bytes/` |
+| `har_export.py` | integers, simulation, `model_symbex.h`, the C check on the PC (EXACTNESS 100 %); `--first-bytes`: the 1-bit first layer as ±1 bytes, in `runs/<run>_bytes/`; `--acts` runs through `acts1d.py` |
+| `acts1d.py`, `planes1d.h` | section 10: the two-bit / ternary networks into integers and C (two bit planes per map on lib_symbex's HAL row functions, several thresholds per channel) |
+| `har_acts_speed.py` | section 10: the speed estimate from proxy networks, and the table of the measured two-bit / ternary networks |
 | `har_gvsoc.py` | the whole networks through both libraries: `--pc` (gcc, exactness) or GVSoC (instructions, cycles per layer) |
 | `pulp/symbex_u8_pulp.c` | SYMBEX's first layer for PULP (`p.sdotusp4`), 1-bit or int8 weights |
-| `har_tflite.py` | the same architectures in Keras → INT8 → TFLite Micro on the ESP32 / ESP32-S3 (`--weights ram`) and the Pico 2 (`--board pico2_arm`, `pico2_riscv`) |
+| `har_tflite.py` | (`--augment`: section 10) the same architectures in Keras → INT8 → TFLite Micro on the ESP32 / ESP32-S3 (`--weights ram`) and the Pico 2 (`--board pico2_arm`, `pico2_riscv`) |
 | `har_lowbit.py` | INT8 / INT4 / INT2 baselines with `tools/lowbit`, from the same float networks |
 | `ucbnn_check.py`, `ucbnn_gvsoc.py` | the single-layer checks and measurements (section "Earlier") |
 | `pulp/Dockerfile` | PULP GCC, PULP SDK and GVSoC (pulp-open) on Ubuntu 22.04 |
@@ -805,6 +882,13 @@ python chip_test.py ../benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s
 # Section 9 (validation; the passing variants scored once with --score-test)
 python har_shift.py
 python har_train.py --arch max --first int8 --acts 2 --seeds 42,43,44 --no-test
+
+# Section 10 (augmentation: validation, passing variants scored once; the two-bit networks on the chips)
+python har_train.py --arch max --first int8 --acts 2 --augment --seeds 42,43,44 --no-test
+python har_tflite.py --arch max10 --seed 42 --augment --no-test
+python har_export.py runs/max_int8_e100_a2_s42
+python ../../../tools/chip_test.py runs/max_int8_e100_a2_s42 --board s3 --port /dev/ttyACM0 --usb --popcount swar
+python har_acts_speed.py report
 
 # The quick check of section 3 (ESP32-S3)
 python ../../experiments/chip_kernels/int8_first_bench.py --port /dev/ttyACM0
