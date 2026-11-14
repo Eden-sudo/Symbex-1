@@ -62,10 +62,14 @@ def int8_weights(w):
 
 
 class BinaryHAR(nn.Module):
-    def __init__(self, arch="max", first="binary", layers=None, length=LENGTH, channels=AXES, classes=CLASSES):
+    def __init__(self, arch="max", first="binary", layers=None, length=LENGTH, channels=AXES, classes=CLASSES,
+                 pool_first=False):
         super().__init__()
         assert first in ("binary", "int8")
-        self.arch, self.first = arch, first
+        # pool_first: max pool on the BatchNorm output, then sign. sign is monotone, so sign(max(v)) = max(sign(v)):
+        # the same outputs as the OR of the bits the chip runs, but the gradient reaches the true maximum instead of
+        # one arbitrary element of a window of tied +-1 values (training only; the exported network is unchanged)
+        self.arch, self.first, self.pool_first = arch, first, pool_first
         self.convs, self.bns, self.plan = nn.ModuleList(), nn.ModuleList(), []
         cin = channels
         for layer in (ARCHS[arch] if layers is None else layers):
@@ -89,9 +93,10 @@ class BinaryHAR(nn.Module):
 
     def forward(self, x):
         x = x.float().transpose(1, 2)                                       # N x channels x length (3 x 151), int8
-        for kind, i in self.plan:
+        for j, (kind, i) in enumerate(self.plan):
             if kind == "pool":
-                x = F.max_pool1d(x, i)                                       # max of +-1 = OR of the bits
+                if not (self.pool_first and j > 0 and self.plan[j - 1][0] == "conv"):
+                    x = F.max_pool1d(x, i)                                   # max of +-1 = OR of the bits
                 continue
             w = self.convs[i].weight
             if i == 0:
@@ -99,7 +104,11 @@ class BinaryHAR(nn.Module):
                 x = x / 127                                                  # only for the scale of training
             else:
                 w = sign(w)
-            x = sign(self.bns[i](F.conv1d(x, w)))
+            x = self.bns[i](F.conv1d(x, w))
+            nxt = self.plan[j + 1] if j + 1 < len(self.plan) else None
+            if self.pool_first and nxt is not None and nxt[0] == "pool":
+                x = F.max_pool1d(x, nxt[1])                                  # pooled here, before sign (see above)
+            x = sign(x)
         return self.fc_bn(F.linear(x.flatten(1), sign(self.fc.weight)))
 
 

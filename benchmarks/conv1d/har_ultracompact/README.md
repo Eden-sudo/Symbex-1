@@ -41,6 +41,8 @@ The README follows the order of the work:
   stays faster with 1-bit weights, because its int8 weights (100 KB) do not fit the flash cache (section 3).
 - **Exact on every board:** ESP32, ESP32-S3 and both cores of the Raspberry Pi Pico 2 (Hazard3 RISC-V, Cortex-M33),
   1,000 windows per run, 100 % equal to the simulation in every run.
+- **Accuracy: an open case.** Bop, wider networks (INT8 widened alike) and two training fixes (clipped latent weights,
+  pooling before sign) do not close the gap to INT8 (sections 4, 5, 7); the next ideas are listed in section 7.
 
 ## 1. Binary vs binary: SYMBEX and ultracompactBNN on their processor
 
@@ -460,6 +462,84 @@ best of 100 noisy epochs on 4 validation subjects may explain part of that drop.
 Next (future work): the binary training recipe, compared on validation and then the test once: distillation from the
 float network, a lower learning rate and longer training, averaging checkpoints instead of picking one epoch; and
 cross-validation over the training subjects so that the choice does not rest on 4 people.
+
+## 7. Two training defects, fixed: the gap stays (November 13, validation only)
+
+**Question.** Section 6 points at the binary training. Two defects were then found in it (PR #47). Were they the cause?
+
+1. **Frozen weights.** The straight-through sign passes no gradient where a latent weight is beyond |w| > 1, and
+   nothing kept the weights inside: once Adam pushed a weight past 1, its bit never flipped again. Audit of the Adam
+   checkpoints above (`tools/dev/binary_health.py`, all-binary, 3 seeds): **33-38 %** of the 1-bit weights frozen in
+   min, 16 % in max-10%, 9 % in max-5%, 7-9 % in max.
+2. **Ties in the max pool.** The network pools ±1 bits (max = OR). In a window of tied values PyTorch sends the whole
+   gradient to the first element; 82-94 % of the pool windows here are tied, so most of the gradient through a pool
+   went to one arbitrary position.
+
+**What.** Two training fixes, neither changes the exported network:
+
+- `--clip`: the latent 1-bit weights are clamped to [-1, 1] after every step (BinaryConnect). 0 % frozen.
+- `--pool-first`: the BatchNorm output is pooled before the sign. sign is monotone, so sign(max(v)) = max(sign(v)):
+  the same outputs as the OR the chip runs (checked: identical outputs on the same weights, min and max, both first
+  layers), but the gradient reaches the true maximum.
+
+Both alone and together, the same recipe as Adam otherwise (100 epochs, seeds 42, 43, 44), the 4 networks, both first
+layers, validation only. The rule, the same as Bop's in section 4 and fixed before looking: a fix is kept only if it
+beats Adam by more than the larger of the two standard deviations; then, and only then, the test subjects are scored
+once with it.
+
+**Result.** Validation accuracy, mean ± sample std over 3 seeds (Bop γ 1e-3 from section 4 for reference; per-seed
+values and the frozen-weight audit in `results/symbex/har_training_fixes.json`):
+
+| Network | first layer | Adam | clip | pool first | clip + pool first | Bop γ 1e-3 |
+|---|---|---|---|---|---|---|
+| min | binary | 44.9 ± 2.2 | 45.6 ± 3.3 | 45.9 ± 1.4 | 45.8 ± 1.4 | 40.6 ± 3.1 |
+| min | int8 | 46.1 ± 2.2 | 44.9 ± 1.3 | 47.4 ± 0.5 | 47.3 ± 0.3 | 45.1 ± 1.0 |
+| max-10% | binary | 62.8 ± 1.3 | 62.5 ± 1.0 | 63.9 ± 0.5 | 64.1 ± 0.4 | 62.9 ± 1.1 |
+| max-10% | int8 | 63.6 ± 1.7 | 64.0 ± 0.4 | 64.2 ± 1.2 | 64.3 ± 0.6 | 63.4 ± 1.0 |
+| max-5% | binary | 69.2 ± 0.6 | 68.2 ± 0.8 | 66.8 ± 1.0 | 66.5 ± 1.0 | 69.7 ± 0.5 |
+| max-5% | int8 | 67.9 ± 1.4 | 68.7 ± 1.1 | 67.6 ± 1.6 | 66.4 ± 1.1 | 69.0 ± 2.1 |
+| max | binary | 68.6 ± 0.9 | 69.0 ± 0.9 | 69.0 ± 1.1 | 67.9 ± 0.7 | 71.3 ± 0.6 |
+| max | int8 | 69.3 ± 0.9 | 68.9 ± 1.1 | 69.4 ± 1.0 | 69.1 ± 0.1 | 68.7 ± 1.2 |
+
+**Answer.** No fix passes the rule, so the test subjects were not scored and nothing is exported. The closest is clip +
+pool first on max-10% all-binary (+1.3 against a spread of 1.3); pool first gives about +1 on the two small networks
+but −2.4 on max-5% all-binary. The fixes are correct (no frozen bits, gradient to the true maximum) and pooling first
+makes the seeds steadier on min and max-10% (smaller spreads), but they do not move the accuracy. The same holds on
+ResNet-8 (PR #47, clip: 70.93 ± 1.02 vs Adam 71.28 ± 0.81 on validation; int8 stem 75.33 ± 0.72 vs 75.63 ± 0.50). The binary networks of
+this benchmark were not held back by these two defects.
+
+### Where HAR stands: an open case
+
+Measured so far on this task, with the same architectures as INT8:
+
+| Tried | Effect on the binary networks |
+|---|---|
+| int8 first layer (section 3) | +4.5-4.8 on the two small networks, equal on the large ones |
+| Bop (section 4) | +2.7 on max all-binary (validation); on the test subjects 59.3 vs 58.8: nothing |
+| wider networks, INT8 widened the same way (section 5) | the gap stays: 14-19 points on min, 6-9 on max |
+| clipping and pooling before sign (this section) | nothing beyond the spread |
+
+The gap to INT8 is real and none of the training levers tried closes it. On the test subjects the binary max network
+(58.5-58.8 %) is still below a Random Forest on the raw windows (62.2 %, section 6). SYMBEX keeps its speed here
+(5.3-10.4× on the ESP32, 1.47-1.90× on the S3, 3.3-7.9× on the M33, exact on every board), but on this task the
+accuracy cost of going binary is high, and we report it as such: in ECG (`../ecg_mitbih`), another 1D task with the
+same engine, the binary networks tie INT8.
+
+What could be tried next, ideas not measured (each chosen on validation, the test scored once at the end):
+
+1. **A steadier choice of checkpoint.** The binary networks drop more from validation to test (69.3 → 58.5 on max)
+   than TFLite or the Random Forest. Cross-validation over the 20 training subjects instead of 4 validation people,
+   and averaging the last epochs instead of picking the best of 100, would show how much of the gap is the choice.
+2. **More than one bit after the first layer.** The working hypothesis (not measured): the accelerometer's amplitude
+   matters for activity recognition and a 1-bit map loses it right after the first layer; ECG's shape and RR intervals
+   survive it. Two-bit activations in the first binary layer (`../../experiments/pair_bits`) would test that at a
+   known cost.
+3. **Distillation from the float or INT8 network.** It gave nothing on ResNet-8 (`../../experiments/training_gap`),
+   but it was never tried here.
+4. **Augmentation chosen for binary.** In ECG it helped INT8 and hurt the binary networks; a light version (time shift,
+   small scaling) chosen on validation for both methods alike.
+5. **A network designed for binary at the same cost**, compared with INT8 resized the same way (the methodology of
+   ResNet-8 and mlp_fashion), only if 1-4 leave the gap open.
 
 ## Decisions (and why)
 

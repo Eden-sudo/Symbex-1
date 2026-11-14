@@ -18,6 +18,11 @@ runs/<arch>_<first>_e<epochs>_s<seed>/model.pth and train.json.
 (tools/compiler_core/train/bop.py, the CDT's binary_optimizer = "bop"), its gamma following the learning rate's cosine;
 the rest (BatchNorms, int8 first-layer weights) stays with Adam. The run is named <arch>_<first>_e<epochs>_bop<gamma>_s<seed>
 (plus _tau<tau> when --bop-tau is not the default 1e-8, so runs with different thresholds never share a folder).
+
+--clip / --pool-first (README section 7): training fixes that leave the exported network as it is. --clip keeps the
+latent 1-bit weights in [-1, 1] (sign's straight-through gradient is zero past 1, so without it those weights freeze);
+--pool-first pools the BatchNorm output before sign (identical outputs; the gradient reaches the true maximum). The run
+name gets _clip and / or _pf before _s<seed>.
 """
 import argparse
 import copy
@@ -41,11 +46,12 @@ SEEDS = (42, 43, 44)
 BOP_TAU = 1e-8                                                       # the default threshold: not written in run names
 
 
-def run_name(arch, first, epochs, seed, optimizer="adam", bop_gamma=1e-3, bop_tau=BOP_TAU):
+def run_name(arch, first, epochs, seed, optimizer="adam", bop_gamma=1e-3, bop_tau=BOP_TAU, clip=False,
+             pool_first=False):
     """the run folder's name: the optimizer's settings are part of it, so different recipes never overwrite each other"""
     # repr: the shortest text that reads back as the same float (0.001 -> "0.001", as the recorded runs are named)
     bop = (f"_bop{bop_gamma!r}" + (f"_tau{bop_tau!r}" if bop_tau != BOP_TAU else "")) if optimizer == "bop" else ""
-    return f"{arch}_{first}_e{epochs}{bop}_s{seed}"
+    return f"{arch}_{first}_e{epochs}{bop}{'_clip' if clip else ''}{'_pf' if pool_first else ''}_s{seed}"
 
 
 def binary_weights(model):
@@ -53,11 +59,13 @@ def binary_weights(model):
     return [c.weight for i, c in enumerate(model.convs) if i > 0 or model.first == "binary"] + [model.fc.weight]
 
 
-def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=1e-3, bop_tau=BOP_TAU, test=True):
+def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=1e-3, bop_tau=BOP_TAU, test=True,
+          clip=False, pool_first=False):
     (xtr, ytr), (xva, yva), (xte, yte) = data
     torch.manual_seed(seed)
     np.random.seed(seed)
-    model = BinaryHAR(arch, first).to(dev)
+    model = BinaryHAR(arch, first, pool_first=pool_first).to(dev)
+    clipped = binary_weights(model) if clip and optimizer == "adam" else []
     bop = None
     if optimizer == "bop":
         bits = binary_weights(model)
@@ -67,7 +75,7 @@ def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=
     else:
         opt = torch.optim.Adam(model.parameters(), lr=lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, epochs)
-    name = run_name(arch, first, epochs, seed, optimizer, bop_gamma, bop_tau)
+    name = run_name(arch, first, epochs, seed, optimizer, bop_gamma, bop_tau, clip, pool_first)
     out = os.path.join(HERE, "runs", name)
     best, best_state, history, t0 = -1.0, None, [], time.time()
     for ep in range(epochs):
@@ -83,6 +91,9 @@ def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=
                 bop.zero_grad()
             loss.backward()
             opt.step()
+            with torch.no_grad():                                    # --clip: latent 1-bit weights stay in [-1, 1],
+                for w in clipped:                                    # where sign's gradient is not zero
+                    w.clamp_(-1, 1)
             if bop:                                                  # gamma follows the learning rate's cosine
                 bop.step(opt.param_groups[0]["lr"] / lr)
         sched.step()
@@ -98,7 +109,8 @@ def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=
     os.makedirs(out, exist_ok=True)
     torch.save(best_state, os.path.join(out, "model.pth"))
     json.dump(dict(arch=arch, layers=ARCHS[arch], first=first, seed=seed, epochs=epochs, lr=lr, optimizer=optimizer,
-                   **(dict(bop_gamma=bop_gamma, bop_tau=bop_tau) if bop else {}), best_epoch=best_epoch,
+                   **(dict(bop_gamma=bop_gamma, bop_tau=bop_tau) if bop else {}), clip=clip, pool_first=pool_first,
+                   best_epoch=best_epoch,
                    validation=best, test=te, features=model.features, history=history),
               open(os.path.join(out, "train.json"), "w"), indent=1)
     print(f"[*] {name}: validation {best:.1f}% (epoch {best_epoch}) | "
@@ -106,16 +118,18 @@ def train(arch, first, seed, epochs, lr, dev, data, optimizer="adam", bop_gamma=
     return best, te
 
 
-def score_test(arch, first, seed, epochs, optimizer, bop_gamma, bop_tau, dev, data):
+def score_test(arch, first, seed, epochs, optimizer, bop_gamma, bop_tau, dev, data, clip=False, pool_first=False):
     """scores a screening run's saved checkpoint (chosen on validation) on the test subjects, without training again,
     and records the result in its train.json; refuses a run whose recorded recipe is not the one asked for"""
-    name = run_name(arch, first, epochs, seed, optimizer, bop_gamma, bop_tau)
+    name = run_name(arch, first, epochs, seed, optimizer, bop_gamma, bop_tau, clip, pool_first)
     out = os.path.join(HERE, "runs", name)
     if not os.path.exists(os.path.join(out, "train.json")):
         raise SystemExit(f"{out}: no such run (train it first, with --no-test)")
     info = json.load(open(os.path.join(out, "train.json")))
     info.setdefault("optimizer", "adam")                             # runs from before --optimizer existed
-    asked = dict(arch=arch, first=first, seed=seed, epochs=epochs, optimizer=optimizer,
+    info.setdefault("clip", False)                                   # ... and before --clip / --pool-first
+    info.setdefault("pool_first", False)
+    asked = dict(arch=arch, first=first, seed=seed, epochs=epochs, optimizer=optimizer, clip=clip, pool_first=pool_first,
                  **(dict(bop_gamma=bop_gamma, bop_tau=bop_tau) if optimizer == "bop" else {}))
     wrong = {k: (info.get(k), v) for k, v in asked.items() if info.get(k) != v}
     if wrong:
@@ -123,7 +137,7 @@ def score_test(arch, first, seed, epochs, optimizer, bop_gamma, bop_tau, dev, da
     if info.get("test") is not None:
         print(f"[*] {name}: test already scored ({info['test']:.1f}%), not scored again")
         return info["validation"], info["test"]
-    model = BinaryHAR(arch, first).to(dev)
+    model = BinaryHAR(arch, first, pool_first=pool_first).to(dev)
     model.load_state_dict(torch.load(os.path.join(out, "model.pth"), map_location=dev))
     te = evaluate(model, *data[2])
     info["test"] = te
@@ -143,6 +157,11 @@ def main():
     ap.add_argument("--optimizer", default="adam", choices=["adam", "bop"], help="for the 1-bit weights (default adam)")
     ap.add_argument("--bop-gamma", type=float, default=1e-3, help="Bop's moving-average rate (default 1e-3)")
     ap.add_argument("--bop-tau", type=float, default=BOP_TAU, help="Bop's flip threshold (default 1e-8)")
+    ap.add_argument("--clip", action="store_true",
+                    help="keep the latent 1-bit weights in [-1, 1] after every Adam step (BinaryConnect); without it, "
+                         "weights past 1 get no gradient and never flip again")
+    ap.add_argument("--pool-first", action="store_true",
+                    help="train with the max pool before sign (same outputs, gradient to the true maximum)")
     ap.add_argument("--seeds", help="comma-separated seeds instead of --seed, e.g. 42,43,44")
     ap.add_argument("--no-test", action="store_true", help="do not score the test subjects (screening runs)")
     ap.add_argument("--score-test", action="store_true",
@@ -158,10 +177,11 @@ def main():
     for a, f, s in jobs:
         if args.score_test:
             results.setdefault((a, f), []).append(score_test(a, f, s, args.epochs, args.optimizer, args.bop_gamma,
-                                                             args.bop_tau, dev, data))
+                                                             args.bop_tau, dev, data, args.clip, args.pool_first))
             continue
         results.setdefault((a, f), []).append(train(a, f, s, args.epochs, args.lr, dev, data, args.optimizer,
-                                                    args.bop_gamma, args.bop_tau, not args.no_test))
+                                                    args.bop_gamma, args.bop_tau, not args.no_test, args.clip,
+                                                    args.pool_first))
     if len(jobs) > 1:
         print(f"\n    {'network':<16}{'validation %':>16}{'test %':>16}")
         for (a, f), r in results.items():
