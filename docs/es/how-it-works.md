@@ -1,6 +1,6 @@
 # Cómo funciona SYMBEX-1
 
-*[Read in English](how-it-works.md)*
+*[Read in English](../en/how-it-works.md)*
 
 Una red neuronal pasa casi todo su tiempo calculando productos punto: multiplicar cada entrada por un peso y sumar.
 SYMBEX-1 hace que las entradas y los pesos sean de **un bit** cada uno. Entonces un producto punto no necesita ninguna
@@ -84,7 +84,7 @@ y el umbral de binarización de la capa siguiente.
   el chip multiplica bytes con SIMD (el stem solo: 1.79× en el ESP32-S3, 1.13× en el Cortex-M33 del Pico 2), pero más
   lenta donde no (0.86× en el ESP32, 0.62× en Hazard3). La ResNet-8 completa, 3 semillas, exacta en todas las placas:
   75.4 % en el conjunto de prueba contra 71.3 %, 1.10× más rápida en el S3 (35.5 contra 39.2 ms), 1.03× en el M33,
-  0.93× en el ESP32 y 0.87× en Hazard3 ([el benchmark](../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). Desde
+  0.93× en el ESP32 y 0.87× en Hazard3 ([el benchmark](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). Desde
   entonces el stem tiene sus propios kernels (PIE en el S3, uno sin búfer de ventana en los demás chips), y la misma red
   mide (semilla 42, pesos en flash) 1.22× más rápido que el termómetro en el S3 (32.1 frente a 39.2 ms), 1.12× en el
   M33 (66.4 frente a 74.6), 1.04× en el ESP32 (61.1 frente a 63.3) y 0.98× en Hazard3 (57.4 frente a 56.1). El
@@ -163,8 +163,8 @@ flowchart LR
 
 | Tema | Archivo |
 |---|---|
-| Plegar redes convolucionales (umbrales, clasificador) | [`tools/compiler_core/export/boolean.py`](../tools/compiler_core/export/boolean.py) |
-| Plegar redes densas | [`tools/compiler_core/export/dense.py`](../tools/compiler_core/export/dense.py) |
-| La convolución binaria, el termómetro, el pool OR y el atajo en C | [`layers/conv/symbex_bool.h`](../Symbex1_PIO/lib/lib_symbex/include/layers/conv/symbex_bool.h) |
-| La capa de hardware (conteo de bits por chip) | [`include/hal/symbex_hal.h`](../Symbex1_PIO/lib/lib_symbex/include/hal/symbex_hal.h) |
-| Medir los métodos de conteo de un chip | [`tools/dev/count_bench.py`](../tools/dev/count_bench.py) |
+| Plegar redes convolucionales (umbrales, clasificador) | [`tools/compiler_core/export/boolean.py`](../../tools/compiler_core/export/boolean.py) |
+| Plegar redes densas | [`tools/compiler_core/export/dense.py`](../../tools/compiler_core/export/dense.py) |
+| La convolución binaria, el termómetro, el pool OR y el atajo en C | [`layers/conv/symbex_bool.h`](../../Symbex1_PIO/lib/lib_symbex/include/layers/conv/symbex_bool.h) |
+| La capa de hardware (conteo de bits por chip) | [`include/hal/symbex_hal.h`](../../Symbex1_PIO/lib/lib_symbex/include/hal/symbex_hal.h) |
+| Medir los métodos de conteo de un chip | [`tools/dev/count_bench.py`](../../tools/dev/count_bench.py) |

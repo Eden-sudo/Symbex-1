@@ -149,7 +149,7 @@ stem (8-bit SIMD multiplies 16 bytes per instruction); the M33 has 2-way multipl
 **When to use it:** always for accuracy; on the S3 and the M33 it is also faster. On the ESP32 and Hazard3 it costs
 5-8 ms (7-15 %) for the 4 points (before Nov 6: the windowless stem below makes it faster). Shortcuts stay OR: added
 shortcuts, tried in the same study, were less accurate (69.58 % alone, 72.34 % with the int8 stem, test) and are not
-in lib_symbex. The vertical engine (`docs/vertical.md`) runs the int8 stem too (`../../experiments/training_gap`).
+in lib_symbex. The vertical engine (`docs/en/vertical.md`) runs the int8 stem too (`../../experiments/training_gap`).
 
 ## The most accurate recipe: int8 stem + Bop + pooled int8 classifier
 
@@ -191,7 +191,7 @@ most accurate network is also faster than the thermometer network on the ESP32 (
 network measured there too (3 seeds × 1,000 images, every image equal to the simulation, `results/symbex/symbex_seeds_s3_swar*_w1_int8stem_pool2*.json`): standard 32.33 ms flash / 32.32 ms RAM, vertical
 9.70 ± 0.02, compact 7.07 ± 0.02, **prepared 6.02 ± 0.01 ms** (weights in flash; 15 / 44 / 54 / 138 / 217 KB of RAM).
 
-**The vertical engine on the Pico 2** (`docs/vertical.md`), same network, 3 seeds × 1,000 images, every image equal
+**The vertical engine on the Pico 2** (`docs/en/vertical.md`), same network, 3 seeds × 1,000 images, every image equal
 to the simulation, weights in flash, lut16 (`results/symbex/symbex_seeds_pico2_*_w1_int8stem_pool2_vertical*.json`), ms (RAM):
 
 | Core | standard | vertical | compact | prepared |

@@ -1,21 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="820" height="358" viewBox="0 0 820 358" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="460" viewBox="0 0 820 460" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" role="img">
 <title>SYMBEX speed-up over TensorFlow Lite Micro INT8</title>
 <text x="16.0" y="26.0" fill="#0b0b0b" font-size="16" text-anchor="start" font-weight="bold">Latency on the chip: how many times faster than INT8</text>
 <text x="16.0" y="46.0" fill="#52514e" font-size="12" text-anchor="start" font-weight="normal">Same network, same chip, TensorFlow Lite Micro INT8; weights in flash unless noted</text>
-<line x1="230.0" y1="74" x2="230.0" y2="318" stroke="#e4e3df"/>
-<text x="230.0" y="336.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">0×</text>
-<line x1="295.0" y1="74" x2="295.0" y2="318" stroke="#e4e3df"/>
-<text x="295.0" y="336.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">5×</text>
-<line x1="360.0" y1="74" x2="360.0" y2="318" stroke="#e4e3df"/>
-<text x="360.0" y="336.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">10×</text>
-<line x1="425.0" y1="74" x2="425.0" y2="318" stroke="#e4e3df"/>
-<text x="425.0" y="336.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">15×</text>
-<line x1="490.0" y1="74" x2="490.0" y2="318" stroke="#e4e3df"/>
-<text x="490.0" y="336.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">20×</text>
-<line x1="555.0" y1="74" x2="555.0" y2="318" stroke="#e4e3df"/>
-<text x="555.0" y="336.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">25×</text>
-<line x1="620.0" y1="74" x2="620.0" y2="318" stroke="#e4e3df"/>
-<text x="620.0" y="336.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">30×</text>
+<line x1="230.0" y1="74" x2="230.0" y2="420" stroke="#e4e3df"/>
+<text x="230.0" y="438.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">0×</text>
+<line x1="295.0" y1="74" x2="295.0" y2="420" stroke="#e4e3df"/>
+<text x="295.0" y="438.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">5×</text>
+<line x1="360.0" y1="74" x2="360.0" y2="420" stroke="#e4e3df"/>
+<text x="360.0" y="438.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">10×</text>
+<line x1="425.0" y1="74" x2="425.0" y2="420" stroke="#e4e3df"/>
+<text x="425.0" y="438.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">15×</text>
+<line x1="490.0" y1="74" x2="490.0" y2="420" stroke="#e4e3df"/>
+<text x="490.0" y="438.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">20×</text>
+<line x1="555.0" y1="74" x2="555.0" y2="420" stroke="#e4e3df"/>
+<text x="555.0" y="438.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">25×</text>
+<line x1="620.0" y1="74" x2="620.0" y2="420" stroke="#e4e3df"/>
+<text x="620.0" y="438.0" fill="#52514e" font-size="11" text-anchor="middle" font-weight="normal">30×</text>
 <text x="218.0" y="101.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">MLP · ESP32-S3</text>
 <path d="M230.0,88.0 H587.3 Q591.3,88.0 591.3,92.0 V102.0 Q591.3,106.0 587.3,106.0 H230.0 Z" fill="#2a78d6"/>
 <text x="599.3" y="101.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">27.8×</text>
@@ -29,19 +29,31 @@
 <text x="352.0" y="169.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">8.77×</text>
 <text x="402.5" y="169.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">3.55 vs 31.1 ms</text>
 <text x="218.0" y="203.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">ResNet-8 · ESP32-S3</text>
-<path d="M230.0,190.0 H243.2 Q247.2,190.0 247.2,194.0 V204.0 Q247.2,208.0 243.2,208.0 H230.0 Z" fill="#2a78d6"/>
-<text x="255.2" y="203.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">1.33×</text>
-<text x="305.7" y="203.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">39.2 vs 52.0 ms</text>
-<text x="218.0" y="237.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">ResNet-8 · ESP32</text>
-<path d="M230.0,224.0 H373.5 Q377.5,224.0 377.5,228.0 V238.0 Q377.5,242.0 373.5,242.0 H230.0 Z" fill="#2a78d6"/>
-<text x="385.5" y="237.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">11.3×</text>
-<text x="436.0" y="237.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">63.2 vs 717.8 ms</text>
-<text x="218.0" y="271.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">FOMO person · ESP32-S3</text>
-<path d="M230.0,258.0 H252.4 Q256.4,258.0 256.4,262.0 V272.0 Q256.4,276.0 252.4,276.0 H230.0 Z" fill="#2a78d6"/>
-<text x="264.4" y="271.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">2.03×</text>
-<text x="314.9" y="271.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">126.3 vs 256.9 ms</text>
-<text x="218.0" y="305.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">FOMO person · ESP32</text>
-<text x="236.0" y="305.0" fill="#52514e" font-size="12" text-anchor="start" font-weight="normal">SYMBEX 226.3 ms · INT8 does not fit in the chip</text>
-<line x1="243.0" y1="74" x2="243.0" y2="318" stroke="#8f8e88" stroke-dasharray="3 3"/>
+<path d="M230.0,190.0 H291.2 Q295.2,190.0 295.2,194.0 V204.0 Q295.2,208.0 291.2,208.0 H230.0 Z" fill="#2a78d6"/>
+<text x="303.2" y="203.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">5.02×</text>
+<text x="353.7" y="203.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">10.4 vs 52.0 ms</text>
+<text x="218.0" y="237.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">ResNet-8 · ESP32-S3, standard</text>
+<path d="M230.0,224.0 H243.2 Q247.2,224.0 247.2,228.0 V238.0 Q247.2,242.0 243.2,242.0 H230.0 Z" fill="#2a78d6"/>
+<text x="255.2" y="237.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">1.33×</text>
+<text x="305.7" y="237.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">39.2 vs 52.0 ms</text>
+<text x="218.0" y="271.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">ResNet-8 · ESP32</text>
+<path d="M230.0,258.0 H373.5 Q377.5,258.0 377.5,262.0 V272.0 Q377.5,276.0 373.5,276.0 H230.0 Z" fill="#2a78d6"/>
+<text x="385.5" y="271.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">11.3×</text>
+<text x="436.0" y="271.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">63.2 vs 717.8 ms</text>
+<text x="218.0" y="305.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">FOMO person · ESP32-S3</text>
+<path d="M230.0,292.0 H252.4 Q256.4,292.0 256.4,296.0 V306.0 Q256.4,310.0 252.4,310.0 H230.0 Z" fill="#2a78d6"/>
+<text x="264.4" y="305.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">2.03×</text>
+<text x="314.9" y="305.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">126.3 vs 256.9 ms</text>
+<text x="218.0" y="339.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">FOMO person · ESP32</text>
+<text x="236.0" y="339.0" fill="#52514e" font-size="12" text-anchor="start" font-weight="normal">SYMBEX 226.3 ms · INT8 does not fit in the chip</text>
+<text x="218.0" y="373.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">ECG beats, large 1D net · ESP32-S3</text>
+<path d="M230.0,360.0 H246.7 Q250.7,360.0 250.7,364.0 V374.0 Q250.7,378.0 246.7,378.0 H230.0 Z" fill="#2a78d6"/>
+<text x="258.7" y="373.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">1.59×</text>
+<text x="309.2" y="373.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">13.5 vs 21.6 ms</text>
+<text x="218.0" y="407.0" fill="#0b0b0b" font-size="13" text-anchor="end" font-weight="normal">ECG beats, large 1D net · ESP32</text>
+<path d="M230.0,394.0 H399.8 Q403.8,394.0 403.8,398.0 V408.0 Q403.8,412.0 399.8,412.0 H230.0 Z" fill="#2a78d6"/>
+<text x="411.8" y="407.0" fill="#0b0b0b" font-size="13" text-anchor="start" font-weight="bold">13.4×</text>
+<text x="462.3" y="407.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">30.6 vs 408.5 ms</text>
+<line x1="243.0" y1="74" x2="243.0" y2="420" stroke="#8f8e88" stroke-dasharray="3 3"/>
 <text x="247.0" y="70.0" fill="#52514e" font-size="10" text-anchor="start" font-weight="normal">1× = as fast as INT8</text>
 </svg>

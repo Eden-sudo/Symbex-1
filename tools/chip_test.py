@@ -28,7 +28,7 @@ Run from tools/:
 kernels, and saves it as the chip profile the CDT uses with [output] arithmetic = "auto".
 Only for headers exported with the XNOR arithmetic ([output] arithmetic = "xnor"), --first-layer chooses the
 uint8 first-layer kernel; the AND arithmetic (default) has a single one.
---engine vertical (fully binary conv headers): the vertical engine (symbex_bool_vertical.h, docs/vertical.md), the
+--engine vertical (fully binary conv headers): the vertical engine (symbex_bool_vertical.h, docs/en/vertical.md), the
 fastest on the ESP32-S3; same data, same results. --engine vertical_prepared: the same engine with its plane lists
 and thresholds built once into RAM at start (optional: more RAM, faster); --engine vertical_compact: the lists
 prepared, the thresholds compact (about half that RAM, a little slower). --code ram runs the engine's inner loops

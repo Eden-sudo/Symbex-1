@@ -1,6 +1,6 @@
 # El motor vertical: ResNet-8 en 6.4 ms en el ESP32-S3
 
-*[Read in English](vertical.md)*
+*[Read in English](../en/vertical.md)*
 
 El motor vertical es una segunda forma de ejecutar las redes convolucionales totalmente binarias de SYMBEX-1
 (`layers/conv/symbex_bool`). Ejecuta **la misma red exportada, con los mismos datos en flash y los mismos bits de
@@ -37,7 +37,7 @@ validación, cada imagen **100 % igual a la simulación entera**. SYMBEX: media 
 - SYMBEX no se acelera con sus pesos en RAM: sus 24 KB de pesos ya se quedan en la caché de datos. La columna de RAM es
   con los pesos en flash; con ellos en RAM suma 24 KB (87.0, 175.1 y 262.4 KB).
 - La precisión no cambia con el motor (mismos bits). La ResNet-8 binaria sigue siendo menos precisa que INT8
-  (71.3 ± 0.8 % frente a 87.0 %, ver [Resultados](results.es.md)).
+  (71.3 ± 0.8 % frente a 87.0 %, ver [Resultados](results.md)).
 - Los números de ESP-DL vienen de una comprobación rápida (scripts fuera del repositorio, cuantización post-entrenamiento,
   100 entradas de test), no de un benchmark completo.
 
@@ -64,7 +64,7 @@ ahorra el tiempo de construir en el chip la lista de planos y los umbrales de ca
 ## La fórmula
 
 Una capa totalmente binaria calcula, para cada píxel de salida y canal de salida `o`
-([Cómo funciona](how-it-works.es.md), sección 2):
+([Cómo funciona](how-it-works.md), sección 2):
 
 $$\text{raw} = (\text{bits iguales}) - (\text{bits distintos}) \quad\text{sobre la parte de la ventana dentro de la imagen}, \qquad
 \text{out} = \text{raw} \ge T_o$$
