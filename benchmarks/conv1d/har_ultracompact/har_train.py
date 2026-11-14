@@ -43,7 +43,8 @@ BOP_TAU = 1e-8                                                       # the defau
 
 def run_name(arch, first, epochs, seed, optimizer="adam", bop_gamma=1e-3, bop_tau=BOP_TAU):
     """the run folder's name: the optimizer's settings are part of it, so different recipes never overwrite each other"""
-    bop = (f"_bop{bop_gamma:g}" + (f"_tau{bop_tau:g}" if bop_tau != BOP_TAU else "")) if optimizer == "bop" else ""
+    # repr: the shortest text that reads back as the same float (0.001 -> "0.001", as the recorded runs are named)
+    bop = (f"_bop{bop_gamma!r}" + (f"_tau{bop_tau!r}" if bop_tau != BOP_TAU else "")) if optimizer == "bop" else ""
     return f"{arch}_{first}_e{epochs}{bop}_s{seed}"
 
 
