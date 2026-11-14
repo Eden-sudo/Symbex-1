@@ -26,6 +26,16 @@ CLASSES = ["StandingUpFS", "StandingUpFL", "Walking", "Running", "GoingUpS", "Ju
            "SittingDown", "FallingForw", "FallingRight", "FallingBack", "HittingObstacle", "FallingWithPS",
            "FallingBackSC", "Syncope", "FallingLeft"]
 N_TEST, N_VAL = 6, 4
+# the four networks (Table 1 of Daghero et al.) by size, as the other benchmarks name theirs (ECG: s / m / l): the
+# README uses these names; the code and the file names keep Daghero's (min / max10 / max5 / max), and every --arch
+# takes both (canonical_arch: "xs" -> "min", "l_w2" -> "max_w2")
+NAMES = {"min": "xs", "max10": "s", "max5": "m", "max": "l"}
+
+
+def canonical_arch(arch):
+    base, sep, tag = arch.partition("_w")
+    old = {v: k for k, v in NAMES.items()}.get(base, base)
+    return old + sep + tag
 
 
 def main():

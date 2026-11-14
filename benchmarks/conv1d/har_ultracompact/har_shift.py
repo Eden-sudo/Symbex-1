@@ -33,7 +33,7 @@ import torch.nn.functional as F
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from har_data import OUT as DATA                                                             # noqa: E402
+from har_data import OUT as DATA, canonical_arch                                                             # noqa: E402
 from model import ARCHS, TABLE1, BinaryHAR, int8_weights, sign                               # noqa: E402
 
 SEEDS = (42, 43, 44)
@@ -179,7 +179,8 @@ def mean_sd(v):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--arch", choices=list(ARCHS), help="one architecture (default: the four of Table 1)")
+    ap.add_argument("--arch", choices=list(ARCHS), type=canonical_arch,
+                    help="one architecture, min / max10 / max5 / max or xs / s / m / l (default: the four of Table 1)")
     ap.add_argument("--seeds", default="42,43,44")
     ap.add_argument("--out", default=os.path.join(HERE, "results", "symbex", "har_shift.json"))
     args = ap.parse_args()

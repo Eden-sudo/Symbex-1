@@ -39,7 +39,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(1, os.path.join(HERE, "..", "..", "mlp", "mlp_fashion"))
-from har_data import augment, load                                                                  # noqa: E402
+from har_data import augment, canonical_arch, load                                                                  # noqa: E402
 
 ARCHS = {                                  # the same as model.ARCHS (kept here: model.py imports torch)
     "min":    [("conv", 4, 7), ("conv", 4, 7), ("pool", 4), ("conv", 4, 7), ("pool", 4)],
@@ -220,7 +220,8 @@ def run_board(args, tflite, ops):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--arch", choices=sorted(ARCHS), default="max")
+    ap.add_argument("--arch", choices=sorted(ARCHS), default="max", type=canonical_arch,
+                    help="network: min / max10 / max5 / max (or xs / s / m / l), _w15 / _w2 = wider")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--all", action="store_true", help="every architecture x seeds 42, 43, 44 (PC only)")
     ap.add_argument("--epochs", type=int, default=100)

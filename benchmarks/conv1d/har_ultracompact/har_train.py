@@ -49,7 +49,7 @@ import torch.nn.functional as F
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from har_data import augment, load, load_cv                                                                   # noqa: E402
+from har_data import augment, canonical_arch, load, load_cv                                                                   # noqa: E402
 from model import ACTS, ARCHS, TABLE1, BinaryHAR, evaluate                                         # noqa: E402
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "tools"))
 from compiler_core.train.bop import Bop                                                      # noqa: E402
@@ -209,7 +209,8 @@ def score_test(arch, first, seed, epochs, optimizer, bop_gamma, bop_tau, dev, da
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--arch", default="max", choices=list(ARCHS))
+    ap.add_argument("--arch", default="max", type=canonical_arch, choices=list(ARCHS),
+                    help="network: min / max10 / max5 / max (or xs / s / m / l), _w15 / _w2 = wider")
     ap.add_argument("--first", default="binary", choices=["binary", "int8"])
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--epochs", type=int, default=100)
