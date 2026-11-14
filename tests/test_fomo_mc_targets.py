@@ -5,7 +5,6 @@ import os
 
 import numpy as np
 import pytest
-from PIL import Image
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FOMO_DIR = os.path.join(REPO, "benchmarks", "conv2d", "fomo_voc_person")
@@ -36,6 +35,7 @@ def test_constants(fomo):
 
 
 def test_person_compatibility_with_convert(fomo, tmp_path, monkeypatch):
+    Image = pytest.importorskip('PIL.Image')
     data = load("fomo_data_compat", "fomo_data.py")
     objects = [obj('person', 10, 20), obj('person', 12, 21), obj('person', 50, 30, difficult='1'),
                obj('cat', 100, 40), obj('person', 140, 70)]
