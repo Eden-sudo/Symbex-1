@@ -21,7 +21,8 @@ scored, runs/..._f<k>/; --cv: every fold, then the balanced accuracy of the pool
 runs/cv/<name>.json): the recipe is chosen on it, never on the test set. --rr: the ECG plus the ecg_data.rr_channels
 rhythm channels as the input (runs/..._rr). --weight-power p: the class weights ** p (ecg_data.class_weights, runs/..._wp<p>);
 --select f1: the checkpoint of the best validation macro F1 instead of balanced accuracy (runs/..._self1); the
-cross-validation scores both.
+cross-validation scores both. --clip: the latent 1-bit weights clamped to [-1, 1] after every Adam step (runs/..._clip);
+train.json records binary_health (% frozen at |w| > 1, % flipped) either way.
 """
 import argparse
 import copy
@@ -37,9 +38,11 @@ import torch.nn.functional as F
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(1, os.path.join(HERE, "..", "har_ultracompact"))
+sys.path.insert(2, os.path.join(HERE, "..", "..", "..", "tools"))
 from ecg_data import (ARCHS, CLASSES, CV_FOLDS, RR_CHANNELS, WINDOW, augment, class_weights, load,  # noqa: E402
                       recipe_tag, scores)
 from model import BinaryHAR                                                                  # noqa: E402
+from compiler_core.train.health import binary_health, clip_latent, warn                     # noqa: E402
 
 SEEDS = (42, 43, 44)
 
@@ -55,12 +58,13 @@ def predict(model, x, batch=4096):
     return torch.cat([model(x[i:i + batch]).argmax(1) for i in range(0, len(x), batch)]).cpu().numpy()
 
 
-def run_name(arch, first, epochs, seed, aug=False, fold=None, rr=False, wp=1.0, select="balanced"):
+def run_name(arch, first, epochs, seed, aug=False, fold=None, rr=False, wp=1.0, select="balanced", clip=False):
     return (f"{arch}_{first}_e{epochs}_s{seed}" + ("_aug" if aug else "") + ("_rr" if rr else "")
-            + recipe_tag(wp, select) + ("" if fold is None else f"_f{fold}"))
+            + recipe_tag(wp, select) + ("_clip" if clip else "") + ("" if fold is None else f"_f{fold}"))
 
 
-def train(arch, first, seed, epochs, lr, dev, data, aug=False, fold=None, rr=False, wp=1.0, select="balanced"):
+def train(arch, first, seed, epochs, lr, dev, data, aug=False, fold=None, rr=False, wp=1.0, select="balanced",
+          clip=False):
     (xtr, ytr), (xva, yva), (xte, yte) = data
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -69,7 +73,8 @@ def train(arch, first, seed, epochs, lr, dev, data, aug=False, fold=None, rr=Fal
     weight = torch.as_tensor(class_weights(ytr.cpu().numpy(), wp), dtype=torch.float32, device=dev)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, epochs)
-    name = run_name(arch, first, epochs, seed, aug, fold, rr, wp, select)
+    name = run_name(arch, first, epochs, seed, aug, fold, rr, wp, select, clip)
+    bits0 = [w.detach().clone() for w in model.one_bit_weights()]
     out = os.path.join(HERE, "runs", name)
     best, best_state, history, t0 = -1.0, None, [], time.time()
     yva_np, yte_np = yva.cpu().numpy(), yte.cpu().numpy()
@@ -86,6 +91,8 @@ def train(arch, first, seed, epochs, lr, dev, data, aug=False, fold=None, rr=Fal
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
+            if clip:
+                clip_latent(model.one_bit_weights())
         sched.step()
         va = scores(yva_np, predict(model, xva))
         if va[select] > best:
@@ -95,13 +102,15 @@ def train(arch, first, seed, epochs, lr, dev, data, aug=False, fold=None, rr=Fal
             print(f"    {name} | epoch {ep + 1:3d}/{epochs} | validation balanced {va['balanced']:5.1f}% "
                   f"F1 {va['f1']:5.1f}% (best {select} {best:5.1f}% at {best_epoch}) | {(time.time() - t0) / 60:.1f} min")
     model.load_state_dict(best_state)
+    health = binary_health(model.one_bit_weights(), bits0)
+    warn(health, name)
     p_va = predict(model, xva)
     va = scores(yva_np, p_va)
     te = None if fold is not None else scores(yte_np, predict(model, xte))     # folds never look at the test set
     os.makedirs(out, exist_ok=True)
     torch.save(best_state, os.path.join(out, "model.pth"))
     json.dump(dict(arch=arch, layers=ARCHS[arch], first=first, seed=seed, epochs=epochs, lr=lr, augment=aug, fold=fold,
-                   rr=rr, weight_power=wp, select=select,
+                   rr=rr, weight_power=wp, select=select, clip=clip, binary_health=health,
                    best_epoch=best_epoch, validation=va, test=te, features=model.features, history=history,
                    validation_pred=p_va.tolist() if fold is not None else None),
               open(os.path.join(out, "train.json"), "w"), indent=1)
@@ -138,10 +147,10 @@ def cross_validate(args, dev):
     folds = range(CV_FOLDS) if args.fold is None else [args.fold]
     for k in folds:
         path = os.path.join(HERE, "runs", run_name(args.arch, args.first, args.epochs, args.seed, args.augment, k,
-                                                    args.rr, args.weight_power, args.select), "train.json")
+                                                    args.rr, args.weight_power, args.select, args.clip), "train.json")
         if not fold_is_current(path, args.lr):
             train(args.arch, args.first, args.seed, args.epochs, args.lr, dev, to_dev(k, dev, args.rr), args.augment,
-                  k, args.rr, args.weight_power, args.select)
+                  k, args.rr, args.weight_power, args.select, args.clip)
         info = json.load(open(path))
         ys.append(load("validation", k)[1])
         ps.append(np.array(info["validation_pred"]))
@@ -151,11 +160,11 @@ def cross_validate(args, dev):
         return
     pooled = scores(np.concatenate(ys), np.concatenate(ps))
     name = run_name(args.arch, args.first, args.epochs, args.seed, args.augment, rr=args.rr, wp=args.weight_power,
-                    select=args.select)
+                    select=args.select, clip=args.clip)
     os.makedirs(os.path.join(HERE, "runs", "cv"), exist_ok=True)
     out = os.path.join(HERE, "runs", "cv", name + ".json")
     json.dump(dict(name=name, arch=args.arch, first=args.first, seed=args.seed, epochs=args.epochs, augment=args.augment,
-                   rr=args.rr, weight_power=args.weight_power, select=args.select,
+                   rr=args.rr, weight_power=args.weight_power, select=args.select, clip=args.clip,
                    folds=list(folds), fold_balanced=per_fold, fold_f1=per_fold_f1, pooled=pooled),
               open(out, "w"), indent=1)
     print(f"[*] CV {name}: pooled out-of-fold balanced {pooled['balanced']:.1f}% F1 {pooled['f1']:.1f}%, folds "
@@ -179,6 +188,9 @@ def main():
                     help="class weights = inverse frequency ** this (1 default, 0.5 square root, 0 none)")
     ap.add_argument("--select", choices=["balanced", "f1"], default="balanced",
                     help="validation metric of the checkpoint: balanced accuracy (default) or macro F1")
+    ap.add_argument("--clip", action="store_true",
+                    help="clamp the latent 1-bit weights to [-1, 1] after every step (runs/..._clip): without it a "
+                         "weight past 1 freezes (tools/compiler_core/train/health.py)")
     args = ap.parse_args()
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if args.cv:
@@ -189,7 +201,8 @@ def main():
     results = {}
     for a, f, s in jobs:
         results.setdefault((a, f), []).append(train(a, f, s, args.epochs, args.lr, dev, data, args.augment,
-                                                    rr=args.rr, wp=args.weight_power, select=args.select))
+                                                    rr=args.rr, wp=args.weight_power, select=args.select,
+                                                    clip=args.clip))
     if len(jobs) > 1:
         print(f"\n    {'network':<12}{'val balanced %':>18}{'test balanced %':>18}{'test accuracy %':>18}")
         for (a, f), r in results.items():

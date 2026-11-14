@@ -8,6 +8,7 @@ Daghero et al., "Ultra-compact Binary Neural Networks for Human Activity Recogni
                                 the same layers on another data set (benchmarks/conv1d/ecg_mitbih): layers in the
                                 format of ARCHS, the input N x length x channels, `classes` outputs
     evaluate(model, x, y)       accuracy in %
+    model.one_bit_weights()     the latent weights of the 1-bit layers (to clip / check, compiler_core/train/health.py)
 
 Every layer as in their paper and library:
     first conv  8-bit input (the int8 accelerometer samples), its output binarized (BatchNorm + sign). Its weights
@@ -82,6 +83,11 @@ class BinaryHAR(nn.Module):
     def first_weights(self):
         """the integer weights (-127..127) of the first conv when first = "int8" (the exporter folds them)"""
         return torch.round(int8_weights(self.convs[0].weight))
+
+    def one_bit_weights(self):
+        """the latent weights behind the 1-bit ones (every conv but an int8 first one, and the linear layer): what
+        tools/compiler_core/train/health.py clips and checks"""
+        return [c.weight for j, c in enumerate(self.convs) if j or self.first == "binary"] + [self.fc.weight]
 
     def forward(self, x):
         x = x.float().transpose(1, 2)                                       # N x channels x length (3 x 151), int8

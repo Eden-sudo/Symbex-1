@@ -83,7 +83,7 @@ DEFAULTS = {
                "search_epochs": 5, "widths": [1.0, 1.5, 2.0]},
     "training": {"epochs": 150, "distill": True, "temperature": 4.0, "alpha": 0.85, "learning_rate": 1e-3,
                  "batch_size": 256, "checkpoint": "last", "seed": 42, "data_on_gpu": False, "compile": "",
-                 "binary_optimizer": "adam", "bop_gamma": 1e-4, "bop_tau": 1e-8},
+                 "binary_optimizer": "adam", "bop_gamma": 1e-4, "bop_tau": 1e-8, "clip_latent": False},
     "output": {"directory": "", "verbose": True, "lib_path": "../Symbex1_PIO/lib/lib_symbex",
                "validation_samples": 2000, "arithmetic": "auto", "int8_reference": False},
     "chip": {"board": "", "port": "/dev/ttyUSB0", "baud": 921600, "samples": 1000, "upload": True,
