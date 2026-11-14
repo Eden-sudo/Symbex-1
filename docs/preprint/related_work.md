@@ -135,12 +135,12 @@ counter. What was found:
 
 | Piece | Prior work | Verdict |
 |---|---|---|
-| Bit-slicing itself (one bit of many values per word, Boolean circuits) | Biham 1997, bitsliced DES (from memory: verify the citation) | known, cite |
+| Bit-slicing itself (one bit of many values per word, Boolean circuits) | E. Biham, "A Fast New DES Implementation in Software", FSE 1997, LNCS 1267 (dblp conf/fse/Biham97a; the word "bitslice" is M. Kwan's, 1997): the CPU as 64 one-bit processors | known, cite |
 | Counting with carry-save adders over SIMD words (Harley-Seal) | Muła, Kurz, Lemire, "Faster Population Counts Using AVX2 Instructions" (arXiv 1611.07612) | known, cite |
 | **One counter per bit position ("vertical" / positional popcount), bit-sliced accumulators** | Klarqvist, Muła, Lemire, "Efficient Computation of Positional Population Counts Using SIMD Instructions" (arXiv 1911.02696, CCPE 2021); Clausecker, Lemire, Schintke, "Faster Positional-Population Counts for AVX2, AVX-512, and ASIMD" (arXiv 2412.16370, CCPE 2025, doi 10.1002/cpe.70435) | **known: this is our counting core.** Our lanes = their bit positions |
 | Bit-sliced neural network arithmetic on a small MCU | R. Singh, "Design and Evaluation of Bit-sliced Neural Network and Post-Quantum Implementations", M.S. thesis, WPI 2022 (advisor P. Schaumont): bit-sliced 8-bit matrix multiplication on RV32I without multiplier, 2.62x, MNIST | known for INT8 matmul; not binary, not convolution, no threshold |
 | Popcount as an adder tree in BNN hardware | Xcel-RAM (arXiv 1807.00343), FPGA compressor trees (arXiv 1806.08095) | known in hardware |
-| BNN popcount in garbled circuits | FOBNN (arXiv 2405.03136): bit counting with pure bit operations; abstract does not say bit-sliced | check the full text |
+| **BNN popcount as layer-wise full adders** | FOBNN (Chen et al., arXiv 2405.03136, full text read): in garbled circuits, every popcount is a Boolean circuit of 1-bit full adders (sum a⊕b⊕c, carry c⊕((a⊕c)∧(b⊕c))), accumulated layer by layer (2^0, 2^1, ... bits: "Layer-wise Bit Accumulation"), then Sign by a separate comparison circuit, Sign(γ'(2·c1 − L) + β') | **known in a BNN: the same full-adder counting and our 2·cnt − L form.** Differences: one circuit per output for cryptography, not SIMD lanes on an MCU; their Sign is a comparison circuit, ours one bit of a biased counter |
 
 Not found (first pass, 6 searches): bit-sliced BNN **convolution** with windows as lanes, weights choosing which planes
 are added (no XNOR), and the BatchNorm + sign threshold as one bit of the biased counter, on MCU SIMD without popcount.
@@ -148,3 +148,17 @@ are added (no XNOR), and the BatchNorm + sign threshold as one bit of the biased
 convolution on microcontrollers: windows as lanes, the threshold folded into the counter; it is how a SIMD unit without
 a popcount instruction (ESP32-S3 PIE) runs a BNN." Not "a new arithmetic". Still to do: FOBNN full text, Biham citation,
 a search on ARM Helium / RISC-V V BNN kernels, Google Scholar "bitsliced" + "binarized".
+
+Second pass (Nov 13):
+- **Which SIMD units lack a bit-count (where the vertical engine matters):** ESP32-S3 PIE (no popcount, measured);
+  Arm Helium / MVE (Cortex-M55 / M85): **no vector popcount** (checked: GCC 16's MVE intrinsics have `vclzq` and
+  `vclsq` but no `vcntq`; confirm in the Arm reference manual); NEON has `vcnt` per byte; RISC-V V 1.0 has only
+  `vcpop.m` (one count of a whole mask), the per-element `vcpop.v` comes with Zvbb (vector crypto). No BNN kernel for
+  Helium or RISC-V V found. So the "SIMD without popcount" case is not only the S3: Helium too (NOT measured, we have no
+  M55 board).
+- **Claim, final wording for now:** "The vertical engine applies bit-sliced counting (Biham 1997; positional
+  popcount, Klarqvist et al. 2021, Clausecker et al. 2025), and the full-adder BNN counting of FOBNN, to binary
+  convolution on microcontrollers: one bit of 128 windows per register, the threshold folded into the counter so the
+  output bit is read directly. We have not found this in prior work; it is what lets a SIMD unit without a popcount
+  (the ESP32-S3's PIE, and likely Arm Helium) run a BNN." The arithmetic is not new; the mapping and its measurement
+  are.
