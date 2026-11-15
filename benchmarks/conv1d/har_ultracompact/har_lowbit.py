@@ -31,7 +31,7 @@ import brevitas                                      # noqa: F401 -- before Tens
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.normpath(os.path.join(HERE, "..", "..", "..", "tools")))
-from har_data import load                                                                    # noqa: E402
+from har_data import canonical_arch, load                                                                    # noqa: E402
 from har_tflite import ARCHS, AXES, CLASSES, LENGTH, build                                   # noqa: E402
 
 KERAS_BN_EPS = 1e-3                                  # Keras' BatchNormalization default (PyTorch: 1e-5)
@@ -123,7 +123,8 @@ def sha256(path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--arch", choices=sorted(ARCHS), default="max")
+    ap.add_argument("--arch", choices=sorted(ARCHS), default="max", type=canonical_arch,
+                    help="network: min / max10 / max5 / max (or xs / s / m / l)")
     ap.add_argument("--bits", type=int, nargs="+", default=[8, 4, 2], choices=[2, 3, 4, 8])
     ap.add_argument("--seeds", type=int, default=3, help="QAT seeds: 42, 43, ... (default 3)")
     ap.add_argument("--epochs", type=int, default=15, help="QAT epochs (the SYMBEX CDT uses 15)")

@@ -89,6 +89,8 @@ def main():
         res["exactness_native" if native else "exactness"] = None if equal is None else 100 * equal / total
     json.dump(res, open(os.path.join(out, "export.json"), "w"), indent=1)
     print(f"    -> {os.path.join(out, 'export.json')}")
+    if any(res[k] != 100 for k in ("exactness", "exactness_native")):
+        sys.exit("[X] the C header is not verified exact (100 %) against the integer simulation: do not use it on a chip")
 
 
 if __name__ == "__main__":

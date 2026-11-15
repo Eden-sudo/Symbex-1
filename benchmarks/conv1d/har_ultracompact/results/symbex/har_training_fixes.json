@@ -1,0 +1,717 @@
+{
+ "note": "training fixes (README section 7): --clip / --pool-first vs Adam, 100 epochs, best validation epoch, validation only (test not scored: no fix passed the rule). Per seed 42, 43, 44, accuracy %. frozen_adam: % of latent 1-bit weights with |w| > 1 in the Adam checkpoints (tools/dev/binary_health.py, every >=2-D weight tensor; for int8 first layer the int8 layer is counted too).",
+ "runs": {
+  "min_binary_adam": {
+   "arch": "min",
+   "first": "binary",
+   "clip": false,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    77,
+    63,
+    40
+   ],
+   "validation": [
+    45.81,
+    46.44,
+    42.33
+   ],
+   "frozen_adam": [
+    37.8,
+    37.2,
+    33.0
+   ]
+  },
+  "min_binary_clip": {
+   "arch": "min",
+   "first": "binary",
+   "clip": true,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    100,
+    100,
+    23
+   ],
+   "validation": [
+    47.89,
+    47.11,
+    41.86
+   ]
+  },
+  "min_binary_pool_first": {
+   "arch": "min",
+   "first": "binary",
+   "clip": false,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    85,
+    49,
+    100
+   ],
+   "validation": [
+    46.54,
+    46.91,
+    44.25
+   ]
+  },
+  "min_binary_clip_pool_first": {
+   "arch": "min",
+   "first": "binary",
+   "clip": true,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    56,
+    49,
+    66
+   ],
+   "validation": [
+    46.23,
+    46.91,
+    44.2
+   ]
+  },
+  "min_int8_adam": {
+   "arch": "min",
+   "first": "int8",
+   "clip": false,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    28,
+    64,
+    87
+   ],
+   "validation": [
+    45.09,
+    48.62,
+    44.57
+   ],
+   "frozen_adam": [
+    28.2,
+    37.0,
+    38.3
+   ]
+  },
+  "min_int8_clip": {
+   "arch": "min",
+   "first": "int8",
+   "clip": true,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    78,
+    79,
+    40
+   ],
+   "validation": [
+    45.55,
+    45.81,
+    43.37
+   ]
+  },
+  "min_int8_pool_first": {
+   "arch": "min",
+   "first": "int8",
+   "clip": false,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    44,
+    36,
+    84
+   ],
+   "validation": [
+    47.53,
+    46.85,
+    47.79
+   ]
+  },
+  "min_int8_clip_pool_first": {
+   "arch": "min",
+   "first": "int8",
+   "clip": true,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    57,
+    15,
+    72
+   ],
+   "validation": [
+    47.06,
+    47.17,
+    47.69
+   ]
+  },
+  "max10_binary_adam": {
+   "arch": "max10",
+   "first": "binary",
+   "clip": false,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    84,
+    95,
+    96
+   ],
+   "validation": [
+    61.52,
+    62.61,
+    64.17
+   ],
+   "frozen_adam": [
+    15.6,
+    16.4,
+    16.2
+   ]
+  },
+  "max10_binary_clip": {
+   "arch": "max10",
+   "first": "binary",
+   "clip": true,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    56,
+    68,
+    77
+   ],
+   "validation": [
+    61.88,
+    63.7,
+    61.99
+   ]
+  },
+  "max10_binary_pool_first": {
+   "arch": "max10",
+   "first": "binary",
+   "clip": false,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    85,
+    100,
+    98
+   ],
+   "validation": [
+    63.49,
+    64.48,
+    63.86
+   ]
+  },
+  "max10_binary_clip_pool_first": {
+   "arch": "max10",
+   "first": "binary",
+   "clip": true,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    69,
+    97,
+    89
+   ],
+   "validation": [
+    64.43,
+    64.12,
+    63.7
+   ]
+  },
+  "max10_int8_adam": {
+   "arch": "max10",
+   "first": "int8",
+   "clip": false,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    80,
+    52,
+    78
+   ],
+   "validation": [
+    65.47,
+    63.39,
+    62.04
+   ],
+   "frozen_adam": [
+    17.2,
+    13.9,
+    16.9
+   ]
+  },
+  "max10_int8_clip": {
+   "arch": "max10",
+   "first": "int8",
+   "clip": true,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    100,
+    92,
+    59
+   ],
+   "validation": [
+    63.6,
+    64.12,
+    64.27
+   ]
+  },
+  "max10_int8_pool_first": {
+   "arch": "max10",
+   "first": "int8",
+   "clip": false,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    87,
+    95,
+    92
+   ],
+   "validation": [
+    65.63,
+    63.34,
+    63.65
+   ]
+  },
+  "max10_int8_clip_pool_first": {
+   "arch": "max10",
+   "first": "int8",
+   "clip": true,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    99,
+    63,
+    80
+   ],
+   "validation": [
+    64.95,
+    63.86,
+    64.07
+   ]
+  },
+  "max5_binary_adam": {
+   "arch": "max5",
+   "first": "binary",
+   "clip": false,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    86,
+    91,
+    100
+   ],
+   "validation": [
+    69.01,
+    68.69,
+    69.94
+   ],
+   "frozen_adam": [
+    8.7,
+    8.9,
+    8.8
+   ]
+  },
+  "max5_binary_clip": {
+   "arch": "max5",
+   "first": "binary",
+   "clip": true,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    98,
+    95,
+    97
+   ],
+   "validation": [
+    67.29,
+    68.69,
+    68.64
+   ]
+  },
+  "max5_binary_pool_first": {
+   "arch": "max5",
+   "first": "binary",
+   "clip": false,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    78,
+    85,
+    100
+   ],
+   "validation": [
+    67.76,
+    65.83,
+    66.72
+   ]
+  },
+  "max5_binary_clip_pool_first": {
+   "arch": "max5",
+   "first": "binary",
+   "clip": true,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    85,
+    90,
+    93
+   ],
+   "validation": [
+    67.13,
+    65.37,
+    67.08
+   ]
+  },
+  "max5_int8_adam": {
+   "arch": "max5",
+   "first": "int8",
+   "clip": false,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    71,
+    100,
+    65
+   ],
+   "validation": [
+    68.07,
+    69.21,
+    66.35
+   ],
+   "frozen_adam": [
+    9.4,
+    9.2,
+    8.4
+   ]
+  },
+  "max5_int8_clip": {
+   "arch": "max5",
+   "first": "int8",
+   "clip": true,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    99,
+    96,
+    65
+   ],
+   "validation": [
+    67.55,
+    69.68,
+    68.95
+   ]
+  },
+  "max5_int8_pool_first": {
+   "arch": "max5",
+   "first": "int8",
+   "clip": false,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    46,
+    50,
+    39
+   ],
+   "validation": [
+    69.21,
+    67.45,
+    66.04
+   ]
+  },
+  "max5_int8_clip_pool_first": {
+   "arch": "max5",
+   "first": "int8",
+   "clip": true,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    74,
+    93,
+    70
+   ],
+   "validation": [
+    67.6,
+    66.09,
+    65.42
+   ]
+  },
+  "max_binary_adam": {
+   "arch": "max",
+   "first": "binary",
+   "clip": false,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    85,
+    96,
+    53
+   ],
+   "validation": [
+    69.37,
+    67.6,
+    68.85
+   ],
+   "frozen_adam": [
+    9.3,
+    9.5,
+    7.0
+   ]
+  },
+  "max_binary_clip": {
+   "arch": "max",
+   "first": "binary",
+   "clip": true,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    72,
+    69,
+    39
+   ],
+   "validation": [
+    69.37,
+    69.73,
+    67.97
+   ]
+  },
+  "max_binary_pool_first": {
+   "arch": "max",
+   "first": "binary",
+   "clip": false,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    100,
+    98,
+    86
+   ],
+   "validation": [
+    69.68,
+    69.47,
+    67.71
+   ]
+  },
+  "max_binary_clip_pool_first": {
+   "arch": "max",
+   "first": "binary",
+   "clip": true,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    98,
+    65,
+    85
+   ],
+   "validation": [
+    68.23,
+    67.19,
+    68.43
+   ]
+  },
+  "max_int8_adam": {
+   "arch": "max",
+   "first": "int8",
+   "clip": false,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    87,
+    79,
+    38
+   ],
+   "validation": [
+    68.75,
+    68.69,
+    70.36
+   ],
+   "frozen_adam": [
+    8.8,
+    9.0,
+    4.2
+   ]
+  },
+  "max_int8_clip": {
+   "arch": "max",
+   "first": "int8",
+   "clip": true,
+   "pool_first": false,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    38,
+    79,
+    85
+   ],
+   "validation": [
+    67.81,
+    69.94,
+    69.01
+   ]
+  },
+  "max_int8_pool_first": {
+   "arch": "max",
+   "first": "int8",
+   "clip": false,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    95,
+    75,
+    87
+   ],
+   "validation": [
+    68.28,
+    69.53,
+    70.36
+   ]
+  },
+  "max_int8_clip_pool_first": {
+   "arch": "max",
+   "first": "int8",
+   "clip": true,
+   "pool_first": true,
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    37,
+    100,
+    40
+   ],
+   "validation": [
+    69.06,
+    69.21,
+    69.11
+   ]
+  }
+ }
+}

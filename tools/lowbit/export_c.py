@@ -305,9 +305,12 @@ def export_folder(layers, x_float, y, out_dir, meta=None):
                arithmetic=f"INT{bits}: ESP-NN multiply-accumulate (int8 activations, per-channel fixed-point "
                           "requantization)", header=header, **info)
     json.dump(res, open(os.path.join(out_dir, "export.json"), "w"), indent=1)
+    skipped = eq_flash is None and eq_ram is None          # no ESP-NN on this PC: the C check did not run
     ok = eq_flash == len(xb) and eq_ram == len(xb)
+    status = "skipped" if skipped else ("OK" if ok else "[X]")
+    ram_msg = "skipped" if eq_ram is None else f"{eq_ram}/{len(xb)}"
     print(f"    INT{bits}: integer accuracy {res['acc_integer']:.2f}% ({len(xb)} images) | {info['flash_bytes'] / 1024:.1f} KB "
-          f"of weights | {msg} (RAM variant: {eq_ram}) " + ("OK" if ok else "[X]") + f"\n    -> {out_dir}/")
+          f"of weights | {msg} (RAM variant: {ram_msg}) {status}\n    -> {out_dir}/")
     return res
 
 

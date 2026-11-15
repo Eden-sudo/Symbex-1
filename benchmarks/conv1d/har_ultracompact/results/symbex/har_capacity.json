@@ -1,0 +1,397 @@
+{
+ "note": "capacity study (README section 5): wider min / max, Adam, 100 epochs, best validation epoch; test scored once. Per seed 42, 43, 44, accuracy %.",
+ "symbex": {
+  "min_w15_binary": {
+   "arch": "min_w15",
+   "first": "binary",
+   "layers": [
+    [
+     "conv",
+     6,
+     7
+    ],
+    [
+     "conv",
+     6,
+     7
+    ],
+    [
+     "pool",
+     4
+    ],
+    [
+     "conv",
+     6,
+     7
+    ],
+    [
+     "pool",
+     4
+    ]
+   ],
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    62,
+    96,
+    96
+   ],
+   "validation": [
+    47.27,
+    49.19,
+    50.39
+   ],
+   "test": [
+    37.92,
+    39.72,
+    41.26
+   ]
+  },
+  "min_w15_int8": {
+   "arch": "min_w15",
+   "first": "int8",
+   "layers": [
+    [
+     "conv",
+     6,
+     7
+    ],
+    [
+     "conv",
+     6,
+     7
+    ],
+    [
+     "pool",
+     4
+    ],
+    [
+     "conv",
+     6,
+     7
+    ],
+    [
+     "pool",
+     4
+    ]
+   ],
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    87,
+    98,
+    39
+   ],
+   "validation": [
+    49.82,
+    51.07,
+    50.65
+   ],
+   "test": [
+    42.89,
+    47.56,
+    43.79
+   ]
+  },
+  "min_w2_binary": {
+   "arch": "min_w2",
+   "first": "binary",
+   "layers": [
+    [
+     "conv",
+     8,
+     7
+    ],
+    [
+     "conv",
+     8,
+     7
+    ],
+    [
+     "pool",
+     4
+    ],
+    [
+     "conv",
+     8,
+     7
+    ],
+    [
+     "pool",
+     4
+    ]
+   ],
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    42,
+    100,
+    100
+   ],
+   "validation": [
+    52.0,
+    50.44,
+    50.6
+   ],
+   "test": [
+    45.76,
+    43.49,
+    47.69
+   ]
+  },
+  "min_w2_int8": {
+   "arch": "min_w2",
+   "first": "int8",
+   "layers": [
+    [
+     "conv",
+     8,
+     7
+    ],
+    [
+     "conv",
+     8,
+     7
+    ],
+    [
+     "pool",
+     4
+    ],
+    [
+     "conv",
+     8,
+     7
+    ],
+    [
+     "pool",
+     4
+    ]
+   ],
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    14,
+    83,
+    40
+   ],
+   "validation": [
+    49.35,
+    52.42,
+    50.86
+   ],
+   "test": [
+    47.09,
+    47.26,
+    42.8
+   ]
+  },
+  "max_w15_binary": {
+   "arch": "max_w15",
+   "first": "binary",
+   "layers": [
+    [
+     "conv",
+     48,
+     15
+    ],
+    [
+     "conv",
+     48,
+     15
+    ],
+    [
+     "pool",
+     4
+    ],
+    [
+     "conv",
+     48,
+     15
+    ],
+    [
+     "pool",
+     4
+    ]
+   ],
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    89,
+    100,
+    82
+   ],
+   "validation": [
+    71.87,
+    71.29,
+    72.02
+   ],
+   "test": [
+    65.21,
+    60.24,
+    63.37
+   ]
+  },
+  "max_w15_int8": {
+   "arch": "max_w15",
+   "first": "int8",
+   "layers": [
+    [
+     "conv",
+     48,
+     15
+    ],
+    [
+     "conv",
+     48,
+     15
+    ],
+    [
+     "pool",
+     4
+    ],
+    [
+     "conv",
+     48,
+     15
+    ],
+    [
+     "pool",
+     4
+    ]
+   ],
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    56,
+    69,
+    93
+   ],
+   "validation": [
+    71.76,
+    72.85,
+    73.95
+   ],
+   "test": [
+    56.0,
+    56.47,
+    62.47
+   ]
+  },
+  "max_w2_binary": {
+   "arch": "max_w2",
+   "first": "binary",
+   "layers": [
+    [
+     "conv",
+     64,
+     15
+    ],
+    [
+     "conv",
+     64,
+     15
+    ],
+    [
+     "pool",
+     4
+    ],
+    [
+     "conv",
+     64,
+     15
+    ],
+    [
+     "pool",
+     4
+    ]
+   ],
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    72,
+    31,
+    91
+   ],
+   "validation": [
+    72.65,
+    72.49,
+    72.96
+   ],
+   "test": [
+    61.23,
+    61.05,
+    57.8
+   ]
+  },
+  "max_w2_int8": {
+   "arch": "max_w2",
+   "first": "int8",
+   "layers": [
+    [
+     "conv",
+     64,
+     15
+    ],
+    [
+     "conv",
+     64,
+     15
+    ],
+    [
+     "pool",
+     4
+    ],
+    [
+     "conv",
+     64,
+     15
+    ],
+    [
+     "pool",
+     4
+    ]
+   ],
+   "seeds": [
+    42,
+    43,
+    44
+   ],
+   "best_epoch": [
+    91,
+    99,
+    84
+   ],
+   "validation": [
+    72.59,
+    72.39,
+    73.53
+   ],
+   "test": [
+    60.2,
+    60.97,
+    60.54
+   ]
+  }
+ }
+}
