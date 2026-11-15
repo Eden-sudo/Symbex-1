@@ -1,0 +1,67 @@
+{
+ "board": "s3",
+ "date": "2026-11-15",
+ "network": "ECG net m with RR channels (MIT-BIH, AAMI classes)",
+ "meter": "USB power meter feeding the board's native USB port, through the meter's USB-A port (its USB-C port reads about 20 % more on this board only: the lower reading is used); display V, A, mAh, Wh; read by eye",
+ "method": "each phase 600 s; energy = meter mAh x volts x 3.6 J, after subtracting the idle rate (19 mAh / 600 s) for the seconds the meter timer ran past 600 s; per inference = energy / runs; above idle = (mAh - 19 x seconds / 600) x volts x 3.6 / runs; the meter counts whole mAh (+-1 mAh per reading); one run per phase (no seeds, no repeats)",
+ "tools": "tools/energy_loop.py (firmware: 0xE5 / TFLite loop on the first input, 'L:count,elapsed_us,class')",
+ "phases": {
+  "symbex": {
+   "label": "SYMBEX runs/m_binary_e100_s42_rr, standard engine, lut16, flash; exact against its simulation on the chip, 100 %",
+   "runs": 96224,
+   "seconds": 600.028,
+   "ms_per_run": 6.2357,
+   "mah": 24.37,
+   "meter_wh": 0.12,
+   "amps_seen": "not noted",
+   "volts": 5.13,
+   "joules": 450.0,
+   "mW": 750.0,
+   "mJ_per_run": 4.6766,
+   "mJ_per_run_above_idle": 1.0298,
+   "meter_raw": {
+    "mah": 25,
+    "wh": 0.12,
+    "timer_s": 620
+   }
+  },
+  "idle": {
+   "label": "idle, measured Nov 14 on the same board and meter port (cnn_cifar_resnet8 ENERGY.md)",
+   "mah": 19,
+   "seconds": 600.0,
+   "volts": 5.13,
+   "mW": 584.8
+  },
+  "tflite": {
+   "label": "TFLite Micro INT8, m seed 42 with RR (same architecture, same recipe), ESP-NN, flash",
+   "runs": 89020,
+   "seconds": 600.004,
+   "ms_per_run": 6.7401,
+   "mah": 32.0,
+   "meter_wh": 0.17,
+   "amps_seen": "not noted",
+   "volts": 5.13,
+   "joules": 591.0,
+   "mW": 985.0,
+   "mJ_per_run": 6.6387,
+   "mJ_per_run_above_idle": 2.6969,
+   "meter_raw": {
+    "mah": 32,
+    "wh": 0.17,
+    "timer_s": 600
+   }
+  }
+ },
+ "notes": [
+  "Accuracy: balanced accuracy of binary and INT8 is tied within the standard deviation on net m (README).",
+  "SYMBEX is only 1.08x faster here, but uses 1.42x less energy: TFLite drew more power (0.99 against 0.75 W)."
+ ],
+ "ratio_total": {
+  "value": 1.42,
+  "range_pm1mah": [
+   1.32,
+   1.53
+  ]
+ },
+ "speed_ratio": 1.08
+}

@@ -415,9 +415,28 @@ The other benchmarks on the classic ESP32 (seed 42, weights in flash, same meter
 | ECG net m ([details](../../benchmarks/conv1d/ecg_mitbih/ENERGY.md)) | 5.0 | 40.1 | **8.0×** (6.9-9.2×) | 8.1× |
 | FOMO person ([details](../../benchmarks/conv2d/fomo_voc_person/ENERGY.md)) | 96 | does not fit | — | — |
 
+The other benchmarks on the ESP32-S3 (seed 42, weights in flash, same meter, USB-A port, Nov 15):
+
+| Benchmark | SYMBEX mJ / inference | TFLite Micro mJ / inference | Less energy | Faster |
+|---|---|---|---|---|
+| ResNet-8, vertical prepared (238 KB of RAM) | 4.5 | 47.7 | **10.5×** (9.8-11.3×) | 8.7× |
+| MLP 784-128-512-10 | 0.32 | 8.2 | **25.4×** (23.3-27.6×) | 28.5× |
+| HAR max, int8 first layer | 3.0 | 5.4 | **1.83×** (1.69-1.98×) | 1.77× |
+| ECG net m | 4.7 | 6.6 | **1.42×** (1.32-1.53×) | 1.08× |
+| FOMO person | 97 | 193 | **1.99×** (1.83-2.16×) | 1.96× |
+
 - The energy gain follows the speed gain: the board draws about the same power with either model (ESP32: 0.33-0.46 W
-  in every run). On the S3 SYMBEX
-  also drew less (0.77 against 0.92 W).
+  in every run; S3: 0.69-0.99 W). The power differences on the S3 go both ways: TFLite drew more on ResNet-8
+  (0.92 against 0.77 W) and ECG (0.99 against 0.75 W), the same on HAR and FOMO, less on the MLP (0.69 against
+  0.78 W). The cause is not measured.
+- On the S3, the vertical prepared engine (precomputed lists and thresholds, 238 KB of RAM) uses 1.51× less energy per
+  image than the default vertical engine (1.39-1.64×) for 1.60× the speed: reading the prepared tables costs far
+  less than the work they save.
+- MLP on the S3 with the weights in RAM on both sides: 0.38 against 0.68 mJ, 1.79× (1.66-1.92×). TFLite does not
+  waste its energy waiting on flash; its flash run is slow and costly for the same reason as its RAM run, only more.
+- The S3 reads about 20 % more through the meter's USB-C port than through its USB-A port (the ESP32 does not); every
+  S3 number uses the USB-A port.
+
 - Whole board at the USB port (chip, regulator, USB bridge), as a battery would feed it. Ranges: every reading off by
   1 mAh in the worst direction.
 - On the ESP32, weights in RAM against flash (standard engine) read the same 13 mAh: the meter cannot see the
@@ -425,7 +444,7 @@ The other benchmarks on the classic ESP32 (seed 42, weights in flash, same meter
 
 ## Future work
 
-- Energy on the S3 for the other benchmarks, and on the Pico 2; a meter the PC can read, for finer numbers.
+- Energy on the Pico 2, and the S3 compact engine; a meter the PC can read, for finer numbers.
 - ESP-DL as a full INT8 baseline (3 seeds, the whole test set, every benchmark), with its scripts in the repository.
 - Beating ESP-DL on the ESP32-S3 with the weights in RAM with clearly less RAM (default vertical engine: 10.4 ms vs
   9.8 ms with 63 KB; the compact mode wins at 7.70 ms with about the same RAM, 151 KB against 147 KB), and the

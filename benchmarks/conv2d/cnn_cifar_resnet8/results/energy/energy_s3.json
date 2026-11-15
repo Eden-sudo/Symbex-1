@@ -67,5 +67,68 @@
    "43": 7.46,
    "44": 7.46
   }
+ },
+ "prepared_vs_default": {
+  "date": "2026-11-15",
+  "meter_port": "USB-A (as Nov 14)",
+  "question": "does spending RAM on prepared lists save energy, or only time? (reading more RAM could raise the power)",
+  "default": {
+   "label": "SYMBEX int8stem_pool2 seed 42, vertical engine (default), lut16, flash, 63 KB RAM; exact 100 %",
+   "runs": 63736,
+   "seconds": 600.019,
+   "ms_per_run": 9.4141,
+   "mah": 23.68,
+   "meter_wh": 0.12,
+   "amps_seen": "not noted",
+   "volts": 5.13,
+   "joules": 437.4,
+   "mW": 728.9,
+   "mJ_per_run": 6.8624,
+   "mJ_per_run_above_idle": 1.3569,
+   "meter_raw": {
+    "mah": 24,
+    "wh": 0.12,
+    "timer_s": 610
+   }
+  },
+  "prepared": {
+   "label": "SYMBEX int8stem_pool2 seed 42, vertical engine, prepared (lists and thresholds prepared in RAM), lut16, flash, 238 KB RAM; exact 100 %",
+   "runs": 101664,
+   "seconds": 600.026,
+   "ms_per_run": 5.902,
+   "mah": 25.0,
+   "meter_wh": 0.12,
+   "amps_seen": "not noted",
+   "volts": 5.13,
+   "joules": 461.7,
+   "mW": 769.5,
+   "mJ_per_run": 4.5414,
+   "mJ_per_run_above_idle": 1.0898,
+   "meter_raw": {
+    "mah": 25,
+    "wh": 0.12,
+    "timer_s": 600
+   }
+  },
+  "ratio_default_vs_prepared": {
+   "value": 1.51,
+   "range_pm1mah": [
+    1.39,
+    1.64
+   ]
+  },
+  "ratio_tflite_vs_prepared": {
+   "value": 10.49,
+   "range_pm1mah": [
+    9.75,
+    11.3
+   ]
+  },
+  "speed_ratio": 1.6,
+  "notes": [
+   "A first default run was not read in time: discarded and repeated.",
+   "The Nov 15 default run (24 mAh, 6.86 mJ) agrees with the Nov 14 one (25 mAh, 7.24 mJ, swar) within +-1 mAh."
+  ],
+  "answer": "it saves energy: 1.51x less per image (range 1.39-1.64) for 1.60x the speed; the prepared engine drew about 5 % more power (0.77 against 0.73 W), 1 mAh, at the meter's limit"
  }
 }

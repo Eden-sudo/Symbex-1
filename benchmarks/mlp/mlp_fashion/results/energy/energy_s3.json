@@ -1,0 +1,123 @@
+{
+ "board": "s3",
+ "date": "2026-11-15",
+ "network": "MLP 784-128-512-10 (Fashion-MNIST, sized for binary)",
+ "meter": "USB power meter feeding the board's native USB port, through the meter's USB-A port (its USB-C port reads about 20 % more on this board only: the lower reading is used); display V, A, mAh, Wh; read by eye",
+ "method": "each phase 600 s; energy = meter mAh x volts x 3.6 J, after subtracting the idle rate (19 mAh / 600 s) for the seconds the meter timer ran past 600 s; per inference = energy / runs; above idle = (mAh - 19 x seconds / 600) x volts x 3.6 / runs; the meter counts whole mAh (+-1 mAh per reading); one run per phase (no seeds, no repeats)",
+ "tools": "tools/energy_loop.py (firmware: 0xE5 / TFLite loop on the first input, 'L:count,elapsed_us,class')",
+ "phases": {
+  "symbex": {
+   "label": "SYMBEX runs/sizing/h128_512_s42, standard engine, lut16, flash; exact against its simulation on the chip, 100 %",
+   "runs": 1447344,
+   "seconds": 600.001,
+   "ms_per_run": 0.4146,
+   "mah": 25.27,
+   "meter_wh": 0.13,
+   "amps_seen": "not noted",
+   "volts": 5.13,
+   "joules": 466.7,
+   "mW": 777.9,
+   "mJ_per_run": 0.3225,
+   "mJ_per_run_above_idle": 0.08,
+   "meter_raw": {
+    "mah": 26,
+    "wh": 0.13,
+    "timer_s": 623
+   }
+  },
+  "idle": {
+   "label": "idle, measured Nov 14 on the same board and meter port (cnn_cifar_resnet8 ENERGY.md)",
+   "mah": 19,
+   "seconds": 600.0,
+   "volts": 5.13,
+   "mW": 584.8
+  },
+  "tflite": {
+   "label": "TFLite Micro INT8, runs/tflite/fashion_int8_h128_512.tflite (same shape, INT8 QAT), ESP-NN, flash",
+   "runs": 50845,
+   "seconds": 600.004,
+   "ms_per_run": 11.8006,
+   "mah": 22.52,
+   "meter_wh": 0.11,
+   "amps_seen": "not noted",
+   "volts": 5.13,
+   "joules": 416.0,
+   "mW": 693.3,
+   "mJ_per_run": 8.1816,
+   "mJ_per_run_above_idle": 1.2803,
+   "meter_raw": {
+    "mah": 23,
+    "wh": 0.11,
+    "timer_s": 615
+   }
+  }
+ },
+ "notes": [
+  "Accuracy differs: binary 87.5 % against INT8 QAT 89.8 % (same shape, labels only, 3 seeds; README).",
+  "A first SYMBEX weights-in-RAM run was read 380 s late (46 mAh at timer 16:20): discarded and repeated."
+ ],
+ "ratio_total": {
+  "value": 25.37,
+  "range_pm1mah": [
+   23.32,
+   27.59
+  ]
+ },
+ "speed_ratio": 28.46,
+ "weights_in_ram": {
+  "question": "does TFLite draw less power in flash because it waits on the flash? (weights in RAM for both)",
+  "symbex_ram": {
+   "label": "SYMBEX, same model, weights in RAM",
+   "runs": 1447336,
+   "seconds": 600.001,
+   "ms_per_run": 0.4146,
+   "mah": 29.78,
+   "meter_wh": 0.15,
+   "amps_seen": "not noted",
+   "volts": 5.13,
+   "joules": 549.9,
+   "mW": 916.6,
+   "mJ_per_run": 0.38,
+   "mJ_per_run_above_idle": 0.1375,
+   "meter_raw": {
+    "mah": 30,
+    "wh": 0.15,
+    "timer_s": 607
+   }
+  },
+  "tflite_ram": {
+   "label": "TFLite Micro INT8, same model, weights in RAM (fashion_tflite.py --model-ram)",
+   "runs": 680380,
+   "seconds": 600.001,
+   "ms_per_run": 0.8819,
+   "mah": 25.0,
+   "meter_wh": 0.13,
+   "amps_seen": "not noted",
+   "volts": 5.13,
+   "joules": 461.7,
+   "mW": 769.5,
+   "mJ_per_run": 0.6786,
+   "mJ_per_run_above_idle": 0.1629,
+   "meter_raw": {
+    "mah": 25,
+    "wh": 0.13,
+    "timer_s": 600
+   }
+  },
+  "ratio_ram_vs_ram": {
+   "value": 1.79,
+   "range_pm1mah": [
+    1.66,
+    1.92
+   ]
+  },
+  "ratio_symbex_flash_vs_tflite_ram": {
+   "value": 2.1,
+   "range_pm1mah": [
+    1.94,
+    2.28
+   ]
+  },
+  "answer": "not supported: with weights in RAM both draw MORE power (TFLite 0.69 -> 0.77 W, SYMBEX 0.77 -> 0.91 W at the same 0.415 ms); the cause is not measured"
+ }
+}

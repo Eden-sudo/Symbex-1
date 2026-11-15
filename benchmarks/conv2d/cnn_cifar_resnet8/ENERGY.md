@@ -7,6 +7,8 @@ official MLPerf Tiny INT8 model running on TFLite Micro?
 INT8: 6.6× less energy**. Counting only the energy above the board's idle draw, SYMBEX uses about **10× less** (1.7 vs
 17.5 mJ). The meter has coarse readings, so this second number has a wide range (6-18×).
 On the classic ESP32 the gap is larger: **22 mJ against 296 mJ, 13× less energy** (see [the ESP32 section](#classic-esp32)).
+With the S3's **vertical prepared** engine (more RAM, 1.6× faster) one image costs **4.5 mJ: 10.5× less energy** than
+TFLite (see [Prepared against default](#prepared-against-default-s3)).
 
 ## What was measured
 
@@ -41,8 +43,9 @@ On the classic ESP32 the gap is larger: **22 mJ against 296 mJ, 13× less energy
   matters a lot.
 - **Two things explain the gap:**
   - SYMBEX finishes each image 5.5× sooner.
-  - The board also draws less while SYMBEX runs: 0.77 W against 0.92 W. Likely cause, not measured: the binary
-    engine keeps fewer multipliers and less memory traffic busy.
+  - The board also draws less while SYMBEX runs: 0.77 W against 0.92 W. The cause is not measured. It is not a
+    rule of the S3: on ECG TFLite also drew more, on FOMO and HAR both drew the same, and on the MLP SYMBEX drew more
+    (each benchmark's ENERGY.md).
 - **The loop's latency matches the 1,000-image chip runs:**
   - SYMBEX: 9.41 ms in the loop against 9.72 ms per image. The loop repeats one image, which keeps the cache warm.
   - TFLite: 51.61 ms in the loop against 51.96 ms.
@@ -51,6 +54,29 @@ On the classic ESP32 the gap is larger: **22 mJ against 296 mJ, 13× less energy
   have the same shape, engine and code, and their latencies differ by 0.3 %.
 
 The raw readings and every derived number are in `results/energy/energy_s3.json`.
+
+### Prepared against default (S3)
+
+**Question.** The vertical engine runs at the same speed with its weights in flash or in RAM (the weights fit the
+flash cache), so copying them to RAM buys nothing. Its *prepared* mode spends RAM on something else: lists and
+thresholds worked out once, so each image does less work. Does that save energy, or only time? Reading more RAM could
+raise the power and eat the gain.
+
+**What.** The same model and seed, vertical default (63 KB of RAM) against vertical prepared (238 KB), weights in
+flash, lut16; both exact against the simulation on the chip, 100 %. One 10-minute run each on Nov 15, meter zeroed
+before each, same USB-A meter port as Nov 14.
+
+| Engine | RAM | Inferences in 600 s | ms each | Meter (mAh / Wh / timer) | Power | **mJ per inference** |
+|---|---|---|---|---|---|---|
+| vertical (default) | 63 KB | 63,736 | 9.41 | 24 / 0.12 / 10:10 | 0.73 W | **6.86** |
+| vertical prepared | 238 KB | 101,664 | 5.90 | 25 / 0.12 / 10:00 | 0.77 W | **4.54** |
+
+**Answer.** It saves energy: **1.51× less per image** (range 1.39-1.64×) for 1.60× the speed. The prepared engine drew
+about 5 % more power (0.77 against 0.73 W), which is 1 mAh, the meter's limit: reading the prepared tables may cost a
+little, but far less than the work they save. Against TFLite Micro (47.7 mJ, Nov 14) the prepared engine uses
+**10.5× less energy** (9.8-11.3×). The default run agrees with the Nov 14 one (6.86 against 7.24 mJ, within ±1 mAh);
+a first default run was not read in time and was discarded. Numbers in `results/energy/energy_s3.json`
+(`prepared_vs_default`).
 
 ## Classic ESP32
 
@@ -102,6 +128,9 @@ meter's resolution, so it is not a finding.
   the classic ESP32 board stays cool, at most slightly warm by touch. A second board would be a cleaner check.
 - **The meter is read by eye and counts whole mAh.** The total-energy ratio is solid (±7 %); the above-idle ratio
   is not.
+- **The S3 reads about 20 % more through the meter's USB-C port** than through its USB-A port (idle 0.14 against
+  0.11 A); the classic ESP32 and the Pico 2 do not. The cause is not known (probably the board's USB circuit); every
+  S3 number uses the USB-A port, the lower reading.
 - **The power is measured at the USB port, so it is the whole board:** chip, regulator, USB bridge and LEDs, not the
   chip alone. This is what a battery would feed.
 - **Accuracy differs:** TFLite INT8 88.0 % against SYMBEX 76.9 % on the same 1,000 chip images (see README). This is the energy of each
@@ -127,5 +156,5 @@ writes the result into the chip JSON.
 
 - A second board, and the Pico 2.
 - Repeat each phase (3 runs) and read the meter at fixed moments.
-- The other engines (compact, prepared) and RAM weights.
+- The compact engine (prepared is measured above).
 - A meter the PC can read, for finer numbers than whole mAh.

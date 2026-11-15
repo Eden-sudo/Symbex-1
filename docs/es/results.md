@@ -372,9 +372,28 @@ Los demás benchmarks en el ESP32 clásico (semilla 42, pesos en flash, el mismo
 | ECG red m ([detalles](../../benchmarks/conv1d/ecg_mitbih/ENERGY.md)) | 5.0 | 40.1 | **8.0×** (6.9-9.2×) | 8.1× |
 | FOMO persona ([detalles](../../benchmarks/conv2d/fomo_voc_person/ENERGY.md)) | 96 | no cabe | — | — |
 
+Los demás benchmarks en el ESP32-S3 (semilla 42, pesos en flash, el mismo medidor, puerto USB-A, 15 nov):
+
+| Benchmark | SYMBEX mJ / inferencia | TFLite Micro mJ / inferencia | Menos energía | Más rápido |
+|---|---|---|---|---|
+| ResNet-8, vertical preparado (238 KB de RAM) | 4.5 | 47.7 | **10.5×** (9.8-11.3×) | 8.7× |
+| MLP 784-128-512-10 | 0.32 | 8.2 | **25.4×** (23.3-27.6×) | 28.5× |
+| HAR max, primera capa int8 | 3.0 | 5.4 | **1.83×** (1.69-1.98×) | 1.77× |
+| ECG red m | 4.7 | 6.6 | **1.42×** (1.32-1.53×) | 1.08× |
+| FOMO persona | 97 | 193 | **1.99×** (1.83-2.16×) | 1.96× |
+
 - La ganancia de energía sigue a la de velocidad: la placa consume casi lo mismo con cualquiera de los dos modelos
-  (ESP32: 0.33-0.46 W en todas las corridas). En
-  el S3, SYMBEX además consumió menos (0.77 frente a 0.92 W).
+  (ESP32: 0.33-0.46 W en todas las corridas; S3: 0.69-0.99 W). Las diferencias de potencia en el S3 van en los dos
+  sentidos: TFLite consumió más en ResNet-8 (0.92 frente a 0.77 W) y ECG (0.99 frente a 0.75 W), lo mismo en HAR y
+  FOMO, menos en el MLP (0.69 frente a 0.78 W). La causa no está medida.
+- En el S3, el motor vertical preparado (listas y umbrales precalculados, 238 KB de RAM) gasta 1.51× menos energía por
+  imagen que el vertical por defecto (1.39-1.64×) con 1.60× la velocidad: leer las tablas preparadas cuesta mucho
+  menos que el trabajo que ahorran.
+- MLP en el S3 con los pesos en RAM en los dos lados: 0.38 frente a 0.68 mJ, 1.79× (1.66-1.92×). TFLite no gasta su
+  energía esperando a la flash; su corrida en flash es lenta y cara por la misma razón que la de RAM, solo que más.
+- El S3 marca un 20 % más por el puerto USB-C del medidor que por el USB-A (el ESP32 no); todos los números del S3
+  usan el puerto USB-A.
+
 - Placa completa en el puerto USB (chip, regulador, puente USB), como la alimentaría una batería. Rangos: cada lectura
   equivocada en 1 mAh en el peor sentido.
 - En el ESP32, pesos en RAM frente a flash (motor estándar) marcan los mismos 13 mAh: el medidor no ve la diferencia;
@@ -382,7 +401,7 @@ Los demás benchmarks en el ESP32 clásico (semilla 42, pesos en flash, el mismo
 
 ## Trabajo futuro
 
-- Energía en el S3 de los demás benchmarks, y en el Pico 2; un medidor que el PC pueda leer, para números más finos.
+- Energía en el Pico 2, y el motor compacto del S3; un medidor que el PC pueda leer, para números más finos.
 - ESP-DL como referencia INT8 completa (3 semillas, todo el conjunto de test, todos los benchmarks), con sus scripts en
   el repositorio.
 - Ganarle a ESP-DL en el ESP32-S3 con los pesos en RAM usando claramente menos RAM (motor vertical por defecto: 10.4 ms

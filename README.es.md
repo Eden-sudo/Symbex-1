@@ -201,7 +201,8 @@ Raspberry Pi Pico 2, AVR), el motor vertical para el ESP32-S3, y la primera capa
   una imagen cuesta 6.6× menos energía que con TFLite Micro INT8 en el ESP32-S3 (7.2 frente a 47.7 mJ) y 13× menos en
   el ESP32 clásico (22 frente a 296 mJ). En el ESP32 clásico también los demás benchmarks: MLP 11×, HAR 8.7×, ECG 8.0×
   menos energía por inferencia; FOMO 96 mJ por imagen, donde TFLite Micro no cabe
-  ([docs/es/results.md](docs/es/results.md#energía)). Después: los demás benchmarks en el S3, y el Pico 2.
+  En el S3 todos los benchmarks gastan menos energía también: MLP 25×, FOMO 2.0×, HAR 1.8×, ECG 1.4×, ResNet-8 con el
+  motor preparado 10.5× (4.5 mJ) ([docs/es/results.md](docs/es/results.md#energía)). Después: el Pico 2.
 - **ESP-DL** como referencia INT8 completa (3 semillas, todo el conjunto de prueba, todos los benchmarks).
 - **FOMO reentrenado** con el nuevo split de validación fijo.
 

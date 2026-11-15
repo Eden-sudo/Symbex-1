@@ -1,0 +1,66 @@
+{
+ "board": "s3",
+ "date": "2026-11-15",
+ "network": "HAR max, int8 first layer (UniMiB-SHAR)",
+ "meter": "USB power meter feeding the board's native USB port, through the meter's USB-A port (its USB-C port reads about 20 % more on this board only: the lower reading is used); display V, A, mAh, Wh; read by eye",
+ "method": "each phase 600 s; energy = meter mAh x volts x 3.6 J, after subtracting the idle rate (19 mAh / 600 s) for the seconds the meter timer ran past 600 s; per inference = energy / runs; above idle = (mAh - 19 x seconds / 600) x volts x 3.6 / runs; the meter counts whole mAh (+-1 mAh per reading); one run per phase (no seeds, no repeats)",
+ "tools": "tools/energy_loop.py (firmware: 0xE5 / TFLite loop on the first input, 'L:count,elapsed_us,class')",
+ "phases": {
+  "symbex": {
+   "label": "SYMBEX runs/max_int8_e100_s42, standard engine, lut16, flash; exact against its simulation on the chip, 100 %",
+   "runs": 153544,
+   "seconds": 600.003,
+   "ms_per_run": 3.9077,
+   "mah": 24.68,
+   "meter_wh": 0.12,
+   "amps_seen": "not noted",
+   "volts": 5.13,
+   "joules": 455.9,
+   "mW": 759.7,
+   "mJ_per_run": 2.9689,
+   "mJ_per_run_above_idle": 0.6836,
+   "meter_raw": {
+    "mah": 25,
+    "wh": 0.12,
+    "timer_s": 610
+   }
+  },
+  "idle": {
+   "label": "idle, measured Nov 14 on the same board and meter port (cnn_cifar_resnet8 ENERGY.md)",
+   "mah": 19,
+   "seconds": 600.0,
+   "volts": 5.13,
+   "mW": 584.8
+  },
+  "tflite": {
+   "label": "TFLite Micro INT8, max seed 42 (same architecture, same recipe), ESP-NN, flash",
+   "runs": 86740,
+   "seconds": 600.006,
+   "ms_per_run": 6.9173,
+   "mah": 25.52,
+   "meter_wh": 0.13,
+   "amps_seen": "not noted",
+   "volts": 5.13,
+   "joules": 471.4,
+   "mW": 785.7,
+   "mJ_per_run": 5.4346,
+   "mJ_per_run_above_idle": 1.3892,
+   "meter_raw": {
+    "mah": 26,
+    "wh": 0.13,
+    "timer_s": 615
+   }
+  }
+ },
+ "notes": [
+  "Accuracy differs: on HAR max INT8 is about 9 points more accurate (README); this energy buys speed, not equal accuracy."
+ ],
+ "ratio_total": {
+  "value": 1.83,
+  "range_pm1mah": [
+   1.69,
+   1.98
+  ]
+ },
+ "speed_ratio": 1.77
+}
