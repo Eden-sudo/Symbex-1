@@ -3,7 +3,7 @@
  * network, the same exported data, the same output bits, computed 128 output pixels at a time.
  *
  * The standard engine (symbex_bool_net_run) counts one window at a time: copy the window, count its bits against
- * every weight row. The vertical engine turns the loops around (docs/vertical.md has the derivation):
+ * every weight row. The vertical engine turns the loops around (docs/en/vertical.md has the derivation):
  *     maps       channel planes: bit p of plane c = pixel p (row-major) of channel c. Plane c starts at word
  *                4 + c * PS of the map buffer, PS = symbex_bool_vplane_stride(h, w); the 4 words before and after
  *                every plane and the bits past h * w are 0 (the zero padding of the convolution)

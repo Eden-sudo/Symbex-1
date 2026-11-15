@@ -1,0 +1,159 @@
+{
+  "weights": "binary",
+  "seed": 42,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "binary",
+    "int8_blocks": [],
+    "name": "d384l8_head1",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.6038,
+  "val_perplexity": 4.972,
+  "minutes": 33.54,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.4111,
+      "val_loss": 2.3565,
+      "minutes": 2.25
+    },
+    {
+      "step": 1000,
+      "train_loss": 2.046,
+      "val_loss": 2.06,
+      "minutes": 3.9
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.8923,
+      "val_loss": 1.9582,
+      "minutes": 5.55
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.8785,
+      "val_loss": 1.8958,
+      "minutes": 7.2
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.8758,
+      "val_loss": 1.8481,
+      "minutes": 8.85
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.7807,
+      "val_loss": 1.813,
+      "minutes": 10.49
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.7699,
+      "val_loss": 1.7869,
+      "minutes": 12.14
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.7456,
+      "val_loss": 1.762,
+      "minutes": 13.79
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.7542,
+      "val_loss": 1.7412,
+      "minutes": 15.43
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.7509,
+      "val_loss": 1.7222,
+      "minutes": 17.08
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.7041,
+      "val_loss": 1.7067,
+      "minutes": 18.72
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.6213,
+      "val_loss": 1.6896,
+      "minutes": 20.37
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.7286,
+      "val_loss": 1.6744,
+      "minutes": 22.01
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.7195,
+      "val_loss": 1.6574,
+      "minutes": 23.66
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.619,
+      "val_loss": 1.6437,
+      "minutes": 25.3
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.5883,
+      "val_loss": 1.6296,
+      "minutes": 26.95
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.5805,
+      "val_loss": 1.6217,
+      "minutes": 28.6
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.5702,
+      "val_loss": 1.6125,
+      "minutes": 30.25
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.592,
+      "val_loss": 1.6062,
+      "minutes": 31.89
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.601,
+      "val_loss": 1.6038,
+      "minutes": 33.54
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and make her room clean. One day, Lily's mom said, \"Lily, you need to clean your room first. It is time for bed.\"\nLily did not want to clean her room. She wanted to play with her toys. But her mom said, \"No, Lily. You need to clean your room first.\" Lily was sad, but she knew her mom was right.\nLily's mom had an idea. She said, \"Lily, you need to clean your room. It is not safe.\" Lily did not want to clean her room. She wanted to play with her toys and have fun. But her mom said, \"Lily, you need to clean your room. It is not safe.\"\nLily did not listen to her mom. She kept cleaning her room. She played with her toys and had fun. But then, Lily's mom came into the room. She saw Lily cleaning"
+}

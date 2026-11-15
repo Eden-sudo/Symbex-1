@@ -1,0 +1,39 @@
+{
+  "run": "binary_a1x_hadall_b0a8_s42",
+  "board": "esp32s3 N16R8",
+  "kernel": "lib_symbex u8 x 1-bit (PIE) linear, PIE s8 dot (output, scores)",
+  "model_in": "psram",
+  "kv_cache_in": "psram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | psram 8386295 bytes free",
+  "loaded": "LOADED 3551648 bytes in 606 ms | internal free 236096 | psram free 3035511",
+  "check_tokens": 512,
+  "check_equal": 512,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 123.165,
+  "ms_per_token_at_position": {
+    "0": 103.347,
+    "63": 111.642,
+    "127": 121.983,
+    "255": 143.099
+  },
+  "ms_per_token_story_mean": 112.6,
+  "tokens_per_second_story": 8.881,
+  "ms_per_token_by_part": {
+    "embedding_norms": 5.386,
+    "qkv": 12.014,
+    "attention_values": 13.272,
+    "o": 4.249,
+    "w1_w3": 21.256,
+    "swiglu": 8.274,
+    "w2": 9.273,
+    "output_head": 27.99,
+    "attention_rope_cache": 10.073,
+    "attention_scores": 7.785,
+    "attention_softmax": 1.992,
+    "attention_division": 1.598
+  },
+  "story": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and eat her favorite food. One day, she found a big box in her room. She was very curious about what was inside.\nLily opened the box and found a big, soft pillow. She was very happy and wanted to play with it. She took the pillow and started to play with it. But then, something unexpected happened. A big, soft pillow fell from the pillow and broke into pieces.\nLily was sad and cried. She did not know what to do. She asked her mom for help. Her"
+}

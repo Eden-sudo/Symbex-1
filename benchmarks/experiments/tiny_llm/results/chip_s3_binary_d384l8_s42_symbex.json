@@ -1,0 +1,39 @@
+{
+  "run": "binary_d384l8_s42",
+  "board": "esp32s3 N16R8",
+  "kernel": "lib_symbex u8 x 1-bit (PIE) linear, PIE s8 dot (output, scores)",
+  "model_in": "psram",
+  "kv_cache_in": "psram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | psram 8386295 bytes free",
+  "loaded": "LOADED 3550752 bytes in 605 ms | internal free 245036 | psram free 3036407",
+  "check_tokens": 512,
+  "check_equal": 512,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 128.489,
+  "ms_per_token_at_position": {
+    "0": 108.6,
+    "63": 116.977,
+    "127": 127.453,
+    "255": 148.543
+  },
+  "ms_per_token_story_mean": 117.91,
+  "tokens_per_second_story": 8.481,
+  "ms_per_token_by_part": {
+    "embedding_norms": 4.619,
+    "qkv": 14.263,
+    "attention_values": 13.248,
+    "o": 5.152,
+    "w1_w3": 24.753,
+    "swiglu": 5.892,
+    "w2": 11.477,
+    "output_head": 27.99,
+    "attention_rope_cache": 9.694,
+    "attention_scores": 7.778,
+    "attention_softmax": 2.02,
+    "attention_division": 1.6
+  },
+  "story": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and have fun. One day, Lily found a big, red ball in her room. She was very happy and wanted to show it to her friends.\nLily went to her friend Tom's house and said, \"Look at my big, red ball! Let's play with it!\" Tom was excited and said, \"Yes, let's play!\" They took the big, red ball and started to play.\nAs they played, the big, red ball started to move! It was not a ball at"
+}

@@ -47,7 +47,7 @@ Every SYMBEX row was 100 % equal to the simulation (measured Nov 6, 2026, from t
 ## Use it
 
 To build it into a project, copy the header for your chip next to your code (rename `model_symbex_xnor.h` to
-`model_symbex.h`) and follow the [library guide](../../../../docs/library.md).
+`model_symbex.h`) and follow the [library guide](../../../../docs/en/library.md).
 
 To measure it on a board, from `tools/` (environment `env_bench`, Digits in `benchmarks/data/digits`):
 

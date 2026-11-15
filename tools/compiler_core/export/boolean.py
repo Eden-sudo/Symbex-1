@@ -30,7 +30,7 @@ Every conv computes raw = sum of +-1 products over the in-image window; BatchNor
 The header offers the interface of the MLP headers (symbex_mlp_infer, SYMBEX_MLP_N_INPUTS / N_CLASSES / N_STEPS,
 symbex_mlp_steps, SYMBEX_MLP_BYTES_BUFFERS), so firmware/model_test.c and the chip stage measure it unchanged.
 Built with -DSYMBEX_BOOL_VERTICAL, the same header runs the vertical engine (symbex_bool_vertical.h, the fastest on
-the ESP32-S3; docs/vertical.md) on the same data, with the same results: chip_test.py --engine vertical.
+the ESP32-S3; docs/en/vertical.md) on the same data, with the same results: chip_test.py --engine vertical.
 Adding -DSYMBEX_BOOL_VERTICAL_PREPARED (optional) builds its plane lists and thresholds once into RAM: more RAM,
 faster (chip_test.py --engine vertical_prepared). -DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT instead: the lists prepared,
 the thresholds kept compact (one value per output channel and border kind): about half that RAM, a little slower

@@ -1,0 +1,39 @@
+{
+  "run": "binary_d384l8_head4_s44",
+  "board": "esp32s3 N16R8",
+  "kernel": "lib_symbex u8 x 1-bit (PIE) linear, PIE int4 dot (output), PIE s8 dot (scores)",
+  "model_in": "psram",
+  "kv_cache_in": "psram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | psram 8386295 bytes free",
+  "loaded": "LOADED 2765216 bytes in 494 ms | internal free 235056 | psram free 3821943",
+  "check_tokens": 512,
+  "check_equal": 512,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 115.659,
+  "ms_per_token_at_position": {
+    "0": 95.73,
+    "63": 104.118,
+    "127": 114.501,
+    "255": 135.668
+  },
+  "ms_per_token_story_mean": 105.043,
+  "tokens_per_second_story": 9.52,
+  "ms_per_token_by_part": {
+    "embedding_norms": 4.648,
+    "qkv": 14.377,
+    "attention_values": 13.292,
+    "o": 5.196,
+    "w1_w3": 24.93,
+    "swiglu": 5.896,
+    "w2": 11.523,
+    "output_head": 14.681,
+    "attention_rope_cache": 9.685,
+    "attention_scores": 7.784,
+    "attention_softmax": 2.044,
+    "attention_division": 1.602
+  },
+  "story": "Once upon a time, there was a little girl named Lily. She had a big, red ball. Lily loved to play with her ball every day. One day, she saw a big, dangerous dog near her house. The dog was barking and running around. Lily was scared and didn't know what to do.\nLily's mom saw her and said, \"Don't worry, Lily. The dog is just playing. He won't hurt you.\" Lily felt better and went back to her mom. She told her mom about the dangerous dog and the dangerous dog. Her mom said, \"Don"
+}
