@@ -38,6 +38,16 @@ def canonical_arch(arch):
     return old + sep + tag
 
 
+def split_subjects():
+    """Return the fixed test, validation and training subject arrays."""
+    order = np.random.default_rng(0).permutation(np.arange(1, 31))
+    return (
+        np.sort(order[:N_TEST]),
+        np.sort(order[N_TEST:N_TEST + N_VAL]),
+        np.sort(order[N_TEST + N_VAL:]),
+    )
+
+
 def main():
     import scipy.io as sio
     acc = sio.loadmat(os.path.join(RAW, "acc_data.mat"))["acc_data"]           # N x 453: x(151) y(151) z(151)
@@ -46,8 +56,7 @@ def main():
     x = np.clip(np.round(x / FULL_SCALE * 127), -127, 127).astype(np.int8)
     y = labels[:, 0].astype(np.int64) - 1
     subject = labels[:, 1].astype(np.int64)
-    order = np.random.default_rng(0).permutation(np.arange(1, 31))
-    test_s, val_s, train_s = np.sort(order[:N_TEST]), np.sort(order[N_TEST:N_TEST + N_VAL]), np.sort(order[N_TEST + N_VAL:])
+    test_s, val_s, train_s = split_subjects()
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     np.savez_compressed(OUT, x=x, y=y, subject=subject, test_subjects=test_s, val_subjects=val_s, train_subjects=train_s)
     print(f"[*] {len(x)} windows of 151 x 3, int8 (full scale {FULL_SCALE} m/s^2 = 127) -> {OUT}")
