@@ -1,6 +1,6 @@
 # How SYMBEX-1 works
 
-*[Leer en español](how-it-works.es.md)*
+*[Leer en español](../es/how-it-works.md)*
 
 A neural network spends almost all of its time computing dot products: multiply every input by a weight and add.
 SYMBEX-1 makes the inputs and the weights **one bit** each. A dot product then needs no multiplication at all: it
@@ -81,7 +81,7 @@ the threshold of the next layer's binarization.
   chip multiplies bytes in SIMD (the stem alone: 1.79× on the ESP32-S3, 1.13× on the Pico 2's Cortex-M33), but slower
   where it does not (0.86× on the ESP32, 0.62× on Hazard3). The whole ResNet-8, 3 seeds, exact on every board: 75.4 %
   on the test set against 71.3 %, 1.10× faster on the S3 (35.5 against 39.2 ms), 1.03× on the M33, 0.93× on the ESP32
-  and 0.87× on Hazard3 ([the benchmark](../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). Since then the stem has its own
+  and 0.87× on Hazard3 ([the benchmark](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). Since then the stem has its own
   kernels (PIE on the S3, one without a window buffer on the other chips), and the same network measures (seed 42,
   weights in flash) 1.22× faster than the thermometer on the S3 (32.1 against 39.2 ms), 1.12× on the M33 (66.4
   against 74.6), 1.04× on the ESP32 (61.1 against 63.3) and 0.98× on Hazard3 (57.4 against 56.1). The thermometer
@@ -160,8 +160,8 @@ flowchart LR
 
 | Topic | File |
 |---|---|
-| Folding convolutional networks (thresholds, classifier) | [`tools/compiler_core/export/boolean.py`](../tools/compiler_core/export/boolean.py) |
-| Folding dense networks | [`tools/compiler_core/export/dense.py`](../tools/compiler_core/export/dense.py) |
-| The binary convolution, thermometer, OR pool and shortcut in C | [`layers/conv/symbex_bool.h`](../Symbex1_PIO/lib/lib_symbex/include/layers/conv/symbex_bool.h) |
-| The hardware layer (bit counting per chip) | [`include/hal/symbex_hal.h`](../Symbex1_PIO/lib/lib_symbex/include/hal/symbex_hal.h) |
-| Measuring the counting methods of a chip | [`tools/dev/count_bench.py`](../tools/dev/count_bench.py) |
+| Folding convolutional networks (thresholds, classifier) | [`tools/compiler_core/export/boolean.py`](../../tools/compiler_core/export/boolean.py) |
+| Folding dense networks | [`tools/compiler_core/export/dense.py`](../../tools/compiler_core/export/dense.py) |
+| The binary convolution, thermometer, OR pool and shortcut in C | [`layers/conv/symbex_bool.h`](../../Symbex1_PIO/lib/lib_symbex/include/layers/conv/symbex_bool.h) |
+| The hardware layer (bit counting per chip) | [`include/hal/symbex_hal.h`](../../Symbex1_PIO/lib/lib_symbex/include/hal/symbex_hal.h) |
+| Measuring the counting methods of a chip | [`tools/dev/count_bench.py`](../../tools/dev/count_bench.py) |

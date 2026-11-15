@@ -1,6 +1,6 @@
 """
 dense_vertical_bench.py -- can a binary DENSE layer run vertically (bit-sliced), as the conv layers do on the S3?
-The vertical engine of lib_symbex (symbex_bool_vertical, docs/vertical.md) puts 128 output PIXELS in the 128 lanes of
+The vertical engine of lib_symbex (symbex_bool_vertical, docs/en/vertical.md) puts 128 output PIXELS in the 128 lanes of
 a PIE register. A dense layer has no pixels; here the lanes are 128 OUTPUT NEURONS instead, the roles of data and
 weights swapped:
     weights    transposed: plane (g, i) = input weight i of the 128 neurons of group g (bit lane = neuron), plus one

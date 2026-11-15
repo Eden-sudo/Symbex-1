@@ -1,6 +1,6 @@
 # The vertical engine: ResNet-8 in 6.4 ms on the ESP32-S3
 
-*[Leer en español](vertical.es.md)*
+*[Leer en español](../es/vertical.md)*
 
 The vertical engine is a second way to run SYMBEX-1's fully binary convolutional networks (`layers/conv/symbex_bool`).
 It runs **the same exported network, with the same data in flash and the same output bits**, but turns the loops

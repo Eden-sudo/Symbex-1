@@ -1,6 +1,6 @@
 /*
  * symbex_bool_vertical.c -- the vertical engine of the fully binary networks (see symbex_bool_vertical.h and
- * docs/vertical.md). Every count is bit-sliced: a 128-bit "plane" holds one bit of 128 output pixels, and the counts
+ * docs/en/vertical.md). Every count is bit-sliced: a 128-bit "plane" holds one bit of 128 output pixels, and the counts
  * are kept as planes too (bit i of the count of all 128 pixels in plane i), added with carry-save adders.
  */
 #if defined(__has_include)                       /* CONFIG_IDF_TARGET_ESP32S3 (ESP-IDF) lives in sdkconfig.h */

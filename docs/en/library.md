@@ -1,6 +1,6 @@
 # lib_symbex: the C engine
 
-*[Leer en español](library.es.md)*
+*[Leer en español](../es/library.md)*
 
 lib_symbex runs the networks the [CDT](cdt.md) exports. It is plain C with no dependencies, the model's memory is
 static, and every model it runs has been checked bit by bit against the CDT's integer simulation. It lives in
