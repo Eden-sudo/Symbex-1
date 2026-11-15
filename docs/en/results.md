@@ -49,7 +49,8 @@ on every row but one.
 | ResNet-8 (CIFAR-10) | ESP32 | flash | 63.3 / 717.8 ms | **11.3×** | 24.3 / 96.2 KB | 78.6 / 53.1 KB ¹ |
 | ResNet-8, most accurate recipe ², vertical engine ⁴ | ESP32-S3 | flash | 9.70 / 52.0 ms | **5.36×** | 29.0 / 96.2 KB | 54.2 / 80.5 KB |
 | ResNet-8, most accurate recipe ², standard engine | ESP32-S3 | flash | 32.3 / 52.0 ms | **1.61×** | 29.0 / 96.2 KB | 15.2 / 80.5 KB |
-| ResNet-8, most accurate recipe ² | ESP32 | flash | 62.5 / 717.8 ms | **11.5×** | 29.0 / 96.2 KB | 79.0 / 53.1 KB ¹ |
+| ResNet-8, most accurate recipe ², vertical engine, compact ⁵ | ESP32 | flash | 48.6 / 717.8 ms | **14.8×** | 29.0 / 96.2 KB | 199.7 / 53.1 KB ¹ |
+| ResNet-8, most accurate recipe ², standard engine | ESP32 | flash | 62.5 / 717.8 ms | **11.5×** | 29.0 / 96.2 KB | 79.0 / 53.1 KB ¹ |
 | FOMO person detection (32-32-128) | ESP32-S3 | flash | 126.3 / 256.9 ms | **2.03×** | 41.2 / 236.1 KB | 79.0 / 222.6 KB |
 | FOMO person detection (32-32-128) | ESP32 | flash | 226.3 ms / does not fit | **only SYMBEX runs** | 41.2 / 236.1 KB | 142.8 KB ¹ / does not fit |
 | Activity recognition (1D), 4 networks | ESP32-S3 | flash | 0.49-3.83 / 0.72-7.11 ms | **1.47-1.90×** | 0.7-6.5 / 7.3-42.5 KB | 1.3-2.7 / 2.7-25.5 KB |
@@ -75,6 +76,10 @@ on every row but one.
   its SIMD unit, which has no bit-count instruction ([The vertical engine](vertical.md)). Same
   exported network and the same output bits as the standard engine, more RAM (its work block). FOMO and the 1D
   networks are still measured with the standard engine.
+- ⁵ On the classic ESP32 the vertical engine wins too (it has no 128-bit registers): 54.68 ± 0.09 ms by
+  default (116 KB of RAM) and 48.57 ± 0.10 ms in compact mode (200 KB), against 62.52 ms for the standard engine
+  (79 KB); 3 seeds, weights in flash, exact 100 %. The prepared mode does not fit its DRAM
+  ([the benchmark](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md)).
 
 The charts are drawn from the result files by `python tools/dev/docs_charts.py`, so a new measurement updates them.
 
@@ -133,6 +138,7 @@ weights in flash (`param_copy = false`); "RAM" copies them to RAM when the model
 | ResNet-8, most accurate recipe ², prepared | ESP32-S3 | RAM (SYMBEX: flash) | 9.8 ms (147 KB of RAM) | **6.02 ms** (217 KB of RAM) | — | SYMBEX **1.63× faster**, with more RAM |
 | ResNet-8 | ESP32 | flash | 712.4 ms | **63.3 ms** | 717.8 ms | SYMBEX **11.3× faster** |
 | ResNet-8 | ESP32 | RAM | 603.4 ms | **59.7 ms** | — | SYMBEX **10.1× faster** |
+| ResNet-8, most accurate recipe ², vertical engine, compact | ESP32 | flash | 712.4 ms | **48.6 ms** (200 KB of RAM) | 717.8 ms | SYMBEX **14.7× faster** |
 | ResNet-8, most accurate recipe ² | ESP32 | flash | 712.4 ms | **62.5 ms** | 717.8 ms | SYMBEX **11.4× faster** |
 | ResNet-8, most accurate recipe ² | ESP32 | RAM | 603.4 ms | **58.2 ms** | — | SYMBEX **10.4× faster** |
 | MLP 784-128-512-10 | ESP32-S3 | flash | 11.38 ms | **0.42 ms** | 11.67 ms | SYMBEX **27× faster** |
@@ -199,7 +205,8 @@ both on a board without training ([Methodology](methodology.md)).
   on the M33: 453.0 ms (6.1×), 211.4 ms with the model in RAM; on Hazard3, with the reference kernels: 5702 ms.
 - **The most accurate recipe** (int8 first layer + Bop + pooled int8 classifier, the rest binary; in the CDT):
   76.7 ± 0.3 % on the test set with 29.0 KB of flash. ESP32-S3 32.3 ms (1.61×), vertical engine 9.70 / 7.07 /
-  6.02 ms (default / compact / prepared); ESP32 62.5 ms (11.5×); M33 67.8 ms (6.7×); Hazard3 57.9 ms. Ready to use in
+  6.02 ms (default / compact / prepared); ESP32 62.5 ms (11.5×), vertical engine 54.7 / 48.6 ms (default /
+  compact, 116 / 200 KB of RAM; prepared does not fit); M33 67.8 ms (6.7×); Hazard3 57.9 ms. Ready to use in
   [`reference/`](../../benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md).
 - **Memory:** 24.3 KB of flash vs 96.2 KB, and 15 KB of RAM vs a 53-80 KB arena.
 - **Accuracy:** 71.3 ± 0.8 % vs 87.0 %. With the network shaped for binary (16-32-128 / 1-1-2) it reaches 73.1 % at the
@@ -284,7 +291,8 @@ one included (the image enters as a thermometer of bits); 3 training seeds, labe
 
 **The most accurate recipe.** With an int8 first layer on the pixels and a pooled int8 classifier (every other layer
 binary, Bop for the binary weights; `--variant int8stem_pool2` in the CDT), the same ResNet-8 reaches **76.7 ± 0.3 %**
-and runs faster: ESP32-S3 32.3 ms (1.61×), 6.0-9.7 ms with the vertical engine; ESP32 62.5 ms (11.5×); Pico 2 M33
+and runs faster: ESP32-S3 32.3 ms (1.61×), 6.0-9.7 ms with the vertical engine; ESP32 62.5 ms (11.5×), 48.6 ms with the vertical
+engine's compact mode (14.8×); Pico 2 M33
 67.8 ms (6.7×), Hazard3 57.9 ms; 29 KB of flash, exact on every board. Seed 42 is ready to use in
 [`reference/`](../../benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md).
 

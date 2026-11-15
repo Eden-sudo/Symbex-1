@@ -75,7 +75,8 @@ axes; "vertical" is SYMBEX's engine for the ESP32-S3's SIMD unit.
 - **INT8 is the most accurate:** the official MLPerf Tiny model reaches 87.0 % on CIFAR-10. The fully binary ResNet-8
   reaches 71.3 %, and 76.7 % with an 8-bit first layer and classifier: 10 to 16 points less.
 - **Binary is much faster:** on the ESP32-S3, 9.70 ms against 52.0 ms (5.4×) with the [vertical engine](docs/en/vertical.md);
-  on the classic ESP32, 62.5 ms against 717.8 ms (11.5×); on the Raspberry Pi Pico 2 (Cortex-M33), 67.8 ms against
+  on the classic ESP32, 48.6 ms against 717.8 ms (14.8×) with the vertical engine's compact mode (200 KB of RAM; the
+  standard engine 62.5 ms, 79 KB); on the Raspberry Pi Pico 2 (Cortex-M33), 67.8 ms against
   453 ms with CMSIS-NN (6.7×).
 - **And much smaller:** 24-29 KB of flash against 96 KB.
 
@@ -112,7 +113,7 @@ The same network on the same chip, binary against TFLite Micro INT8:
 
 | Benchmark | Accuracy, SYMBEX / INT8 | Speed | Memory |
 |---|---|---|---|
-| [ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/), CIFAR-10 images | 76.7 / 87.0 % | 5.4× (ESP32-S3) to 11.5× (ESP32) faster | 29 / 96 KB flash |
+| [ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/), CIFAR-10 images | 76.7 / 87.0 % | 5.4× (ESP32-S3) to 14.8× (ESP32) faster | 29 / 96 KB flash |
 | [FOMO](benchmarks/conv2d/fomo_voc_person/), person detection | **F1 31.2 / 30.1 %** | 2.0× faster (ESP32-S3); only SYMBEX fits the ESP32 | 41 / 236 KB flash |
 | [MLP](benchmarks/mlp/mlp_fashion/), Fashion-MNIST | 87.5 / 89.8 % | 28× (flash) and 2.1× (RAM) on the ESP32-S3, 8.8× on the ESP32 | 27 / 187 KB flash |
 | [1D convolutions](benchmarks/conv1d/har_ultracompact/), activity recognition | INT8 about 9 points better | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 6.5-10× less flash |
@@ -126,7 +127,7 @@ needs 1.07-1.37× fewer instructions on its four networks. Every table, chip and
 ## What we learned
 
 1. **Binary pays most where the chip has no SIMD.** On the classic ESP32, counting bits is an order of magnitude
-   cheaper than multiplying bytes (5.3-11.5× on whole networks). On the ESP32-S3, whose SIMD unit speeds up INT8, the
+   cheaper than multiplying bytes (5.3-14.8× on whole networks). On the ESP32-S3, whose SIMD unit speeds up INT8, the
    standard engine wins by 1.3-2×, and beating Espressif's own INT8 library took a dedicated engine (vertical).
 2. **Binary does not replace INT8 on fine-grained classification.** On CIFAR-10 even the best binary recipe stays 10
    points behind. A [study](benchmarks/experiments/training_gap/) found the cause is mostly capacity, not training: the
