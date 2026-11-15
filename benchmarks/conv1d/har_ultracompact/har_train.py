@@ -91,7 +91,7 @@ def main():
         print(f"\n    {'network':<16}{'validation %':>16}{'test %':>16}")
         for (a, f), r in results.items():
             r = np.array(r)
-            print(f"    {a + ' ' + f:<16}{r[:, 0].mean():>10.1f} ± {r[:, 0].std():.1f}{r[:, 1].mean():>10.1f} ± {r[:, 1].std():.1f}")
+            print(f"    {a + ' ' + f:<16}{r[:, 0].mean():>10.1f} ± {r[:, 0].std(ddof=1):.1f}{r[:, 1].mean():>10.1f} ± {r[:, 1].std(ddof=1):.1f}")
 
 
 if __name__ == "__main__":

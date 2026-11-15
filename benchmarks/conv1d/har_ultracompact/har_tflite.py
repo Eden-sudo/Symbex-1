@@ -229,7 +229,7 @@ def main():
         print(f"\n    INT8 (TFLite), test accuracy, mean +- std over seeds {SEEDS}")
         for a in ARCHS:
             t = [r["test"] for r in rows if r["arch"] == a]
-            print(f"    {a:<6} {np.mean(t):5.1f} +- {np.std(t):.1f} %   ({', '.join(f'{v:.1f}' for v in t)})")
+            print(f"    {a:<6} {np.mean(t):5.1f} +- {np.std(t, ddof=1):.1f} %   ({', '.join(f'{v:.1f}' for v in t)})")
         return
     tflite, res = run_pc(args.arch, args.seed, args.epochs, args.lr, tf)
     if args.board:
