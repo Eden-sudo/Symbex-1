@@ -135,7 +135,7 @@ def main():
                               engine=args.engine, code=args.code, flash_config=args.flash_config)
         res["code"] = args.code
         res["flash_config"] = args.flash_config
-        args.engine = res["engine"]                       # "auto" resolved: the file name says which engine ran
+        args.engine = res.get("engine", args.engine)      # "auto" resolved: the file name says which engine ran
     except (RuntimeError, ValueError) as e:
         sys.exit(f"[X] {e}")
     path = os.path.join(args.folder, f"chip_{args.board}_{args.popcount}_{args.weights}_{args.first_layer}"
