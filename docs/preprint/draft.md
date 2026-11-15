@@ -22,7 +22,8 @@ five tasks (CIFAR-10, person detection, Fashion-MNIST, activity recognition, ECG
 instruction sets (Xtensa LX6 and LX7, Arm Cortex-M33, Hazard3 RISC-V), with three seeds, every choice made on
 validation and the test set used once. Without a SIMD unit binary networks run 5-13 times faster than INT8 on the
 classic ESP32; with one the gain falls to 1.0-2 times on convolutional networks, except where INT8 must read its
-weights from flash (28 times on a dense network). Binary models need 3-10 times less flash. The accuracy cost depends
+weights from flash (28 times on a dense network). Binary models need 3-10 times less flash and, measured at the
+board's USB port, 8-13 times less energy per inference on the classic ESP32 and 1.4-25 times less on the ESP32-S3. The accuracy cost depends
 on the task: none for person detection and ECG beats, two points on Fashion-MNIST, 10-16 on CIFAR-10 and 9-23 on
 activity recognition, where a study attributes the gap to capacity, not training.
 
@@ -444,6 +445,25 @@ read (its speed-ups are in the activity-recognition table above).
 
 ![Accuracy cost against speed-up](../assets/cost.svg)
 
+**Energy per inference.** A USB power meter between the PC and the board, read by eye in whole mAh, while the board
+repeats one inference for 10 minutes; one run per network and method (seed 42, weights in flash), the idle board
+measured the same way. The ranges move every reading by 1 mAh in the worst direction.
+
+| Benchmark | ESP32: binary / INT8 mJ | Less energy | ESP32-S3: binary / INT8 mJ | Less energy |
+|---|---|---|---|---|
+| CIFAR-10 ResNet-8 | 22.2 / 296 (vertical compact) | 13.3× (10.9-16.5) | 7.2 / 47.7 (vertical); 4.5 (prepared) | 6.6× (6.1-7.1); 10.5× (9.8-11.3) |
+| Fashion-MNIST MLP | 0.91 / 10.3 | 11.3× (9.5-13.4) | 0.32 / 8.2 | 25.4× (23.3-27.6) |
+| Activity recognition, max, int8 first layer | 5.5 / 47.7 | 8.7× (7.5-10.1) | 3.0 / 5.4 | 1.83× (1.69-1.98) |
+| ECG beats, network m | 5.0 / 40.1 | 8.0× (6.9-9.2) | 4.7 / 6.6 | 1.42× (1.32-1.53) |
+| Person detection (FOMO) | 96 / does not fit | — | 97 / 193 | 1.99× (1.83-2.16) |
+
+The energy gain follows the speed gain: both models draw about the same power on the ESP32 (0.33-0.46 W), and on the
+S3 the differences go both ways (0.69-0.99 W; INT8 drew more on ResNet-8 and ECG, less on the MLP). On the S3, the
+prepared vertical engine spends 1.51 times less energy per image than the default one (1.39-1.64) for 1.60 times the
+speed: the precomputed tables it reads cost far less than the work they save. With the MLP's weights in RAM on both
+sides the binary model still uses 1.79 times less energy (1.66-1.92), so INT8's cost is not only waiting on flash.
+Every number is in the benchmarks' `results/energy/` files.
+
 ### 3.2 Discussion: where binary pays, and why it loses where it loses
 
 **The chip decides the speed-up.** Without SIMD (ESP32, Hazard3) whole networks run 5-13× faster than INT8, because
@@ -496,7 +516,9 @@ disagreed with its simulation was a bug to fix, never a result to report.
   at its RAM budget. The ESP-DL numbers are a quick check (one run, 100-200 inputs), not a 3-seed benchmark.
 - **The INT8 side is the official path, not the fastest possible.** The vendor kernels are used as shipped; on
   Hazard3 only reference kernels exist, so its INT8 column measures what runs today.
-- **Energy is not measured.** Latency and memory are; a current meter is the next measurement.
+- **Energy comes from one run per case, read by eye.** A USB meter with whole-mAh resolution gives ranges, not
+  standard deviations; it measures the whole board (regulator and USB bridge included) and cannot separate RAM from
+  flash. On the S3 the meter's two ports read about 20 % apart; the lower one is used throughout.
 - **INT4 / INT2 / ternary are our own implementation**, fair by construction but not an official toolchain; they are
   reported as exploratory.
 - **Some published measurements fall short of the recipe standard** (section 2.2): the FOMO INT8 training budget, the
@@ -521,7 +543,9 @@ times faster than INT8 on the official toolchain. With an 8-bit SIMD unit or DSP
 the standard engine wins by 1.0-2 times on convolutional networks; the 28 times of the dense network on the S3 is a
 memory effect, INT8 reading its weights from flash. Beating the vendor's own INT8 library on the S3 took a second,
 bit-sliced engine. On every chip the binary model needs 3-10 times less flash and, in most cases, less RAM; that is
-what lets the binary person detector run on the classic ESP32, where the INT8 one does not fit.
+what lets the binary person detector run on the classic ESP32, where the INT8 one does not fit. Energy per inference
+follows the speed: 8-13 times less than INT8 on the classic ESP32 and 1.4-25 times less on the S3, in every case
+measured.
 
 **The accuracy cost is the task's.** It is zero for person detection, ECG beats and 1-bit digits, two points on
 Fashion-MNIST, 10-16 points on CIFAR-10 and 9-23 points on activity recognition, worst on the smallest networks. The
@@ -530,7 +554,7 @@ points, width and an 8-bit first layer recover more, at a cost in speed or memor
 the task tolerates it and the chip lacks SIMD, or where memory decides; INT8 stays where accuracy on a fine-grained
 task decides.
 
-**Future work.** Energy per inference, with a current meter on the same boards and models; keyword spotting, which
+**Future work.** Energy on the Pico 2 and with a meter the PC can read; keyword spotting, which
 needs binary depthwise layers; the vertical engine for 1D networks on the S3; more chips; and the open items of
 section 3.3.
 
@@ -566,4 +590,3 @@ scikit-learn and its Digits set [pedregosa2011sklearn].
 
 - Spanish version of the whole text (the abstract first), then LaTeX with `references.bib`.
 - Check the `verify` entries of `references.bib`; decide the title, the author order and the RNN bullet of 3.3.
-- Energy, once the meter arrives: one table, then a sentence in the abstract and in section 4.
