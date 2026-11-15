@@ -1,0 +1,11 @@
+{
+  "run": "binary_a1x_hadall_b0a8_s42",
+  "weights": "binary",
+  "val_windows": 1024,
+  "val_loss_float": 1.7951,
+  "val_loss_integer": 1.7948,
+  "val_perplexity_float": 6.02,
+  "val_perplexity_integer": 6.018,
+  "next_token_agreement_float_vs_integer": 0.8506,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and eat her favorite food. One day, she found a big box in her room. She was very curious about what was inside.\nLily opened the box and found a big, soft pillow. She was very happy and wanted to play with it. She took the pillow and started to play with it. But then, something unexpected happened. A big, soft pillow fell from the pillow and broke into pieces.\nLily was sad and cried. She did not know what to do. She asked her mom for help. Her"
+}

@@ -1,0 +1,1143 @@
+{
+ "note": "ESTIMATE: first conv of the 1-bit run + half of every later conv of the x2 proxy + the proxy's classifier; extra thresholds and two-plane pools left out. measured: the real two-bit / ternary networks (acts1d.py + planes1d.h), seed 42, weights in flash",
+ "rows": [
+  {
+   "arch": "min",
+   "first": "binary",
+   "board": "esp32",
+   "popcount": "lut16",
+   "one_bit_ms": 1.604,
+   "proxy_x2_ms": 1.928,
+   "estimate_ms": 1.5984999999999998,
+   "ratio": 0.9965710723192018,
+   "upper_ms": 1.912,
+   "upper_ratio": 1.1920199501246882,
+   "tflite_int8_ms": 4.171,
+   "one_bit_steps": [
+    1.255,
+    0.259,
+    0.054,
+    0.0355
+   ],
+   "proxy_steps": [
+    1.271,
+    0.513,
+    0.114,
+    0.03
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "min",
+   "first": "binary",
+   "board": "s3",
+   "popcount": "swar",
+   "one_bit_ms": 0.83,
+   "proxy_x2_ms": 1.213,
+   "estimate_ms": 0.7909999999999999,
+   "ratio": 0.9530120481927711,
+   "upper_ms": 1.0005,
+   "upper_ratio": 1.205421686746988,
+   "tflite_int8_ms": 0.715,
+   "one_bit_steps": [
+    0.571,
+    0.208,
+    0.043,
+    0.008
+   ],
+   "proxy_steps": [
+    0.783,
+    0.347,
+    0.072,
+    0.0105
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "min",
+   "first": "binary",
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "one_bit_ms": 1.217,
+   "proxy_x2_ms": 1.862,
+   "estimate_ms": 1.2045,
+   "ratio": 0.9897288414133113,
+   "upper_ms": 1.539,
+   "upper_ratio": 1.2645850451930976,
+   "tflite_int8_ms": 2.712,
+   "one_bit_steps": [
+    0.831,
+    0.284,
+    0.062,
+    0.037
+   ],
+   "proxy_steps": [
+    1.15,
+    0.551,
+    0.118,
+    0.039
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "min",
+   "first": "binary",
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "one_bit_ms": 1.313,
+   "proxy_x2_ms": 2.122,
+   "estimate_ms": 1.3795,
+   "ratio": 1.0506473724295506,
+   "upper_ms": 1.529,
+   "upper_ratio": 1.1645087585681646,
+   "tflite_int8_ms": 17.294,
+   "one_bit_steps": [
+    1.212,
+    0.062,
+    0.024,
+    0.014
+   ],
+   "proxy_steps": [
+    1.803,
+    0.241,
+    0.058,
+    0.018
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "min",
+   "first": "int8",
+   "board": "esp32",
+   "popcount": "lut16",
+   "one_bit_ms": 0.83,
+   "proxy_x2_ms": 1.613,
+   "estimate_ms": 0.837,
+   "ratio": 1.008433734939759,
+   "upper_ms": 1.149,
+   "upper_ratio": 1.3843373493975903,
+   "tflite_int8_ms": 4.171,
+   "one_bit_steps": [
+    0.487,
+    0.263,
+    0.054,
+    0.025
+   ],
+   "proxy_steps": [
+    0.952,
+    0.513,
+    0.111,
+    0.038
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "min",
+   "first": "int8",
+   "board": "s3",
+   "popcount": "swar",
+   "one_bit_ms": 0.487,
+   "proxy_x2_ms": 0.762,
+   "estimate_ms": 0.45,
+   "ratio": 0.9240246406570842,
+   "upper_ms": 0.659,
+   "upper_ratio": 1.3531827515400412,
+   "tflite_int8_ms": 0.715,
+   "one_bit_steps": [
+    0.229,
+    0.207,
+    0.043,
+    0.008
+   ],
+   "proxy_steps": [
+    0.333,
+    0.346,
+    0.072,
+    0.012
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "min",
+   "first": "int8",
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "one_bit_ms": 0.837,
+   "proxy_x2_ms": 1.492,
+   "estimate_ms": 0.7975,
+   "ratio": 0.9528076463560334,
+   "upper_ms": 1.131,
+   "upper_ratio": 1.3512544802867383,
+   "tflite_int8_ms": 2.712,
+   "one_bit_steps": [
+    0.423,
+    0.285,
+    0.057,
+    0.043
+   ],
+   "proxy_steps": [
+    0.789,
+    0.558,
+    0.109,
+    0.041
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "min",
+   "first": "int8",
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "one_bit_ms": 0.559,
+   "proxy_x2_ms": 1.219,
+   "estimate_ms": 0.631,
+   "ratio": 1.1288014311270125,
+   "upper_ms": 0.792,
+   "upper_ratio": 1.4168157423971377,
+   "tflite_int8_ms": 17.294,
+   "one_bit_steps": [
+    0.452,
+    0.062,
+    0.015,
+    0.029
+   ],
+   "proxy_steps": [
+    0.878,
+    0.262,
+    0.06,
+    0.018
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max10",
+   "first": "binary",
+   "board": "esp32",
+   "popcount": "lut16",
+   "one_bit_ms": 4.528,
+   "proxy_x2_ms": 9.189,
+   "estimate_ms": 5.3950000000000005,
+   "ratio": 1.191475265017668,
+   "upper_ms": 8.336000000000002,
+   "upper_ratio": 1.8409893992932869,
+   "tflite_int8_ms": 31.237,
+   "one_bit_steps": [
+    2.41,
+    1.517,
+    0.566,
+    0.035
+   ],
+   "proxy_steps": [
+    3.262,
+    4.046,
+    1.836,
+    0.044
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max10",
+   "first": "binary",
+   "board": "s3",
+   "popcount": "swar",
+   "one_bit_ms": 2.362,
+   "proxy_x2_ms": 4.396,
+   "estimate_ms": 2.4899999999999998,
+   "ratio": 1.0541913632514817,
+   "upper_ms": 3.994,
+   "upper_ratio": 1.690939881456393,
+   "tflite_int8_ms": 2.9125,
+   "one_bit_steps": [
+    0.974,
+    1.087,
+    0.288,
+    0.011
+   ],
+   "proxy_steps": [
+    1.375,
+    2.094,
+    0.914,
+    0.012
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max10",
+   "first": "binary",
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "one_bit_ms": 4.093,
+   "proxy_x2_ms": 9.635,
+   "estimate_ms": 5.213500000000001,
+   "ratio": 1.2737600781822627,
+   "upper_ms": 8.562000000000001,
+   "upper_ratio": 2.0918641583190816,
+   "tflite_int8_ms": 11.992,
+   "one_bit_steps": [
+    1.768,
+    1.613,
+    0.646,
+    0.066
+   ],
+   "proxy_steps": [
+    2.839,
+    4.488,
+    2.209,
+    0.097
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max10",
+   "first": "binary",
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "one_bit_ms": 3.599,
+   "proxy_x2_ms": 7.398,
+   "estimate_ms": 4.0584999999999996,
+   "ratio": 1.1276743539872185,
+   "upper_ms": 5.513,
+   "upper_ratio": 1.531814392886913,
+   "tflite_int8_ms": 225.73,
+   "one_bit_steps": [
+    2.561,
+    0.643,
+    0.373,
+    0.019
+   ],
+   "proxy_steps": [
+    4.446,
+    1.854,
+    1.055,
+    0.043
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max10",
+   "first": "int8",
+   "board": "esp32",
+   "popcount": "lut16",
+   "one_bit_ms": 3.932,
+   "proxy_x2_ms": 9.569,
+   "estimate_ms": 4.818,
+   "ratio": 1.2253306205493386,
+   "upper_ms": 7.759,
+   "upper_ratio": 1.9732960325534081,
+   "tflite_int8_ms": 31.237,
+   "one_bit_steps": [
+    1.825,
+    1.514,
+    0.563,
+    0.031
+   ],
+   "proxy_steps": [
+    3.634,
+    4.046,
+    1.836,
+    0.052
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max10",
+   "first": "int8",
+   "board": "s3",
+   "popcount": "swar",
+   "one_bit_ms": 1.833,
+   "proxy_x2_ms": 3.717,
+   "estimate_ms": 1.964,
+   "ratio": 1.0714675395526458,
+   "upper_ms": 3.468,
+   "upper_ratio": 1.8919803600654665,
+   "tflite_int8_ms": 2.9125,
+   "one_bit_steps": [
+    0.448,
+    1.087,
+    0.288,
+    0.009
+   ],
+   "proxy_steps": [
+    0.696,
+    2.094,
+    0.914,
+    0.012
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max10",
+   "first": "int8",
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "one_bit_ms": 3.659,
+   "proxy_x2_ms": 9.327,
+   "estimate_ms": 4.77,
+   "ratio": 1.3036348729160971,
+   "upper_ms": 8.110000000000001,
+   "upper_ratio": 2.216452582672862,
+   "tflite_int8_ms": 11.992,
+   "one_bit_steps": [
+    1.329,
+    1.612,
+    0.655,
+    0.064
+   ],
+   "proxy_steps": [
+    2.544,
+    4.484,
+    2.196,
+    0.101
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max10",
+   "first": "int8",
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "one_bit_ms": 2.592,
+   "proxy_x2_ms": 5.881,
+   "estimate_ms": 3.0274999999999994,
+   "ratio": 1.1680169753086418,
+   "upper_ms": 4.478,
+   "upper_ratio": 1.7276234567901234,
+   "tflite_int8_ms": 225.73,
+   "one_bit_steps": [
+    1.523,
+    0.657,
+    0.368,
+    0.044
+   ],
+   "proxy_steps": [
+    2.926,
+    1.882,
+    1.019,
+    0.054
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max5",
+   "first": "binary",
+   "board": "esp32",
+   "popcount": "lut16",
+   "one_bit_ms": 13.605,
+   "proxy_x2_ms": 29.521,
+   "estimate_ms": 18.4655,
+   "ratio": 1.357258360896729,
+   "upper_ms": 29.367,
+   "upper_ratio": 2.1585446527012127,
+   "tflite_int8_ms": 114.2185,
+   "one_bit_steps": [
+    7.466,
+    5.426,
+    0.681,
+    0.034
+   ],
+   "proxy_steps": [
+    7.619,
+    19.356,
+    2.447,
+    0.098
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max5",
+   "first": "binary",
+   "board": "s3",
+   "popcount": "swar",
+   "one_bit_ms": 4.862,
+   "proxy_x2_ms": 13.445,
+   "estimate_ms": 6.9055,
+   "ratio": 1.4203002879473468,
+   "upper_ms": 11.741,
+   "upper_ratio": 2.4148498560263265,
+   "tflite_int8_ms": 7.1375,
+   "one_bit_steps": [
+    2.061,
+    2.484,
+    0.31,
+    0.007
+   ],
+   "proxy_steps": [
+    3.763,
+    8.596,
+    1.075,
+    0.009
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max5",
+   "first": "binary",
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "one_bit_ms": 10.473,
+   "proxy_x2_ms": 34.3,
+   "estimate_ms": 17.391,
+   "ratio": 1.6605557146949295,
+   "upper_ms": 31.339,
+   "upper_ratio": 2.992361310035329,
+   "tflite_int8_ms": 78.038,
+   "one_bit_steps": [
+    3.307,
+    6.274,
+    0.856,
+    0.04
+   ],
+   "proxy_steps": [
+    6.264,
+    24.27,
+    3.626,
+    0.136
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max5",
+   "first": "binary",
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "one_bit_ms": 8.292,
+   "proxy_x2_ms": 22.5995,
+   "estimate_ms": 11.450000000000001,
+   "ratio": 1.3808490110950316,
+   "upper_ms": 17.464000000000002,
+   "upper_ratio": 2.1061263868789197,
+   "tflite_int8_ms": 1159.843,
+   "one_bit_steps": [
+    5.327,
+    2.489,
+    0.4505,
+    0.013
+   ],
+   "proxy_steps": [
+    10.458,
+    9.951,
+    2.077,
+    0.109
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max5",
+   "first": "int8",
+   "board": "esp32",
+   "popcount": "lut16",
+   "one_bit_ms": 9.869,
+   "proxy_x2_ms": 29.445,
+   "estimate_ms": 14.753749999999998,
+   "ratio": 1.4949589624075386,
+   "upper_ms": 25.6635,
+   "upper_ratio": 2.600415442294052,
+   "tflite_int8_ms": 114.2185,
+   "one_bit_steps": [
+    3.738,
+    5.426,
+    0.678,
+    0.026
+   ],
+   "proxy_steps": [
+    7.52,
+    19.363,
+    2.4565,
+    0.106
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max5",
+   "first": "int8",
+   "board": "s3",
+   "popcount": "swar",
+   "one_bit_ms": 3.759,
+   "proxy_x2_ms": 11.4885,
+   "estimate_ms": 5.8020000000000005,
+   "ratio": 1.5434956105347168,
+   "upper_ms": 10.637,
+   "upper_ratio": 2.8297419526469807,
+   "tflite_int8_ms": 7.1375,
+   "one_bit_steps": [
+    0.958,
+    2.484,
+    0.31,
+    0.007
+   ],
+   "proxy_steps": [
+    1.8095,
+    8.595,
+    1.075,
+    0.009
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max5",
+   "first": "int8",
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "one_bit_ms": 9.901,
+   "proxy_x2_ms": 33.494,
+   "estimate_ms": 16.7975,
+   "ratio": 1.6965458034541965,
+   "upper_ms": 30.735,
+   "upper_ratio": 3.104231895768104,
+   "tflite_int8_ms": 78.038,
+   "one_bit_steps": [
+    2.724,
+    6.282,
+    0.853,
+    0.043
+   ],
+   "proxy_steps": [
+    5.481,
+    24.237,
+    3.638,
+    0.136
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max5",
+   "first": "int8",
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "one_bit_ms": 6.001,
+   "proxy_x2_ms": 18.38,
+   "estimate_ms": 9.173,
+   "ratio": 1.5285785702382935,
+   "upper_ms": 15.233,
+   "upper_ratio": 2.5384102649558407,
+   "tflite_int8_ms": 1159.843,
+   "one_bit_steps": [
+    3.004,
+    2.508,
+    0.443,
+    0.032
+   ],
+   "proxy_steps": [
+    6.147,
+    9.997,
+    2.123,
+    0.109
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max",
+   "first": "binary",
+   "board": "esp32",
+   "popcount": "lut16",
+   "one_bit_ms": 13.725,
+   "proxy_x2_ms": 32.08,
+   "estimate_ms": 18.3345,
+   "ratio": 1.3358469945355191,
+   "upper_ms": 28.647,
+   "upper_ratio": 2.0872131147540984,
+   "tflite_int8_ms": 115.62,
+   "one_bit_steps": [
+    7.924,
+    5.091,
+    0.681,
+    0.03
+   ],
+   "proxy_steps": [
+    11.355,
+    18.178,
+    2.447,
+    0.098
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max",
+   "first": "binary",
+   "board": "s3",
+   "popcount": "swar",
+   "one_bit_ms": 4.825,
+   "proxy_x2_ms": 12.934,
+   "estimate_ms": 6.754,
+   "ratio": 1.3997927461139894,
+   "upper_ms": 11.32,
+   "upper_ratio": 2.3461139896373058,
+   "tflite_int8_ms": 7.107,
+   "one_bit_steps": [
+    2.179,
+    2.327,
+    0.31,
+    0.007
+   ],
+   "proxy_steps": [
+    3.791,
+    8.057,
+    1.075,
+    0.009
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max",
+   "first": "binary",
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "one_bit_ms": 11.728,
+   "proxy_x2_ms": 35.837,
+   "estimate_ms": 18.293,
+   "ratio": 1.5597714870395634,
+   "upper_ms": 31.5,
+   "upper_ratio": 2.685879945429741,
+   "tflite_int8_ms": 77.705,
+   "one_bit_steps": [
+    4.95,
+    5.884,
+    0.856,
+    0.04
+   ],
+   "proxy_steps": [
+    9.284,
+    22.791,
+    3.623,
+    0.136
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max",
+   "first": "binary",
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "one_bit_ms": 10.678,
+   "proxy_x2_ms": 27.34,
+   "estimate_ms": 13.709000000000001,
+   "ratio": 1.2838546544296685,
+   "upper_ms": 19.442000000000004,
+   "upper_ratio": 1.8207529499906352,
+   "tflite_int8_ms": 1133.743,
+   "one_bit_steps": [
+    7.867,
+    2.339,
+    0.447,
+    0.012
+   ],
+   "proxy_steps": [
+    15.76,
+    9.39,
+    2.076,
+    0.109
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max",
+   "first": "int8",
+   "board": "esp32",
+   "popcount": "lut16",
+   "one_bit_ms": 13.027,
+   "proxy_x2_ms": 35.324,
+   "estimate_ms": 17.68025,
+   "ratio": 1.3572004298764107,
+   "upper_ms": 28.0155,
+   "upper_ratio": 2.150571889153297,
+   "tflite_int8_ms": 115.62,
+   "one_bit_steps": [
+    7.235,
+    5.089,
+    0.678,
+    0.026
+   ],
+   "proxy_steps": [
+    14.545,
+    18.178,
+    2.4925,
+    0.11
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max",
+   "first": "int8",
+   "board": "s3",
+   "popcount": "swar",
+   "one_bit_ms": 3.835,
+   "proxy_x2_ms": 11.343,
+   "estimate_ms": 5.7669999999999995,
+   "ratio": 1.503780964797914,
+   "upper_ms": 10.333499999999999,
+   "upper_ratio": 2.6945241199478485,
+   "tflite_int8_ms": 7.107,
+   "one_bit_steps": [
+    1.1915,
+    2.325,
+    0.31,
+    0.007
+   ],
+   "proxy_steps": [
+    2.199,
+    8.058,
+    1.075,
+    0.009
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max",
+   "first": "int8",
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "one_bit_ms": 11.804,
+   "proxy_x2_ms": 36.845,
+   "estimate_ms": 18.432,
+   "ratio": 1.5615045747204337,
+   "upper_ms": 31.705,
+   "upper_ratio": 2.685953913927482,
+   "tflite_int8_ms": 77.705,
+   "one_bit_steps": [
+    5.023,
+    5.886,
+    0.853,
+    0.043
+   ],
+   "proxy_steps": [
+    10.158,
+    22.834,
+    3.712,
+    0.136
+   ],
+   "proxy_equal_simulation": 100.0
+  },
+  {
+   "arch": "max",
+   "first": "int8",
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "one_bit_ms": 8.588,
+   "proxy_x2_ms": 23.704,
+   "estimate_ms": 11.684,
+   "ratio": 1.360503027480205,
+   "upper_ms": 17.534,
+   "upper_ratio": 2.041686073591057,
+   "tflite_int8_ms": 1133.743,
+   "one_bit_steps": [
+    5.725,
+    2.363,
+    0.446,
+    0.039
+   ],
+   "proxy_steps": [
+    11.894,
+    9.509,
+    2.191,
+    0.109
+   ],
+   "proxy_equal_simulation": 100.0
+  }
+ ],
+ "measured": [
+  {
+   "arch": "min",
+   "run": "min_int8_e100_a2_aug_s42",
+   "board": "esp32",
+   "popcount": "lut16",
+   "ms": 1.057,
+   "one_bit_ms": 0.83,
+   "ratio": 1.2734939759036144,
+   "estimate_ms": 0.837,
+   "upper_ms": 1.149,
+   "tflite_int8_ms": 4.171,
+   "steps": [
+    0.536,
+    0.427,
+    0.086,
+    0.008
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "min",
+   "run": "min_int8_e100_a2_aug_s42",
+   "board": "s3",
+   "popcount": "swar",
+   "ms": 0.743,
+   "one_bit_ms": 0.487,
+   "ratio": 1.5256673511293635,
+   "estimate_ms": 0.45,
+   "upper_ms": 0.659,
+   "tflite_int8_ms": 0.715,
+   "steps": [
+    0.264,
+    0.389,
+    0.082,
+    0.009
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "min",
+   "run": "min_int8_e100_a2_aug_s42",
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "ms": 1.188,
+   "one_bit_ms": 0.837,
+   "ratio": 1.4193548387096775,
+   "estimate_ms": 0.7975,
+   "upper_ms": 1.131,
+   "tflite_int8_ms": 2.712,
+   "steps": [
+    0.46,
+    0.576,
+    0.11,
+    0.036
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "min",
+   "run": "min_int8_e100_a2_aug_s42",
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "ms": 0.954,
+   "one_bit_ms": 0.559,
+   "ratio": 1.7066189624329158,
+   "estimate_ms": 0.631,
+   "upper_ms": 0.792,
+   "tflite_int8_ms": 17.294,
+   "steps": [
+    0.441,
+    0.396,
+    0.098,
+    0.017
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "max10",
+   "run": "max10_int8_e100_ter_s42",
+   "board": "esp32",
+   "popcount": "lut16",
+   "ms": 6.505,
+   "one_bit_ms": 3.932,
+   "ratio": 1.6543743641912512,
+   "estimate_ms": 4.818,
+   "upper_ms": 7.759,
+   "tflite_int8_ms": 31.237,
+   "steps": [
+    2.951,
+    2.502,
+    1.026,
+    0.022
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "max10",
+   "run": "max10_int8_e100_ter_s42",
+   "board": "s3",
+   "popcount": "swar",
+   "ms": 2.957,
+   "one_bit_ms": 1.833,
+   "ratio": 1.613202400436443,
+   "estimate_ms": 1.964,
+   "upper_ms": 3.468,
+   "tflite_int8_ms": 2.9125,
+   "steps": [
+    0.48,
+    1.899,
+    0.563,
+    0.014
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "max10",
+   "run": "max10_int8_e100_ter_s42",
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "ms": 5.432,
+   "one_bit_ms": 3.659,
+   "ratio": 1.484558622574474,
+   "estimate_ms": 4.77,
+   "upper_ms": 8.110000000000001,
+   "tflite_int8_ms": 11.992,
+   "steps": [
+    1.239,
+    2.828,
+    1.299,
+    0.066
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "max10",
+   "run": "max10_int8_e100_ter_s42",
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "ms": 4.754,
+   "one_bit_ms": 2.592,
+   "ratio": 1.8341049382716048,
+   "estimate_ms": 3.0274999999999994,
+   "upper_ms": 4.478,
+   "tflite_int8_ms": 225.73,
+   "steps": [
+    1.429,
+    2.302,
+    0.979,
+    0.044
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "max5",
+   "run": "max5_int8_e100_ter_s42",
+   "board": "esp32",
+   "popcount": "lut16",
+   "ms": 17.795,
+   "one_bit_ms": 9.869,
+   "ratio": 1.8031208835748305,
+   "estimate_ms": 14.753749999999998,
+   "upper_ms": 25.6635,
+   "tflite_int8_ms": 114.2185,
+   "steps": [
+    6.212,
+    10.28,
+    1.285,
+    0.017
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "max5",
+   "run": "max5_int8_e100_ter_s42",
+   "board": "s3",
+   "popcount": "swar",
+   "ms": 7.068,
+   "one_bit_ms": 3.759,
+   "ratio": 1.8802873104549083,
+   "estimate_ms": 5.8020000000000005,
+   "upper_ms": 10.637,
+   "tflite_int8_ms": 7.1375,
+   "steps": [
+    1.248,
+    5.16,
+    0.646,
+    0.014
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "max5",
+   "run": "max5_int8_e100_ter_s42",
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "ms": 17.613,
+   "one_bit_ms": 9.901,
+   "ratio": 1.778911221088779,
+   "estimate_ms": 16.7975,
+   "upper_ms": 30.735,
+   "tflite_int8_ms": 78.038,
+   "steps": [
+    3.031,
+    12.825,
+    1.706,
+    0.049
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "max5",
+   "run": "max5_int8_e100_ter_s42",
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "ms": 12.937,
+   "one_bit_ms": 6.001,
+   "ratio": 2.1558073654390935,
+   "estimate_ms": 9.173,
+   "upper_ms": 15.233,
+   "tflite_int8_ms": 1159.843,
+   "steps": [
+    3.129,
+    8.577,
+    1.191,
+    0.036
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "max",
+   "run": "max_int8_e100_a2_s42",
+   "board": "esp32",
+   "popcount": "lut16",
+   "ms": 21.598,
+   "one_bit_ms": 13.027,
+   "ratio": 1.6579411990481308,
+   "estimate_ms": 17.68025,
+   "upper_ms": 28.0155,
+   "tflite_int8_ms": 115.62,
+   "steps": [
+    11.817,
+    8.618,
+    1.147,
+    0.015
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "max",
+   "run": "max_int8_e100_a2_s42",
+   "board": "s3",
+   "popcount": "swar",
+   "ms": 6.679,
+   "one_bit_ms": 3.835,
+   "ratio": 1.7415906127770535,
+   "estimate_ms": 5.7669999999999995,
+   "upper_ms": 10.333499999999999,
+   "tflite_int8_ms": 7.107,
+   "steps": [
+    1.632,
+    4.437,
+    0.593,
+    0.013
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "max",
+   "run": "max_int8_e100_a2_s42",
+   "board": "pico2_arm",
+   "popcount": "lut16",
+   "ms": 18.28,
+   "one_bit_ms": 11.804,
+   "ratio": 1.5486275838698746,
+   "estimate_ms": 18.432,
+   "upper_ms": 31.705,
+   "tflite_int8_ms": 77.705,
+   "steps": [
+    5.03,
+    11.4515,
+    1.745,
+    0.052
+   ],
+   "equal_simulation": 100.0
+  },
+  {
+   "arch": "max",
+   "run": "max_int8_e100_a2_s42",
+   "board": "pico2_riscv",
+   "popcount": "lut16",
+   "ms": 14.672,
+   "one_bit_ms": 8.588,
+   "ratio": 1.7084303679552866,
+   "estimate_ms": 11.684,
+   "upper_ms": 17.534,
+   "tflite_int8_ms": 1133.743,
+   "steps": [
+    5.647,
+    7.801,
+    1.189,
+    0.035
+   ],
+   "equal_simulation": 100.0
+  }
+ ]
+}

@@ -1,0 +1,189 @@
+{
+  "weights": "binary",
+  "seed": 42,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42
+    ],
+    "head": "fp32",
+    "int8_blocks": [],
+    "acts": 1,
+    "ste": "clip",
+    "ste_k": 1.0,
+    "learn_thr": false,
+    "a8_inputs": [
+      "q",
+      "k",
+      "v",
+      "o",
+      "w1",
+      "w3",
+      "w2"
+    ],
+    "a8_blocks": [
+      0
+    ],
+    "w2_acts": "same",
+    "hadamard": [
+      "q",
+      "k",
+      "v",
+      "o",
+      "w1",
+      "w3",
+      "w2"
+    ],
+    "ffn_act": "silu",
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "a1x_hadall_b0a8",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 9500,
+  "val_loss": 1.7821,
+  "val_perplexity": 5.942,
+  "minutes": 27.91,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.489,
+      "val_loss": 2.4252,
+      "minutes": 2.06
+    },
+    {
+      "step": 1000,
+      "train_loss": 2.1592,
+      "val_loss": 2.1762,
+      "minutes": 3.42
+    },
+    {
+      "step": 1500,
+      "train_loss": 2.0125,
+      "val_loss": 2.0747,
+      "minutes": 4.78
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.9912,
+      "val_loss": 2.0163,
+      "minutes": 6.15
+    },
+    {
+      "step": 2500,
+      "train_loss": 2.0076,
+      "val_loss": 1.9796,
+      "minutes": 7.51
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.9192,
+      "val_loss": 1.9516,
+      "minutes": 8.87
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.908,
+      "val_loss": 1.9265,
+      "minutes": 10.23
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.8914,
+      "val_loss": 1.9052,
+      "minutes": 11.59
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.8969,
+      "val_loss": 1.8886,
+      "minutes": 12.95
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.9004,
+      "val_loss": 1.8724,
+      "minutes": 14.31
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.858,
+      "val_loss": 1.8587,
+      "minutes": 15.67
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.7685,
+      "val_loss": 1.8439,
+      "minutes": 17.03
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.8873,
+      "val_loss": 1.8374,
+      "minutes": 18.4
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.8671,
+      "val_loss": 1.8213,
+      "minutes": 19.75
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.7919,
+      "val_loss": 1.8128,
+      "minutes": 21.11
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.7622,
+      "val_loss": 1.8003,
+      "minutes": 22.47
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.7487,
+      "val_loss": 1.7949,
+      "minutes": 23.83
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.7495,
+      "val_loss": 1.7876,
+      "minutes": 25.19
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.7763,
+      "val_loss": 1.7821,
+      "minutes": 26.55
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.7687,
+      "val_loss": 1.7838,
+      "minutes": 27.91
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She had a big, soft bed that she loved very much. One day, she found a magic book in her room. It was a magic book with a magic word that could make things happen.\nLily wanted to read the magic book, so she asked her mom to read it. Her mom said, \"Yes, but be careful.\" Lily was very happy and started to read the magic book. She read the book and the magic word, but it made her feel very sad.\nLily's mom saw the magic book and said, \"Lily, you should not read the magic book. It will make you feel better.\" Lily felt better and started to read the magic book. She read the magic book and the magic words. Suddenly, the magic book started to talk! It said, \"Thank you for reading me, Lily. I am a magic book, and I can grant you one wish.\" Lily was very happy and played with her"
+}

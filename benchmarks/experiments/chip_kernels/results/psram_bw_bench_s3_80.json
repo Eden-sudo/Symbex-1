@@ -1,0 +1,191 @@
+{
+ "board": "s3",
+ "psram_mhz": 80,
+ "cpu_mhz": 240,
+ "header": "PSRAM BW BENCH ready (psram 80 MHz, flash 80m, cpu 240 MHz) | internal free 138439 | psram free 6813324",
+ "reps": 7,
+ "best_of": "cycles",
+ "rows": [
+  {
+   "test": "seq_c",
+   "where": "psram",
+   "bytes": 1572864,
+   "cycles": 6195943,
+   "ms": 25.816429166666666,
+   "mb_per_s": 60.92492458371551,
+   "equal": true
+  },
+  {
+   "test": "seq_c",
+   "where": "internal",
+   "bytes": 196608,
+   "cycles": 147481,
+   "ms": 0.6145041666666667,
+   "mb_per_s": 319.9457557244662,
+   "equal": true
+  },
+  {
+   "test": "memcpy",
+   "where": "psram",
+   "bytes": 1572864,
+   "cycles": 6343791,
+   "ms": 26.4324625,
+   "mb_per_s": 59.50501206612891,
+   "equal": true
+  },
+  {
+   "test": "u8_rows_384x384",
+   "where": "psram",
+   "bytes": 18432,
+   "cycles": 111705,
+   "ms": 0.4654375,
+   "mb_per_s": 39.60145024842218,
+   "equal": true
+  },
+  {
+   "test": "u8_rows_384x384",
+   "where": "internal",
+   "bytes": 18432,
+   "cycles": 64170,
+   "ms": 0.267375,
+   "mb_per_s": 68.93688639551192,
+   "equal": true
+  },
+  {
+   "test": "u8_rows_384x1024",
+   "where": "psram",
+   "bytes": 49152,
+   "cycles": 296079,
+   "ms": 1.2336624999999999,
+   "mb_per_s": 39.84233937563961,
+   "equal": true
+  },
+  {
+   "test": "u8_rows_384x1024",
+   "where": "internal",
+   "bytes": 49152,
+   "cycles": 171050,
+   "ms": 0.7127083333333334,
+   "mb_per_s": 68.96509792458345,
+   "equal": true
+  },
+  {
+   "test": "u8_rows_1024x384",
+   "where": "psram",
+   "bytes": 49152,
+   "cycles": 282179,
+   "ms": 1.1757458333333335,
+   "mb_per_s": 41.80495359328653,
+   "equal": true
+  },
+  {
+   "test": "u8_rows_1024x384",
+   "where": "internal",
+   "bytes": 49152,
+   "cycles": 156330,
+   "ms": 0.651375,
+   "mb_per_s": 75.45883707541738,
+   "equal": true
+  },
+  {
+   "test": "s8_rows_512",
+   "where": "psram",
+   "bytes": 196608,
+   "cycles": 808319,
+   "ms": 3.3679958333333335,
+   "mb_per_s": 58.37536913025674,
+   "equal": true
+  },
+  {
+   "test": "s8_rows_512",
+   "where": "internal",
+   "bytes": 196608,
+   "cycles": 104470,
+   "ms": 0.4352916666666667,
+   "mb_per_s": 451.669570211544,
+   "equal": true
+  },
+  {
+   "test": "s8_rows_4096",
+   "where": "psram",
+   "bytes": 1572864,
+   "cycles": 6466360,
+   "ms": 26.943166666666666,
+   "mb_per_s": 58.37710241928998,
+   "equal": true
+  },
+  {
+   "test": "kv_scores_t255",
+   "where": "psram",
+   "bytes": 98304,
+   "cycles": 397397,
+   "ms": 1.6558208333333335,
+   "mb_per_s": 59.36874208914511,
+   "equal": true
+  },
+  {
+   "test": "kv_scores_t255",
+   "where": "internal",
+   "bytes": 98304,
+   "cycles": 67758,
+   "ms": 0.282325,
+   "mb_per_s": 348.1944567431152,
+   "equal": true
+  },
+  {
+   "test": "kv_values_t255",
+   "where": "psram",
+   "bytes": 98304,
+   "cycles": 1517896,
+   "ms": 6.324566666666667,
+   "mb_per_s": 15.54319927056926,
+   "equal": true
+  },
+  {
+   "test": "kv_values_t255",
+   "where": "internal",
+   "bytes": 98304,
+   "cycles": 1233866,
+   "ms": 5.141108333333333,
+   "mb_per_s": 19.121168749280717,
+   "equal": true
+  },
+  {
+   "test": "kv_scores_t127",
+   "where": "psram",
+   "bytes": 49152,
+   "cycles": 199091,
+   "ms": 0.8295458333333333,
+   "mb_per_s": 59.251698971826954,
+   "equal": true
+  },
+  {
+   "test": "kv_scores_t127",
+   "where": "internal",
+   "bytes": 49152,
+   "cycles": 33966,
+   "ms": 0.141525,
+   "mb_per_s": 347.30259671436136,
+   "equal": true
+  },
+  {
+   "test": "kv_values_t127",
+   "where": "psram",
+   "bytes": 49152,
+   "cycles": 763962,
+   "ms": 3.1831750000000003,
+   "mb_per_s": 15.441186865315288,
+   "equal": true
+  },
+  {
+   "test": "kv_values_t127",
+   "where": "internal",
+   "bytes": 49152,
+   "cycles": 621737,
+   "ms": 2.590570833333333,
+   "mb_per_s": 18.973424454391488,
+   "equal": true
+  }
+ ],
+ "date": "2026-11-12"
+}

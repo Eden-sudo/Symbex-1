@@ -1,0 +1,171 @@
+{
+  "weights": "binary",
+  "seed": 42,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "fp32",
+    "int8_blocks": [],
+    "acts": 1,
+    "ste": "clip",
+    "ste_k": 1.0,
+    "learn_thr": false,
+    "a8_inputs": [
+      "w2"
+    ],
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "a1p_k1_w2a8",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.8158,
+  "val_perplexity": 6.146,
+  "minutes": 22.89,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.5208,
+      "val_loss": 2.4679,
+      "minutes": 1.18
+    },
+    {
+      "step": 1000,
+      "train_loss": 2.1611,
+      "val_loss": 2.1755,
+      "minutes": 2.33
+    },
+    {
+      "step": 1500,
+      "train_loss": 2.0104,
+      "val_loss": 2.0712,
+      "minutes": 3.47
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.9925,
+      "val_loss": 2.0116,
+      "minutes": 4.6
+    },
+    {
+      "step": 2500,
+      "train_loss": 2.0079,
+      "val_loss": 1.9786,
+      "minutes": 5.75
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.9246,
+      "val_loss": 1.9539,
+      "minutes": 6.88
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.9199,
+      "val_loss": 1.9343,
+      "minutes": 8.02
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.9033,
+      "val_loss": 1.9184,
+      "minutes": 9.17
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.9258,
+      "val_loss": 1.9033,
+      "minutes": 10.31
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.9288,
+      "val_loss": 1.8913,
+      "minutes": 11.46
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.8793,
+      "val_loss": 1.8806,
+      "minutes": 12.6
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.7977,
+      "val_loss": 1.8712,
+      "minutes": 13.74
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.9243,
+      "val_loss": 1.8603,
+      "minutes": 14.89
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.8973,
+      "val_loss": 1.8498,
+      "minutes": 16.03
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.8267,
+      "val_loss": 1.8414,
+      "minutes": 17.17
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.7933,
+      "val_loss": 1.8334,
+      "minutes": 18.32
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.7737,
+      "val_loss": 1.8281,
+      "minutes": 19.46
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.7846,
+      "val_loss": 1.8232,
+      "minutes": 20.6
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.8033,
+      "val_loss": 1.8168,
+      "minutes": 21.75
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.7981,
+      "val_loss": 1.8158,
+      "minutes": 22.89
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and her toys. One day, she found a big box in her room. She was very excited to see what was inside.\nLily opened the box and found a lot of toys. She played with the toys and had fun. But then, something unexpected happened. The toys started to move and talk! The toys were not toys, but they were talking. They were talking and talking. Lily was very surprised.\nLily and the toys became good friends. They played together every day. Lily learned that sharing was fun and made new friends. And they all lived happily ever after."
+}

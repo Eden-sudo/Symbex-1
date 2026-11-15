@@ -1,0 +1,162 @@
+{
+  "weights": "binary",
+  "seed": 43,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "fp32",
+    "int8_blocks": [
+      3,
+      4
+    ],
+    "name": "d384l8_b34i8",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.4292,
+  "val_perplexity": 4.175,
+  "minutes": 32.92,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.1812,
+      "val_loss": 2.1972,
+      "minutes": 1.64
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.84,
+      "val_loss": 1.8801,
+      "minutes": 3.29
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.7487,
+      "val_loss": 1.7739,
+      "minutes": 4.94
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.6894,
+      "val_loss": 1.7133,
+      "minutes": 6.58
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.6148,
+      "val_loss": 1.6706,
+      "minutes": 8.23
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.6134,
+      "val_loss": 1.6393,
+      "minutes": 9.87
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.5383,
+      "val_loss": 1.6144,
+      "minutes": 11.52
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.5668,
+      "val_loss": 1.588,
+      "minutes": 13.17
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.5841,
+      "val_loss": 1.5679,
+      "minutes": 14.81
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.5545,
+      "val_loss": 1.5477,
+      "minutes": 16.46
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.5414,
+      "val_loss": 1.5303,
+      "minutes": 18.11
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.4675,
+      "val_loss": 1.5129,
+      "minutes": 19.75
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.4775,
+      "val_loss": 1.4966,
+      "minutes": 21.4
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.5089,
+      "val_loss": 1.4824,
+      "minutes": 23.04
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.4734,
+      "val_loss": 1.4673,
+      "minutes": 24.69
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.4327,
+      "val_loss": 1.455,
+      "minutes": 26.34
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.4675,
+      "val_loss": 1.4447,
+      "minutes": 27.98
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.4514,
+      "val_loss": 1.4374,
+      "minutes": 29.63
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.4152,
+      "val_loss": 1.4324,
+      "minutes": 31.28
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.388,
+      "val_loss": 1.4292,
+      "minutes": 32.92
+    }
+  ],
+  "sample": "Once upon a time, there was a little boy named Tim. Tim had a toy car that he loved to play with. One day, he saw a big, scary dog outside his house. Tim was scared and did not know what to do.\nTim's mom saw him looking at the dog and said, \"Don't worry, Tim. The dog is just playing with your toy car.\" Tim felt better and went outside to play with his toy car. He was happy that he did not scare the dog.\nLater, Tim's mom came outside and saw the scary dog. She said, \"Tim, I told you to be careful when you play. The dog is not scary at all.\" Tim learned that it is important to be careful and not scare others. From that day on, Tim was more careful when he played with his toy car."
+}

@@ -1,0 +1,39 @@
+{
+  "run": "binary_d384l8_s44",
+  "board": "esp32s3 N16R8",
+  "kernel": "lib_symbex u8 x 1-bit (PIE) linear, PIE s8 dot (output, scores)",
+  "model_in": "psram",
+  "kv_cache_in": "psram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | psram 8386295 bytes free",
+  "loaded": "LOADED 3550752 bytes in 605 ms | internal free 245036 | psram free 3036407",
+  "check_tokens": 512,
+  "check_equal": 512,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 128.496,
+  "ms_per_token_at_position": {
+    "0": 108.59,
+    "63": 116.999,
+    "127": 127.427,
+    "255": 148.577
+  },
+  "ms_per_token_story_mean": 117.93,
+  "tokens_per_second_story": 8.48,
+  "ms_per_token_by_part": {
+    "embedding_norms": 4.619,
+    "qkv": 14.267,
+    "attention_values": 13.248,
+    "o": 5.152,
+    "w1_w3": 24.759,
+    "swiglu": 5.891,
+    "w2": 11.478,
+    "output_head": 27.99,
+    "attention_rope_cache": 9.695,
+    "attention_scores": 7.779,
+    "attention_softmax": 2.017,
+    "attention_division": 1.6
+  },
+  "story": "Once upon a time, there was a little girl named Lily. She had a big, red ball that she loved to play with. One day, she went to the park with her mom. They saw a boy named Tim playing with a ball. Lily wanted to play too, but she was scared.\nLily's mom said, \"Don't worry, Lily. I will help you.\" She took Lily's hand and they walked to the boy. Tim was not scared of the boy. He was a little scared.\nTim said, \"Hi, I'm Tim. Do you want to play with"
+}

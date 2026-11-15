@@ -1,0 +1,11 @@
+{
+  "run": "binary_d384l8_s42",
+  "weights": "binary",
+  "val_windows": 1024,
+  "val_loss_float": 1.5316,
+  "val_loss_integer": 1.5318,
+  "val_perplexity_float": 4.626,
+  "val_perplexity_integer": 4.626,
+  "next_token_agreement_float_vs_integer": 0.9854,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and have fun. One day, Lily found a big, red ball in her room. She was very happy and wanted to show it to her friends.\nLily went to her friend Tom's house and said, \"Look at my big, red ball! Let's play with it!\" Tom was excited and said, \"Yes, let's play!\" They took the big, red ball and started to play.\nAs they played, the big, red ball started to move! It was not a ball at"
+}

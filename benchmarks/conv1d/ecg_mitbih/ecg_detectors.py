@@ -31,7 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(1, os.path.join(HERE, "..", "har_ultracompact"))
 from ecg_data import ARCHS, CLASSES, CV_FOLDS, RR_CHANNELS, WINDOW, class_weights, load, scores  # noqa: E402
-from ecg_train import run_name                                                                # noqa: E402
+from ecg_train import fold_is_current, run_name                                                               # noqa: E402
 from model import BinaryHAR                                                                   # noqa: E402
 
 
@@ -122,7 +122,7 @@ def main():
     for k in folds:
         path = os.path.join(HERE, "runs", "det_" + run_name(args.arch, args.first, args.epochs, args.seed, False, k,
                                                              args.rr, args.weight_power, args.select), "train.json")
-        if not os.path.exists(path):                                 # a fold already trained is read back
+        if not fold_is_current(path, args.lr):                       # a fold already trained is read back
             train_fold(args.arch, args.first, args.seed, args.epochs, args.lr, dev, k, args.rr, args.weight_power,
                        args.select)
         info = json.load(open(path))

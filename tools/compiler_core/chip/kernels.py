@@ -187,6 +187,8 @@ def run_kernels(board, port, lib_path, project_dir, popcount="lut16", n_out=N_OU
     with_int8: also measure INT8 with ESP-NN as a reference."""
     if board not in BOARDS:
         raise ValueError(f"chip: board must be one of {sorted(BOARDS)}")
+    if board.startswith("pico2"):
+        raise ValueError("chip: the kernel benchmark firmware is ESP-IDF only (no Pico 2 version yet)")
     widths = sorted(set((widths or WIDTHS) + ([n_in] if n_in else [])))
     data_h = os.path.join(tempfile.mkdtemp(prefix="symbex_kernels_"), "kernels_data.h")
     write_data_header(data_h, n_out, widths)
