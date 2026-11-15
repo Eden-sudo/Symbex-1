@@ -1,0 +1,39 @@
+{
+  "run": "binary_d384l8_head4_s42",
+  "board": "esp32s3 N16R8",
+  "kernel": "lib_symbex u8 x 1-bit (PIE) linear, PIE int4 dot (output), PIE s8 dot (scores)",
+  "model_in": "psram",
+  "kv_cache_in": "psram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | psram 8386295 bytes free",
+  "loaded": "LOADED 2765216 bytes in 494 ms | internal free 235056 | psram free 3821943",
+  "check_tokens": 512,
+  "check_equal": 512,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 115.629,
+  "ms_per_token_at_position": {
+    "0": 95.751,
+    "63": 104.091,
+    "127": 114.51,
+    "255": 135.619
+  },
+  "ms_per_token_story_mean": 105.034,
+  "tokens_per_second_story": 9.521,
+  "ms_per_token_by_part": {
+    "embedding_norms": 4.648,
+    "qkv": 14.375,
+    "attention_values": 13.29,
+    "o": 5.195,
+    "w1_w3": 24.923,
+    "swiglu": 5.893,
+    "w2": 11.523,
+    "output_head": 14.681,
+    "attention_rope_cache": 9.685,
+    "attention_scores": 7.782,
+    "attention_softmax": 2.031,
+    "attention_division": 1.601
+  },
+  "story": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and eat yummy food. One day, Lily found a big, red apple in her kitchen. She was very happy and wanted to eat it.\nLily took the apple to her mom and said, \"Mom, can I have a bite of the apple?\" Her mom looked at the apple and said, \"Yes, Lily, but be careful not to eat it. It is very hot.\" Lily took the apple and started to eat it.\nAs Lily was eating the apple, she heard a loud noise. It was a"
+}

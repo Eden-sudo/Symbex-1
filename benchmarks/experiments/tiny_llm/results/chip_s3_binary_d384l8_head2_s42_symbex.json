@@ -1,0 +1,39 @@
+{
+  "run": "binary_d384l8_head2_s42",
+  "board": "esp32s3 N16R8",
+  "kernel": "lib_symbex u8 x 1-bit (PIE) linear, PIE int2 dot (output), PIE s8 dot (scores)",
+  "model_in": "psram",
+  "kv_cache_in": "psram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | psram 8386295 bytes free",
+  "loaded": "LOADED 2372000 bytes in 437 ms | internal free 234032 | psram free 4215159",
+  "check_tokens": 512,
+  "check_equal": 512,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 109.297,
+  "ms_per_token_at_position": {
+    "0": 89.414,
+    "63": 97.758,
+    "127": 108.184,
+    "255": 129.306
+  },
+  "ms_per_token_story_mean": 98.717,
+  "tokens_per_second_story": 10.13,
+  "ms_per_token_by_part": {
+    "embedding_norms": 4.67,
+    "qkv": 14.347,
+    "attention_values": 13.274,
+    "o": 5.186,
+    "w1_w3": 24.894,
+    "swiglu": 5.891,
+    "w2": 11.506,
+    "output_head": 8.435,
+    "attention_rope_cache": 9.685,
+    "attention_scores": 7.779,
+    "attention_softmax": 2.029,
+    "attention_division": 1.6
+  },
+  "story": "Once upon a time, there was a little girl named Lily. She had a big, red ball that she loved to play with. One day, Lily went to the park with her mom. She saw a big tree with a lot of leaves. Lily wanted to play with the leaves, but her mom said no. Lily was sad.\nLily's mom said, \"Lily, you need to learn to share the leaves with your friends. If you can't, they will not come to the park.\" Lily did not listen to her mom. She kept playing with her ball and threw the ball. The ball"
+}

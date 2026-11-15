@@ -1,0 +1,11 @@
+{
+  "run": "binary_d384l8_s44",
+  "weights": "binary",
+  "val_windows": 1024,
+  "val_loss_float": 1.5292,
+  "val_loss_integer": 1.5292,
+  "val_perplexity_float": 4.615,
+  "val_perplexity_integer": 4.615,
+  "next_token_agreement_float_vs_integer": 0.9862,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She had a big, red ball that she loved to play with. One day, she went to the park with her mom. They saw a boy named Tim playing with a ball. Lily wanted to play too, but she was scared.\nLily's mom said, \"Don't worry, Lily. I will help you.\" She took Lily's hand and they walked to the boy. Tim was not scared of the boy. He was a little scared.\nTim said, \"Hi, I'm Tim. Do you want to play with"
+}

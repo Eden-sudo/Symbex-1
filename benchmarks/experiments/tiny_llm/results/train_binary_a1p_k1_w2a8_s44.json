@@ -1,0 +1,174 @@
+{
+  "weights": "binary",
+  "seed": 44,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      43,
+      44
+    ],
+    "head": "fp32",
+    "int8_blocks": [],
+    "acts": 1,
+    "ste": "clip",
+    "ste_k": 1.0,
+    "learn_thr": false,
+    "a8_inputs": [
+      "w2"
+    ],
+    "a8_blocks": [],
+    "w2_acts": "same",
+    "hadamard": [],
+    "ffn_act": "silu",
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "a1p_k1_w2a8",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 9500,
+  "val_loss": 1.8074,
+  "val_perplexity": 6.094,
+  "minutes": 24.46,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.4581,
+      "val_loss": 2.4662,
+      "minutes": 1.15
+    },
+    {
+      "step": 1000,
+      "train_loss": 2.1194,
+      "val_loss": 2.1819,
+      "minutes": 2.31
+    },
+    {
+      "step": 1500,
+      "train_loss": 2.0515,
+      "val_loss": 2.0743,
+      "minutes": 3.46
+    },
+    {
+      "step": 2000,
+      "train_loss": 2.0169,
+      "val_loss": 2.0161,
+      "minutes": 5.15
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.9714,
+      "val_loss": 1.9819,
+      "minutes": 6.77
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.9488,
+      "val_loss": 1.9572,
+      "minutes": 8.06
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.8818,
+      "val_loss": 1.9382,
+      "minutes": 9.37
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.8769,
+      "val_loss": 1.9195,
+      "minutes": 10.53
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.9336,
+      "val_loss": 1.9016,
+      "minutes": 11.69
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.8752,
+      "val_loss": 1.8892,
+      "minutes": 12.85
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.9455,
+      "val_loss": 1.8784,
+      "minutes": 14.01
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.8679,
+      "val_loss": 1.8669,
+      "minutes": 15.16
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.8932,
+      "val_loss": 1.8583,
+      "minutes": 16.31
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.824,
+      "val_loss": 1.8423,
+      "minutes": 17.46
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.784,
+      "val_loss": 1.8362,
+      "minutes": 18.62
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.8595,
+      "val_loss": 1.8241,
+      "minutes": 19.79
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.8079,
+      "val_loss": 1.8181,
+      "minutes": 20.95
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.7861,
+      "val_loss": 1.8105,
+      "minutes": 22.11
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.8018,
+      "val_loss": 1.8074,
+      "minutes": 23.28
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.8273,
+      "val_loss": 1.8088,
+      "minutes": 24.46
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She had a big, soft bed that she loved to sleep. One day, she went to the park to play with her friends.\nAt the park, Lily saw her friend, Tom. Tom said, \"Hi, Lily! Do you want to play with me?\" Lily smiled and said, \"Yes, let's play!\" They played with the ball and had lots of fun.\nAfter playing, Lily and Tom were very tired. They sat down and talked about their day. They were happy they had a fun day at the park."
+}
