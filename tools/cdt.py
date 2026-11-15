@@ -34,11 +34,11 @@ Stages
                   layer the full training would not need.
     4. export     (MLP, every layer at 1 bit) folds the trained model into integers and writes
                   model_symbex.h for lib_symbex (symbex_mlp_infer(const uint8_t* x))
+    5. validate   (runs together with export) FIDELITY: PyTorch vs. the integer simulation (what folding
+                  costs); EXACTNESS: the compiled C on this PC vs. the integer simulation (must be 100%)
     6. chip       ([chip] board = "esp32" / "s3" / "pico2_arm" / "pico2_riscv") builds and flashes a project with the header and
                   lib_symbex, streams validation images and reports: equal to the integer simulation (must be
                   100%), accuracy and latency measured on the chip. Needs PlatformIO + a connected board.
-    5. validate   (runs together with export) FIDELITY: PyTorch vs. the integer simulation (what folding
-                  costs); EXACTNESS: the compiled C on this PC vs. the integer simulation (must be 100%)
 Choosing the stages ([run] from / to in the TOML, or --from / --to):
     python cdt.py my.toml                          every stage: inspect -> estimate -> train -> export -> chip
     python cdt.py my.toml --to export              create, train, export and validate (no board)
@@ -53,7 +53,7 @@ Outputs (in the output directory, "<model name>_binarized/" by default)
     chip.json          accuracy, equality with the simulation and latency measured on the board (chip stage)
     model_binarized.pth  the trained binarized model (weights; checkpoint policy from [training] checkpoint)
     train.json         plan per layer, accuracy of the original and of the binarized model, history
-    modelo_symbex.h    the C header for the chip (export stage)
+    model_symbex.h     the C header for the chip (export stage)
     export.json        fidelity, exactness and memory of the exported model
 
 Requires PyTorch for every stage; --show-config works without it.
@@ -87,7 +87,8 @@ DEFAULTS = {
     "output": {"directory": "", "verbose": True, "lib_path": "../Symbex1_PIO/lib/lib_symbex",
                "validation_samples": 2000, "arithmetic": "auto", "int8_reference": False},
     "chip": {"board": "", "port": "/dev/ttyUSB0", "baud": 921600, "samples": 1000, "upload": True,
-             "popcount": "lut16", "weights": "flash", "compare_arithmetic": False},
+             "popcount": "lut16", "weights": "flash", "compare_arithmetic": False, "usb": False,
+             "engine": "auto", "code": "flash", "first_layer": "mask", "flash_config": "default"},
     "run": {"from": "inspect", "to": "chip"},
 }
 # Stages in order. "validate" runs together with "export" (accepted as a name for it).
@@ -230,6 +231,23 @@ def validate_config(cfg):
         errors.append("[chip] popcount must be \"lut16\" (64 KB table, fastest) or \"swar\" (no table, minimum RAM)")
     if cfg["chip"]["board"] not in ("", "esp32", "s3", "uno", "pico2_arm", "pico2_riscv"):
         errors.append("[chip] board must be \"\" (no chip), \"esp32\", \"s3\", \"uno\", \"pico2_arm\" or \"pico2_riscv\"")
+    if cfg["chip"]["engine"] not in ("auto", "standard", "vertical", "vertical_prepared", "vertical_compact"):
+        errors.append("[chip] engine must be \"auto\", \"standard\", \"vertical\", \"vertical_prepared\" or "
+                      "\"vertical_compact\"")
+    elif cfg["chip"]["engine"] not in ("auto", "standard") and cfg["model"]["method"] != "boolean":
+        errors.append("[chip] engine: the vertical engine is for method \"boolean\" (fully binary conv networks)")
+    if cfg["chip"]["engine"] == "auto" and cfg["chip"]["board"] and not cfg["chip"]["upload"] \
+            and r["to"] == "chip":                                    # only when the chip stage runs
+        errors.append("[chip] engine \"auto\" with upload = false: say which engine the board's firmware runs "
+                      "(\"standard\", \"vertical\", ...); auto only knows what it would flash")
+    if cfg["chip"]["code"] not in ("flash", "ram"):
+        errors.append("[chip] code must be \"flash\" or \"ram\"")
+    if cfg["chip"]["first_layer"] not in ("mask", "planes", "simple"):
+        errors.append("[chip] first_layer must be \"mask\", \"planes\" or \"simple\"")
+    if cfg["chip"]["flash_config"] not in ("default", "fast"):
+        errors.append("[chip] flash_config must be \"default\" or \"fast\"")
+    if cfg["chip"]["usb"] and cfg["chip"]["board"] != "s3":
+        errors.append("[chip] usb: the native USB-Serial-JTAG port is the ESP32-S3's (board = \"s3\")")
     if tr["checkpoint"] not in ("last", "best"):
         errors.append("[training] checkpoint must be 'last' or 'best'")
     if tr["epochs"] < 1 or tr["batch_size"] < 1:
@@ -532,7 +550,7 @@ def _train_plan(model, teacher, plan, first, train, trl, val_l, cfg, epochs, dev
     method = cfg["model"]["method"]
     student = apply_plan(base, plan, first=first, bin_method=method if method == "ternary" else "plain")
     init_thresholds(student, calib)
-    common =dict(epochs=epochs, lr=tr["learning_rate"], device=dev, verbose=verbose, checkpoint_path=path,
+    common = dict(epochs=epochs, lr=tr["learning_rate"], device=dev, verbose=verbose, checkpoint_path=path,
                    save=tr["checkpoint"],
                    average_last=min(5, epochs), bn_momentum=0.3)
     if tr["distill"]:
@@ -902,18 +920,22 @@ def _measure(res_export, header, cfg, out_dir, tag, int8=None):
     return measure_on_chip(header, res_export["_x_u8"], res_export["_y"], res_export["_pred_sim"],
                            os.path.join(out_dir, f"chip_{ch['board']}{tag}"), cfg["output"]["lib_path"], ch["board"],
                            ch["port"], ch["baud"], ch["samples"], ch["upload"], ch["popcount"],
-                           res_export["flash_bytes"], weights=ch["weights"], int8=int8)
+                           res_export["flash_bytes"], weights=ch["weights"], int8=int8, usb=ch["usb"],
+                           first_layer=ch["first_layer"], engine=ch["engine"], code=ch["code"],
+                           flash_config=ch["flash_config"])
 
 
 def stage_chip(res_export, cfg, out_dir):
     ch = cfg["chip"]
-    print(f"\n[6] CHIP  ({ch['board']} on {ch['port']}, {ch['samples']} validation images, weights in {ch['weights']})")
+    print(f"\n[6] CHIP  ({ch['board']} on {ch['port']}, {ch['samples']} validation images, weights in {ch['weights']}, "
+          f"engine {ch['engine']})")
     try:
         res = _measure(res_export, res_export["header"], cfg, out_dir, "", _int8_of(res_export, out_dir))
     except (RuntimeError, ValueError) as e:
         print(f"    [X] {e}")
         return None
     res["arithmetic"] = res_export.get("arithmetic")
+    res.update(code=ch["code"], flash_config=ch["flash_config"])      # engine ("auto" resolved), first_layer: measured
     with open(os.path.join(out_dir, "chip.json"), "w") as fh:
         json.dump(res, fh, indent=1)
     print(f"    -> {os.path.join(out_dir, 'chip.json')}")
@@ -965,10 +987,10 @@ def compare_arithmetic(res_export, res_main, cfg, out_dir):
 
 
 def _quiet_estimate(model, train, cfg):
-    if cfg["model"]["method"] == "boolean":
-        return dict(rows=[])
     """The estimate rows (layer shapes and the first layer) without printing: needed to train or to rebuild the
     trained model when the run starts after the estimate stage."""
+    if cfg["model"]["method"] == "boolean":
+        return dict(rows=[])
     import torch
     from compiler_core.sensitivity import Sensitivity
     n = min(cfg["data"]["calibration_samples"], len(train))
@@ -987,11 +1009,11 @@ def _option(v):
 
 
 def load_trained(model, train, estimate_res, cfg, out_dir):
+    """Rebuilds the trained binarized model from out_dir (train.json + model_binarized.pth), without training:
+    the original model, widened as the search chose, binarized with the chosen plan, with the saved weights."""
     if cfg["model"]["method"] == "boolean":
         from compiler_core.train import boolean
         return boolean.load_trained(model, out_dir)
-    """Rebuilds the trained binarized model from out_dir (train.json + model_binarized.pth), without training:
-    the original model, widened as the search chose, binarized with the chosen plan, with the saved weights."""
     import torch
     from compiler_core.methods import apply_plan, widen
     tj, wp = os.path.join(out_dir, "train.json"), os.path.join(out_dir, "model_binarized.pth")

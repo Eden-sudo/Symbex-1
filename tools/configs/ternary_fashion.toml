@@ -53,4 +53,4 @@ lib_path           = "../Symbex1_PIO/lib/lib_symbex"
 validation_samples = 2000
 
 [chip]
-board = ""                            # the chip stage is not integrated for "ternary" yet
+board = ""                            # "" = skip; "esp32", "s3", "pico2_arm" or "pico2_riscv" measure the ternary export

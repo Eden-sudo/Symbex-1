@@ -19,6 +19,12 @@ Every layer as in their paper and library:
     pool(4, 4)  max of +-1 over 4 steps = OR of the bits
     linear      1-bit weights on the flattened final bits, BatchNorm; the class is the largest score (not binarized)
 On the chip every BatchNorm + sign is one integer threshold per channel.
+
+acts (README section 9, an experiment on the PC: nothing exports it yet): the activations after every conv, 1-bit
+weights unchanged. acts="1" sign (the networks above); acts="2" four levels {-1, -1/3, 1/3, 1} (2 bits, thresholds
+at -2/3, 0, 2/3 of the BatchNorm output: three integer thresholds per channel on a chip); acts="ternary" three levels
+{-1, 0, 1} (thresholds at -1/2 and 1/2). Straight-through gradient where |x| <= 1, as sign. The max pool of levels is
+still a max (the quantizers are monotone, so pooling before or after them gives the same outputs).
 """
 import torch
 import torch.nn as nn
@@ -30,6 +36,10 @@ ARCHS = {                                  # Table 1 of Daghero et al., UniMiB-S
     "max5":   [("conv", 32, 7), ("conv", 32, 15), ("pool", 4), ("conv", 32, 15), ("pool", 4)],
     "max":    [("conv", 32, 15), ("conv", 32, 15), ("pool", 4), ("conv", 32, 15), ("pool", 4)],
 }
+TABLE1 = ("min", "max10", "max5", "max")   # --all trains these; the wider ones below are trained on request
+# wider versions (the capacity study, README section 5): every conv's channels x 1.5 / x 2, kernels and pools unchanged
+ARCHS.update({f"{a}_w{tag}": [(l[0], round(l[1] * w), l[2]) if l[0] == "conv" else l for l in ARCHS[a]]
+              for a in ("min", "max") for tag, w in (("15", 1.5), ("2", 2.0))})
 LENGTH, AXES, CLASSES = 151, 3, 17
 
 
@@ -47,6 +57,28 @@ class _Sign(torch.autograd.Function):
 
 
 sign = _Sign.apply
+ACTS = ("1", "2", "ternary")
+
+
+class _Levels(torch.autograd.Function):
+    """uniform levels in [-1, 1] (n = 4: -1, -1/3, 1/3, 1; n = 3: -1, 0, 1); straight-through gradient where |x| <= 1"""
+    @staticmethod
+    def forward(ctx, x, n):
+        ctx.save_for_backward(x)
+        step = 2 / (n - 1)
+        return torch.clamp(torch.round((x + 1) / step), 0, n - 1) * step - 1
+
+    @staticmethod
+    def backward(ctx, g):
+        (x,) = ctx.saved_tensors
+        return g * (x.abs() <= 1).to(g.dtype), None
+
+
+def quantize(x, acts):
+    """the activation of model.BinaryHAR's convs: sign, 4 levels (2 bits) or 3 levels (ternary)"""
+    if acts == "1":
+        return sign(x)
+    return _Levels.apply(x, 4 if acts == "2" else 3)
 
 
 def int8_weights(w):
@@ -58,10 +90,14 @@ def int8_weights(w):
 
 
 class BinaryHAR(nn.Module):
-    def __init__(self, arch="max", first="binary", layers=None, length=LENGTH, channels=AXES, classes=CLASSES):
+    def __init__(self, arch="max", first="binary", layers=None, length=LENGTH, channels=AXES, classes=CLASSES,
+                 pool_first=False, acts="1"):
         super().__init__()
-        assert first in ("binary", "int8")
-        self.arch, self.first = arch, first
+        assert first in ("binary", "int8") and acts in ACTS
+        # pool_first: max pool on the BatchNorm output, then sign. sign is monotone, so sign(max(v)) = max(sign(v)):
+        # the same outputs as the OR of the bits the chip runs, but the gradient reaches the true maximum instead of
+        # one arbitrary element of a window of tied +-1 values (training only; the exported network is unchanged)
+        self.arch, self.first, self.pool_first, self.acts = arch, first, pool_first, acts
         self.convs, self.bns, self.plan = nn.ModuleList(), nn.ModuleList(), []
         cin = channels
         for layer in (ARCHS[arch] if layers is None else layers):
@@ -85,9 +121,10 @@ class BinaryHAR(nn.Module):
 
     def forward(self, x):
         x = x.float().transpose(1, 2)                                       # N x channels x length (3 x 151), int8
-        for kind, i in self.plan:
+        for j, (kind, i) in enumerate(self.plan):
             if kind == "pool":
-                x = F.max_pool1d(x, i)                                       # max of +-1 = OR of the bits
+                if not (self.pool_first and j > 0 and self.plan[j - 1][0] == "conv"):
+                    x = F.max_pool1d(x, i)                                   # max of +-1 = OR of the bits
                 continue
             w = self.convs[i].weight
             if i == 0:
@@ -95,7 +132,11 @@ class BinaryHAR(nn.Module):
                 x = x / 127                                                  # only for the scale of training
             else:
                 w = sign(w)
-            x = sign(self.bns[i](F.conv1d(x, w)))
+            x = self.bns[i](F.conv1d(x, w))
+            nxt = self.plan[j + 1] if j + 1 < len(self.plan) else None
+            if self.pool_first and nxt is not None and nxt[0] == "pool":
+                x = F.max_pool1d(x, nxt[1])                                  # pooled here, before sign (see above)
+            x = quantize(x, self.acts)
         return self.fc_bn(F.linear(x.flatten(1), sign(self.fc.weight)))
 
 
