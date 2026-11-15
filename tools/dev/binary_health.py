@@ -22,7 +22,7 @@ import torch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))           # tools/: compiler_core
-from compiler_core.train.health import binary_health                                            # noqa: E402
+from compiler_core.train.health import binary_health
 
 REPO = os.path.dirname(os.path.dirname(HERE))
 
