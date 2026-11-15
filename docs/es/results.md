@@ -361,7 +361,7 @@ enteros); una corrida de 10 minutos por caso mientras la placa repite una infere
 | Placa | Motor SYMBEX | SYMBEX mJ / imagen | TFLite Micro mJ / imagen | Menos energía | Más rápido |
 |---|---|---|---|---|---|
 | ESP32-S3 | vertical | 7.2 | 47.7 | **6.6×** (6.1-7.1×) | 5.5× |
-| ESP32 | vertical compacto | 22.2 | 296 | **13.3×** (11.6-15.3×) | 14.7× |
+| ESP32 | vertical compacto | 22.2 | 296 | **13.3×** (10.9-16.5×) | 14.7× |
 
 Los demás benchmarks en el ESP32 clásico (semilla 42, pesos en flash, el mismo medidor, 15 nov):
 

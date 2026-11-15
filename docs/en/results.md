@@ -404,7 +404,7 @@ mAh); one 10-minute run per case while the board repeats one inference
 | Board | SYMBEX engine | SYMBEX mJ / image | TFLite Micro mJ / image | Less energy | Faster |
 |---|---|---|---|---|---|
 | ESP32-S3 | vertical | 7.2 | 47.7 | **6.6×** (6.1-7.1×) | 5.5× |
-| ESP32 | vertical compact | 22.2 | 296 | **13.3×** (11.6-15.3×) | 14.7× |
+| ESP32 | vertical compact | 22.2 | 296 | **13.3×** (10.9-16.5×) | 14.7× |
 
 The other benchmarks on the classic ESP32 (seed 42, weights in flash, same meter, Nov 15):
 

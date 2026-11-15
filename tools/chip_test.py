@@ -46,6 +46,7 @@ Requires: PlatformIO (pio), pyserial, a connected board.
 """
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -94,6 +95,8 @@ def main():
     ap.add_argument("--energy", type=float, default=0, metavar="S",
                     help="ESP32 boards: idle / SYMBEX / INT8 phases of S seconds each, read on a USB meter (mAh)")
     args = ap.parse_args()
+    if args.energy and not (math.isfinite(args.energy) and 0.001 <= args.energy and 1000 * args.energy < 2 ** 32):
+        ap.error("--energy must be 0 (off) or between 0.001 and 4294967 seconds (the firmware gets milliseconds in 32 bits)")
     if args.port and not args.port.startswith("/") and not args.port.upper().startswith("COM"):
         args.port = "/dev/" + args.port                  # "ttyUSB0" -> "/dev/ttyUSB0"
     if args.kernels:

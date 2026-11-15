@@ -69,7 +69,9 @@ Same method, on the classic ESP32 (no SIMD), powered through its USB-UART port, 
 | Idle | — | — | 8 / 0.04 | 0.05 A | 0.25 W | — | — |
 
 - Voltage 5.14 V.
-- **Ratio, total energy:** 13.3×, worst-case range 11.6-15.3×. **Above idle:** 11.8×, range 5.9-22.4×.
+- **Ratio, total energy:** 13.3×, worst-case range 10.9-16.5×. **Above idle:** 11.8×, range 8.2-20.6×. Every
+  reading may be off by 1 mAh: SYMBEX's 15 mAh is two readings (23 − 8), and the idle reading (8) is shared by
+  SYMBEX's start and the idle subtraction, so the ranges move them together.
 - **Here the energy gain comes from speed alone.** SYMBEX is 14.7× faster; the board draws about the same in both
   (0.46 against 0.42 W, within ±1 mAh). On the S3 SYMBEX also drew less power; on the ESP32 it does not.
 - TFLite ran at 706.3 ms in the loop, 717.8 ms in `results/tflite/tflite_esp32.json` (older build of the same

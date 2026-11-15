@@ -17,6 +17,7 @@ ESP32 boards only (esp_timer); the S3 through its native USB port needs the 0x55
 """
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -55,6 +56,8 @@ def main():
     ap.add_argument("--json", help="append the run to this JSON list")
     ap.add_argument("--label", default="", help="name of the run in the JSON")
     args = ap.parse_args()
+    if not (math.isfinite(args.seconds) and 0.001 <= args.seconds and 1000 * args.seconds < 2 ** 32):
+        sys.exit("[X] --seconds must be at least 0.001 and below 4294967 (the firmware gets milliseconds in 32 bits)")
 
     run = dict(label=args.label, firmware="idle" if args.idle else args.firmware + ("_int8" if args.int8 else ""),
                seconds=args.seconds)
@@ -85,6 +88,8 @@ def main():
             if time.time() - t0 > args.seconds + 60:
                 sys.exit("[X] no L: line after the loop")
         count, us, cls = (int(v) for v in line[2:].split(","))
+        if count == 0 or us == 0:
+            sys.exit(f"[X] the loop ran no inference: {line}")
         if cls < 0:
             sys.exit("[X] the firmware has no INT8 reference (--int8)")
         print(f"[*] LOOP END {time.strftime('%H:%M:%S')}: {count} runs in {us / 1e6:.1f} s = "

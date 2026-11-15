@@ -64,16 +64,18 @@
  "ratio_total": {
   "value": 13.34,
   "range_pm1mah": [
-   11.58,
-   15.34
-  ]
+   10.9,
+   16.52
+  ],
+  "range_note": "worst case over the three readings: TFLite 13.6 (+-1), SYMBEX end 23 (+-1) and the shared start / idle reading 8 (+-1); SYMBEX = end - start"
  },
  "ratio_above_idle": {
   "value": 11.76,
   "range_pm1mah": [
-   5.88,
-   22.36
-  ]
+   8.24,
+   20.59
+  ],
+  "range_note": "above idle: TFLite 13.6 - 8, SYMBEX (23 - 8) - 8; the idle reading is the same 8 in both, its +-1 moves them together"
  },
  "speed_ratio": 14.72,
  "weights_ram_vs_flash": {

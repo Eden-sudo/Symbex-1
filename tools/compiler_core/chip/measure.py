@@ -198,6 +198,8 @@ def energy_phases(s, seconds, with_int8, verbose=True):
             if not line.startswith("L:"):
                 raise RuntimeError(f"chip: no answer to the energy loop ({name})")
             runs, us, _ = (int(v) for v in line[2:].split(","))
+            if runs == 0 or us == 0:
+                raise RuntimeError(f"chip: the energy loop ran no inference ({name}): {line}")
             elapsed = us / 1e6
         e1 = _meter_reading(f"    [{name}] done ({runs} runs in {elapsed:.1f} s): mAh on the meter now: ")
         mah = None if e0 is None or e1 is None else e1 - e0
