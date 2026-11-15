@@ -210,7 +210,7 @@ def derrida(net, x, seed, dev, t0, bs=2000):
     """d_t (% of state signs that differ) after flipping a share d0 of the state at t0, input on / off"""
     net.eval()
     T, out = x.shape[1], {}
-    lags = [l for l in (1, 5, 20) if t0 + l < T] + [T - 1 - t0]
+    lags = sorted({l for l in (1, 5, 20) if t0 + l < T} | {T - 1 - t0})   # a set: short runs repeat the last lag
     for mode, zf in (("driven", None), ("autonomous", t0 + 1)):
         rows = {}
         for d0 in (0.005, 0.01, 0.02, 0.05, 0.1, 0.2):
@@ -295,6 +295,8 @@ def main():
     args = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     classes, split = setup(args.stride)
+    if split[0].shape[1] < 2:
+        sys.exit(f"[X] --stride {args.stride} leaves {split[0].shape[1]} time step: the probe needs at least 2")
     split = tuple(t.to(dev) for t in split)
     os.makedirs(OUT, exist_ok=True)
     for seed in args.seeds:
