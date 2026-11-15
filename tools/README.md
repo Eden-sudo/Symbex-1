@@ -86,6 +86,7 @@ accelerator itself (an NVIDIA or AMD GPU through CUDA / ROCm; otherwise the CPU)
 |---|---|
 | `cdt.py` | the CDT |
 | `chip_test.py` | an exported model, on a board |
+| `energy_loop.py` | keeps a model busy on a board (SYMBEX or TFLite Micro firmware) for N seconds, so a USB power meter can measure its energy per inference (`chip_test.py --energy S` does the same for a CDT export) |
 | `configs/` | `example.toml`: every option, commented; `ternary_fashion.toml`: an example of the ternary method |
 | `chip_profiles/` | what each chip measured (`dev/count_bench.py`, the chip stage): the fastest way to count bits per layer size. The HAL's choice of arithmetic and the latency predictor of the sizing studies in `benchmarks/` read them. Published: they are measurements |
 | `compiler_core/` | how the CDT is built inside: see [`compiler_core/`](compiler_core/) |

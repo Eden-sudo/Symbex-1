@@ -159,17 +159,80 @@ def generate_project(project_dir, header_path, lib_path, board, port, baud, popc
                   + (FAST_FLASH_SDKCONFIG[board] if flash_config == "fast" else ""), lib_path=lib_path)
 
 
+def _meter_reading(prompt):
+    """a number the person reads on the USB meter, or None when left empty"""
+    while True:
+        t = input(prompt).strip().replace(",", ".")
+        if not t:
+            return None
+        try:
+            return float(t)
+        except ValueError:
+            print("      a number (e.g. 16), or Enter to skip")
+
+
+def energy_phases(s, seconds, with_int8, verbose=True):
+    """Energy with a USB meter between the PC and the board: idle, then SYMBEX (and INT8) running the last image in a
+    loop for `seconds` each. The person types the meter's voltage once and its accumulated mAh before and after every
+    phase (mAh: the finest counter of the usual USB meters, 1 mAh ~ 5 mWh at 5 V; their Wh counter steps by 10 mWh).
+    Returns a dict per phase: runs, seconds, mAh, mWh, mW, and per inference: uJ in total and uJ above idle (the
+    board, USB and regulator removed)."""
+    import time
+    phases = [("idle", None), ("symbex", 0xE5)] + ([("int8", 0xE6)] if with_int8 else [])
+    out = {}
+    print(f"\n    ENERGY  ({seconds:g} s per phase; read the meter's accumulated mAh before and after each phase)")
+    volts = _meter_reading("    voltage on the meter (V, e.g. 5.13): ")
+    for name, mark in phases:
+        e0 = _meter_reading(f"    [{name}] mAh on the meter now, then Enter to start: ")
+        t0 = time.time()
+        if mark is None:
+            time.sleep(seconds)
+            runs, elapsed = 0, time.time() - t0
+        else:
+            s.write(bytes([mark]) + int(1000 * seconds).to_bytes(4, "little"))
+            deadline, line = time.time() + seconds + 30, ""
+            while time.time() < deadline:
+                line = s.readline().decode(errors="replace").strip()
+                if line.startswith("L:"):
+                    break
+            if not line.startswith("L:"):
+                raise RuntimeError(f"chip: no answer to the energy loop ({name})")
+            runs, us, _ = (int(v) for v in line[2:].split(","))
+            elapsed = us / 1e6
+        e1 = _meter_reading(f"    [{name}] done ({runs} runs in {elapsed:.1f} s): mAh on the meter now: ")
+        mah = None if e0 is None or e1 is None else e1 - e0
+        mwh = None if mah is None or volts is None else mah * volts
+        out[name] = dict(runs=runs, seconds=elapsed, volts=volts, mAh=mah, mWh=mwh,
+                         mW=None if mwh is None else 3600 * mwh / elapsed)
+    idle_mw = out["idle"]["mW"]
+    for name in out:
+        r = out[name]
+        if r["runs"] and r["mWh"] is not None:
+            r["uJ_per_run"] = 3.6e6 * r["mWh"] / r["runs"]
+            r["uJ_per_run_above_idle"] = (None if idle_mw is None
+                                          else 3.6e6 * (r["mWh"] - idle_mw * r["seconds"] / 3600) / r["runs"])
+    if verbose:
+        def f(v, w, d):
+            return f"{v:>{w}.{d}f}" if v is not None else f"{'-':>{w}}"
+        print(f"\n    {'phase':<8}{'runs':>9}{'s':>7}{'mWh':>8}{'mW':>8}{'uJ / run':>10}{'above idle':>12}")
+        for name, r in out.items():
+            print(f"    {name:<8}{r['runs']:>9}{r['seconds']:>7.1f}{f(r['mWh'], 8, 2)}{f(r['mW'], 8, 0)}"
+                  f"{f(r.get('uJ_per_run'), 10, 1)}{f(r.get('uJ_per_run_above_idle'), 12, 1)}")
+    return out
+
+
 def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="esp32", port="/dev/ttyUSB0",
                   baud=921600, n=1000, upload=True, popcount="lut16", model_flash=None, verbose=True,
                   weights="flash", first_layer="mask", int8=None, usb=False, engine="standard", code="flash",
-                    flash_config="default"):
+                    flash_config="default", energy=0):
     """Flashes the exported model and measures it on the board: equality with the integer simulation (must be
     100%), accuracy, latency (total and per layer) and RAM. x / y / expected: validation images (uint8), labels
     and the classes of the integer simulation. Returns a dict, or raises RuntimeError with what went wrong.
     int8 (optional): dict(header=..., expected=classes of its integer simulation, flash=bytes) to run the INT8
     reference of the original model on the same chip and the same images (Espressif's ESP-NN kernel).
     usb=True: through the board's native USB-Serial-JTAG port (port is then e.g. /dev/ttyACM0), not its UART.
-    flash_config="fast": quad-mode flash and the largest caches (FAST_FLASH_SDKCONFIG)."""
+    flash_config="fast": quad-mode flash and the largest caches (FAST_FLASH_SDKCONFIG).
+    energy > 0 (ESP32 boards): after the images, the phases of energy_phases (seconds each), in out["energy"]."""
 
 
     import time
@@ -177,6 +240,8 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
         raise ValueError("chip: engine \"auto\" without upload: the board keeps the firmware flashed before, whose engine "
                          "this run cannot see; say which one it runs (--engine standard / vertical / ...)")
     engine = resolve_engine(engine, board, header_path)
+    if energy and board in PICO_BOARDS | AVR_BOARDS:
+        raise ValueError("chip: the energy loop is in the ESP32 boards' firmware (model_test.c) only")
     if board in PICO_BOARDS and int8:
         if verbose:
             print("    [!] Pico 2: the INT8 reference runs on ESP-NN (ESP32 boards only): not measured here")
@@ -257,6 +322,7 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
             if l.startswith("STACK:"):
                 stack = int(l.split(":", 1)[1])
                 break
+        energy_out = energy_phases(s, energy, bool(int8), verbose) if energy else None
     pred, per_step = np.array(pred), np.array(per_step)
     medians = np.median(per_step, axis=0) / 1000
     buffers, input_bytes, table, stack_total = ram
@@ -277,6 +343,8 @@ def measure_on_chip(header_path, x, y, expected, project_dir, lib_path, board="e
                         total=buffers + input_bytes + table + (stack_used or 0)
                         + ((model_flash or 0) if weights == "ram" else 0) + (code_ram or 0)),
                model_flash=model_flash)
+    if energy_out:
+        out["energy"] = energy_out
     if int8:
         p8 = np.array(pred8)
         out["int8"] = dict(equal_simulation=100 * float((p8 == int8["expected"][:n]).mean()),

@@ -1,0 +1,71 @@
+{
+ "board": "s3",
+ "date": "2026-11-14",
+ "meter": "USB power meter on the board's native USB port (display: V, A, mAh, Wh; read by eye)",
+ "method": "each phase 600 s; energy = meter mAh x volts x 3.6 J; per inference = energy / runs; above idle = (mAh - idle mAh) x volts x 3.6 / runs; the meter counts whole mAh (+-1 mAh per reading); one run per phase; the board was slightly warm",
+ "tools": "tools/energy_loop.py (firmware: 0xE5 loop on the last input, 'L:count,elapsed_us,class')",
+ "phases": {
+  "tflite": {
+   "label": "TFLite Micro INT8 (MLPerf ResNet-8, ESP-NN), flash",
+   "runs": 11626,
+   "seconds": 600.0,
+   "mah": 30,
+   "meter_wh": 0.15,
+   "amps_seen": "0.17-0.18 A, peaks 0.19-0.20 A",
+   "volts": 5.13,
+   "joules": 554.0,
+   "mW": 923.4,
+   "ms_per_run": 51.608,
+   "mJ_per_run": 47.66,
+   "mJ_per_run_above_idle": 17.47
+  },
+  "symbex": {
+   "label": "SYMBEX int8stem_pool2 seed 42, vertical engine (default), swar, flash",
+   "runs": 63736,
+   "seconds": 600.0,
+   "mah": 25,
+   "meter_wh": 0.13,
+   "amps_seen": "0.14-0.15 A, low 0.13 A",
+   "volts": 5.13,
+   "joules": 461.7,
+   "mW": 769.5,
+   "ms_per_run": 9.414,
+   "mJ_per_run": 7.24,
+   "mJ_per_run_above_idle": 1.74
+  },
+  "idle": {
+   "label": "idle: SYMBEX firmware waiting on the serial port",
+   "runs": 0,
+   "seconds": 600.0,
+   "mah": 19,
+   "meter_wh": 0.09,
+   "amps_seen": "0.11 A",
+   "volts": 5.13,
+   "joules": 350.9,
+   "mW": 584.8
+  }
+ },
+ "ratio_total": {
+  "value": 6.58,
+  "range_pm1mah": [
+   6.11,
+   7.08
+  ]
+ },
+ "ratio_above_idle": {
+  "value": 10.05,
+  "range_pm1mah": [
+   6.17,
+   17.82
+  ]
+ },
+ "seeds_calculated": {
+  "note": "NOT measured: SYMBEX power of the seed-42 run x each seed's chip latency (same engine, same shape, same code)",
+  "source": "results/symbex/symbex_seeds_s3_swar_w1_int8stem_pool2_vertical.json",
+  "mJ_per_run": {
+   "42": 7.48,
+   "43": 7.46,
+   "44": 7.46
+  }
+ }
+}

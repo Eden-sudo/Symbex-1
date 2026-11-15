@@ -200,6 +200,27 @@ extern "C" void app_main(void) {
             fflush(stdout);
             continue;
         }
+        if (mark == 0xE5) {                           /* energy loop, as SYMBEX's firmware: + 4 bytes of ms (LE), runs
+                                                         the last image again and again, then "L:count,elapsed_us,class" */
+            uint8_t t[4];
+            read_exact(t, 4);
+            const int64_t ms = (int64_t)t[0] | (int64_t)t[1] << 8 | (int64_t)t[2] << 16 | (int64_t)t[3] << 24;
+            const int64_t start = esp_timer_get_time(), end = start + 1000 * ms;
+            int64_t now = start;
+            unsigned count = 0;
+            int c = 0;
+            while (now < end) {
+                for (int i = 0; i < N_INPUTS; i++) inp->data.int8[i] = q8[x[i]];
+                it.Invoke();
+                c = 0;
+                for (int j = 1; j < N_CLASSES; j++) if (out->data.int8[j] > out->data.int8[c]) c = j;
+                count++;
+                now = esp_timer_get_time();
+            }
+            printf("L:%u,%lld,%d\n", count, (long long)(now - start), c);
+            fflush(stdout);
+            continue;
+        }
         if (mark != 0xA5) continue;
         read_exact(x, sizeof x);
         int64_t t0 = esp_timer_get_time();

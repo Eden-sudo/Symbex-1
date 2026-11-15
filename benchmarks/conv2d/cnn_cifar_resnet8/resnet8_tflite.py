@@ -69,6 +69,7 @@ def main():
     ap.add_argument("--arena-kb", type=int, default=100, help="TFLite Micro arena (default 100 KB)")
     ap.add_argument("--model-ram", action="store_true", help="copy the model to internal RAM before running it")
     ap.add_argument("--no-upload", action="store_true", help="the TFLite firmware is already on the board")
+    ap.add_argument("--usb", action="store_true", help="ESP32-S3 through its native USB port (/dev/ttyACM0), as chip_test.py")
     args = ap.parse_args()
     os.chdir(HERE)
     sys.path.insert(0, HERE)
@@ -97,9 +98,11 @@ def main():
         return
 
     n = min(args.images, len(x_test))
-    project = os.path.join("runs", "tflite", f"tflm_{args.board}" + ("_ram" if args.model_ram else ""))
+    project = os.path.join("runs", "tflite", f"tflm_{args.board}" + ("_ram" if args.model_ram else "")
+                           + ("_usb" if args.usb else ""))
     if not args.no_upload:
-        tflm_project(project, tflite, args.board, args.port, args.baud, args.arena_kb, 32 * 32 * 3, 10, args.model_ram)
+        tflm_project(project, tflite, args.board, args.port, args.baud, args.arena_kb, 32 * 32 * 3, 10, args.model_ram,
+                     usb=args.usb)
         main_cc = os.path.join(project, "src", "main.cc")      # the ops of this CNN; the input convention found above
         src = open(main_cc).read()
         src = src.replace("MicroMutableOpResolver<6>", "MicroMutableOpResolver<14>")
@@ -111,7 +114,7 @@ def main():
             sys.exit("[X] the TFLite Micro firmware of mlp_fashion changed: update the replacements in this script")
         open(main_cc, "w").write(src)
     chip_pred, times, arena = measure_chip(project, args.board, args.port, args.baud, x_test[:n].reshape(n, -1),
-                                           not args.no_upload)
+                                           not args.no_upload, usb=args.usb)
     equal = 100 * (chip_pred == pred[:n]).mean()
     chip_acc = 100 * (chip_pred == y_test[:n]).mean()
     print(f"\n    MLPerf Tiny ResNet-8 INT8, TensorFlow Lite Micro on {BOARDS[args.board]} ({n} images, model in "
@@ -123,7 +126,7 @@ def main():
     name = f"results/tflite/tflite_{args.board}{'_ram' if args.model_ram else ''}.json"
     json.dump(dict(board=args.board, images=n, equal_to_pc=equal, accuracy=chip_acc, latency_ms=float(np.median(times)) / 1000,
                    latency_min_ms=float(times.min()) / 1000, model_kb=len(tflite) / 1024, arena_kb=arena / 1024,
-                   model_in_ram=args.model_ram), open(name, "w"), indent=1)
+                   model_in_ram=args.model_ram, usb=args.usb), open(name, "w"), indent=1)
     print(f"    -> {name}")
 
 

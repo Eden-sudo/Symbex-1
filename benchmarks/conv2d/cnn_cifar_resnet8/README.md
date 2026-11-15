@@ -34,6 +34,10 @@ Hazard3, the only ones TFLite Micro has for it (so that row shows the gap withou
 SYMBEX is 6.1× faster with both in flash, 2.8× against INT8 with the whole model in RAM. The chip gives the PC
 interpreter's class on 98.1 % of the images, as on the ESP32 boards.
 
+**Energy (ESP32-S3, [ENERGY.md](ENERGY.md)):** one image costs 7.2 mJ with SYMBEX (int8 stem + Bop + pooled
+classifier, vertical engine) against 47.7 mJ with TFLite Micro INT8, 6.6× less, measured with a USB power meter
+(one 10-minute run each).
+
 ## Why: what each chip does best
 
 `tools/dev/count_bench.py` measures, on each chip, the raw arithmetic of both families on the same layer pattern: how many
