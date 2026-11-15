@@ -290,7 +290,9 @@ valor por defecto, así que las comparaciones mantienen la configuración por de
 - **El clasificador** (0.17 ms frente a 0.06 ms): leer los planos finales directamente en lugar de convertirlos.
 - **Mapas pequeños** (bloques 4 y 5, 8×8 y 16×16): un registro de 128 píxeles se usa a la mitad o menos, y cada lista
   de planos se usa una vez; empaquetar varios canales de salida por registro lo llenaría.
-- **El ESP32 clásico** (sin registros de 128 bits): la versión en C portable corre ahí, todavía sin medir.
+- **El ESP32 clásico** (sin registros de 128 bits), medido el 13 de noviembre (ResNet-8 stem int8 + Bop + pool2, lut16,
+  pesos en flash, 3 semillas, exacto): estándar 62.52 ms, vertical 54.68 ms (1.14×), compact 48.57 ms (1.29×, 200 KB de
+  RAM); prepared no cabe en su RAM de datos. Pendiente: un modo entre compact y prepared que quepa.
 
 El estudio capa por capa que llevó a este motor (listas y umbrales precalculados frente a construidos en el chip, caché
 fría y caliente) es `benchmarks/conv2d/cnn_cifar_resnet8/s3_vertical_layers.py`, con sus resultados en
