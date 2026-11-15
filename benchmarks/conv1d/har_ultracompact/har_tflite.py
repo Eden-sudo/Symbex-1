@@ -155,7 +155,7 @@ def run_pc(arch, seed, epochs, lr, tf):
     return tflite, res
 
 
-def measure_board(args, tflite, ops, x_u8, classes, project):
+def measure_board(args, tflite, ops, x_u8, classes, project, memory=None):
     """TFLite Micro on args.board (the firmware of mlp_fashion/fashion_tflite.py, its resolver set to `ops` and its
     input table to input_table()): (classes on the chip, times in us, arena bytes). Also used by
     benchmarks/conv1d/ecg_mitbih/ecg_tflite.py."""
@@ -177,7 +177,7 @@ def measure_board(args, tflite, ops, x_u8, classes, project):
                           + " ".join(f"ops.{TFLM_OPS[o]}();" for o in ops))
         src = src.replace(old_in, "roundf(((p - 128) / 127.0f) / inp->params.scale)")   # = input_table()
         open(main_cc, "w").write(src)
-    return measure_chip(project, args.board, args.port, args.baud, x_u8, not args.no_upload, args.usb)
+    return measure_chip(project, args.board, args.port, args.baud, x_u8, not args.no_upload, args.usb, memory)
 
 
 def run_board(args, tflite, ops):
@@ -186,18 +186,27 @@ def run_board(args, tflite, ops):
     n = min(args.windows, len(x))
     x_u8 = (x[:n].astype(np.int16) + 128).astype(np.uint8).reshape(n, -1)
     pc_pred, _ = predict_tflite(tflite, x_u8)
-    ram = "_ram" if args.weights == "ram" else ""
-    project = os.path.join("runs", "tflite", f"tflm_{args.board}_{name}{ram}")
-    chip, times, arena = measure_board(args, tflite, ops, x_u8, CLASSES, project)
+    suffix = "_ram" if args.weights == "ram" else ""
+    project = os.path.join("runs", "tflite", f"tflm_{args.board}_{name}{suffix}")
+    memory = {}
+    chip, times, arena = measure_board(args, tflite, ops, x_u8, CLASSES, project, memory)
     equal = 100 * float((chip == pc_pred).mean())
     print(f"\n    {name} INT8, TensorFlow Lite Micro on {args.board} ({n} validation windows, model in {args.weights})")
     print(f"    same class as the PC interpreter : {equal:.2f}%" + ("" if equal == 100 else "  [X]"))
     print(f"    latency                          : median {np.median(times) / 1000:.3f} ms | min {times.min() / 1000:.3f} ms")
     print(f"    flash (model) / RAM (arena)      : {len(tflite) / 1024:.1f} KB / {arena / 1024:.1f} KB")
-    out = os.path.join("results", "tflite", f"tflite_{args.board}_{name}{ram}.json")
+    ram = None
+    if memory:                    # the whole RAM of the inference, counted as chip_test.py counts SYMBEX's
+        ram = dict(arena=arena, objects=memory["objects"], input_bytes=memory["input_bytes"], heap=memory["heap"],
+                   stack_used=memory["stack_used"], model_in_ram=len(tflite) if args.weights == "ram" else 0)
+        ram["total"] = sum(ram.values())
+        print(f"    RAM in total                     : {ram['total'] / 1024:.1f} KB (arena {arena / 1024:.1f}, "
+              f"interpreter {memory['objects'] / 1024:.1f}, input {memory['input_bytes'] / 1024:.1f}, heap "
+              f"{memory['heap'] / 1024:.1f}, stack {memory['stack_used'] / 1024:.1f} of {memory['stack_reserved'] / 1024:.0f})")
+    out = os.path.join("results", "tflite", f"tflite_{args.board}_{name}{suffix}.json")
     json.dump(dict(arch=args.arch, seed=args.seed, board=args.board, weights=args.weights, windows=n, equal_to_pc=equal,
                    median_ms=float(np.median(times)) / 1000, min_ms=float(times.min()) / 1000,
-                   model_kb=len(tflite) / 1024, arena_kb=arena / 1024), open(out, "w"), indent=1)
+                   model_kb=len(tflite) / 1024, arena_kb=arena / 1024, ram=ram), open(out, "w"), indent=1)
     print(f"    -> {out}")
 
 

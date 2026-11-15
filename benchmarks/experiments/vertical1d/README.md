@@ -8,7 +8,8 @@ TFLite Micro INT8 on the S3 is the smallest of all boards (1.47-1.90× for HAR).
 **Answer:** yes, on the long layers. The HAR networks' second convolution (120-137 steps) runs **2.0-4.6× faster**,
 the whole network **1.26-1.87× faster** with the int8 first layer, every run **exact** (100 % equal to the
 simulation, 3 seeds). Against TFLite INT8 on the S3 the margin grows from **1.47-1.90×** to **1.85-3.52×**. The
-price is RAM: a work block of 7.4-18.7 KB (`l`: 2.8 → 21.9 KB in total, TFLite's arena 25.5 KB). Short layers (16
+price is RAM: a work block of 7.4-18.7 KB (`l`: 2.8 → 21.9 KB in total), still less than TFLite's whole RAM on
+`s` / `m` / `l` (10-21 KB vs 14-29 KB), more on `xs` (9.0 vs 6.1 KB). Short layers (16
 steps: the third convolution) are slower vertically (0.31 → 0.74 ms), so they stay on the standard layer.
 
 ## What
@@ -59,6 +60,29 @@ tile): 0.31 → 0.735 ms, whole network 2.707 ms instead of 2.263.
 RAM (`l`, measured on the chip): 2.8 KB standard, 21.9 KB vertical (work block 18.7 KB: the shifted planes of one
 tile 7.8 KB, the list table 5.1 KB, the channel planes, counters and list the rest); `xs` 1.7 → 9.3 KB, `s` 1.9 → 10.5 KB, `m` 2.8 → 21.9 KB. Flash is the same
 (the weights do not change).
+
+### Whole RAM against TFLite Micro, weights in flash and in RAM
+
+TFLite's RAM counted the way `chip_test.py` counts SYMBEX's (arena + interpreter objects + input buffer + heap taken
+while building + stack used; `har_tflite.py`, new memory request `0x5A` in the firmware of
+`mlp_fashion/fashion_tflite.py`), 3 seeds, every run 100 % equal to the PC interpreter
+(`../../conv1d/har_ultracompact/results/tflite/memory/`). SYMBEX = int8 first layer, vertical second convolution.
+Times in ms (mean over 3 seeds), RAM in KB.
+
+| Network | weights | SYMBEX vertical | TFLite INT8 | speed-up | SYMBEX RAM | TFLite RAM |
+|---|---|---|---|---|---|---|
+| xs | flash | 0.386 | 0.665 | 1.72× | 9.0 | 6.1 |
+| s | flash | 0.981 | 2.922 | 2.98× | 10.3 | 14.2 |
+| m | flash | 2.030 | 7.123 | 3.51× | 21.4 | 29.2 |
+| l | flash | 2.263 | 7.091 | 3.13× | 21.4 | 28.7 |
+| xs | RAM | 0.386 | 0.677 | 1.75× | 9.8 | 13.4 |
+| s | RAM | 0.981 | 2.919 | 2.98× | 13.4 | 34.8 |
+| m | RAM | 2.030 | 6.355 | 3.13× | 27.2 | 71.0 |
+| l | RAM | 2.263 | 6.114 | 2.70× | 27.9 | 71.2 |
+
+The weights in RAM do not speed up SYMBEX on the S3 (the same times as in flash, ± 0.001 ms) and cost their size in
+RAM; TFLite gains up to 14 % with them. This TFLite measurement is newer than the seed-42 column of the table above
+(`xs` 0.665 vs 0.715 ms, same model: the cause of the difference is not checked), so `xs` is 1.72× here, 1.85× there.
 
 ## Open
 
