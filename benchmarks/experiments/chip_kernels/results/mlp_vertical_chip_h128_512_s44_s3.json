@@ -1,0 +1,25 @@
+{
+ "run": "h128_512_s44",
+ "board": "s3",
+ "weights": "flash",
+ "unit": "cycles",
+ "vertical_layers": [
+  {
+   "layer": 1,
+   "n_in": 128,
+   "n_out": 512
+  }
+ ],
+ "images": 200,
+ "equal_sim_standard": 200,
+ "equal_sim_vertical": 200,
+ "standard_equals_vertical": 200,
+ "correct_vertical": 172,
+ "median_standard": 98715,
+ "min_standard": 98641,
+ "median_vertical": 70257,
+ "min_vertical": 69803,
+ "ones_share": 35.33,
+ "median_standard_us": 411.31,
+ "median_vertical_us": 292.74
+}
