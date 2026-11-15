@@ -181,6 +181,30 @@ search. "PDF" = full text read; "abstract" = only the abstract was available.
 | REDRESS, WakeVision, Mr. Wolf, µNPU benchmarking, MDPI 2025 | not checked | | unverified |
 | "Systematic mapping, Nov 2026" | not found | | likely does not exist |
 
+### What the literature has, sorted (Nov 15)
+
+Every energy number about low-bit networks we have found falls in one of five groups. Each answers its own question;
+none answers the practical one ("I deploy this network on this commercial chip: how much battery does binary save
+against the INT8 toolchain everyone uses?").
+
+| Group | Works (status) | Their number | Why it does not answer the practical question |
+|---|---|---|---|
+| 1. **Estimated, not measured** | Daghero 2021 (PDF): GVSoC cycles × published power of the Quentin chip; Cerutti 2022 (PDF): BNN energy from earlier GMAC/s/W figures; Rusci 2018 (PDF): binary 6.5× with hypothetical instructions; McDanel 2017 (PDF): board power figures, compared with sending the input over BLE; BoolNet (arXiv 2106.06991, abstract + search summary): simulated accelerator, INT8 downsampling conv 37× the energy of the binary one | < 10 µJ (HAR), 6.5×, 37× | no instrument on a real chip; per-operation or per-cycle models miss memory, flash and the board |
+| 2. **Measured, but not against INT8 on the same MCU** | Cerutti 2021 (PDF): RocketLogger, the same BNN on GAP8 vs a Cortex-M4F; FTerViT 2026 (PDF): PPK2 on the ESP32-S3, one kernel, ternary vs FP32; FloppyNet (PDF): ammeter on a Raspberry Pi 4, binary vs 8-bit | 25.54 mJ per 3.2 s audio; 222 vs 244 mW; 46.1 vs 92 mJ | BNN vs BNN, or vs FP32, or one kernel, or not an MCU |
+| 3. **Custom hardware or ISA** | xTern 2024 (abstract): +57.1 % energy efficiency vs 2-bit kernels with an ISA extension; PULP-NN 2019 (abstract): 8-core cluster, cycles vs CMSIS-NN on one Cortex-M core | +57 %, 19.6-30× fewer cycles | the chip is not one you can buy and program like an ESP32 / STM32 / RP2350, or the core counts differ |
+| 4. **Measured, INT8 only** | MicroNets 2021 (PDF): Otii Arc, power nearly independent of the INT8 model (σ/µ 0.7 %); Novac et al., Sensors 2021 (search summary): 0.45 µWh per inference with TFLM on a SparkFun Edge, 1.56 µWh with STM32Cube.AI on an L452 | energy ≈ power × latency | no binary network |
+| 5. **No energy at all** | CBin-NN 2024 (the one same-chip BNN vs TFLM / CMSIS-NN comparison: latency, memory, size, accuracy; no energy found in the text we read or in search; recheck the PDF), Neuro-C 2026, BitNetMCU, Drupelet 2026 | — | speed and memory only: "faster" is assumed to mean "less energy" |
+
+Surveys: Abushahla et al. 2025 (arXiv 2508.15008, first ~100k of 385k characters read) gives energy only for INT8
+vs FP32 per MAC (~20×) and lists no measured BNN energy on an MCU; Park et al. 2025 and the IEEE Access 2023 review
+not checked for energy yet.
+
+**So the information is scattered and each comparison serves its own point.** What a practitioner needs, and what we
+measure, is the intersection none of them covers: the same trained network, on the same commercial MCU, against the
+official INT8 toolchain (TFLite Micro), energy measured with an instrument at the board's supply, whole inference end
+to end. Group 4 (MicroNets) also gives us a test: for INT8 the power hardly depends on the model; our ESP32 agrees
+(SYMBEX and TFLite draw the same, so energy follows speed), our ESP32-S3 does not (SYMBEX 0.77 vs TFLite 0.92 W).
+
 Current answer: **not found**. Closest are BNN vs BNN (Cerutti), BNN vs 8-bit on an application processor
 (FloppyNet) and one ternary kernel on the ESP32-S3 (FTerViT). Our measurement (ResNet-8, ESP32-S3 6.6×, ESP32 13×)
 is still coarse: a USB meter read by eye, one run per case, whole board. To make it a paper claim: a finer instrument
