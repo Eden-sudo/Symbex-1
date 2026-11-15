@@ -157,7 +157,7 @@ librería, las versiones del toolchain, el reloj y el sha256 del modelo FP32.
   otra librería de kernels.
 - ESP-DL se midió una vez, fuera de este repositorio, y solo en el ESP32-S3.
 - La energía se mide con un medidor USB leído a ojo (mAh enteros): una corrida de 10 minutos por caso, cocientes con
-  sus rangos de ±1 mAh; por ahora solo ResNet-8. La latencia sola no es energía.
+  sus rangos de ±1 mAh; ResNet-8 en los dos ESP32, los demás benchmarks en el ESP32 clásico. La latencia sola no es energía.
 - El benchmark 1D sigue el montaje de Daghero et al., no este estándar.
 
 ## Dónde está cada benchmark

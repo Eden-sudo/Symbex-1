@@ -1,0 +1,40 @@
+{
+ "board": "esp32",
+ "date": "2026-11-15",
+ "network": "FOMO person detector c32-32-128 (96x96x3)",
+ "meter": "USB power meter feeding the board's USB-UART port (display: V, A, mAh, Wh; read by eye)",
+ "method": "each phase 600 s; energy = meter mAh x volts x 3.6 J, after subtracting the idle rate (8 mAh / 600 s) for the seconds the meter timer ran past 600 s; per inference = energy / runs; above idle = (mAh - 8) x volts x 3.6 / runs; the meter counts whole mAh (+-1 mAh per reading); one run per phase (no seeds, no repeats)",
+ "tools": "tools/energy_loop.py (firmware: 0xE5 / TFLite loop on the first input, 'L:count,elapsed_us,class')",
+ "phases": {
+  "symbex": {
+   "label": "SYMBEX runs/c32-32-128_b1-2-2_w40_e100_s42, lut16 popcount, flash; exact against its simulation on the chip, 100 %",
+   "runs": 2656,
+   "seconds": 600.107,
+   "ms_per_run": 225.944,
+   "mah": 13.84,
+   "meter_wh": 0.07,
+   "amps_seen": "not noted",
+   "volts": 5.14,
+   "joules": 256.1,
+   "mW": 426.7,
+   "mJ_per_run": 96.421,
+   "mJ_per_run_above_idle": 40.687,
+   "meter_raw": {
+    "mah": 14,
+    "wh": 0.07,
+    "timer_s": 612
+   }
+  },
+  "idle": {
+   "label": "idle, measured Nov 14 on the same board (ResNet-8 ENERGY.md)",
+   "mah": 8,
+   "seconds": 600.0,
+   "volts": 5.14,
+   "mW": 246.7
+  }
+ },
+ "notes": [
+  "Detection: binary and INT8 detect alike (F1 31.2 vs 30.1 %, 3 seeds; README).",
+  "TFLite Micro INT8 of this detector does not fit the classic ESP32 (arena about 230 KB): no INT8 phase."
+ ]
+}

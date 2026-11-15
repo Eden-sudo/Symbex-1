@@ -927,4 +927,4 @@ Results: `results/symbex/` (SYMBEX on GVSoC, accuracy), `results/ucbnn/` (ultrac
 6. **Early exit in the OR pool, per channel:** measured on the PC, half of the steps of the first binary layer can be
    skipped (a channel that already gave 1 in its pool window); it trades against the 4-channel blocks, to be measured.
 7. **The binary layers on chips without a native bit count** (ESP32, S3, M33): the blocked kernels of the RI5CY.
-8. The rest of the ESP32 grid (`swar` with the weights in RAM), energy per inference (INA226).
+8. The rest of the ESP32 grid (`swar` with the weights in RAM), energy on the other boards (classic ESP32 done: [ENERGY.md](ENERGY.md), 8.7× less energy per window).

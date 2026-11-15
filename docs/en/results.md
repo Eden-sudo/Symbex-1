@@ -398,7 +398,17 @@ mAh); one 10-minute run per case while the board repeats one inference
 | ESP32-S3 | vertical | 7.2 | 47.7 | **6.6×** (6.1-7.1×) | 5.5× |
 | ESP32 | vertical compact | 22.2 | 296 | **13.3×** (11.6-15.3×) | 14.7× |
 
-- The energy gain follows the speed gain: the board draws about the same power with either model. On the S3 SYMBEX
+The other benchmarks on the classic ESP32 (seed 42, weights in flash, same meter, Nov 15):
+
+| Benchmark | SYMBEX mJ / inference | TFLite Micro mJ / inference | Less energy | Faster |
+|---|---|---|---|---|
+| MLP 784-128-512-10 ([details](../../benchmarks/mlp/mlp_fashion/ENERGY.md)) | 0.91 | 10.3 | **11.3×** (9.5-13.4×) | 13.4× |
+| HAR max, int8 first layer ([details](../../benchmarks/conv1d/har_ultracompact/ENERGY.md)) | 5.5 | 47.7 | **8.7×** (7.5-10.1×) | 8.7× |
+| ECG net m ([details](../../benchmarks/conv1d/ecg_mitbih/ENERGY.md)) | 5.0 | 40.1 | **8.0×** (6.9-9.2×) | 8.1× |
+| FOMO person ([details](../../benchmarks/conv2d/fomo_voc_person/ENERGY.md)) | 96 | does not fit | — | — |
+
+- The energy gain follows the speed gain: the board draws about the same power with either model (ESP32: 0.33-0.46 W
+  in every run). On the S3 SYMBEX
   also drew less (0.77 against 0.92 W).
 - Whole board at the USB port (chip, regulator, USB bridge), as a battery would feed it. Ranges: every reading off by
   1 mAh in the worst direction.
@@ -407,7 +417,7 @@ mAh); one 10-minute run per case while the board repeats one inference
 
 ## Future work
 
-- Energy for the other benchmarks (MLP, 1D, FOMO) and the Pico 2; a meter the PC can read, for finer numbers.
+- Energy on the S3 for the other benchmarks, and on the Pico 2; a meter the PC can read, for finer numbers.
 - ESP-DL as a full INT8 baseline (3 seeds, the whole test set, every benchmark), with its scripts in the repository.
 - Beating ESP-DL on the ESP32-S3 with the weights in RAM with clearly less RAM (default vertical engine: 10.4 ms vs
   9.8 ms with 63 KB; the compact mode wins at 7.70 ms with about the same RAM, 151 KB against 147 KB), and the

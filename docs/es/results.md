@@ -356,7 +356,17 @@ enteros); una corrida de 10 minutos por caso mientras la placa repite una infere
 | ESP32-S3 | vertical | 7.2 | 47.7 | **6.6×** (6.1-7.1×) | 5.5× |
 | ESP32 | vertical compacto | 22.2 | 296 | **13.3×** (11.6-15.3×) | 14.7× |
 
-- La ganancia de energía sigue a la de velocidad: la placa consume casi lo mismo con cualquiera de los dos modelos. En
+Los demás benchmarks en el ESP32 clásico (semilla 42, pesos en flash, el mismo medidor, 15 nov):
+
+| Benchmark | SYMBEX mJ / inferencia | TFLite Micro mJ / inferencia | Menos energía | Más rápido |
+|---|---|---|---|---|
+| MLP 784-128-512-10 ([detalles](../../benchmarks/mlp/mlp_fashion/ENERGY.md)) | 0.91 | 10.3 | **11.3×** (9.5-13.4×) | 13.4× |
+| HAR max, primera capa int8 ([detalles](../../benchmarks/conv1d/har_ultracompact/ENERGY.md)) | 5.5 | 47.7 | **8.7×** (7.5-10.1×) | 8.7× |
+| ECG red m ([detalles](../../benchmarks/conv1d/ecg_mitbih/ENERGY.md)) | 5.0 | 40.1 | **8.0×** (6.9-9.2×) | 8.1× |
+| FOMO persona ([detalles](../../benchmarks/conv2d/fomo_voc_person/ENERGY.md)) | 96 | no cabe | — | — |
+
+- La ganancia de energía sigue a la de velocidad: la placa consume casi lo mismo con cualquiera de los dos modelos
+  (ESP32: 0.33-0.46 W en todas las corridas). En
   el S3, SYMBEX además consumió menos (0.77 frente a 0.92 W).
 - Placa completa en el puerto USB (chip, regulador, puente USB), como la alimentaría una batería. Rangos: cada lectura
   equivocada en 1 mAh en el peor sentido.
@@ -365,7 +375,7 @@ enteros); una corrida de 10 minutos por caso mientras la placa repite una infere
 
 ## Trabajo futuro
 
-- Energía de los demás benchmarks (MLP, 1D, FOMO) y del Pico 2; un medidor que el PC pueda leer, para números más finos.
+- Energía en el S3 de los demás benchmarks, y en el Pico 2; un medidor que el PC pueda leer, para números más finos.
 - ESP-DL como referencia INT8 completa (3 semillas, todo el conjunto de test, todos los benchmarks), con sus scripts en
   el repositorio.
 - Ganarle a ESP-DL en el ESP32-S3 con los pesos en RAM usando claramente menos RAM (motor vertical por defecto: 10.4 ms

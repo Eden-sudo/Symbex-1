@@ -155,7 +155,7 @@ toolchain versions, the clock and the sha256 of the FP32 model.
 - ESP-NN only exists for Espressif chips; on the Pico 2 the integer baselines below INT8 need another kernel library.
 - ESP-DL was measured once, outside this repository, on the ESP32-S3 only.
 - Energy is measured with a USB power meter read by eye (whole mAh): one 10-minute run per case, ratios with their
-  ±1 mAh ranges; ResNet-8 only so far. Latency alone is not energy.
+  ±1 mAh ranges; ResNet-8 on both ESP32 boards, the other benchmarks on the classic ESP32. Latency alone is not energy.
 - The 1D benchmark follows Daghero et al.'s setup, not this standard.
 
 ## Where each benchmark stands

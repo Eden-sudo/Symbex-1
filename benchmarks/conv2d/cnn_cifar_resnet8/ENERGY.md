@@ -96,8 +96,8 @@ meter's resolution, so it is not a finding.
 
 ## Limits (to keep in mind)
 
-- **One 10-minute run per phase, on one board.** The board is always slightly warm, which raises its idle draw. A
-  second board would be a cleaner check.
+- **One 10-minute run per phase, on one board.** The ESP32-S3 board is always warm, which raises its idle draw;
+  the classic ESP32 board stays cool, at most slightly warm by touch. A second board would be a cleaner check.
 - **The meter is read by eye and counts whole mAh.** The total-energy ratio is solid (±7 %); the above-idle ratio
   is not.
 - **The power is measured at the USB port, so it is the whole board:** chip, regulator, USB bridge and LEDs, not the

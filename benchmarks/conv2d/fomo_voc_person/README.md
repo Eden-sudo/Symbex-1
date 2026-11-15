@@ -69,6 +69,9 @@ Cortex-M33 (64 KB counting table, 143 KB). TFLite INT8 on the Pico 2 (CMSIS-NN o
   coordinates), the part binary networks do worst.
 - **The calibrated threshold.** A binary network tends to mark too many cells; moving one integer bias fixes it.
 
+**Energy (classic ESP32, seed 42, weights in flash):** 96 mJ per frame at 226 ms (0.43 W, whole board at USB); the
+INT8 model does not fit this board ([ENERGY.md](ENERGY.md)).
+
 ## Sizing the binary detector
 
 `fomo_sizing.py` trains the same structure with other numbers of blocks and channels per stage (single seed: differences

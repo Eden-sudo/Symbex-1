@@ -1,0 +1,69 @@
+{
+ "board": "esp32",
+ "date": "2026-11-15",
+ "network": "ECG net m with RR channels (MIT-BIH, AAMI classes)",
+ "meter": "USB power meter feeding the board's USB-UART port (display: V, A, mAh, Wh; read by eye)",
+ "method": "each phase 600 s; energy = meter mAh x volts x 3.6 J, after subtracting the idle rate (8 mAh / 600 s) for the seconds the meter timer ran past 600 s; per inference = energy / runs; above idle = (mAh - 8) x volts x 3.6 / runs; the meter counts whole mAh (+-1 mAh per reading); one run per phase (no seeds, no repeats)",
+ "tools": "tools/energy_loop.py (firmware: 0xE5 / TFLite loop on the first input, 'L:count,elapsed_us,class')",
+ "phases": {
+  "symbex": {
+   "label": "SYMBEX runs/m_binary_e100_s42_rr, swar popcount, flash; exact against its simulation on the chip, 100 %",
+   "runs": 51440,
+   "seconds": 600.031,
+   "ms_per_run": 11.6647,
+   "mah": 14.0,
+   "meter_wh": 0.07,
+   "amps_seen": "not noted",
+   "volts": 5.14,
+   "joules": 259.1,
+   "mW": 431.7,
+   "mJ_per_run": 5.036,
+   "mJ_per_run_above_idle": 2.158,
+   "meter_raw": {
+    "mah": 14,
+    "wh": 0.07,
+    "timer_s": 600
+   }
+  },
+  "idle": {
+   "label": "idle, measured Nov 14 on the same board (ResNet-8 ENERGY.md)",
+   "mah": 8,
+   "seconds": 600.0,
+   "volts": 5.14,
+   "mW": 246.7
+  },
+  "tflite": {
+   "label": "TFLite Micro INT8, m seed 42 with RR (same architecture, same recipe), ESP-NN, flash",
+   "runs": 6374,
+   "seconds": 600.075,
+   "ms_per_run": 94.1442,
+   "mah": 13.8,
+   "meter_wh": 0.07,
+   "amps_seen": "not noted",
+   "volts": 5.14,
+   "joules": 255.4,
+   "mW": 425.5,
+   "mJ_per_run": 40.062,
+   "mJ_per_run_above_idle": 16.838,
+   "meter_raw": {
+    "mah": 14,
+    "wh": 0.07,
+    "timer_s": 615
+   }
+  }
+ },
+ "notes": [
+  "Accuracy: balanced accuracy of binary and INT8 is tied within the standard deviation on net m (README)."
+ ],
+ "ratio_total": {
+  "value": 7.96,
+  "range_pm1mah": [
+   6.89,
+   9.19
+  ]
+ },
+ "ratio_above_idle": {
+  "value": 7.8
+ },
+ "speed_ratio": 8.07
+}
