@@ -1,0 +1,162 @@
+{
+  "weights": "binary",
+  "seed": 42,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "fp32",
+    "int8_blocks": [
+      3,
+      4
+    ],
+    "name": "d384l8_b34i8",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.4262,
+  "val_perplexity": 4.163,
+  "minutes": 33.48,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.2427,
+      "val_loss": 2.1792,
+      "minutes": 2.21
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.8708,
+      "val_loss": 1.8808,
+      "minutes": 3.85
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.722,
+      "val_loss": 1.7734,
+      "minutes": 5.5
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.6885,
+      "val_loss": 1.7102,
+      "minutes": 7.15
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.7085,
+      "val_loss": 1.6688,
+      "minutes": 8.79
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.6058,
+      "val_loss": 1.6349,
+      "minutes": 10.44
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.5939,
+      "val_loss": 1.6095,
+      "minutes": 12.08
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.5729,
+      "val_loss": 1.5835,
+      "minutes": 13.73
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.5699,
+      "val_loss": 1.5624,
+      "minutes": 15.38
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.5654,
+      "val_loss": 1.5426,
+      "minutes": 17.02
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.5119,
+      "val_loss": 1.5271,
+      "minutes": 18.67
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.4371,
+      "val_loss": 1.5079,
+      "minutes": 20.31
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.5384,
+      "val_loss": 1.4932,
+      "minutes": 21.96
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.5327,
+      "val_loss": 1.4789,
+      "minutes": 23.61
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.4409,
+      "val_loss": 1.4644,
+      "minutes": 25.25
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.4072,
+      "val_loss": 1.4521,
+      "minutes": 26.9
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.3967,
+      "val_loss": 1.4428,
+      "minutes": 28.54
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.3938,
+      "val_loss": 1.4349,
+      "minutes": 30.19
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.4134,
+      "val_loss": 1.4289,
+      "minutes": 31.83
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.4188,
+      "val_loss": 1.4262,
+      "minutes": 33.48
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She had a big, soft teddy bear named Mr. Bear. Lily loved to hug Mr. Bear every day. One day, Lily and Mr. Bear went to the park to play.\nAt the park, Lily saw a big, scary dog. The dog was barking and growling. Lily was scared, but she wanted to be brave. She held Mr. Bear tight and said, \"Don't be scared, Mr. Bear. I will be with you.\"\nLily and Mr. Bear played all day. They ran, jumped, and laughed. Lily was not scared anymore. She knew that Mr. Bear was just a big, friendly dog. They became best friends and played together every day."
+}

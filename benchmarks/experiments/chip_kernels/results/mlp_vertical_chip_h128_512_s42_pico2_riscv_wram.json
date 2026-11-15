@@ -1,0 +1,25 @@
+{
+ "run": "h128_512_s42",
+ "board": "pico2_riscv",
+ "weights": "ram",
+ "unit": "us",
+ "vertical_layers": [
+  {
+   "layer": 1,
+   "n_in": 128,
+   "n_out": 512
+  }
+ ],
+ "images": 200,
+ "equal_sim_standard": 200,
+ "equal_sim_vertical": 200,
+ "standard_equals_vertical": 200,
+ "correct_vertical": 174,
+ "median_standard": 1341,
+ "min_standard": 1340,
+ "median_vertical": 1256,
+ "min_vertical": 1223,
+ "ones_share": 31.095,
+ "median_standard_us": 1341.0,
+ "median_vertical_us": 1256.0
+}

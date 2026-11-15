@@ -1,0 +1,11 @@
+{
+  "run": "binary_d384l8_head4_s44",
+  "weights": "binary",
+  "val_windows": 1024,
+  "val_loss_float": 1.5432,
+  "val_loss_integer": 1.543,
+  "val_perplexity_float": 4.68,
+  "val_perplexity_integer": 4.679,
+  "next_token_agreement_float_vs_integer": 0.9861,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She had a big, red ball. Lily loved to play with her ball every day. One day, she saw a big, dangerous dog near her house. The dog was barking and running around. Lily was scared and didn't know what to do.\nLily's mom saw her and said, \"Don't worry, Lily. The dog is just playing. He won't hurt you.\" Lily felt better and went back to her mom. She told her mom about the dangerous dog and the dangerous dog. Her mom said, \"Don"
+}
