@@ -16,10 +16,15 @@ FP32 runs (fp32_* folders) are skipped. Prints one line per file: % frozen, larg
 import argparse
 import glob
 import os
+import sys
 
 import torch
 
-REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))           # tools/: compiler_core
+from compiler_core.train.health import binary_health                                            # noqa: E402
+
+REPO = os.path.dirname(os.path.dirname(HERE))
 
 
 def checkpoints(paths):
@@ -54,11 +59,10 @@ def main():
             continue
         if not ws:
             continue
-        n = sum(w.numel() for w in ws.values())
-        frozen = 100.0 * sum(int((w.abs() > 1).sum()) for w in ws.values()) / n
+        health = binary_health(ws.values())
+        n, frozen, top = health["n"], health["frozen"], health["max_abs"]
         if frozen <= args.limit and args.limit > 0:
             continue
-        top = max(float(w.abs().max()) for w in ws.values())
         flag = " [!]" if frozen > 1 else ""
         print(f"{frozen:6.1f} % frozen  max|w| {top:7.3f}  {n:9d} w  {os.path.relpath(f)}{flag}")
         rows += 1
