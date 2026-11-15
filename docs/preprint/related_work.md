@@ -70,7 +70,7 @@ means only the abstract or a web summary was seen, so its numbers stay out of th
   (3) several tasks under one methodology (validation split, test set once, 3 seeds); (4) the official MLPerf Tiny
   network against the official INT8 toolchain.
 
-## Gap sentence (replaces the one in outline.md)
+## Gap sentence (candidate for draft.md / outline.md)
 
 > Binary networks already run on microcontrollers, and CBin-NN showed that a binary engine can beat the INT8
 > toolchains on a Cortex-M7 for one network. What is still missing is a broad, verified comparison: the same
