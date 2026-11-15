@@ -162,3 +162,26 @@ Second pass (Nov 13):
   output bit is read directly. We have not found this in prior work; it is what lets a SIMD unit without a popcount
   (the ESP32-S3's PIE, and likely Arm Helium) run a BNN." The arithmetic is not new; the mapping and its measurement
   are.
+
+## Energy of binary networks on microcontrollers (Nov 14)
+
+Question: has anyone measured the energy of a BNN against the official INT8 toolchain (TFLite Micro), same model,
+same commercial MCU, end to end? Sources: a Gemini Deep Research report (pasted by Eden) checked row by row, plus web
+search. "PDF" = full text read; "abstract" = only the abstract was available.
+
+| Work | Read | What it measures | Verdict for our claim |
+|---|---|---|---|
+| Cerutti et al. 2021 (GAP8 KWS) | PDF | RocketLogger, 25.54 mJ per 3.2 s of audio on GAP8; the same BNN on GAP8 vs a Cortex-M4F | measured BNN energy, but BNN vs BNN on two chips, not vs INT8 |
+| FloppyNet (arXiv **2010.00716**; Gemini's ID 2201.08705 is wrong) | PDF | ammeter on the Raspberry Pi 4 USB-C, 46.1 vs 92 mJ (8-bit) | measured vs 8-bit, but on an application processor, not an MCU |
+| FTerViT 2026 (arXiv 2605.21171) | PDF | ESP32-S3-EYE + PPK2, idle 149 mW, 222 vs 244 mW | Gemini overstated it: ternary vs FP32 on ONE kernel, "not end-to-end" |
+| MicroNets (Banbury et al. 2021) | PDF | Otii Arc; INT8 models on MCUs | power is nearly independent of the model (σ/µ 0.7 %), so energy ≈ power × latency; our ESP32 agrees, our S3 does not (SYMBEX 0.77 vs TFLite 0.92 W) |
+| Rusci et al. 2018 | PDF | 4 / 2-bit vs CMSIS-NN 8-bit on a Cortex-M7 | Gemini imprecise: the binary 6.5× is an estimate with hypothetical instructions |
+| PULP-NN | PDF | 8-bit kernels | not binary |
+| Ballout et al. 2025 (CBin-NN 1D, STM32) | abstract (paywalled) | 2× vs the STM32 code generator | energy method unknown; Eden to get the PDF |
+| REDRESS, WakeVision, Mr. Wolf, µNPU benchmarking, MDPI 2025 | not checked | | unverified |
+| "Systematic mapping, Nov 2026" | not found | | likely does not exist |
+
+Current answer: **not found**. Closest are BNN vs BNN (Cerutti), BNN vs 8-bit on an application processor
+(FloppyNet) and one ternary kernel on the ESP32-S3 (FTerViT). Our measurement (ResNet-8, ESP32-S3 6.6×, ESP32 13×)
+is still coarse: a USB meter read by eye, one run per case, whole board. To make it a paper claim: a finer instrument
+(PPK2 / Otii), more benchmarks, and the Pico 2.

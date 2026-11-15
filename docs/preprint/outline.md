@@ -27,9 +27,11 @@ in the repository is marked **NOT IN REPO** and stays out of the paper until it 
    ESP32-S3 PIE, RP2350 M33 / Hazard3), the vertical engine.
 4. Methodology: same architecture, validation split from training data, test set once, 3 seeds, same recipe,
    exactness check, weights in flash first.
-5. Results: speed / flash / RAM per task and chip; accuracy cost; the S3 against ESP-DL (stronger INT8).
+5. Results: speed / flash / RAM per task and chip; accuracy cost; the S3 against ESP-DL (stronger INT8); energy per
+   inference (USB meter, ResNet-8 first).
 6. Limits and negative results: accuracy cost on fine-grained classes, ECG detectors, binary RNN, tiny LLM.
-7. Conclusion and future work: energy, more chips, the int8-stem / binary-body hybrids.
+7. Conclusion and future work: energy of every benchmark with a finer meter, more chips, the int8-stem / binary-body
+   hybrids.
 
 ## Claims and their sources
 
@@ -56,6 +58,9 @@ Paths relative to `benchmarks/`. "README" = that benchmark's README, which gives
 | 17 | Binary loses mostly by capacity, not training (ResNet-8) | twin 92 % train fit vs binary 72 % | `experiments/training_gap/results/` | in repo |
 | 18 | tiny LLM W1A8, exact on the S3 | 8.48 tokens/s, val loss 1.522 vs 1.300 FP32 | `experiments/tiny_llm/results/` | seed 42 on the chip; 43 / 44 running (Nov 12) |
 | 19 | Low-bit context: INT2 QAT more accurate per byte than binary; binary wins speed | | `mlp/mlp_fashion/results/lowbit/` | our kernels: context only |
+| 20 | Energy per image, ResNet-8 S3 (vertical) vs MLPerf INT8 (TFLM), flash, whole board at USB | 7.2 vs 47.7 mJ, 6.6× (6.1-7.1×) | `conv2d/cnn_cifar_resnet8/results/energy/energy_s3.json`, `ENERGY.md` | branch feat/energy-loop (not pushed); one 10-min run per case, meter read by eye |
+| 21 | Energy per image, ResNet-8 classic ESP32 (vertical compact) vs TFLM INT8 | 22.2 vs 296 mJ, 13.3× (11.6-15.3×); same power, gain = speed | `.../results/energy/energy_esp32.json` | same; vertical compact is PR #48 |
+| 22 | No published measured energy of a BNN against TFLite Micro INT8, same model, same commercial MCU, end to end | | [related_work.md "Energy"](related_work.md#energy-of-binary-networks-on-microcontrollers-nov-14) | searched Nov 14; keep searching |
 
 ## Related work notes (PDFs read Nov 12)
 
