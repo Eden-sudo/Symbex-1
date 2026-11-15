@@ -386,9 +386,28 @@ against int8 (multiply-accumulate).
 | ESP32-S3 (8-bit SIMD, no popcount instruction) | 1.05-2.1× faster (the SIMD multiplier counts the bits: `pie_swar`) |
 | x86 (AVX2 / VNNI) | 1.5-3.8× |
 
+## Energy
+
+First measurements, ResNet-8 on CIFAR-10 (int8 stem + Bop + pooled classifier, seed 42, weights in flash), against the
+official MLPerf Tiny INT8 model on TFLite Micro. A USB power meter between the PC and the board, read by eye (whole
+mAh); one 10-minute run per case while the board repeats one inference
+([details](../../benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md)).
+
+| Board | SYMBEX engine | SYMBEX mJ / image | TFLite Micro mJ / image | Less energy | Faster |
+|---|---|---|---|---|---|
+| ESP32-S3 | vertical | 7.2 | 47.7 | **6.6×** (6.1-7.1×) | 5.5× |
+| ESP32 | vertical compact | 22.2 | 296 | **13.3×** (11.6-15.3×) | 14.7× |
+
+- The energy gain follows the speed gain: the board draws about the same power with either model. On the S3 SYMBEX
+  also drew less (0.77 against 0.92 W).
+- Whole board at the USB port (chip, regulator, USB bridge), as a battery would feed it. Ranges: every reading off by
+  1 mAh in the worst direction.
+- On the ESP32, weights in RAM against flash (standard engine) read the same 13 mAh: the meter cannot see the
+  difference; RAM costs 5 % less per image only because it is 5 % faster.
+
 ## Future work
 
-- Energy per inference, measured with a current meter.
+- Energy for the other benchmarks (MLP, 1D, FOMO) and the Pico 2; a meter the PC can read, for finer numbers.
 - ESP-DL as a full INT8 baseline (3 seeds, the whole test set, every benchmark), with its scripts in the repository.
 - Beating ESP-DL on the ESP32-S3 with the weights in RAM with clearly less RAM (default vertical engine: 10.4 ms vs
   9.8 ms with 63 KB; the compact mode wins at 7.70 ms with about the same RAM, 151 KB against 147 KB), and the

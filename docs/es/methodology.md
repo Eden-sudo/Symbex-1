@@ -11,7 +11,7 @@ simulador de ese artículo.
 
 Una red totalmente binaria guarda cada peso y cada activación en **un bit** y cambia la multiplicación por contar bits.
 La pregunta que responde SYMBEX-1 no es "¿es más rápido que X?", sino **dónde queda un bit** entre las formas de correr
-la misma red en el mismo microcontrolador: cuánta precisión, tiempo, memoria (y, pronto, energía) cuesta cada número de
+la misma red en el mismo microcontrolador: cuánta precisión, tiempo, memoria (y energía) cuesta cada número de
 bits.
 
 ```mermaid
@@ -156,7 +156,8 @@ librería, las versiones del toolchain, el reloj y el sha256 del modelo FP32.
 - ESP-NN solo existe para los chips de Espressif; en el Pico 2 las referencias enteras por debajo de INT8 necesitan
   otra librería de kernels.
 - ESP-DL se midió una vez, fuera de este repositorio, y solo en el ESP32-S3.
-- La energía todavía no se ha medido: latencia no es energía.
+- La energía se mide con un medidor USB leído a ojo (mAh enteros): una corrida de 10 minutos por caso, cocientes con
+  sus rangos de ±1 mAh; por ahora solo ResNet-8. La latencia sola no es energía.
 - El benchmark 1D sigue el montaje de Daghero et al., no este estándar.
 
 ## Dónde está cada benchmark

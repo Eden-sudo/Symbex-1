@@ -196,7 +196,9 @@ Hecho: convoluciones 2D y 1D completamente binarias, redes densas, cinco chips (
 Raspberry Pi Pico 2, AVR), el motor vertical para el ESP32-S3, y la primera capa y el clasificador int8 como opciones
 (noviembre de 2026). Lo siguiente:
 
-- **La energía** por inferencia, con un medidor de corriente: la latencia y la memoria están medidas, la energía todavía no.
+- **Energía:** primeras mediciones ([ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md)): una imagen cuesta 6.6×
+  menos energía que con TFLite Micro INT8 en el ESP32-S3 (7.2 frente a 47.7 mJ) y 13× menos en el ESP32 clásico (22
+  frente a 296 mJ); medidor USB, una corrida de 10 minutos por caso. Después: los demás benchmarks en el S3, y el Pico 2.
 - **ESP-DL** como referencia INT8 completa (3 semillas, todo el conjunto de prueba, todos los benchmarks).
 - **FOMO reentrenado** con el nuevo split de validación fijo.
 

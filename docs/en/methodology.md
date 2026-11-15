@@ -11,7 +11,7 @@ the networks and the simulator of that paper.
 
 A fully binary network stores each weight and each activation in **one bit** and replaces multiplication by counting
 bits. The question SYMBEX-1 answers is not "is it faster than X", but **where one bit sits** among the ways of running
-the same network on the same microcontroller: how much accuracy, time, memory (and, soon, energy) each number of bits
+the same network on the same microcontroller: how much accuracy, time, memory (and energy) each number of bits
 costs.
 
 ```mermaid
@@ -154,7 +154,8 @@ toolchain versions, the clock and the sha256 of the FP32 model.
   kernel exists on these chips.
 - ESP-NN only exists for Espressif chips; on the Pico 2 the integer baselines below INT8 need another kernel library.
 - ESP-DL was measured once, outside this repository, on the ESP32-S3 only.
-- Energy has not been measured yet: latency is not energy.
+- Energy is measured with a USB power meter read by eye (whole mAh): one 10-minute run per case, ratios with their
+  ±1 mAh ranges; ResNet-8 only so far. Latency alone is not energy.
 - The 1D benchmark follows Daghero et al.'s setup, not this standard.
 
 ## Where each benchmark stands

@@ -189,7 +189,9 @@ Done: fully binary 2D and 1D convolutions, dense networks, five chips (ESP32, ES
 Pi Pico 2, AVR), the vertical engine for the ESP32-S3, and the int8 first layer and classifier as options (November
 2026). Next:
 
-- **Energy** per inference, with a current meter: latency and memory are measured, energy is not yet.
+- **Energy:** first measurements ([ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md)): one image costs 6.6× less
+  energy than TFLite Micro INT8 on the ESP32-S3 (7.2 vs 47.7 mJ) and 13× less on the classic ESP32 (22 vs 296 mJ); USB
+  power meter, one 10-minute run each. Next: the other benchmarks on the S3, and the Pico 2.
 - **ESP-DL** as a full INT8 baseline (3 seeds, the whole test set, every benchmark).
 - **FOMO re-trained** on the new fixed validation split.
 

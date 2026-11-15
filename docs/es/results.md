@@ -344,9 +344,28 @@ bits) contra int8 (multiplicación-suma).
 | ESP32-S3 (SIMD de 8 bits, sin instrucción de popcount) | 1.05-2.1× más rápido (el multiplicador SIMD cuenta los bits: `pie_swar`) |
 | x86 (AVX2 / VNNI) | 1.5-3.8× |
 
+## Energía
+
+Primeras mediciones, ResNet-8 en CIFAR-10 (stem int8 + Bop + clasificador con pooling, semilla 42, pesos en flash),
+contra el modelo INT8 oficial de MLPerf Tiny en TFLite Micro. Un medidor USB entre el PC y la placa, leído a ojo (mAh
+enteros); una corrida de 10 minutos por caso mientras la placa repite una inferencia
+([detalles](../../benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md)).
+
+| Placa | Motor SYMBEX | SYMBEX mJ / imagen | TFLite Micro mJ / imagen | Menos energía | Más rápido |
+|---|---|---|---|---|---|
+| ESP32-S3 | vertical | 7.2 | 47.7 | **6.6×** (6.1-7.1×) | 5.5× |
+| ESP32 | vertical compacto | 22.2 | 296 | **13.3×** (11.6-15.3×) | 14.7× |
+
+- La ganancia de energía sigue a la de velocidad: la placa consume casi lo mismo con cualquiera de los dos modelos. En
+  el S3, SYMBEX además consumió menos (0.77 frente a 0.92 W).
+- Placa completa en el puerto USB (chip, regulador, puente USB), como la alimentaría una batería. Rangos: cada lectura
+  equivocada en 1 mAh en el peor sentido.
+- En el ESP32, pesos en RAM frente a flash (motor estándar) marcan los mismos 13 mAh: el medidor no ve la diferencia;
+  RAM gasta 5 % menos por imagen solo porque es 5 % más rápida.
+
 ## Trabajo futuro
 
-- Energía por inferencia, medida con un medidor de corriente.
+- Energía de los demás benchmarks (MLP, 1D, FOMO) y del Pico 2; un medidor que el PC pueda leer, para números más finos.
 - ESP-DL como referencia INT8 completa (3 semillas, todo el conjunto de test, todos los benchmarks), con sus scripts en
   el repositorio.
 - Ganarle a ESP-DL en el ESP32-S3 con los pesos en RAM usando claramente menos RAM (motor vertical por defecto: 10.4 ms
