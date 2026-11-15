@@ -1,0 +1,18 @@
+{
+ "arch": "max10",
+ "seed": 44,
+ "epochs": 100,
+ "augment": true,
+ "model": "models/har_int8_max10_aug_s44.tflite",
+ "kb": 20.453125,
+ "best_epoch": 69,
+ "validation_float": 73.06292057037354,
+ "test": 64.48157669237361,
+ "validation": 72.95891835673427,
+ "ops": [
+  "CONV_2D",
+  "FULLY_CONNECTED",
+  "MAX_POOL_2D",
+  "RESHAPE"
+ ]
+}

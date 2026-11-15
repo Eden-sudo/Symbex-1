@@ -4,6 +4,8 @@ in INT8 with TensorFlow Lite, the way anyone deploys a network on a microcontrol
 
     python har_tflite.py --arch max --seed 42                                # train (once) + INT8 + accuracy on the PC
     python har_tflite.py --all                                               # 4 architectures x seeds 42, 43, 44
+    python har_tflite.py --arch max_w2 --seed 42 --no-test                   # a wider network (capacity study), screening
+    python har_tflite.py --arch max --seed 42 --augment --no-test            # with augmentation (README section 10)
     python har_tflite.py --arch max --seed 42 --board esp32 --port /dev/ttyUSB0          # ... and TFLite Micro on the board
     python har_tflite.py --arch max --seed 42 --board s3 --port /dev/ttyACM0 --usb
     python har_tflite.py --arch max --seed 42 --board pico2_arm --port /dev/ttyACM1      # Pico 2 M33 (CMSIS-NN)
@@ -22,6 +24,8 @@ are scored once. Then:
             Hazard3) on the first
             --windows validation windows: latency, arena, and the same class as the PC interpreter, window by window
             (the same windows chip_test.py sends to the SYMBEX network)
+--augment: every epoch, each training window gets a random rotation (+-20 degrees) and amplitude (0.8-1.2), rounded to
+int8 (har_data.augment, the same as har_train.py --augment); files named <arch>_aug_s<seed>.
 Results: models/har_int8_<arch>_s<seed>.tflite (+ .weights.h5, the float Keras weights), results/tflite/tflite_pc_<arch>_s<seed>.json,
 results/tflite/tflite_<board>_<arch>_s<seed>[_ram].json.
 """
@@ -35,7 +39,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(1, os.path.join(HERE, "..", "..", "mlp", "mlp_fashion"))
-from har_data import load                                                                    # noqa: E402
+from har_data import augment, canonical_arch, load                                                                  # noqa: E402
 
 ARCHS = {                                  # the same as model.ARCHS (kept here: model.py imports torch)
     "min":    [("conv", 4, 7), ("conv", 4, 7), ("pool", 4), ("conv", 4, 7), ("pool", 4)],
@@ -43,6 +47,10 @@ ARCHS = {                                  # the same as model.ARCHS (kept here:
     "max5":   [("conv", 32, 7), ("conv", 32, 15), ("pool", 4), ("conv", 32, 15), ("pool", 4)],
     "max":    [("conv", 32, 15), ("conv", 32, 15), ("pool", 4), ("conv", 32, 15), ("pool", 4)],
 }
+TABLE1 = ("min", "max10", "max5", "max")   # --all trains these; the wider ones below are trained on request
+# wider versions (the capacity study, README section 5): every conv's channels x 1.5 / x 2, kernels and pools unchanged
+ARCHS.update({f"{a}_w{tag}": [(l[0], round(l[1] * w), l[2]) if l[0] == "conv" else l for l in ARCHS[a]]
+              for a in ("min", "max") for tag, w in (("15", 1.5), ("2", 2.0))})
 LENGTH, AXES, CLASSES = 151, 3, 17
 SEEDS = (42, 43, 44)
 # TFLite builtin op -> TFLite Micro resolver call (the ops a converted Keras Conv1D network uses)
@@ -93,7 +101,7 @@ def predict_tflite(tflite, x_u8):
     return np.array(pred), ops
 
 
-def train_convert(arch, seed, epochs, lr, path, tf):
+def train_convert(arch, seed, epochs, lr, path, tf, aug=False):
     (xtr, ytr), (xva, yva) = load("train"), load("validation")
     f = lambda x: (x.astype(np.float32) / 127)
     tf.keras.utils.set_random_seed(seed)
@@ -110,9 +118,16 @@ def train_convert(arch, seed, epochs, lr, path, tf):
             if va > self.best:
                 Best.best, Best.epoch, Best.weights = va, ep + 1, self.model.get_weights()
 
-    print(f"[*] training the float {arch} network in Keras ({epochs} epochs, seed {seed}) ...")
-    model.fit(f(xtr), ytr, batch_size=128, epochs=epochs, validation_data=(f(xva), yva), callbacks=[Best()],
-              shuffle=True, verbose=2)
+    print(f"[*] training the float {arch} network in Keras ({epochs} epochs, seed {seed}"
+          + (", augmentation" if aug else "") + ") ...")
+    if aug:                                                          # new random rotations / amplitudes every epoch
+        rng = np.random.default_rng(seed)
+        for ep in range(epochs):
+            model.fit(f(augment(xtr, rng)), ytr, batch_size=128, epochs=ep + 1, initial_epoch=ep,
+                      validation_data=(f(xva), yva), callbacks=[Best()], shuffle=True, verbose=2)
+    else:
+        model.fit(f(xtr), ytr, batch_size=128, epochs=epochs, validation_data=(f(xva), yva), callbacks=[Best()],
+                  shuffle=True, verbose=2)
     model.set_weights(Best.weights)
     model.save_weights(path.replace(".tflite", ".weights.h5"))      # to convert again without training
     convert(arch, model.get_weights(), path, tf)
@@ -134,24 +149,26 @@ def convert(arch, weights, path, tf):
     open(path, "wb").write(conv.convert())
 
 
-def run_pc(arch, seed, epochs, lr, tf):
-    name = f"{arch}_s{seed}"
+def run_pc(arch, seed, epochs, lr, tf, test=True, aug=False):
+    name = f"{arch}{'_aug' if aug else ''}_s{seed}"
     path = os.path.join("models", f"har_int8_{name}.tflite")
     out = os.path.join("results", "tflite", f"tflite_pc_{name}.json")
     info = json.load(open(out)) if os.path.exists(out) else {}
     if not os.path.exists(path):
-        info = train_convert(arch, seed, epochs, lr, path, tf)
+        info = train_convert(arch, seed, epochs, lr, path, tf, aug)
     tflite = open(path, "rb").read()
-    res = dict(arch=arch, seed=seed, epochs=epochs, model=path, kb=len(tflite) / 1024,
+    res = dict(arch=arch, seed=seed, epochs=epochs, **(dict(augment=True) if aug else {}), model=path, kb=len(tflite) / 1024,
                best_epoch=info.get("best_epoch"), validation_float=info.get("validation_float"))
-    for split in ("validation", "test"):
+    res["test"] = info.get("test")                                   # test=False: not scored (kept if it already was)
+    for split in ("validation", "test") if test else ("validation",):
         x, y = load(split)
         pred, ops = predict_tflite(tflite, (x.astype(np.int16) + 128).astype(np.uint8).reshape(len(x), -1))
         res[split] = 100 * float((pred == y).mean())
     res["ops"] = ops
     json.dump(res, open(out, "w"), indent=1)
-    print(f"    {name}: INT8 {res['kb']:.1f} KB | validation {res['validation']:.2f}% | test {res['test']:.2f}%"
-          f"  (best epoch {res['best_epoch']}) -> {out}")
+    print(f"    {name}: INT8 {res['kb']:.1f} KB | validation {res['validation']:.2f}% | "
+          + (f"test {res['test']:.2f}%" if test else "test not scored")
+          + f"  (best epoch {res['best_epoch']}) -> {out}")
     return tflite, res
 
 
@@ -203,11 +220,15 @@ def run_board(args, tflite, ops):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--arch", choices=sorted(ARCHS), default="max")
+    ap.add_argument("--arch", choices=sorted(ARCHS), default="max", type=canonical_arch,
+                    help="network: min / max10 / max5 / max (or xs / s / m / l), _w15 / _w2 = wider")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--all", action="store_true", help="every architecture x seeds 42, 43, 44 (PC only)")
     ap.add_argument("--epochs", type=int, default=100)
     ap.add_argument("--lr", type=float, default=5e-3)
+    ap.add_argument("--no-test", action="store_true", help="do not score the test subjects (screening runs)")
+    ap.add_argument("--augment", action="store_true",
+                    help="random rotation (+-20 degrees) and amplitude (0.8-1.2) of every training window, every epoch")
     ap.add_argument("--board", choices=["esp32", "s3", "pico2_arm", "pico2_riscv"])
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--baud", type=int, default=921600)
@@ -225,14 +246,17 @@ def main():
     for g in tf.config.list_physical_devices("GPU"):                 # share the GPU with other trainings
         tf.config.experimental.set_memory_growth(g, True)
     if args.all:
-        rows = [run_pc(a, s, args.epochs, args.lr, tf)[1] for a in ARCHS for s in SEEDS]
-        print(f"\n    INT8 (TFLite), test accuracy, mean +- std over seeds {SEEDS}")
-        for a in ARCHS:
-            t = [r["test"] for r in rows if r["arch"] == a]
+        rows = [run_pc(a, s, args.epochs, args.lr, tf, not args.no_test, args.augment)[1] for a in TABLE1 for s in SEEDS]
+        split = "validation" if args.no_test else "test"
+        print(f"\n    INT8 (TFLite), {split} accuracy, mean +- std over seeds {SEEDS}")
+        for a in TABLE1:
+            t = [r[split] for r in rows if r["arch"] == a]
             print(f"    {a:<6} {np.mean(t):5.1f} +- {np.std(t, ddof=1):.1f} %   ({', '.join(f'{v:.1f}' for v in t)})")
         return
-    tflite, res = run_pc(args.arch, args.seed, args.epochs, args.lr, tf)
+    tflite, res = run_pc(args.arch, args.seed, args.epochs, args.lr, tf, not args.no_test, args.augment)
     if args.board:
+        if args.augment:
+            sys.exit("[X] --augment with --board: the board runs measure the networks of the README tables")
         run_board(args, tflite, res["ops"])
 
 
