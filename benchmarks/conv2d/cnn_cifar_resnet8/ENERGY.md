@@ -77,6 +77,23 @@ Same method, on the classic ESP32 (no SIMD), powered through its USB-UART port, 
 
 The raw readings and every derived number are in `results/energy/energy_esp32.json`.
 
+### Weights in RAM or in flash?
+
+**Question.** RAM reads are cheaper than reading the external SPI flash; does that show in the energy per image?
+
+**What.** The standard engine (the compact one does not fit with its weights in RAM: 256 bytes over), the same model,
+two 10-minute runs, meter zeroed before each.
+
+| Weights | Inferences in 600 s | ms each | mAh / Wh | Power | **mJ per inference** |
+|---|---|---|---|---|---|
+| RAM | 10,312 | 58.19 | 13 / 0.07 | 0.40 W | **23.3** |
+| flash | 9,792 | 61.31 | 13 / 0.07 | 0.40 W | **24.6** |
+
+**Answer.** Both runs read 13 mAh, so this meter shows no difference in power. Weights in RAM cost 5 % less energy
+per image only because they run 5 % faster. A smaller power difference may exist below the meter's ±1 mAh.
+Both standard runs (0.40 W) also read less than the compact run above (15 mAh, 0.46 W); that is 2 mAh, near the
+meter's resolution, so it is not a finding.
+
 ## Limits (to keep in mind)
 
 - **One 10-minute run per phase, on one board.** The board is always slightly warm, which raises its idle draw. A

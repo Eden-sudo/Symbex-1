@@ -75,5 +75,46 @@
    22.36
   ]
  },
- "speed_ratio": 14.72
+ "speed_ratio": 14.72,
+ "weights_ram_vs_flash": {
+  "question": "do weights in RAM use less energy per image than weights in flash? standard engine (the compact one does not fit with RAM weights: DRAM over by 256 bytes)",
+  "ram": {
+   "label": "SYMBEX standard engine, lut16, weights in RAM",
+   "runs": 10312,
+   "seconds": 600.1,
+   "mah": 13,
+   "meter_wh": 0.07,
+   "amps_seen": "0.08 A, peaks 0.09 A",
+   "volts": 5.14,
+   "joules": 240.6,
+   "mW": 400.9,
+   "ms_per_run": 58.193,
+   "mJ_per_run": 23.33,
+   "mJ_per_run_above_idle": 8.97,
+   "meter_raw": {
+    "mah": 13,
+    "timer": "10:00"
+   }
+  },
+  "flash": {
+   "label": "SYMBEX standard engine, lut16, weights in flash",
+   "runs": 9792,
+   "seconds": 600.4,
+   "mah": 13,
+   "meter_wh": 0.07,
+   "amps_seen": "0.08-0.09 A",
+   "volts": 5.14,
+   "joules": 240.6,
+   "mW": 400.7,
+   "ms_per_run": 61.314,
+   "mJ_per_run": 24.57,
+   "mJ_per_run_above_idle": 9.44,
+   "meter_raw": {
+    "mah": 13,
+    "timer": "10:13",
+    "note": "13 s of idle on the meter (~0.2 mAh), not subtracted"
+   }
+  },
+  "answer": "same mAh (13) in both: the meter cannot see a power difference; RAM is 5 % less energy per image only because it runs 5 % faster"
+ }
 }
