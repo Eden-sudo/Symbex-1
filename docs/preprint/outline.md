@@ -111,12 +111,13 @@ Obed's PR #36 (`docs/related-research`) lists eBNN, ultracompactBNN, Daghero 202
 
 | Benchmark | Accuracy binary / INT8 | Speed, memory | Source files |
 |---|---|---|---|
-| ResNet-8, CIFAR-10 | 71.3 (x1 fully binary), 76.7 (int8 stem + pool2) / 87.0 (MLPerf Tiny INT8): 10-16 points | S3 vertical 9.70 vs 52.0 ms (5.4x); ESP32 62.5 vs 717.8 (11.5x); M33 67.8 vs 453 CMSIS-NN (6.7x); 24-29 vs 96 KB flash | `cnn_cifar_resnet8/results/symbex/symbex_seeds_*_w1_int8stem_pool2*.json`, `symbex_seeds_pc_w1.json`, `results/tflite/tflite_{esp32,s3,pico2_arm}.json` |
+| ResNet-8, CIFAR-10 | 71.3 (x1 fully binary), 76.7 (int8 stem + pool2) / 87.0 (MLPerf Tiny INT8): 10-16 points | S3 vertical 9.70 vs 52.0 ms (5.4x); ESP32 vertical compact 48.6 vs 717.8 (14.8x; standard 62.5, 11.5x); M33 67.8 vs 453 CMSIS-NN (6.7x); 24-29 vs 96 KB flash | `cnn_cifar_resnet8/results/symbex/symbex_seeds_*_w1_int8stem_pool2*.json`, `symbex_seeds_pc_w1.json`, `results/tflite/tflite_{esp32,s3,pico2_arm}.json` |
 | FOMO person detection | F1 31.2 / 30.1: 0 points | 2.0x faster on the S3; only binary fits the ESP32; 41 vs 236 KB | `fomo_voc_person/results/symbex/symbex_seeds_*.json`, `results/tflite/tflite_s3_*.json` |
 | MLP Fashion-MNIST (784-128-512-10) | 87.5 / 89.8: 2 points | S3 flash 0.42 vs 11.7 ms (28x), RAM 0.41 vs 0.89 (2.1x); 27 vs 187 KB | `mlp_fashion/results/symbex/*.json`, `results/tflite/tflite_s3_h128_512*.json` |
 | MLP low-bit | INT2 / INT4 1-2 points above binary per byte; binary fastest corner | `mlp_fashion/results/lowbit/lowbit_study.json`, `lowbit_chip_s3_*.json` |
 | HAR 1D (4 networks of Daghero) | INT8 ~9 points better (large) to 23 (smallest) | ESP32 5.3-10.4x, S3 1.47-1.90x; 1.07-1.37x fewer instructions than ultracompactBNN on GVSoC | `har_ultracompact/results/symbex/har_accuracy.json`, `har_gvsoc_*.json`, `results/ucbnn/ucbnn_gvsoc.json`, `results/tflite/*.json` |
 | ECG MIT-BIH (AAMI, inter-patient) | tied within sd, two operating points; clinically weak (S PPV 24-33 %) | ESP32 6.0-13.4x, S3 1.04-1.59x, M33 2.0-3.0x, Hazard3 39-153x (reference kernels) | **on master only** (`benchmarks/conv1d/ecg_mitbih/results/`, PR #35): merge master into the docs branch first |
+| Energy, one 10-minute run per network and method, USB meter (whole mAh), seed 42, flash | same models as above | per inference vs TFLite Micro INT8: ResNet-8 S3 6.6x (7.2 vs 47.7 mJ), ESP32 13.3x (22.2 vs 296); ESP32 MLP 11.3x, HAR max int8 first 8.7x, ECG m 8.0x, FOMO 96 mJ (INT8 does not fit); same power on the ESP32: the gain is the speed | `*/results/energy/energy_*.json`, each benchmark's `ENERGY.md` |
 | Digits on an Arduino Uno | 94.5 % | 5.3 ms on a 16 MHz AVR, 3.4 KB flash | `mlp_digits` README |
 
 Accuracy-cost table for the paper (one row per benchmark, from the files above): 0 (FOMO, ECG), 2 (MLP), 9-23 (HAR),
@@ -136,7 +137,8 @@ Accuracy-cost table for the paper (one row per benchmark, from the files above):
 
 - Fine-grained classification stays 10-16 points behind INT8 (CIFAR-10); HAR up to 23 on the smallest network.
 - ESP-DL beats the vertical engine with the weights in RAM on the S3 (quick check, Nov 2, not 3 seeds).
-- Energy not measured yet (meter on the way): if it arrives, one table; if not, future work.
+- Energy follows speed: on the ESP32 both models draw the same power (0.33-0.43 W), on the S3 SYMBEX draws less
+  (0.77 vs 0.92 W). One run per case, meter read by eye: ranges from ±1 mAh, no seeds.
 - Low-bit baselines are ours, not an official toolchain.
 - ECG: inter-patient accuracy limited by the data (few patients per rare class); not a clinical result.
 - Binary RNN probe (local, not in the repo): fragile to state flips; a "limits" paragraph at most.
@@ -148,7 +150,8 @@ Accuracy-cost table for the paper (one row per benchmark, from the files above):
 | An open chain can deliver binary networks that are exact on commercial chips of three ISAs | every chip JSON (`exact` 100 %) |
 | Binary pays most without SIMD (5-13x on whole networks); with SIMD the standard engine wins 1.0-2x on convolutional networks (28x on the MLP only because INT8 reads its weights from flash) and beating the vendor's INT8 library took the vertical engine | section 3.1, 3.2 |
 | The accuracy cost is the task's: 0 (detection, ECG), 2 (MLP), 10-16 (CIFAR-10), 9-23 (HAR, worst on the smallest network) | accuracy-cost table |
-| Future work: energy, keyword spotting (1D + energy), more chips, the vertical engine in 1D | CLAUDE-level plan; not claims |
+| Energy per inference 6.6-13.3x lower than TFLite Micro INT8 on the same model and board (ResNet-8 S3 / ESP32; MLP, HAR, ECG on the ESP32) | `results/energy/*.json` |
+| Future work: energy on the S3 for the other benchmarks and on the Pico 2, keyword spotting (1D + energy), more chips, the vertical engine in 1D | CLAUDE-level plan; not claims |
 
 ## 5. Referencias / References
 
@@ -175,4 +178,5 @@ the datasets (CIFAR-10, Fashion-MNIST, PASCAL VOC, UniMiB-SHAR, MIT-BIH) and the
 - [x] Merge master into `docs/structure` (ECG results, PR #35) and regenerate the charts.
 - [ ] Read the PDFs of eBNN, ultracompactBNN, CBin-NN, Cerutti: fill the "vs INT8" and "exact" columns.
 - [ ] Decide the title and the author list.
-- [ ] Energy: meter arrives -> one script, one table (ESP32, S3, Pico 2), same models.
+- [x] Energy: `tools/energy_loop.py`, ResNet-8 on the S3 and the ESP32, MLP / HAR / ECG / FOMO on the ESP32 (Nov 14-15).
+- [ ] Energy: the other benchmarks on the S3, and the Pico 2.
