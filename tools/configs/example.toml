@@ -147,6 +147,11 @@ compile = ""          # "reduce-overhead": CUDA graphs through torch.compile (th
 binary_optimizer = "adam"
 bop_gamma = 1e-4      # averaging rate of the gradient (follows the learning rate's cosine)
 bop_tau   = 1e-8      # flip threshold
+# Adam only: clamp the latent 1-bit weights to [-1, 1] after every step (BinaryConnect). Without it a weight that
+# a step pushes past 1 gets no gradient (straight-through sign) and its bit never flips again: 52 % of the binary
+# ResNet-8's weights ended frozen. Off by default until its accuracy is measured (3 seeds, validation); train.json
+# records binary_health (frozen / flipped %) either way. compiler_core/train/health.py.
+clip_latent = false
 
 [output]
 # Where to write the result. Empty = "<model name>_binarized/" next to the model,
