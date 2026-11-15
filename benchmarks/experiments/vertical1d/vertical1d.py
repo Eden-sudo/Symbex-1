@@ -95,7 +95,8 @@ def make(args):
     anchor = "#define SYMBEX_MLP_N_INPUTS"
     assert header.count(anchor) == 1
     header = header.replace(anchor, f"static uint32_t V_WORK[{expr}] __attribute__((aligned(16)));   /* the vertical "
-                            f"layers' work block */\n_Static_assert(sizeof(V_WORK) == {4 * words}u, \"V1D_WORDS\");\n"
+                            f"layers' work block */\n#ifdef __cplusplus\nstatic_assert(sizeof(V_WORK) == {4 * words}u, \"V1D_WORDS\");\n"
+                            f"#else\n_Static_assert(sizeof(V_WORK) == {4 * words}u, \"V1D_WORDS\");\n#endif\n"
                             + anchor, 1)
     m = re.search(r"#define SYMBEX_MLP_BYTES_BUFFERS (\d+)u", header)
     header = header.replace(m.group(0), f"#define SYMBEX_MLP_BYTES_BUFFERS {int(m.group(1)) + 4 * words}u")
@@ -120,6 +121,8 @@ def make(args):
     json.dump(ex, open(os.path.join(out, "export.json"), "w"), indent=1)
     print(f"    {name}: layers {chosen} vertical, work block {4 * words / 1024:.1f} KB, exact on the PC "
           + (f"{100 * equal / total:.2f}% of {total}" if equal is not None else f"not checked ({msg})") + f" -> {out}")
+    if equal is None and not args.allow_unchecked:     # no compiler, the build failed or the program crashed
+        sys.exit("[X] the C check did not run (--allow-unchecked to accept that)")
     if equal is not None and equal != total:
         sys.exit("[X] not exact")
 
@@ -169,6 +172,8 @@ def main():
     ap.add_argument("what", choices=["test", "make", "report"])
     ap.add_argument("run", nargs="?", help="make: a CDT bool1d run folder")
     ap.add_argument("--layers", help="make: the layer indices to run vertically, e.g. 1,2 (default: every eligible one)")
+    ap.add_argument("--allow-unchecked", action="store_true",
+                    help="make: exit 0 even when the C check could not run (no compiler, build failed, crash)")
     ap.add_argument("--cases", type=int, default=5000, help="test: random layers")
     args = ap.parse_args()
     {"test": test, "make": make, "report": report}[args.what](args)
