@@ -451,9 +451,9 @@ of the test beats) and latency per beat, weights in flash:
 
 | Network | Balanced accuracy, binary / INT8 | ESP32-S3 | ESP32 | Pico 2 M33 | Pico 2 Hazard3 (reference kernels) | Model size |
 |---|---|---|---|---|---|---|
-| s (8-16-16) | 67.0 ± 4.6 / 70.9 ± 6.1 % | 3.03 / 3.14 ms (1.04×) | 5.47 / 32.95 (6.0×) | 5.70 / 11.66 (2.0×) | 5.75 / 225.5 (39×) | 1.3 / 11.4 KB |
-| m (16-32-32) | 71.2 ± 3.3 / 71.9 ± 4.6 % | 6.06 / 6.86 (1.13×) | 11.69 / 94.48 (8.1×) | 11.74 / 35.10 (3.0×) | 10.55 / 800.0 (76×) | 3.6 / 23.7 KB |
-| l (32-64-64) | 75.0 ± 5.5 / 72.4 ± 8.8 % | 13.55 / 21.59 (1.59×) | 30.55 / 408.46 (13.4×) | 30.36 / 383.44 (12.6×; both in RAM 29.60 / 89.52, 3.0×) | 23.25 / 3554.5 (153×) | 10.1 / 68.6 KB |
+| s (8-16-16) | 67.0 ± 4.6 / 70.9 ± 6.1 % | 3.03 / 3.14 ms (1.04×) | 5.47 / 32.95 (6.0×) | 5.70 / 11.66 (2.0×) | 5.75 / 225.5 (39×) | 1.33 / 11.4 KB |
+| m (16-32-32) | 71.2 ± 3.3 / 71.9 ± 4.6 % | 6.06 / 6.86 (1.13×) | 11.69 / 94.48 (8.1×) | 11.74 / 35.10 (3.0×) | 10.55 / 800.0 (76×) | 3.61 / 23.7 KB |
+| l (32-64-64) | 75.0 ± 5.5 / 72.4 ± 8.8 % | 13.55 / 21.59 (1.59×) | 30.55 / 408.46 (13.4×) | 30.36 / 383.44 (12.6×; both in RAM 29.60 / 89.52, 3.0×) | 23.25 / 3554.5 (153×) | 10.11 / 68.6 KB |
 
 *Measured Nov 8-9, 2026 (S3: standard engine).*
 
@@ -538,8 +538,8 @@ INT8 ones do not; the large ECG network shows the same on the M33 (12.6× in fla
 sub-byte INT4 / INT2 model does not recover that, because the kernels unpack it to int8 before multiplying.
 
 **Flash and RAM pay everywhere.** 3-10× less flash on every benchmark (the model itself), and less RAM: ResNet-8
-15 KB against 53-80 KB, FOMO 51 against 223 KB, the 1D networks 2-10× less (the exception is the classic ESP32's
-optional 64 KB bit-count table, which the ESP32 rows of ResNet-8 and FOMO use for speed). FOMO is the clearest case:
+15 KB against 53-80 KB, FOMO 51 against 223 KB, the 1D networks 2-10× less (the exception is the optional 64 KB bit-count table,
+which the classic ESP32 rows of ResNet-8 and FOMO and the Cortex-M33 row of ResNet-8 use for speed: 79-80 KB there). FOMO is the clearest case:
 the INT8 detector's arena does not fit the classic ESP32 and the binary one runs there.
 
 **Capacity, not training, sets the accuracy cost.** The training-gap study (`experiments/training_gap/`) trains three

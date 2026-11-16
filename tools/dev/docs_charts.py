@@ -11,7 +11,8 @@ Charts:
   speedup.svg   how many times faster the fully binary network runs than the official INT8 one (TensorFlow Lite
                 Micro), same network, same chip, weights in flash for both (plus the MLP with weights in RAM); on the
                 ESP32-S3 the conv networks that have it use the vertical engine (the S3's own: its 128-bit logic), the
-                standard engine as an extra row; the
+                standard engine as an extra row; ResNet-8 is the current recipe (int8 stem + Bop + pool2), the S3's
+                prepared mode and the ESP32's vertical compact mode included; the
                 ECG row is its large 1D network (the benchmark's other two are in its README)
   flash.svg     flash used by each model, SYMBEX vs. INT8 (the whole model: weights, thresholds, scales)
   pareto_mlp.svg  accuracy against latency, MLP on Fashion-MNIST, ESP32-S3, weights in flash and in RAM: INT8 /
@@ -54,6 +55,12 @@ SOURCES = {
     "mlp_lowbit_s3_ram": f"{FASHION}/lowbit/lowbit_esp_nn_s3_ram.json",
     "resnet_pc_int8": f"{RESNET}/tflite/tflite_pc.json",
     "resnet_s3_vertical": f"{RESNET}/symbex/symbex_seeds_s3_swar_w1_vertical.json",
+    # the current ResNet-8 recipe (int8 stem + Bop + pool2): the one the READMEs and the preprint report
+    "resnet_s3_i8": f"{RESNET}/symbex/symbex_seeds_s3_swar_w1_int8stem_pool2.json",
+    "resnet_s3_i8_vertical": f"{RESNET}/symbex/symbex_seeds_s3_swar_w1_int8stem_pool2_vertical.json",
+    "resnet_s3_i8_prepared": f"{RESNET}/symbex/symbex_seeds_s3_swar_w1_int8stem_pool2_vertical_prepared.json",
+    "resnet_esp32_i8": f"{RESNET}/symbex/symbex_seeds_esp32_lut16_w1_int8stem_pool2.json",
+    "resnet_esp32_i8_compact": f"{RESNET}/symbex/symbex_seeds_esp32_lut16_w1_int8stem_pool2_vertical_compact.json",
     "mlp_sizing_labels": f"{FASHION}/sizing/fashion_sizing_nodistill.json",
     "mlp_int8_qat_labels": f"{FASHION}/lowbit/int8_e15_h128_512_nodistill_pc.json",
 }
@@ -61,9 +68,11 @@ SOURCES = {
 RESNET_PARETO = {
     "s3": [("binary", "swar_w1"), ("binary, vertical", "swar_w1_vertical"),
            ("16-32-128", "swar_c16-32-128_b1-1-2"), ("int8 stem", "swar_w1_int8stem_pool2"),
-           ("int8 stem, vertical", "swar_w1_int8stem_pool2_vertical")],
+           ("int8 stem, vertical", "swar_w1_int8stem_pool2_vertical"),
+           ("int8 stem, prepared", "swar_w1_int8stem_pool2_vertical_prepared")],
     "esp32": [("binary", "lut16_w1"), ("16-32-128", "lut16_c16-32-128_b1-1-2"),
-              ("int8 stem", "lut16_w1_int8stem_pool2")],
+              ("int8 stem", "lut16_w1_int8stem_pool2"),
+              ("int8 stem, compact", "lut16_w1_int8stem_pool2_vertical_compact")],
 }
 for _board, _rows in RESNET_PARETO.items():
     for _label, _name in _rows:
@@ -140,13 +149,19 @@ def speedup_rows():
          ["mlp_sizing", "mlp_s3_int8_ram"]),
         ("MLP · ESP32", load("mlp_esp32")["median_ms"], load("mlp_esp32_int8")["median_ms"],
          ["mlp_esp32", "mlp_esp32_int8"]),
-        # the S3's own engine (vertical) is its row; the standard engine stays as the second one
-        ("ResNet-8 · ESP32-S3", seeds_mean(load("resnet_s3_vertical"), "latency_ms"),
-         load("resnet_s3_int8")["latency_ms"], ["resnet_s3_vertical", "resnet_s3_int8"]),
-        ("ResNet-8 · ESP32-S3, standard", seeds_mean(load("resnet_s3"), "latency_ms"),
-         load("resnet_s3_int8")["latency_ms"], ["resnet_s3", "resnet_s3_int8"]),
-        ("ResNet-8 · ESP32", seeds_mean(load("resnet_esp32"), "latency_ms"),
-         load("resnet_esp32_int8")["latency_ms"], ["resnet_esp32", "resnet_esp32_int8"]),
+        # the current recipe (int8 stem + Bop + pool2); the S3's own engine (vertical) is its row, its prepared mode
+        # (more RAM) and the standard engine as extra rows; on the ESP32 the vertical engine's compact mode, the
+        # standard engine as the extra row
+        ("ResNet-8 · ESP32-S3", seeds_mean(load("resnet_s3_i8_vertical"), "latency_ms"),
+         load("resnet_s3_int8")["latency_ms"], ["resnet_s3_i8_vertical", "resnet_s3_int8"]),
+        ("ResNet-8 · ESP32-S3, prepared", seeds_mean(load("resnet_s3_i8_prepared"), "latency_ms"),
+         load("resnet_s3_int8")["latency_ms"], ["resnet_s3_i8_prepared", "resnet_s3_int8"]),
+        ("ResNet-8 · ESP32-S3, standard", seeds_mean(load("resnet_s3_i8"), "latency_ms"),
+         load("resnet_s3_int8")["latency_ms"], ["resnet_s3_i8", "resnet_s3_int8"]),
+        ("ResNet-8 · ESP32", seeds_mean(load("resnet_esp32_i8_compact"), "latency_ms"),
+         load("resnet_esp32_int8")["latency_ms"], ["resnet_esp32_i8_compact", "resnet_esp32_int8"]),
+        ("ResNet-8 · ESP32, standard", seeds_mean(load("resnet_esp32_i8"), "latency_ms"),
+         load("resnet_esp32_int8")["latency_ms"], ["resnet_esp32_i8", "resnet_esp32_int8"]),
         ("FOMO person · ESP32-S3", seeds_mean(load("fomo_s3"), "latency_ms"), load("fomo_s3_int8")["latency_ms"],
          ["fomo_s3", "fomo_s3_int8"]),
         ("FOMO person · ESP32", seeds_mean(load("fomo_esp32"), "latency_ms"), None, ["fomo_esp32"]),
@@ -161,8 +176,8 @@ def flash_rows():
     """(label, SYMBEX KB, INT8 KB, source keys)."""
     return [
         (f"MLP {MLP_SHAPE}", mlp_row()["flash_kb"], load("mlp_s3_int8")["flash_kb"], ["mlp_sizing", "mlp_s3_int8"]),
-        ("ResNet-8 (CIFAR-10)", seeds_mean(load("resnet_s3_vertical"), "flash_kb"), load("resnet_s3_int8")["model_kb"],
-         ["resnet_s3_vertical", "resnet_s3_int8"]),
+        ("ResNet-8 (CIFAR-10)", seeds_mean(load("resnet_s3_i8_vertical"), "flash_kb"), load("resnet_s3_int8")["model_kb"],
+         ["resnet_s3_i8_vertical", "resnet_s3_int8"]),
         ("FOMO person detection", seeds_mean(load("fomo_s3"), "flash_kb"), load("fomo_s3_int8")["model_kb"],
          ["fomo_s3", "fomo_s3_int8"]),
         ("ECG beats, large 1D network", files_mean("ecg_s3", "model_flash") / 1024, files_mean("ecg_s3_int8", "model_kb"),
@@ -182,7 +197,8 @@ def cost_rows(speed):
         ("MLP, Fashion-MNIST", "accuracy", load("mlp_int8_qat_labels")["metodos"]["qat"]["precision_10k"], mlp["test"],
          chips("MLP"), ["mlp_int8_qat_labels", "mlp_sizing_labels"]),
         ("ResNet-8, CIFAR-10", "accuracy", load("resnet_pc_int8")["int8_accuracy"],
-         seeds_mean(load("resnet_s3_vertical"), "test_accuracy"), chips("ResNet-8"), ["resnet_pc_int8", "resnet_s3_vertical"]),
+         seeds_mean(load("resnet_s3_i8_vertical"), "test_accuracy"), chips("ResNet-8"),
+         ["resnet_pc_int8", "resnet_s3_i8_vertical"]),
         ("FOMO, person detection", "F1", files_mean("fomo_pc_int8", "f1_calibrated.f1"), seeds_mean(fomo, "f1_test"),
          chips("FOMO person"), ["fomo_pc_int8", "fomo_s3"]),
         ("ECG beats, large 1D net", "balanced accuracy", files_mean("ecg_pc_int8", "test.balanced"),

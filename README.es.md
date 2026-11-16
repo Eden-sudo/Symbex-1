@@ -22,7 +22,7 @@ Las redes binarias no son nuevas: han corrido en FPGA (FINN), en teléfonos (daB
 McDanel et al. 2017; ultracompactBNN, Daghero et al. 2021; CBin-NN, Sakr et al. 2024). Lo que SYMBEX-1 añade es la
 prueba de que la cadena llega hasta el final: cada modelo compilado da la misma respuesta que su simulación entera en el
 100 % de las entradas verificadas, y cada resultado es la misma red medida en el mismo chip comercial, en cuatro núcleos
-de tres arquitecturas (Xtensa, Arm Cortex-M33, RISC-V) más el AVR del Arduino Uno, contra la herramienta oficial de INT8, TensorFlow Lite Micro, con tres semillas y el
+de tres arquitecturas (Xtensa, Arm Cortex-M33, RISC-V) contra la herramienta oficial de INT8, TensorFlow Lite Micro, más el AVR del Arduino Uno, con tres semillas y el
 conjunto de test usado una sola vez.
 
 ## ¿Por qué binario?
@@ -122,7 +122,7 @@ La misma red en el mismo chip, binaria contra INT8 de TFLite Micro:
 | [FOMO](benchmarks/conv2d/fomo_voc_person/), detección de personas | **F1 31.2 / 30.1 % (INT8 entrenado con menos presupuesto)** | 2.0× más rápido (ESP32-S3); solo SYMBEX cabe en el ESP32 | 41 / 236 KB de flash |
 | [MLP](benchmarks/mlp/mlp_fashion/), Fashion-MNIST | 87.5 / 89.8 % | 28× (flash) y 2.1× (RAM) en el ESP32-S3, 8.8× en el ESP32 (a medir de nuevo: 13.4× con la librería actual, corrida de energía) | 27 / 187 KB de flash |
 | [Convoluciones 1D](benchmarks/conv1d/har_ultracompact/), reconocimiento de actividad | INT8 9-23 puntos mejor (peor en la red más pequeña) | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 7-10× menos flash |
-| [ECG](benchmarks/conv1d/ecg_mitbih/), latidos arrítmicos (entre pacientes) | balanceada 67-75 / 71-72 %, empate dentro de la dispersión | 6.0-13.4× (ESP32), 2.0-12.6× (Pico 2 M33, flash; 3.0× para l con ambos en RAM), 1.04-1.59× (ESP32-S3) | 6.4-8.4× menos flash |
+| [ECG](benchmarks/conv1d/ecg_mitbih/), latidos arrítmicos (entre pacientes) | balanceada 67-75 / 71-72 %, empate dentro de la dispersión | 6.0-13.4× (ESP32), 2.0-12.6× (Pico 2 M33, flash; 3.0× para l con ambos en RAM), 1.04-1.59× (ESP32-S3) | 6.6-8.6× menos flash |
 | [Dígitos](benchmarks/mlp/mlp_digits/), en un Arduino Uno | 94.5 % (FP32 con la misma entrada 94.4 %) | 5.3 ms en un AVR de 16 MHz | 3.4 KB de flash, 0.21 KB de RAM |
 
 Contra otra librería binaria, ultracompactBNN (Daghero et al. 2021), en su propio procesador RISC-V simulado, SYMBEX
@@ -191,7 +191,8 @@ El estándar completo, las referencias y cómo repetir un benchmark: [docs/es/me
   entorno aparte que no importa nada de SYMBEX.
 - **Medido en el chip:** medianas de 1000 inferencias, un núcleo, a la frecuencia de fábrica (240 MHz en los chips
   ESP32, 150 MHz en la Pico 2); la RAM medida en el chip.
-- **Tres semillas para ambos métodos** (42, 43, 44): la precisión como media ± desviación estándar.
+- **Tres semillas para ambos métodos** (42, 43, 44; salvo el modelo publicado de MLPerf Tiny, uno solo): la precisión
+  como media ± desviación estándar.
 - **Split de validación:** cada decisión (checkpoint, umbral, variante, forma) se toma en un split de validación sacado
   de los datos de entrenamiento; el conjunto de prueba se evalúa una sola vez. Una revisión encontró lugares donde el
   conjunto de prueba se había usado para elegir; se corrigieron y las cifras afectadas se volvieron a medir (octubre de
