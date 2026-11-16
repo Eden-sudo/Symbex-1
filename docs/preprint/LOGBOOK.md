@@ -36,6 +36,12 @@ Newest at the bottom of each list.
 | 27 | §3.2 | "9-16 points" for fine tasks (HAR reaches 23) | 9-23 | this commit |
 | 28 | Conclusions | "four cores of three commercial chips and the Arduino's AVR" (the AVR is commercial too) | "four 32-bit cores of three chips and the 8-bit AVR of the Arduino Uno" | this commit |
 | 29 | Every results table | no measurement date | a "Measured" line per table (result files' commit dates, renames followed: tools/dev/results_age.py, PR #98) + one sentence in §2.2 | this commit |
+| 30 | §2.2 Baselines | "the S3 comparison uses the vertical engine": only ResNet-8 does (FOMO, HAR, ECG on the S3 = standard) | "the S3 comparison of ResNet-8 also uses…", the others named | this commit |
+| 31 | §3.1 ResNet-8 | ESP-DL RAM missing, so "the vertical uses less RAM" could not be checked; the 63 KB was the flash run | ESP-DL 147 KB (docs/en/results.md); vertical default 87 KB with weights in RAM, 63 KB in flash | this commit |
+| 32 | §3.1 ECG | 12.6× put on "68.6 KB does not fit the cache", but m (23.7 KB) does not fit 16 KB either and gains 3.0× | "mostly"; likely reason (NOT measured): largest INT8 layer of m 9.2 KB fits the cache, l's 18.4 / 36.9 KB do not; only l measured in RAM | this commit |
+| 33 | Limitations, Not written yet | re-measurements promised in the date notes were in no list | both lists: one library version, Figures 2-4, abstract ranges; MLP two-model note in Limitations | this commit |
+| 34 | Abstract | ~330 words (venues ask ≤ 250) | 248 words: cores list, MLP 28×, capacity clause and the chain's steps moved to the body | this commit |
+| 35 | Title | "Bit-exact" defined in a parenthesis | parenthesis removed; definition in §2.1 | this commit |
 
 ## Open
 
@@ -52,6 +58,7 @@ Newest at the bottom of each list.
 | J | §3.1 FOMO, §3.3 | FOMO speed / energy use the standard engine; no vertical FOMO measured | say so or measure |
 | K | §3.1 MLP, ESP32 flash | 3.55 ms (Nov 7, swar, flash) but the energy loop ran the same model, same counting, flash at 2.33 ms (Nov 15): likely the short-first-layer change (f127456); hence its "0.26 W" | re-measure the ESP32 row on current master (chip_test.py, 3 seeds); power is 0.39 W with the energy loop's own time |
 | L | All tables | dates are commit dates (the day the number reached the repository); old files carry no library commit | measuring scripts write `provenance` (after #83 / #84 merge), then one re-measurement on one library version |
+| M | §2.2, §3.1 MLP | INT8 accuracy from the QAT (Brevitas) model, latency from the converter's PTQ model of the same shape: a reviewer may ask for one model | export the QAT model to `.tflite` and measure its latency (S3, ESP32, M33) |
 
 ## Verified against the source (no change)
 
