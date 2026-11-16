@@ -6,11 +6,11 @@ to be copied from its JSON the text says `[JSON]`. Sections not written yet are 
 
 ## Front matter
 
-**Title (candidate, Edén decides).** SYMBEX-1: exact binary neural networks on commercial microcontrollers, measured
+**Title (candidate).** SYMBEX-1: exact binary neural networks on commercial microcontrollers, measured
 against the INT8 toolchain.
 
 **Authors.** Carlos Duarte, Obed Gonzales, Abrahan Aparicio. Universidad Latina de Panamá, Licenciatura en Mecatrónica.
-`[order and contribution lines: Edén decides]`
+`[order and contribution lines: to be decided]`
 
 **Abstract.** Microcontrollers run neural networks almost always in INT8, through TensorFlow Lite Micro and the
 vendor's kernels. Binary networks, with one bit per weight and per activation, promise eight times smaller weights and
@@ -538,7 +538,7 @@ disagreed with its simulation was a bug to fix, never a result to report.
 - **Recurrent networks are out of scope.** A local probe of a binary Elman network on the activity task trained
   (38 % against 39 % for int8, far below the convolutional networks) but was fragile: flipping 1 % of the state bits
   changed 28 % of its predictions. Nothing of it is in the chain. `[local probe only (LOGBOOK.md outside the
-  repository), no result file: Edén decides whether this bullet stays]`
+  repository), no result file: to be decided whether this bullet stays]`
 
 ## 4. Conclusions
 

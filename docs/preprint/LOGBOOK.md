@@ -14,7 +14,7 @@ Newest at the bottom of each list.
 | 5 | §3.2 | M33 "2-3×" | 2-8× (ResNet-8 6.7, HAR 3.3-7.9, MLP 1.9-6.9, ECG 2.0-3.0) | 2c970f6 |
 | 6 | §3.1 ResNet-8 table | no ESP32 vertical row; TFLite "chip equal 98.1 %" hid Hazard3 | row ESP32 vertical compact 48.6 ms (14.8×); 96 % on Hazard3, 100 images | 2c970f6 |
 | 7 | §3.1 text | "on the ESP32 and the Pico 2 the standard engine stays the fastest" | measured: vertical wins on ESP32 (54.7 / 48.6 vs 62.5) and M33 (66.9 / 61.0 / 59.1 vs 67.8); standard wins on Hazard3 | 2c970f6 |
-| 8 | §2.2 | ESP-DL "100 test inputs" | 200 (MLP) / 100 (ResNet-8), from ~/Proyectos/espdl_test data.h | 2c970f6 |
+| 8 | §2.2 | ESP-DL "100 test inputs" | 200 (MLP) / 100 (ResNet-8), from the ESP-DL check's input files (N_IMG) | 2c970f6 |
 | 9 | §3.2 | clipping "+1.7" alone | +1.7 in the training-gap study; no gain in the benchmark recipe (PR #47, 70.9 ± 1.0 vs 71.3 ± 0.8) | 2c970f6 |
 | 10 | §3.1 HAR table | population std (ddof 0), the README moved to sample std (PR #43) | sample std from har_ultracompact/README.md | this commit |
 | 11 | §3.1 HAR | names min / max-10 % ... while the README uses xs / s / m / l | both names given once | this commit |
