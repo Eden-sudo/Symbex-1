@@ -12,20 +12,20 @@ against the INT8 toolchain.
 **Authors.** Carlos Duarte, Obed Gonzales, Abrahan Aparicio. Universidad Latina de Panamá, Licenciatura en Mecatrónica.
 `[order and contribution lines: to be decided]`
 
-**Abstract.** Microcontrollers run neural networks almost always in INT8, through TensorFlow Lite Micro and the
-vendor's kernels. Binary networks, with one bit per weight and per activation, promise eight times smaller weights and
-multiply-free arithmetic, but are rarely measured against that toolchain on commercial chips. We present
-SYMBEX-1, an open, end-to-end chain that trains a binary network in PyTorch, compiles it to portable integer C and
-checks it against its integer simulation: every model reported gives the class
-of its simulation on 100 % of the validation inputs checked, on the PC and on the board. With it we measured the same
-networks, binary and INT8, on five tasks (CIFAR-10, person detection, Fashion-MNIST, activity recognition, ECG beats)
-on four processor cores of three commercial chips, plus a digit classifier on an 8-bit Arduino Uno, with three seeds
-and the test set used once. On the classic ESP32, which has no SIMD unit, binary networks run 5-15 times faster than
-INT8; on the Cortex-M33, whose INT8 kernels use DSP instructions, 2-8 times; on the ESP32-S3, whose INT8 kernels use
-SIMD, our standard engine gains only 1.0-2.0 times and a second, bit-sliced engine 5.0-5.4 times on ResNet-8. Binary
-models need 3-10 times less flash and 8-13 times less energy per inference on the ESP32 (1.4-25 times on the S3). The
-accuracy cost depends on the task: no measured loss for person detection (one caveat, section 2.2) and ECG beats, two
-points on Fashion-MNIST, 10-16 on CIFAR-10 and 9-23 on activity recognition.
+**Abstract.** Microcontrollers run neural networks mostly in INT8, through TensorFlow Lite Micro and the vendor's
+kernels. Binary networks, with one bit per weight and per activation, promise eight times smaller weights and
+multiply-free arithmetic, but are rarely measured against that toolchain on commercial chips. We present SYMBEX-1, an
+open, end-to-end chain that trains a binary network in PyTorch, compiles it to portable integer C and checks it
+against its integer simulation: every model reported gives the class of its simulation on 100 % of the validation
+inputs checked, on the PC and on the board. We measured the same networks, binary and INT8, on five tasks (CIFAR-10,
+person detection, Fashion-MNIST, activity recognition, ECG beats) on four processor cores of three commercial chips,
+plus a digit classifier on an 8-bit Arduino Uno, with three seeds and the test set used once. On the classic ESP32 (no
+SIMD) binary networks run 5-15 times faster than INT8; on the Cortex-M33 (INT8 on DSP instructions) 2-8 times; on the
+ESP32-S3 (INT8 on SIMD) our standard engine gains only 1.0-2.0 times on convolutional networks and a second, bit-
+sliced engine 5.0-8.6 times on ResNet-8, depending on its RAM. Binary models need 3-10 times less flash and 8-13 times
+less energy per inference on the ESP32 (1.4-25 times on the S3). The accuracy cost depends on the task: no measured
+loss for person detection (INT8 trained with a smaller budget) and ECG beats, two points on Fashion-MNIST, 10-16 on
+CIFAR-10 and 9-23 on activity recognition.
 
 **Keywords.** binary neural networks, microcontrollers, quantization, TinyML, edge inference.
 
@@ -58,7 +58,7 @@ trusted, and a set of measurements against the toolchain everyone deploys, on se
 **What this paper does.** SYMBEX-1 is an open, end-to-end chain for binary networks whose first target is commercial
 microcontrollers. A configuration file describes the network and the chip's limits; the compiler trains the binary
 network in PyTorch, folds it into integers, writes a C header for a portable inference engine and checks that header
-against the integer simulation of the model, image by image, on the PC and on the board. The check must give 100 %;
+against the integer simulation of the model, input by input, on the PC and on the board. The check must give 100 %;
 it has, for every model reported here. With that chain we measured the same networks, binary and INT8, on three
 commercial chips with four processor cores (Xtensa LX6 and LX7, Arm Cortex-M33, Hazard3 RISC-V; the Pico 2's
 RP2350 carries the last two) of three instruction-set families, INT8 through the
@@ -72,7 +72,7 @@ times faster than INT8 with 3 to 10 times less flash. On the Cortex-M33, whose I
 binary still runs 2 to 8 times faster. Where the chip has an int8 SIMD unit that INT8 uses (the ESP32-S3) the standard
 engine wins by only 1.0 to 2.0 times on the convolutional networks (28 times on the dense network with its weights in
 flash, where INT8 pays for every byte read), and beating the vendor's own INT8 library took a second engine that counts
-128 windows at once. The accuracy cost is the task's, not the method's: no measured loss on person detection (with the
+128 windows at once (5.0-8.6 times faster than INT8 on ResNet-8, depending on its RAM). The accuracy cost is the task's, not the method's: no measured loss on person detection (with the
 INT8 training caveat of section 2.2), on the ECG beats (tied within one
 standard deviation) and on the 1-bit digits, two points on Fashion-MNIST, 10 to 16 points on CIFAR-10, where a study
 shows the binary network loses by capacity, not by training, and 9 to 23 points on activity recognition, worst on the
@@ -137,7 +137,7 @@ CBin-NN and the works above did each part before. We claim the measurements and 
 
 **What a developer does.** The chain exists to make one loop short: describe the network and the chip's limits in a
 configuration file, train, fold into integers, generate the C header, and check it against the integer simulation on
-the PC and on the board, image by image. Everything in this paper (the engines, the recipes, the studies on the stem,
+the PC and on the board, input by input. Everything in this paper (the engines, the recipes, the studies on the stem,
 the shortcuts and the training gap) was produced by running that loop many times; without it, every variant would
 have meant hand-written C and a round of debugging against Python. The loop is the tool; the measurements are what
 it was used for.
@@ -226,7 +226,7 @@ the benchmarks ("labels only"); when a recipe favors one method, both recipes ar
 **Exact, always.** Two checks separate what training costs from what the implementation costs. *Fidelity* compares
 the trained PyTorch model with its integer simulation: the binary layers fold exactly, the fixed-point scores of the
 classifier can change a few predictions, and the CDT reports the difference. *Exactness* compares the integer
-simulation with the compiled C, image by image, on the PC and on the chip, and must be 100 %: anything else is a bug in
+simulation with the compiled C, input by input, on the PC and on the chip, and must be 100 %: anything else is a bug in
 the export or in the engine. Every result file records whether the board equalled the simulation, and every number in
 this paper comes from a run where it did.
 
@@ -343,12 +343,14 @@ core (`cnn_cifar_resnet8/results/symbex/symbex_seeds_<board>_*.json`, `results/t
 Nov 13); TFLite Oct 24 and Nov 3; ESP-DL Nov 2 (outside the repository). lib_symbex changed after the older rows: they
 are to be re-measured on one library version before submission.*
 
-Against ESP-DL, the SYMBEX rows keep their weights in flash (the RAM below is the engine's working RAM):
+Against ESP-DL, SYMBEX keeps its weights in flash against ESP-DL in flash and against ESP-DL in RAM, which favors
+ESP-DL, except where noted. The SYMBEX RAM below is working RAM only (its weights stay in flash); ESP-DL's 147 KB
+include its weights, which it copies to RAM. Latencies with two decimals, as in the result files:
 
 | ESP32-S3, ResNet-8 | Latency | RAM | Against ESP-DL, weights in flash (14.8 ms) | Against ESP-DL, weights in RAM (9.8 ms, 147 KB) |
 |---|---|---|---|---|
-| vertical, default (fully binary / int8 stem recipe) | 10.4 / 9.70 ms | 63 / 54 KB | 1.43× / 1.53× faster | 1.06× slower (fully binary, both in RAM: 10.4 ms, 87 KB) / 1.01× faster |
-| vertical, compact | 7.70 / 7.07 ms | 151 / 138 KB | 1.92× / 2.09× faster | 1.27× / 1.39× faster (int8 stem recipe: with less RAM) |
+| vertical, default (fully binary / int8 stem recipe) | 10.36 / 9.70 ms | 63 / 54 KB | 1.43× / 1.53× faster | 1.06× slower (noted: fully binary with its weights in RAM too, 10.36 ms, 87 KB) / 1.01× faster |
+| vertical, compact | 7.70 / 7.07 ms | 151 / 138 KB | 1.92× / 2.09× faster | 1.27× / 1.39× faster (int8 stem recipe: less RAM, 138 against 147 KB, weights in flash against weights in RAM) |
 | vertical, prepared | 6.44 / 6.02 ms | 238 / 217 KB | 2.30× / 2.46× faster | 1.52× / 1.63× faster, with more RAM |
 
 So ESP-DL is faster than SYMBEX only against the standard engine and against the default vertical mode of the fully
@@ -461,8 +463,8 @@ both at this operating point. A second recipe chosen by the same cross-validatio
 checkpoint on macro F1) cuts the binary networks' false S alarms by 40-60 % at the cost of sensitivity; the benchmark
 reports both operating points and the three scorings of the test set. The Hazard3 column measures TFLite Micro's
 reference kernels, the only ones it has for that core, not a tuned INT8. All 39 chip runs (4 cores × 3 networks × 3
-seeds, plus the M33 RAM variant) are exact. The 12.6× of the large network on the M33 in flash is mostly the flash effect of
-the MLP (section 3.2): with both models in RAM it falls to 3.0×. Model size alone does not explain it, since the m
+seeds, plus the M33 RAM variant) are exact. The 12.6× of the large network on the M33 in flash is mostly the same flash effect as
+the MLP's (section 3.2): with both models in RAM it falls to 3.0×. Model size alone does not explain it, since the m
 network's INT8 model (23.7 KB) is also larger than the Pico 2's 16 KB flash cache and gains only 3.0× in flash. A likely
 reason, not measured: a convolution re-reads one layer's weights at every time step, and the largest INT8 layer of m
 (32 × 32 × 9 = 9.2 KB) fits the cache while those of l (18.4 and 36.9 KB) do not. Only l was measured in RAM.
@@ -527,7 +529,7 @@ With an 8-bit SIMD unit (ESP32-S3) or DSP instructions (Cortex-M33) INT8 gets mu
 wins by 1.0-2.0× on the S3's convolutional networks and by 2-8× on the M33, and on the S3 the vendor's
 own INT8 library (ESP-DL) is faster than the standard engine. Beating it took a second engine written for that unit
 (the vertical engine: 1.4-1.5× faster than ESP-DL with the weights in flash in its default mode, and 1.4× faster than
-ESP-DL with its weights in RAM in the compact mode of the most accurate recipe, with less RAM, 138 against 147 KB;
+ESP-DL with its weights in RAM in the compact mode of the most accurate recipe, with less RAM, 138 against 147 KB, its weights in flash and ESP-DL's in RAM;
 1.6× in the prepared mode, with more). The exception to the S3's 1.0-2.0× is the
 MLP in flash (28× on the S3, 6.9× on the M33), which is a memory effect: the binary weights fit the flash cache and the
 INT8 ones do not; the large ECG network shows the same on the M33 (12.6× in flash, 3.0× with both in RAM). A
@@ -602,8 +604,9 @@ change and a measurement, not a debugging session.
 times faster than INT8 on the official toolchain (far more on Hazard3, where only reference kernels exist). On the Cortex-M33, whose INT8 kernels use its DSP
 instructions, they still run 2-8 times faster. On the ESP32-S3, whose INT8 kernels use its SIMD unit, the standard
 engine wins by only 1.0-2.0 times on convolutional networks (the 28 times of the dense network is a memory effect, INT8
-reading its weights from flash), and a second, bit-sliced engine for that unit wins 5.0-5.4 times on ResNet-8 and beats
-the vendor's own INT8 library. On every chip the binary model needs 3-10 times less flash and, in most cases, less RAM; that is
+reading its weights from flash), and a second, bit-sliced engine for that unit wins 5.0-8.6 times on ResNet-8, depending on its RAM, and beats
+the vendor's own INT8 library (ESP-DL) in every mode with the weights in flash, and in the compact and prepared modes
+with ESP-DL's weights in RAM. On every chip the binary model needs 3-10 times less flash and, in most cases, less RAM; that is
 what lets the binary person detector run on the classic ESP32, where the INT8 one does not fit. Energy per inference
 follows the speed: 8-13 times less than INT8 on the classic ESP32 and 1.4-25 times less on the S3, in every case
 measured.
@@ -652,10 +655,9 @@ scikit-learn and its Digits set [pedregosa2011sklearn].
 
 - Re-measure on one library version, with `provenance` in every result file: the fully binary ResNet-8 rows (Oct 28 /
   Nov 3 library), the MLP's ESP32 row (3.55 ms vs 2.33 ms in the energy loop); then regenerate Figures 2-4
-  (`docs_charts.py`) and re-check the abstract's ranges (5-15×, 2-8×, 1.0-2.0×, 5.0-5.4×, 3-10×, 8-13×, 1.4-25×).
+  (`docs_charts.py`) and re-check the abstract's ranges (5-15×, 2-8×, 1.0-2.0×, 5.0-8.6×, 3-10×, 8-13×, 1.4-25×).
 - MLP: export the QAT (Brevitas) INT8 model to `.tflite` and measure its latency, so accuracy and latency come from one
   model.
-- Final version: the abstract is under 250 words; check the venue's limit.
-
+- Final version: keep the abstract within 250 words (the venue's limit, to check).
 - Spanish version of the whole text (the abstract first), then LaTeX with `references.bib`.
 - Check the `verify` entries of `references.bib`; decide the title and the author order.
