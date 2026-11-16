@@ -20,6 +20,22 @@ Newest at the bottom of each list.
 | 11 | §3.1 HAR | names min / max-10 % ... while the README uses xs / s / m / l | both names given once | this commit |
 | 12 | §3.1 HAR | int8 first layer "faster on every board" | about as fast as the fastest binary first layer (-1.8 % to +2.4 %; review: min on the M33 0.84 vs 0.82), slower on max on the ESP32 (14.07 vs 12.78) | this commit |
 | 13 | §3.2 | M33 "2-8×" left out ECG l in flash (12.6×, 30.36 vs 383.44 ms: the flash effect, like the MLP's 28× on the S3) | named in the flash-effect sentence | this commit |
+| 14 | Abstract, intro, conclusions | the M33 inside "with SIMD or DSP 1.0-2×" (it is 2-8×) | the 1.0-2.0× is the S3 standard engine only; M33 2-8× and S3 vertical 5.0-5.4× named apart | this commit |
+| 15 | Abstract, §2.2, contributions | "five benchmarks" with six in the table | five tasks against INT8, plus Digits on the Uno | this commit |
+| 16 | §3.2 clip | 71.3 ± 0.8 called validation: it is the TEST accuracy of the Oct 28 model (no validation recorded); PR #47's comment had the same mix | validation of the same recipe without clip: 71.17 ± 0.32 (symbex_seeds_pc_w1_base.json) against 70.93 ± 1.02 | this commit |
+| 17 | §3.1 ResNet-8 | ESP-DL ResNet-8 latency missing (only the MLP's) | row 14.8 ms flash / 9.8 ms RAM (quick check, Nov 2) + the 1.43 / 1.53× and 1.06× sentence | this commit |
+| 18 | §3.1 ECG | 12.6× M33 in flash cited but the table showed the RAM row | table cell: flash 30.36 / 383.44 (12.6×), RAM 3.0× beside it | this commit |
+| 19 | §3.3 energy | prepared 1.51× vs a table default of 7.2 (7.2 / 4.5 = 1.60) | the 1.51 uses the Nov 15 default (6.86 mJ); 7.24 is the Nov 14 run; both named with dates | this commit |
+| 20 | §3.1 low-bit | 89.3 − 87.6 = 1.7, text 1.6 | two decimals (89.26 − 87.64 = 1.62) | this commit |
+| 21 | §3.1 cost table | Digits' 94.4 % (FP32) in the "INT8" column; FOMO "none" without caveat | column "Reference (INT8 unless noted)"; FOMO "none measured" + caveat, also abstract, intro, conclusions | this commit |
+| 22 | Abstract, §2.2 | "exact on 100 % of its test inputs": the check uses validation inputs (PC up to 2,000, board 1,000) | "inputs checked (validation inputs)"; title "bit-exact" defined | this commit |
+| 23 | §2.2 | QAT (MLP) and PTQ (rest) mixed without a reason; SIMD use of the INT8 side not stated | one paragraph: converter PTQ everywhere, MLP accuracy from QAT (the higher, so the cost is not understated); ESP-NN uses PIE, CMSIS-NN the M33 DSP (fashion_tflite.py builds TARGET_ARCH=cortex-m33, "DSP on") | this commit |
+| 24 | §3.3 | RNN bullet with no result file in the repository | reduced to "no recurrent layers in the chain" | this commit |
+| 25 | §3.1 HAR table | no flash for max-10 / max-5; "ms" only in the first cells | 2.9 / 20.5 and 5.6 / 41.8 KB (README sec. on flash, INT8 Pico 2 build); units in the headers | this commit |
+| 26 | §1.1 | Larq quotes without a source | GitHub discussion #775 (CNugteren, Jul 5 2023), quotes checked word for word; bib nugteren2023lce775 | this commit |
+| 27 | §3.2 | "9-16 points" for fine tasks (HAR reaches 23) | 9-23 | this commit |
+| 28 | Conclusions | "four cores of three commercial chips and the Arduino's AVR" (the AVR is commercial too) | "four 32-bit cores of three chips and the 8-bit AVR of the Arduino Uno" | this commit |
+| 29 | Every results table | no measurement date | a "Measured" line per table (result files' commit dates, renames followed: tools/dev/results_age.py, PR #98) + one sentence in §2.2 | this commit |
 
 ## Open
 
@@ -34,6 +50,8 @@ Newest at the bottom of each list.
 | G | §2.2, §3.1 Digits | Uno: TFLite Micro needs 32 bits (official docs), but AIfES (Fraunhofer) documents an INT8 (Q7) dense path on the Uno; emlearn runs float MLPs on AVR. Text reworded (this commit) | measure Digits SYMBEX vs AIfES Q7 on the Uno (same 64-256-10 net) before any claim |
 | H | §3.1 Digits | the Uno runs one benchmark only; it was the first target chip | ESTIMATE (to verify): HAR min (0.7 KB weights) and ECG s (1.3 KB) may fit 32 KB flash / 2 KB RAM; MLP Fashion does not (4.6 KB RAM) |
 | J | §3.1 FOMO, §3.3 | FOMO speed / energy use the standard engine; no vertical FOMO measured | say so or measure |
+| K | §3.1 MLP, ESP32 flash | 3.55 ms (Nov 7, swar, flash) but the energy loop ran the same model, same counting, flash at 2.33 ms (Nov 15): likely the short-first-layer change (f127456); hence its "0.26 W" | re-measure the ESP32 row on current master (chip_test.py, 3 seeds); power is 0.39 W with the energy loop's own time |
+| L | All tables | dates are commit dates (the day the number reached the repository); old files carry no library commit | measuring scripts write `provenance` (after #83 / #84 merge), then one re-measurement on one library version |
 
 ## Verified against the source (no change)
 
