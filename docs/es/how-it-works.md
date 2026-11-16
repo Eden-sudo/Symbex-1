@@ -65,14 +65,15 @@ $$\text{raw} \;\geq\; \mu - \frac{\beta\,\sigma}{\gamma}$$
 y como `raw` es un entero, el lado derecho se puede redondear hacia arriba: `T = ⌈μ − βσ/γ⌉`. Cuando `γ < 0` la
 desigualdad se invierte; el exportador niega la fila de pesos de esa salida (lo que niega `raw`) y el C sigue haciendo
 solo `raw ≥ T`. El resultado es idéntico al de la capa en punto flotante para cualquier entrada posible: no es una
-aproximación.
+aproximación. Cuando `γ = 0` la salida es constante, y el umbral se fija en el entero más pequeño o
+el más grande según el signo de `β`.
 
 Las redes densas pliegan más cosas en el mismo umbral: la escala de los pesos, el sesgo, la normalización de la entrada
 y el umbral de binarización de la capa siguiente.
 
 ## 3. La entrada y la salida
 
-**La entrada.** Una cámara o un sensor da bytes, no bits. Hay dos formas de entrar:
+**La entrada.** Una cámara o un sensor da bytes, no bits (una imagen de CIFAR-10 son 32 × 32 × 3 bytes; una ventana del acelerómetro, un byte por eje y muestra). Hay dos formas de entrar:
 
 - **Termómetro (redes convolucionales).** Cada color de cada píxel se convierte en `levels` bits: el bit `k` es 1
   cuando el valor es al menos `(k + 1) · 256 / (levels + 1)`. Con 8 niveles un píxel se convierte en 24 bits y la
@@ -80,15 +81,14 @@ y el umbral de binarización de la capa siguiente.
 - **Una primera capa int8 (opcional, redes convolucionales).** La primera convolución conserva pesos de 8 bits y lee
   los píxeles directamente, centrados (`píxel − 128`): un producto punto entero por salida, y su BatchNorm y su signo se
   pliegan en un umbral sobre él, `D ≥ T`, como en todas las demás capas. Su salida son bits, así que el resto de la red
-  no cambia. Es más precisa (ResNet-8 en CIFAR-10: 75.6 % contra 71.2 % en validación, 3 semillas) y es más rápida donde
-  el chip multiplica bytes con SIMD (el stem solo: 1.79× en el ESP32-S3, 1.13× en el Cortex-M33 del Pico 2), pero más
-  lenta donde no (0.86× en el ESP32, 0.62× en Hazard3). La ResNet-8 completa, 3 semillas, exacta en todas las placas:
-  75.4 % en el conjunto de prueba contra 71.3 %, 1.10× más rápida en el S3 (35.5 contra 39.2 ms), 1.03× en el M33,
-  0.93× en el ESP32 y 0.87× en Hazard3 ([el benchmark](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). Desde
-  entonces el stem tiene sus propios kernels (PIE en el S3, uno sin búfer de ventana en los demás chips), y la misma red
-  mide (semilla 42, pesos en flash) 1.22× más rápido que el termómetro en el S3 (32.1 frente a 39.2 ms), 1.12× en el
-  M33 (66.4 frente a 74.6), 1.04× en el ESP32 (61.1 frente a 63.3) y 0.98× en Hazard3 (57.4 frente a 56.1). El
-  termómetro sigue siendo la opción por defecto.
+  no cambia. Es más precisa (ResNet-8 en CIFAR-10, 3 semillas, conjunto de prueba: 75.4 % contra 71.3 % con el
+  termómetro; el estudio de training gap encuentra los mismos +5 puntos en validación, en una corrida aparte). Sola,
+  es más lenta que el termómetro en chips que no multiplican bytes con SIMD, pero con sus kernels actuales (PIE en el
+  S3, uno sin búfer de ventana en los demás chips) la ResNet-8 completa es casi igual de rápida ahí y más rápida donde
+  hay SIMD: 1.22× en el S3, 1.12× en el M33, 1.04× en el ESP32 y 0.98× en Hazard3 (semilla 42, pesos en flash; la
+  historia de estos números está en [el benchmark](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). El termómetro
+  sigue siendo la opción por defecto de la capa para que una red sea completamente binaria salvo que pida otra cosa; la
+  receta actual de ResNet-8 usa la primera capa int8.
 - **Bytes directamente (redes densas).** La primera capa lee los valores `uint8`, suma los que tienen peso +1 y resta
   los que tienen peso −1. Sigue siendo una suma sin multiplicaciones, y la normalización de la entrada va a los
   umbrales.
@@ -120,6 +120,9 @@ flowchart LR
 
 Los mapas se guardan con los canales de cada píxel juntos, 32 canales por palabra, así que una ventana 3 × 3 es una
 serie corta de palabras, copiada una vez por posición y comparada con cada fila de pesos.
+
+Las convoluciones 1D (`layers/conv/symbex_bool1d`, los benchmarks de actividad y de ECG) usan las mismas piezas a lo
+largo de un eje. En el ESP32-S3 un segundo motor cuenta 128 ventanas a la vez ([El motor vertical](vertical.md)).
 
 ## 5. Contar bits en cada chip
 
@@ -155,9 +158,9 @@ flowchart LR
 - **La fidelidad** compara el modelo entrenado con su simulación entera: lo que cuesta plegar en enteros. Las capas
   binarias se pliegan de forma exacta (un entero comparado con un umbral redondeado hacia arriba da el mismo bit); las
   puntuaciones de la última capa se redondean a punto fijo y pueden cambiar algunas predicciones. El CDT la reporta.
-- **La exactitud** compara la simulación entera con el C compilado, imagen por imagen. Debe ser **100 %**, en la PC y
-  en el chip. Cualquier otra cosa es un error en la exportación o en el motor, y el CDT lo reporta como
-  `[X] MISMATCH`.
+- **La exactitud** compara la simulación entera con el C compilado, entrada por entrada, sobre las entradas de validación. Debe ser **100 %**, en la PC y
+  en el chip. Cualquier otra cosa es un error en la exportación o en el motor, y el CDT lo marca con `[X]`
+  (lo reporta; no detiene la exportación).
 
 ## Dónde mirar en el código
 

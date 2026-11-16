@@ -62,14 +62,15 @@ $$\text{raw} \;\geq\; \mu - \frac{\beta\,\sigma}{\gamma}$$
 
 and since `raw` is an integer, the right side can be rounded up: `T = ⌈μ − βσ/γ⌉`. When `γ < 0` the inequality flips;
 the exporter negates that output's weight row (which negates `raw`) and the C still only does `raw ≥ T`. The result is
-identical to the floating-point layer for every possible input: it is not an approximation.
+identical to the floating-point layer for every possible input: it is not an approximation. When `γ = 0` the output
+is constant, and the threshold is set to the smallest or the largest integer according to the sign of `β`.
 
 The dense networks fold more into the same threshold: the weight scale, the bias, the normalization of the input and
 the threshold of the next layer's binarization.
 
 ## 3. The input and the output
 
-**The input.** A camera or a sensor gives bytes, not bits. There are two ways in:
+**The input.** A camera or a sensor gives bytes, not bits (a CIFAR-10 image is 32 × 32 × 3 bytes; an accelerometer window, one byte per axis and sample). There are two ways in:
 
 - **Thermometer (convolutional networks).** Each color of each pixel becomes `levels` bits: bit `k` is 1 when the
   value is at least `(k + 1) · 256 / (levels + 1)`. With 8 levels a pixel becomes 24 bits and the first layer is binary
@@ -77,15 +78,14 @@ the threshold of the next layer's binarization.
 - **An int8 first layer (optional, convolutional networks).** The first convolution keeps 8-bit weights and reads the
   pixels directly, centered (`pixel − 128`): one integer dot product per output, and its BatchNorm and sign fold into
   one threshold on it, `D ≥ T`, as in every other layer. Its output is bits, so the rest of the network does not change.
-  It is more accurate (ResNet-8 on CIFAR-10: 75.6 % against 71.2 % on validation, 3 seeds) and it is faster where the
-  chip multiplies bytes in SIMD (the stem alone: 1.79× on the ESP32-S3, 1.13× on the Pico 2's Cortex-M33), but slower
-  where it does not (0.86× on the ESP32, 0.62× on Hazard3). The whole ResNet-8, 3 seeds, exact on every board: 75.4 %
-  on the test set against 71.3 %, 1.10× faster on the S3 (35.5 against 39.2 ms), 1.03× on the M33, 0.93× on the ESP32
-  and 0.87× on Hazard3 ([the benchmark](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). Since then the stem has its own
-  kernels (PIE on the S3, one without a window buffer on the other chips), and the same network measures (seed 42,
-  weights in flash) 1.22× faster than the thermometer on the S3 (32.1 against 39.2 ms), 1.12× on the M33 (66.4
-  against 74.6), 1.04× on the ESP32 (61.1 against 63.3) and 0.98× on Hazard3 (57.4 against 56.1). The thermometer
-  stays the default.
+  It is more accurate (ResNet-8 on CIFAR-10, 3 seeds, test set: 75.4 % against 71.3 % with the thermometer; the
+  training-gap study finds the same +5 points on validation, in a separate run). Alone, it is slower than the
+  thermometer on chips that cannot multiply bytes in SIMD, but with its current kernels (PIE on the S3, one without a
+  window buffer on the other chips) the whole ResNet-8 is about as fast there and faster where there is SIMD: 1.22× on
+  the S3, 1.12× on the M33, 1.04× on the ESP32 and 0.98× on Hazard3 (seed 42, weights in flash; the history of these
+  numbers is in [the benchmark](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md)). The thermometer stays the
+  layer's default so that a network is fully binary unless it asks otherwise; the current ResNet-8 recipe uses the
+  int8 stem.
 - **Bytes directly (dense networks).** The first layer reads the `uint8` values and adds those whose weight is +1 and
   subtracts those whose weight is −1. That is still a sum without multiplications, and the input normalization goes
   into the thresholds.
@@ -117,6 +117,9 @@ flowchart LR
 
 The maps are stored with the channels of each pixel together, 32 channels per word, so a 3 × 3 window is a short run
 of words, copied once per position and compared against every weight row.
+
+1D convolutions (`layers/conv/symbex_bool1d`, the activity and ECG benchmarks) use the same pieces along one axis. On
+the ESP32-S3 a second engine counts 128 windows at once ([The vertical engine](vertical.md)).
 
 ## 5. Counting bits on each chip
 
@@ -152,9 +155,9 @@ flowchart LR
 - **Fidelity** compares the trained model with its integer simulation: what folding into integers costs. The binary
   layers fold exactly (an integer compared with a rounded-up threshold gives the same bit); the scores of the last
   layer are rounded to fixed point and can change a few predictions. The CDT reports it.
-- **Exactness** compares the integer simulation with the compiled C, image by image. It must be **100 %**, on the PC
-  and on the chip. Anything else is a bug in the export or in the engine, and the CDT reports it as
-  `[X] MISMATCH`.
+- **Exactness** compares the integer simulation with the compiled C, input by input, on the validation inputs. It must be **100 %**, on the PC
+  and on the chip. Anything else is a bug in the export or in the engine, and the CDT marks it `[X]` (it
+  reports it; it does not stop the export).
 
 ## Where to look in the code
 

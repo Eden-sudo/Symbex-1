@@ -20,9 +20,9 @@ siempre se pueden volver a crear.
 
 ## De un vistazo
 
-Redes completamente binarias frente a las INT8 oficiales (TensorFlow Lite Micro con los kernels ESP-NN de Espressif, la
-ruta de despliegue que usa casi todo el mundo, no el INT8 más rápido posible: ver
-[Resultados](results.md#qué-tan-rápido-podría-ser-int8)), la misma red en el mismo chip:
+Redes SYMBEX frente a TensorFlow Lite Micro INT8 con los kernels del fabricante (ESP-NN, CMSIS-NN), la ruta de
+despliegue que usa casi todo el mundo, no el INT8 más rápido posible (ver
+[Resultados](results.md#qué-tan-rápido-podría-ser-int8)): la misma red en el mismo chip.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../assets/speedup_dark.svg">
@@ -34,12 +34,11 @@ ruta de despliegue que usa casi todo el mundo, no el INT8 más rápido posible: 
   <img alt="Flash que usa cada modelo, SYMBEX frente a INT8" src="../assets/flash.svg">
 </picture>
 
-La diferencia depende del chip y de dónde están los pesos. El ESP32-S3 tiene una unidad SIMD que acelera INT8, así que
-ahí la diferencia es menor cuando INT8 puede usarla por completo (ResNet-8, receta actual: 1.61× con el motor estándar,
-5.4-8.6× con el motor vertical propio del S3, según la RAM usada; el MLP con sus pesos en RAM: 2.14×), y la librería
-ESP-DL de Espressif es más rápida que el motor estándar de SYMBEX ahí (ResNet-8 en 14.8 ms frente a 32.3 ms), y el
-[motor vertical](vertical.md) de SYMBEX es más rápido que ESP-DL con los pesos en flash (9.70 ms), y también con los
-pesos en RAM con su modo compacto opcional (7.07 ms, menos RAM: 138 frente a 147 KB); en el ESP32
-clásico, sin SIMD, SYMBEX es 8.0-14.8× más rápido, también frente a ESP-DL, y el detector INT8 ni siquiera cabe. La
-precisión está en el README de cada benchmark. Para volver a crear las gráficas después de una nueva medición:
+La diferencia depende del chip y de dónde están los pesos. En el ESP32 clásico, sin SIMD, SYMBEX es 5-15× más rápido
+que TFLite Micro (ResNet-8 también frente a ESP-DL de Espressif: 48.6 frente a 712 ms, una prueba rápida), y el
+detector de personas INT8 ni siquiera cabe. En el ESP32-S3, cuya unidad SIMD acelera INT8, el motor estándar gana por
+1.0-2.0× en las redes convolucionales (ResNet-8: 1.61×) y ESP-DL de Espressif es más rápido que él (14.8 frente a
+32.3 ms). El [motor vertical](vertical.md) le gana a ESP-DL: 9.70 ms con los pesos en flash, y 7.07 ms en su modo
+compacto frente a ESP-DL con sus pesos en RAM (con menos RAM, 138 frente a 147 KB). Con los pesos en RAM, la
+diferencia del MLP se reduce a 2.14×. La precisión está en [Resultados](results.md) y en el README de cada benchmark. Para volver a crear las gráficas después de una nueva medición:
 `python tools/dev/docs_charts.py`.

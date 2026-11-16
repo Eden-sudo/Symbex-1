@@ -217,7 +217,7 @@ computes a whole layer in one call, so the setup cost is paid once per layer.
 **The compiler.** One configuration file (`symbex.toml`) describes a run, so every result can be re-created from the
 file it came from. The stages are: *inspect* (layers, parameters, precision of the model), *estimate* (dense networks
 only: how much each layer suffers at 1, 2, 4 and 8 bits, measured by cosine similarity on calibration samples),
-*train* (dense networks: a search of width and bits per layer within the memory budget, judged on validation, then the
+*train* (dense networks: a search of width and bits per layer within the memory budget (today only 1-bit plans export), judged on validation, then the
 final training; convolutional networks: training of the network as defined, labels only by default), *export* (folding
 into integers and writing the header), *validate* (the C on the PC against the integer simulation) and *chip* (the
 same check and the timing on a connected board). Binary weights train with latent FP32 weights and a clipped
