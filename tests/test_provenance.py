@@ -27,3 +27,15 @@ def test_results_age_runs():
     out = subprocess.run([sys.executable, os.path.join(REPO, "tools", "dev", "results_age.py"), "--match", "resnet8"],
                          capture_output=True, text=True, check=True).stdout
     assert "cnn_cifar_resnet8" in out
+
+
+def test_results_age_classifies_baselines():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("results_age", os.path.join(REPO, "tools", "dev", "results_age.py"))
+    ra = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ra)
+    for f in ("mlp/mlp_fashion/results/earlier/int4_pc.json", "x/results/tflite/tflite_s3.json",
+              "x/results/lowbit/a.json", "x/results/ucbnn/ucbnn_gvsoc.json"):
+        assert ra.NOT_SYMBEX.search(f), f
+    for f in ("x/results/symbex/symbex_seeds_s3_swar_w1.json", "x/results/earlier/symbex_s42_chip_uno_flash_swar.json"):
+        assert not ra.NOT_SYMBEX.search(f), f

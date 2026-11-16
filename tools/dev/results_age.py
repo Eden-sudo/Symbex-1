@@ -12,7 +12,7 @@ A file that records `provenance` (tools/compiler_core/chip/provenance.py) is dat
 commit. Older files carry no date: they are dated by their last commit, which is when the number reached the
 repository, not when it was measured (it may be some days older); a
 rename (results/ reorganized into method folders) is followed back and does not count as a change. INT8 / TFLite, low-bit, random forest and
-ultracompactBNN files do not run lib_symbex: their library column is "-".
+ultracompactBNN and earlier integer (int4_ / int8_) files do not run lib_symbex: their library column is "-".
 """
 import argparse
 import json
@@ -23,7 +23,7 @@ import sys
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 LIB = "Symbex1_PIO/lib/lib_symbex"
-NOT_SYMBEX = re.compile(r"(^|/)(tflite|lowbit|rf|ucbnn)(/|_)|/tflite_[^/]*$")
+NOT_SYMBEX = re.compile(r"(^|/)(tflite|lowbit|rf|ucbnn|int\d+)(/|_)|/tflite_[^/]*$")   # earlier/int4_pc.json: MAC
 
 
 def git(*args):
@@ -83,7 +83,10 @@ def main():
         if isinstance(prov, dict) and prov.get("date"):
             day, source = prov["date"], "run"
             if symbex and prov.get("lib_commit"):
-                after = int(git("rev-list", "--count", f"{prov['lib_commit']}..HEAD", "--", LIB).strip())
+                try:   # a commit lost in a squash merge or a shallow clone: fall back to the file's commit date
+                    after = int(git("rev-list", "--count", f"{prov['lib_commit']}..HEAD", "--", LIB).strip())
+                except subprocess.CalledProcessError:
+                    after = None
         if symbex and after is None and t is not None:
             after = lib_after(lib_times, t)
         if args.stale and not after:

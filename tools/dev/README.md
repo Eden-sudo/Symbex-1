@@ -91,7 +91,7 @@ A SYMBEX number measured before a change of lib_symbex may not be what the libra
 under `benchmarks/`, the day it was measured and how many lib_symbex commits came after it. Files that record
 `provenance` (date, repository commit, lib_symbex commit: `compiler_core/chip/provenance.py`) are dated by their own run;
 older files by their last commit, which is when the number reached the repository (the measurement may be some days
-older). TFLite, low-bit, random forest and ultracompactBNN files do not run lib_symbex and are not counted as SYMBEX.
+older). TFLite, low-bit (also the earlier `int4_` / `int8_` files), random forest and ultracompactBNN files do not run lib_symbex and are not counted as SYMBEX.
 
 ```
 python results_age.py                          # one line per benchmark folder
