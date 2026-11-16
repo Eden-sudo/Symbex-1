@@ -166,7 +166,7 @@ static int calibrate_qacc(void) {               /* which accumulator lane holds 
     "ee.vst.128.ip q3, %[o], 16 \n\t"
 #define CL(Q) "ee.vld.128.ip " Q ", %[p], 16 \n\t"                                         /* contiguous load */
 
-/* gather, pipelined (Eden's v2): the deltas are loaded two at a time, ahead of the loads that use them, so the
+/* gather, pipelined (v2): the deltas are loaded two at a time, ahead of the loads that use them, so the
    scalar load latency is hidden behind the CSAs. Same loads in the same order as HS8 with GL. */
 static void hs_gather(const uint8_t* p, const uint16_t* l, int groups, plane_t* o) {
     uint32_t d0, d1;
@@ -193,7 +193,7 @@ static void hs_contig(const plane_t* p, int groups, plane_t* o) {
         __asm__ __volatile__(HS8(CL("q3"), CL("q4"), CL("q4"), CL("q5"), CL("q4"), CL("q5"), CL("q5"), CL("q6"))
                              : [p] "+r"(p), [o] "+r"(o) : : "memory");
 }
-/* zero planes with the vector unit instead of memset (Eden's v2); q3 is a temporary everywhere it is called */
+/* zero planes with the vector unit instead of memset (v2); q3 is a temporary everywhere it is called */
 static inline void zero_planes(plane_t* p, int count) {
     if (count <= 0) return;
     __asm__ __volatile__("ee.zero.q q3");

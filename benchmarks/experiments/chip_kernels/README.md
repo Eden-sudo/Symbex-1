@@ -266,7 +266,7 @@ the other boards.
 
 - This puts the S3 MLP at ~0.29 ms against INT8 TFLite of the same shape at 11.7 ms in flash / 0.89 ms in RAM; the
   INT8 times are from the mlp_fashion README, measured earlier.
-- Not in lib_symbex or the CDT yet: it is an experiment until it is reviewed and Edén decides.
+- Not in lib_symbex or the CDT yet: it is an experiment until it is reviewed and accepted.
 
 ```
 python mlp_vertical_chip.py ../../mlp/mlp_fashion/runs/sizing/h128_512_s42 --port /dev/ttyACM0   # --weights ram, --host
