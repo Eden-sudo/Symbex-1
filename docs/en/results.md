@@ -2,18 +2,21 @@
 
 *[Leer en español](../es/results.md)*
 
-Each benchmark compares a fully binary SYMBEX network against INT8 on the same chip and with the same architecture.
+Each benchmark compares a binary SYMBEX network (fully binary, or with an int8 first layer and classifier where the
+table says so) against INT8 on the same chip and with the same architecture.
 The INT8 side is the official TensorFlow Lite Micro model or, where no official model exists, the same network trained
 with the same recipe. All the rules come from the [methodology](methodology.md):
 
-- the results are means over 3 seeds (42, 43, 44);
+- the results are means over 3 seeds (42, 43, 44) for both methods, except the published MLPerf Tiny model (one model);
 - every choice is made on a validation split, and the test set is used once;
 - the weights are in flash unless the table says otherwise;
-- on every board, the chip gives **the same output as the integer simulation on 100 % of the inputs**.
+- on every board, the chip gives **the same output as the integer simulation on 100 % of the inputs checked** (the
+  validation set).
 
 **What INT8 means here.** The INT8 side is the deployment path almost everyone uses: TensorFlow Lite Micro with
 Espressif's optimized ESP-NN kernels. It is not the fastest INT8 possible: on the ESP32-S3, Espressif's ESP-DL library
-runs ResNet-8 2.6× faster than SYMBEX's standard engine. SYMBEX's vertical engine ([The vertical engine](vertical.md))
+runs the fully binary ResNet-8 2.6× faster than SYMBEX's standard engine (1.6× faster than the current recipe's,
+32.3 ms). SYMBEX's vertical engine ([The vertical engine](vertical.md))
 runs it in 10.4 ms, 1.43× faster than ESP-DL with the weights in flash; with the weights in RAM, ESP-DL stays 1.06×
 faster, unless one of the engine's optional modes is used: compact (7.70 ms, 1.27× faster than ESP-DL in RAM, with
 151 KB of RAM against ESP-DL's 147 KB) or prepared (6.44 ms, 1.52× faster, 238 KB of RAM). The most accurate ResNet-8 recipe (an int8 first layer and a pooled int8
@@ -43,15 +46,15 @@ on every row but one.
 |---|---|---|---|---|---|---|
 | MLP (Fashion-MNIST, 784-128-512-10) | ESP32-S3 | flash | 0.42 / 11.67 ms | **27.8×** | 27.3 / 187.0 KB | 4.6 / 6.7 KB |
 | MLP (Fashion-MNIST, 784-128-512-10) | ESP32-S3 | **RAM** | 0.414 / 0.888 ms | **2.14×** | 27.3 / 187.0 KB | 4.6 / 6.7 KB + the weights (21 / 187 KB) |
-| MLP (Fashion-MNIST, 784-128-512-10) | ESP32 | flash | 3.55 / 31.11 ms | **8.77×** | 27.3 / 187.0 KB | 4.4 / 6.7 KB |
-| ResNet-8 (CIFAR-10), vertical engine ⁴ | ESP32-S3 | flash | 10.4 / 52.0 ms | **5.02×** | 24.3 / 96.2 KB | 62.6 / 80.5 KB |
-| ResNet-8 (CIFAR-10), standard engine | ESP32-S3 | flash | 39.2 / 52.0 ms | **1.33×** | 24.3 / 96.2 KB | 14.8 / 80.5 KB |
-| ResNet-8 (CIFAR-10) | ESP32 | flash | 63.3 / 717.8 ms | **11.3×** | 24.3 / 96.2 KB | 78.6 / 53.1 KB ¹ |
+| MLP (Fashion-MNIST, 784-128-512-10) | ESP32 | flash | 3.55 / 31.11 ms ⁶ | **8.77×** | 27.3 / 187.0 KB | 4.4 / 6.7 KB |
 | ResNet-8, most accurate recipe ², vertical engine ⁴ | ESP32-S3 | flash | 9.70 / 52.0 ms | **5.36×** | 29.0 / 96.2 KB | 54.2 / 80.5 KB |
 | ResNet-8, most accurate recipe ², standard engine | ESP32-S3 | flash | 32.3 / 52.0 ms | **1.61×** | 29.0 / 96.2 KB | 15.2 / 80.5 KB |
 | ResNet-8, most accurate recipe ², vertical engine, compact ⁵ | ESP32 | flash | 48.6 / 717.8 ms | **14.8×** | 29.0 / 96.2 KB | 199.7 / 53.1 KB ¹ |
 | ResNet-8, most accurate recipe ², standard engine | ESP32 | flash | 62.5 / 717.8 ms | **11.5×** | 29.0 / 96.2 KB | 79.0 / 53.1 KB ¹ |
-| FOMO person detection (32-32-128) | ESP32-S3 | flash | 126.3 / 256.9 ms | **2.03×** | 41.2 / 236.1 KB | 79.0 / 222.6 KB |
+| ResNet-8 fully binary (earlier recipe), vertical engine ⁴ | ESP32-S3 | flash | 10.4 / 52.0 ms | **5.02×** | 24.3 / 96.2 KB | 62.6 / 80.5 KB |
+| ResNet-8 fully binary (earlier recipe), standard engine | ESP32-S3 | flash | 39.2 / 52.0 ms | **1.33×** | 24.3 / 96.2 KB | 14.8 / 80.5 KB |
+| ResNet-8 fully binary (earlier recipe) | ESP32 | flash | 63.3 / 717.8 ms | **11.3×** | 24.3 / 96.2 KB | 78.6 / 53.1 KB ¹ |
+| FOMO person detection (32-32-128) ⁷ | ESP32-S3 | flash | 126.3 / 256.9 ms | **2.03×** | 41.2 / 236.1 KB | 79.0 / 222.6 KB |
 | FOMO person detection (32-32-128) | ESP32 | flash | 226.3 ms / does not fit | **only SYMBEX runs** | 41.2 / 236.1 KB | 142.8 KB ¹ / does not fit |
 | Activity recognition (1D), 4 networks | ESP32-S3 | flash | 0.49-3.83 / 0.72-7.11 ms | **1.47-1.90×** | 0.7-6.5 / 7.3-42.5 KB | 1.3-2.7 / 2.7-25.5 KB |
 | Activity recognition (1D), 4 networks | ESP32 | flash | 0.78-12.78 / 4.17-115.62 ms | **5.3-10.4×** | 0.7-6.5 / 7.3-42.5 KB | 1.3-2.7 / 2.7-10.3 KB |
@@ -80,12 +83,18 @@ on every row but one.
   default (116 KB of RAM) and 48.57 ± 0.10 ms in compact mode (200 KB), against 62.52 ms for the standard engine
   (79 KB); 3 seeds, weights in flash, exact 100 %. The prepared mode does not fit its DRAM
   ([the benchmark](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md)).
+- ⁶ Measured with the October 2026 library. The energy run of November 15, 2026 (current library, seed 42) gives
+  2.33 ms against 31.1 ms (13.4×); the row will be re-measured with 3 seeds.
+- ⁷ The INT8 detector was trained with a smaller budget than the binary one: the floating-point recipe (person weight
+  20, 60 epochs, where it had already plateaued) against weight 40 and 100 epochs; see
+  [the benchmark](../../benchmarks/conv2d/fomo_voc_person/README.md).
 
 The charts are drawn from the result files by `python tools/dev/docs_charts.py`, so a new measurement updates them.
 
 The gap is set by the chip. The classic ESP32 has no SIMD, and there counting bits is an order of magnitude cheaper
 than 8-bit multiply-accumulate. The ESP32-S3 has a SIMD unit (PIE) that speeds up INT8, so the gap is smaller. Where
-INT8 can use that unit fully, the gap is narrowest: ResNet-8 at 1.33× with the standard engine (5.0× with the vertical one) and the MLP with its weights in RAM at 2.14×.
+INT8 can use that unit fully, the gap is narrowest: ResNet-8 at 1.61× with the standard engine (5.4-8.6× with the
+vertical one, by the RAM used) and the MLP with its weights in RAM at 2.14×.
 There, Espressif's ESP-DL library is faster than SYMBEX's standard engine; on ResNet-8, [the vertical engine](vertical.md)
 beats it with the weights in flash, and in RAM with its optional compact and prepared modes (see [How fast could INT8 be?](#how-fast-could-int8-be)).
 [How it works](how-it-works.md) explains why counting bits is cheaper.
@@ -193,23 +202,23 @@ both on a board without training ([Methodology](methodology.md)).
 
 - The architecture is the same as the official INT8 ResNet-8 of MLPerf Tiny, measured with TFLite Micro on the same
   boards.
-- **ESP32-S3, vertical engine (the S3's own):** 10.36 ± 0.05 ms (3 seeds), 5.0× faster than TFLite Micro
+- **The current recipe, the most accurate** (int8 first layer + Bop + pooled int8 classifier, the rest binary; in the CDT):
+  76.7 ± 0.3 % on the test set with 29.0 KB of flash. ESP32-S3 32.3 ms (1.61×), vertical engine 9.70 / 7.07 /
+  6.02 ms (default / compact / prepared); ESP32 62.5 ms (11.5×), vertical engine 54.7 / 48.6 ms (default /
+  compact, 116 / 200 KB of RAM; prepared does not fit); M33 67.8 ms (6.7×); Hazard3 57.9 ms. Ready to use in
+  [`reference/`](../../benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md).
+- **Fully binary (the earlier recipe: thermometer input, 71.3 ± 0.8 %), ESP32-S3, vertical engine (the S3's own):** 10.36 ± 0.05 ms (3 seeds), 5.0× faster than TFLite Micro
   and 1.43× faster than ESP-DL with the weights in flash, 63 KB of RAM ([The vertical engine](vertical.md)). Its
   optional modes build lists and thresholds once into RAM: compact 7.70 ± 0.05 ms with 151 KB of RAM (1.27× faster than
   ESP-DL in RAM), prepared 6.44 ± 0.02 ms with 238 KB (8.1× faster than TFLite Micro, 1.52× faster than ESP-DL in RAM).
 - **ESP32-S3, standard engine:** 39.2 ms vs 52.0 ms (1.33×), 15 KB of RAM. Espressif's ESP-DL runs the same network in
   14.8 ms, 2.6× faster than this engine (see [How fast could INT8 be?](#how-fast-could-int8-be)).
 - **ESP32:** 63.3 ms with the weights in flash vs 717.8 ms (11.3×); 59.7 ms with the weights in RAM.
-- **Pico 2:** 56.1 ms on Hazard3 and 74.5 ms on the M33; on the M33 the vertical engine's prepared mode runs it in
+- **Pico 2 (earlier recipe):** 56.1 ms on Hazard3 and 74.5 ms on the M33; on the M33 the vertical engine's prepared mode runs it in
   57.4 ms (seed 42, a ranking; [The vertical engine](vertical.md#other-chips-pico-2)). TFLite Micro INT8 with CMSIS-NN
   on the M33: 453.0 ms (6.1×), 211.4 ms with the model in RAM; on Hazard3, with the reference kernels: 5702 ms.
-- **The most accurate recipe** (int8 first layer + Bop + pooled int8 classifier, the rest binary; in the CDT):
-  76.7 ± 0.3 % on the test set with 29.0 KB of flash. ESP32-S3 32.3 ms (1.61×), vertical engine 9.70 / 7.07 /
-  6.02 ms (default / compact / prepared); ESP32 62.5 ms (11.5×), vertical engine 54.7 / 48.6 ms (default /
-  compact, 116 / 200 KB of RAM; prepared does not fit); M33 67.8 ms (6.7×); Hazard3 57.9 ms. Ready to use in
-  [`reference/`](../../benchmarks/conv2d/cnn_cifar_resnet8/reference/README.md).
-- **Memory:** 24.3 KB of flash vs 96.2 KB, and 15 KB of RAM vs a 53-80 KB arena.
-- **Accuracy:** 71.3 ± 0.8 % vs 87.0 %. With the network shaped for binary (16-32-128 / 1-1-2) it reaches 73.1 % at the
+- **Memory (earlier recipe):** 24.3 KB of flash vs 96.2 KB, and 15 KB of RAM vs a 53-80 KB arena.
+- **Accuracy (earlier recipe):** 71.3 ± 0.8 % vs 87.0 %. With the network shaped for binary (16-32-128 / 1-1-2) it reaches 73.1 % at the
   same speed.
 
 ### FOMO person detection on Pascal VOC
@@ -275,7 +284,8 @@ The full tables of each benchmark, measured on the chips on one core (they were 
 
 ### Image classification: a fully binary ResNet-8 ([`benchmarks/conv2d/cnn_cifar_resnet8`](../../benchmarks/conv2d/cnn_cifar_resnet8/))
 
-CIFAR-10, against the official INT8 ResNet-8 of MLPerf Tiny. Every layer of the SYMBEX network is binary, the first
+CIFAR-10, against the official INT8 ResNet-8 of MLPerf Tiny. The table is the earlier, fully binary recipe; the current
+one (76.7 %) is the paragraph after it. Every layer of the SYMBEX network is binary, the first
 one included (the image enters as a thermometer of bits); 3 training seeds, labels only.
 
 | | **SYMBEX, binary** | MLPerf Tiny INT8 |
@@ -314,7 +324,7 @@ trained with the same recipe.
 
 | | **SYMBEX, binary** | TFLite INT8 |
 |---|---|---|
-| F1 (3 seeds) | **31.2 ± 0.7 %** | 30.1 ± 0.2 % |
+| F1 (3 seeds) | **31.2 ± 0.7 %** | 30.1 ± 0.2 % (trained with a smaller budget) |
 | ESP32-S3 | **126.3 ms (2.0× faster)** | 256.9 ms |
 | ESP32 | **runs** | does not fit (its arena overflows the RAM) |
 | Flash | **41 KB** | 236 KB |
@@ -333,7 +343,7 @@ network; 3 seeds, labels only, weights in flash unless stated:
 | Accuracy | 87.47 ± 0.09 % | 89.81 ± 0.11 % (QAT) |
 | ESP32-S3 | **0.42 ms (28× faster)** | 11.7 ms (TFLite Micro) |
 | ESP32-S3, weights in RAM | **0.41 ms (2.1× faster)** | 0.89 ms |
-| ESP32 | **3.5 ms (8.8× faster)** | 31.1 ms |
+| ESP32 | **3.5 ms (8.8× faster)**; 2.33 ms (13.4×) with the current library, one seed, to re-measure | 31.1 ms |
 | Raspberry Pi Pico 2, Cortex-M33 | **4.6 ms (6.9× faster)**; 1.5 ms with the weights in RAM (1.9×) | 31.4 ms (CMSIS-NN); 2.9 ms in RAM |
 | Raspberry Pi Pico 2, Hazard3 | **4.4 ms (8.5× faster)**; 1.4 ms with the weights in RAM (6.8×) | 37.5 ms; 9.6 ms in RAM (reference kernels) |
 | Flash | **27 KB** | 187 KB |
