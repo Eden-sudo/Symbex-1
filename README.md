@@ -95,9 +95,11 @@ The same recipe for every method (validation split, 3 seeds), Fashion-MNIST on t
   <img alt="MLP on Fashion-MNIST, accuracy against latency on the ESP32-S3: SYMBEX vs. INT8 / INT4 / INT2" src="docs/assets/pareto_mlp.svg">
 </picture>
 
-Low-bit integers are 1-2 points more accurate; one bit holds the fastest corner. With the weights in flash, where
-reading them is the cost, binary is 24-37× faster (0.42 ms against 10.3-15.6 ms); with the weights in RAM the gap
-closes to 1.4× (0.41 against 0.56 ms).
+Low-bit integers are 1-2 points more accurate; one bit holds the fastest corner. The chart mixes shapes: the INT8,
+INT4 and INT2 points are the official 784-256-128-10 network, the SYMBEX points are networks sized for binary. At the
+same shape (784-128-512-10, ESP32-S3), binary is 28× faster than INT8 with the weights in flash (0.42 against 11.7 ms)
+and 2.1× with the weights in RAM (0.41 against 0.89 ms). At the official shape, against our own low-bit kernels: 8-11×
+in flash (1.24 against 10.3-13.4 ms), about the same in RAM (0.525 against 0.556 ms).
 
 ### Every benchmark, side by side
 
@@ -115,11 +117,11 @@ The same network on the same chip, binary against TFLite Micro INT8:
 
 | Benchmark | Accuracy, SYMBEX / INT8 | Speed | Memory |
 |---|---|---|---|
-| [ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/), CIFAR-10 images | 76.7 / 87.0 % | 5.4× (ESP32-S3) to 14.8× (ESP32) faster | 29 / 96 KB flash |
-| [FOMO](benchmarks/conv2d/fomo_voc_person/), person detection | **F1 31.2 / 30.1 %** | 2.0× faster (ESP32-S3); only SYMBEX fits the ESP32 | 41 / 236 KB flash |
+| [ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/), CIFAR-10 images | 76.7 / 87.0 % | 5.0-8.6× (ESP32-S3, by the RAM used) to 14.8× (ESP32) faster | 29 / 96 KB flash |
+| [FOMO](benchmarks/conv2d/fomo_voc_person/), person detection | **F1 31.2 / 30.1 % (INT8 trained with a smaller budget)** | 2.0× faster (ESP32-S3); only SYMBEX fits the ESP32 | 41 / 236 KB flash |
 | [MLP](benchmarks/mlp/mlp_fashion/), Fashion-MNIST | 87.5 / 89.8 % | 28× (flash) and 2.1× (RAM) on the ESP32-S3, 8.8× on the ESP32 (to re-measure: 13.4× with the current library, energy run) | 27 / 187 KB flash |
-| [1D convolutions](benchmarks/conv1d/har_ultracompact/), activity recognition | INT8 9-23 points better (worst on the smallest network) | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 6.5-10× less flash |
-| [ECG](benchmarks/conv1d/ecg_mitbih/), arrhythmia beats (inter-patient) | balanced 67-75 / 71-72 %, tied within the spread | 6.0-13.4× (ESP32), 2.0-3.0× (Pico 2 M33; 12.6× for l with the weights in flash), 1.04-1.59× (ESP32-S3) | 6.6-8.4× less flash |
+| [1D convolutions](benchmarks/conv1d/har_ultracompact/), activity recognition | INT8 9-23 points better (worst on the smallest network) | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 7-10× less flash |
+| [ECG](benchmarks/conv1d/ecg_mitbih/), arrhythmia beats (inter-patient) | balanced 67-75 / 71-72 %, tied within the spread | 6.0-13.4× (ESP32), 2.0-12.6× (Pico 2 M33, flash; 3.0× for l with both in RAM), 1.04-1.59× (ESP32-S3) | 6.4-8.4× less flash |
 | [Digits](benchmarks/mlp/mlp_digits/), on an Arduino Uno | 94.5 % (FP32 on the same input 94.4 %) | 5.3 ms on a 16 MHz AVR | 3.4 KB flash, 0.21 KB RAM |
 
 Against another binary library, ultracompactBNN (Daghero et al. 2021), in its own simulated RISC-V processor, SYMBEX
@@ -135,12 +137,12 @@ needs 1.07-1.37× fewer instructions on its four networks. Every table, chip and
 2. **Binary does not replace INT8 on fine-grained classification.** On CIFAR-10 even the best binary recipe stays 10
    points behind. A [study](benchmarks/experiments/training_gap/) found the cause is mostly capacity, not training: the
    binary ResNet-8 fits 72 % of its training images, its full-precision twin 92 %.
-3. **Detection and yes/no tasks binarize well.** The binary person detector is as accurate as the INT8 one, 2× faster
+3. **Detection and yes/no tasks binarize well.** The binary person detector is as accurate as the INT8 one (trained with a smaller budget), 2× faster
    on the ESP32-S3, 6× smaller, and the only one that fits the classic ESP32. On ECG beats (four AAMI classes, test
    patients never seen in training) binary and INT8 are tied within one standard deviation, with different errors.
 4. **Size the network for binary.** Its best shape is not the INT8 one: a narrow first layer and wide binary layers
    (MLP 784-128-512-10), thinner early stages and a wider last one (ResNet-8 16-32-128: +1.8 points at the same speed).
-5. **An 8-bit input deserves an 8-bit first layer.** For the camera (ResNet-8) and the accelerometer (1D), an int8
+5. **An 8-bit input deserves an 8-bit first layer.** For pixels (ResNet-8) and the accelerometer (1D), an int8
    first layer is more accurate, and faster wherever the chip has SIMD.
 6. **Per byte, low-bit integers are more accurate.** INT2 and INT4 beat one bit at the same model size; one bit wins
    speed and the smallest chips.
@@ -162,13 +164,14 @@ The engine, step by step:
 1. **Every layer is binary.** Weights and activations are one bit. A convolution is a bit count (AND or XOR followed
    by popcount); a residual shortcut is an OR of bits; pooling is an OR.
 2. **The input becomes bits too.** Each pixel enters as a thermometer (8 levels per color), so the first layer is binary
-   like the rest. Optionally, the first layer and the classifier stay int8 (more accurate, see above).
+   like the rest. Dense networks read the uint8 input directly (8 bits × 1-bit weights). Optionally, the first layer and
+   the classifier stay int8 (more accurate, see above).
 3. **Everything else folds into integers.** Scale, BatchNorm and the activation collapse into one integer threshold per
    output: `bit = (count >= T)`. No floating point at inference.
 4. **The counting method is chosen per chip.** A native popcount instruction where there is one, a 64 KB table or SWAR
    on the ESP32, the SIMD multiplier on the ESP32-S3. `count_bench.py` measures them; the library picks the fastest.
 5. **Bit-exact, always.** The compiled C, on the PC and on the chip, must reproduce the integer simulation of the model
-   100 %: every exported model is checked, every time.
+   100 % on every input checked (the validation set): every exported model is checked, every time.
 
 [docs/en/how-it-works.md](docs/en/how-it-works.md) explains it with diagrams.
 
@@ -182,7 +185,7 @@ The full standard, the references and how to repeat a benchmark: [docs/en/method
   separate environment that imports nothing from SYMBEX.
 - **Measured on the chip:** medians over 1000 inferences, one core, at the stock clock (240 MHz on the ESP32 chips,
   150 MHz on the Pico 2); RAM measured on the chip.
-- **Several seeds** for SYMBEX: accuracy as mean ± standard deviation over 3 seeds.
+- **Three seeds for both methods** (42, 43, 44): accuracy as mean ± standard deviation.
 - **Validation split:** every choice (checkpoint, threshold, variant, shape) is made on a validation split carved out
   of the training data; the test set is evaluated once. A review found places where the test set had been used for
   selection; they were fixed and the affected figures re-measured (October 2026).
@@ -191,14 +194,20 @@ The full standard, the references and how to repeat a benchmark: [docs/en/method
 
 Done: fully binary 2D and 1D convolutions, dense networks, four chips and five processor cores (ESP32, ESP32-S3,
 both cores of the Raspberry Pi Pico 2, the Arduino Uno's AVR), the vertical engine for the ESP32-S3, and the int8 first layer and classifier as options (November
-2026). Next:
+2026).
 
-- **Energy (done, Nov 14-15, 2026):** measured with a USB power meter, one 10-minute run each ([ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md)):
+- **Energy (Nov 14-15, 2026):** measured with a USB power meter, one 10-minute run each ([ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md)):
   one image costs 6.6× less energy than TFLite Micro INT8 on the ESP32-S3 (7.2 vs 47.7 mJ) and 13× less on the classic
   ESP32 (22 vs 296 mJ). On the classic ESP32 the other benchmarks too: MLP 11×, HAR 8.7×, ECG 8.0× less energy per
   inference; FOMO 96 mJ per frame, where TFLite Micro does not fit. On the S3 every benchmark uses less energy too:
   MLP 25×, FOMO 2.0×, HAR 1.8×, ECG 1.4×, ResNet-8 with the prepared engine 10.5× (4.5 mJ)
-  ([docs/en/results.md](docs/en/results.md#energy)). Next: the Pico 2.
+  ([docs/en/results.md](docs/en/results.md#energy)).
+
+Next:
+
+- **One library version:** re-measure every result with the current lib_symbex (some tables come from earlier
+  versions, for example the MLP on the classic ESP32).
+- **Energy on the Pico 2.**
 - **ESP-DL** as a full INT8 baseline (3 seeds, the whole test set, every benchmark).
 - **FOMO re-trained** on the new fixed validation split.
 
@@ -251,8 +260,8 @@ A preprint describing SYMBEX-1 is in preparation; the reference will be added he
 ## Contributors
 
 Carlos Duarte (Edén) -- Panama -- GitHub: [Eden-sudo](https://github.com/Eden-sudo)
-Obed -- GitHub: [Obed0101](https://github.com/Obed0101) -- test suite, low-bit baselines, validation split review
-Abrahan -- GitHub: [abrahandejesusaparicio-code](https://github.com/abrahandejesusaparicio-code) -- FOMO person
+Obed Gonzales -- GitHub: [Obed0101](https://github.com/Obed0101) -- test suite, low-bit baselines, validation split review
+Abrahan Aparicio -- GitHub: [abrahandejesusaparicio-code](https://github.com/abrahandejesusaparicio-code) -- FOMO person
 detection on the classic ESP32
 
 Spanish version: [README.es.md](README.es.md) -- License: see [LICENSE](LICENSE).

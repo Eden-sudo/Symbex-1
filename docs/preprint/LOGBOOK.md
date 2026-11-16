@@ -51,6 +51,7 @@ Newest at the bottom of each list.
 | 42 | §3.1 ECG, Not written yet | "the flash effect of the MLP"; blank line; "is under 250 words" read as done | "the same flash effect as the MLP's"; list joined; "keep within 250 words" | this commit |
 | 43 | Abstract | "bit-" / "sliced" split across lines (Markdown renders "bit- sliced") | rewrapped without breaking at hyphens; no line in the draft ends in "-"; 247 words (hyphenated words and ranges as one) | this commit |
 | 44 | §3.1 before the ESP-DL table, §3.2 | "against ESP-DL in flash and against ESP-DL in RAM, which favors ESP-DL" ambiguous; §3.2 sentence with four asides | "compared with ESP-DL in flash and with ESP-DL in RAM (the latter favors ESP-DL)"; §3.2 split into three sentences | this commit |
+| 45 | §3.1 ResNet-8 table, RAM row | int8 stem column said 15 KB on every board; the JSONs (symbex_seeds_*.json, ram_kb) give 79.0 KB on the ESP32 and 79.9 KB on the M33 (lut16 table), 15.2 / 15.5 KB on the S3 / Hazard3 | per-board RAM in both columns; README's "62.5 ms, 79 KB" was right | this commit |
 
 ## Open
 

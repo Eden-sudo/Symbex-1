@@ -338,7 +338,7 @@ core (`cnn_cifar_resnet8/results/symbex/symbex_seeds_<board>_*.json`, `results/t
 | Pico 2, Cortex-M33 | 74.5 ms (6.1×) | 67.8 ms (6.7×) | 453.0 ms (CMSIS-NN; 211.4 ms with the model in RAM) |
 | Pico 2, Hazard3 | 56.1 ms | 57.9 ms | 5702 ms (reference kernels, 100 images) |
 | Flash (the model) | 24.3 KB | 29.0 KB | 96.2 KB |
-| RAM | 15 KB (79 KB with the 64 KB count table) | 15 KB | 53 KB (ESP32), 80.5 KB (S3) |
+| RAM (standard engine) | 15 KB on the S3 / Hazard3; 79 KB on the ESP32 / M33 (64 KB count table) | 15 KB on the S3 / Hazard3; 79-80 KB on the ESP32 / M33 (64 KB count table) | 53 KB (ESP32), 80.5 KB (S3) |
 | Chip equal to its PC reference | 100 % | 100 % | 98.1 % (96 % on Hazard3, 100 images) |
 
 *Measured: fully binary Oct 28 (standard engine) and Nov 3, 2026 (vertical); int8 stem recipe Nov 6-7 (ESP32 vertical
