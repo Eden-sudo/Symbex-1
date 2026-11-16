@@ -65,7 +65,7 @@ RP2350 carries the last two) of three instruction-set families, INT8 through the
 official TensorFlow Lite toolchain, three seeds, every choice made on validation and the test set used once. The
 tasks go from fine-grained image classification (CIFAR-10, the MLPerf Tiny ResNet-8) through person detection, a
 dense network on Fashion-MNIST, and two 1D signals (activity recognition from an accelerometer, arrhythmia from the
-ECG), to a digit classifier on an 8-bit Arduino (AVR, a fourth instruction set, where no INT8 toolchain runs).
+ECG), to a digit classifier on an 8-bit Arduino (AVR, a fourth instruction set, where TensorFlow Lite Micro does not run).
 
 **What we found.** Binary pays most where the chip has no SIMD: on the classic ESP32 whole networks run 5 to 15
 times faster than INT8 with 3 to 10 times less flash. Where the chip has an int8 SIMD unit the standard engine wins
@@ -239,7 +239,9 @@ RISC-V; the Pico 2's RP2350 carries two different cores, each measured on its ow
 | Raspberry Pi Pico 2 (RP2350) | Hazard3 RISC-V (RV32IMAC + Zbb) | none | 150 MHz | cpop |
 
 The Arduino Uno (ATmega328P, 8-bit AVR, 16 MHz), a fourth instruction set, appears in one benchmark only (Digits),
-to show the smallest chip the chain reaches; no INT8 toolchain runs there, so it is not part of the INT8 comparison. Latency is the median over the validation images sent to the board
+to show the smallest chip the chain reaches. TensorFlow Lite Micro needs a 32-bit target and does not run there; AIfES
+(Fraunhofer IMS) documents an INT8 (Q7) path for dense networks on the Uno, which we have not measured yet, so the Uno
+is not part of the INT8 comparison. Latency is the median over the validation images sent to the board
 (1000 by default). Weights are measured **in flash first**, the way a model is normally deployed, then in RAM; every
 method compared has its weights in the same place.
 
@@ -378,7 +380,7 @@ ESP-NN's kernels (the sub-byte weights are unpacked to int8 and multiplied); in 
 0.556 ms against 0.525 ms for binary. Binary keeps the smallest and fastest corner; INT2 and INT4 keep accuracy per byte.
 
 **Activity recognition: 1D convolutions on UniMiB-SHAR.** The four networks of Daghero et al. (min, max-10 %,
-max-5 %, max), 17 activities, 3 seeds (`har_ultracompact/results/symbex/`, `results/ucbnn/`, `results/tflite/`).
+max-5 %, max; `xs`, `s`, `m`, `l` in the benchmark's README), 17 activities, 3 seeds (`har_ultracompact/results/symbex/`, `results/ucbnn/`, `results/tflite/`).
 Against their library, in their environment (RI5CY core in GVSoC, their code unchanged), SYMBEX needs 1.07× (min),
 1.37× (max-10 %), 1.23× (max-5 %) and 1.23× (max) fewer instructions for the whole network, and 1.06-1.37× when it
 runs their own trained network (int8 first layer, same weights); both are exact. Against TFLite Micro INT8 on the
@@ -386,16 +388,16 @@ boards, weights in flash (the fastest form of the binary first layer in each row
 
 | Network | Test accuracy, binary / INT8 | ESP32-S3 (ESP-NN) | ESP32 (ESP-NN) | Pico 2 M33 (CMSIS-NN) | Flash, binary / INT8 |
 |---|---|---|---|---|---|
-| min | 32.7 ± 2.7 / 56.1 ± 4.2 % | 0.49 / 0.72 ms (1.47×) | 0.78 / 4.17 (5.3×) | 0.82 / 2.71 (3.3×) | 0.7 / 7.3 KB |
-| max-10 % | 53.4 ± 1.9 / 62.4 ± 2.0 % | 1.83 / 2.93 (1.60×) | 4.01 / 31.23 (7.8×) | 3.64 / 12.00 (3.3×) | |
-| max-5 % | 56.8 ± 0.7 / 66.2 ± 2.6 % | 3.76 / 7.14 (1.90×) | 10.99 / 114.22 (10.4×) | 9.89 / 78.04 (7.9×) | |
-| max | 58.8 ± 0.9 / 67.9 ± 0.9 % | 3.83 / 7.11 (1.85×) | 12.78 / 115.62 (9.0×) | 11.72 / 77.70 (6.6×) | 5.6 / 42.5 KB |
+| min | 32.7 ± 3.3 / 56.1 ± 5.2 % | 0.49 / 0.72 ms (1.47×) | 0.78 / 4.17 (5.3×) | 0.82 / 2.71 (3.3×) | 0.7 / 7.3 KB |
+| max-10 % | 53.4 ± 2.4 / 62.4 ± 2.5 % | 1.83 / 2.93 (1.60×) | 4.01 / 31.23 (7.8×) | 3.64 / 12.00 (3.3×) | |
+| max-5 % | 56.8 ± 0.9 / 66.2 ± 3.2 % | 3.76 / 7.14 (1.90×) | 10.99 / 114.22 (10.4×) | 9.89 / 78.04 (7.9×) | |
+| max | 58.8 ± 1.1 / 67.9 ± 1.1 % | 3.83 / 7.11 (1.85×) | 12.78 / 115.62 (9.0×) | 11.72 / 77.70 (6.6×) | 5.6 / 42.5 KB |
 
 Here INT8 is clearly more accurate: about 9 points on the three large networks and 23 on the smallest. The
 accelerometer is an 8-bit input, and the benchmark's experiment with an int8 first layer (the option `symbex_bool1d`
-offers) is both more accurate (+4.5-4.8 points on the two small networks, equal on the large ones) and faster on every
-board, because a byte-wide input costs about one operation per sample whether the weights have 1 bit or 8, and the
-chips multiply bytes faster than they count bit planes. The published rows keep the fully binary network because that
+offers) is more accurate on the two small networks (+4.5-4.8 points, equal on the large ones) and as fast as the
+fastest binary first layer (within 1 %; on max it is slower on the ESP32, 14.07 against 12.78 ms, and the M33, 11.81
+against 11.72 ms), because a byte-wide input costs about one operation per sample whether the weights have 1 bit or 8. The published rows keep the fully binary network because that
 is what the benchmark set out to measure; the int8 first layer is the recipe the chain recommends for byte inputs.
 
 **ECG arrhythmia: 1D convolutions on MIT-BIH, unseen patients.** AAMI classes N / S / V / F, the inter-patient split
@@ -420,7 +422,7 @@ reports both operating points and the three scorings of the test set. The Hazard
 reference kernels, the only ones it has for that core, not a tuned INT8. All 39 chip runs (4 cores × 3 networks × 3
 seeds, plus the M33 RAM variant) are exact.
 
-**Digits on an Arduino Uno.** The smallest chip of the study, where no INT8 toolchain runs: scikit-learn Digits
+**Digits on an Arduino Uno.** The smallest chip of the study, where TensorFlow Lite Micro does not run (an AIfES Q7 comparison is future work): scikit-learn Digits
 (8×8, 10 classes), input 1 bit per pixel, network 64-256-10 binary from end to end (`mlp_digits/README.md`,
 `results/`). 94.5 ± 1.3 % on the test images, the accuracy an FP32 network reaches on the same 1-bit input (94.4 %);
 5.3 ms per image at 16 MHz, 3.4 KB of flash and 0.21 KB of RAM, exact. The FP32 original (64-128-10, 98.3 %) needs
