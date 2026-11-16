@@ -482,7 +482,8 @@ wins by 1.0-2× on the S3's convolutional networks and by 2-8× on the M33, and 
 own INT8 library (ESP-DL) is faster than the standard engine. Beating it took a second engine written for that unit
 (the vertical engine, 1.4-1.5× faster than ESP-DL with the weights in flash, 1.06× slower with both in RAM at a smaller
 RAM budget, faster again in the compact and prepared modes at a larger one). The exception to "1-2× with SIMD" is the
-MLP in flash (28×), which is a memory effect: the binary weights fit the flash cache and the INT8 ones do not. A
+MLP in flash (28× on the S3, 6.9× on the M33), which is a memory effect: the binary weights fit the flash cache and the
+INT8 ones do not; the large ECG network shows the same on the M33 (12.6× in flash, 3.0× with both in RAM). A
 sub-byte INT4 / INT2 model does not recover that, because the kernels unpack it to int8 before multiplying.
 
 **Flash and RAM pay everywhere.** 3-10× less flash on every benchmark (the model itself), and less RAM: ResNet-8
