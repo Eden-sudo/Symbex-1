@@ -21,8 +21,8 @@ wherever bit operations are cheaper than multiplications.
 Binary networks are not new: they have run on FPGAs (FINN), on phones (daBNN, Larq) and on microcontrollers (eBNN,
 McDanel et al. 2017; ultracompactBNN, Daghero et al. 2021; CBin-NN, Sakr et al. 2024). What SYMBEX-1 adds is the proof
 that the chain goes all the way: every compiled model gives the same answer as its integer simulation on 100 % of the
-inputs, and every result is the same network measured on the same commercial chip, on three architectures (Xtensa,
-Cortex-M33, RISC-V), against the official INT8 toolchain, TensorFlow Lite Micro, with three seeds and the test set
+inputs checked, and every result is the same network measured on the same commercial chip, on four processor cores of
+three architectures (Xtensa, Arm Cortex-M33, RISC-V) plus the Arduino Uno's AVR, against the official INT8 toolchain, TensorFlow Lite Micro, with three seeds and the test set
 used once.
 
 ## Why binary?
@@ -74,15 +74,17 @@ axes; "vertical" is SYMBEX's engine for the ESP32-S3's SIMD unit.
 
 - **INT8 is the most accurate:** the official MLPerf Tiny model reaches 87.0 % on CIFAR-10. The fully binary ResNet-8
   reaches 71.3 %, and 76.7 % with an 8-bit first layer and classifier: 10 to 16 points less.
-- **Binary is much faster:** on the ESP32-S3, 9.70 ms against 52.0 ms (5.4×) with the [vertical engine](docs/en/vertical.md);
+- **Binary is much faster:** on the ESP32-S3, 9.70 ms against 52.0 ms (5.4×) with the [vertical engine](docs/en/vertical.md), and 6.02 ms (8.6×) in its
+  prepared mode (217 KB of RAM);
   on the classic ESP32, 48.6 ms against 717.8 ms (14.8×) with the vertical engine's compact mode (200 KB of RAM; the
   standard engine 62.5 ms, 79 KB); on the Raspberry Pi Pico 2 (Cortex-M33), 67.8 ms against
   453 ms with CMSIS-NN (6.7×).
 - **And much smaller:** 24-29 KB of flash against 96 KB.
 
 TFLite Micro is the INT8 path almost everyone uses, not the fastest INT8 possible: Espressif's ESP-DL runs ResNet-8 in
-14.8 ms on the ESP32-S3 (a quick check, not on the chart). The vertical engine is still faster there with the weights in
-flash; [Results](docs/en/results.md#how-fast-could-int8-be) has the comparison and what is not measured yet.
+14.8 ms on the ESP32-S3 (a quick check, not on the chart). The vertical engine is still faster there: 1.53× with the
+weights in flash, and against ESP-DL with its weights in RAM (9.8 ms, 147 KB) 1.39× in the compact mode (7.07 ms, 138 KB
+of working RAM, weights in flash) and 1.63× in the prepared mode (6.02 ms, 217 KB); [Results](docs/en/results.md#how-fast-could-int8-be) has the comparison and what is not measured yet.
 
 ### The MLP: one bit against INT8, INT4 and INT2
 
@@ -115,9 +117,9 @@ The same network on the same chip, binary against TFLite Micro INT8:
 |---|---|---|---|
 | [ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/), CIFAR-10 images | 76.7 / 87.0 % | 5.4× (ESP32-S3) to 14.8× (ESP32) faster | 29 / 96 KB flash |
 | [FOMO](benchmarks/conv2d/fomo_voc_person/), person detection | **F1 31.2 / 30.1 %** | 2.0× faster (ESP32-S3); only SYMBEX fits the ESP32 | 41 / 236 KB flash |
-| [MLP](benchmarks/mlp/mlp_fashion/), Fashion-MNIST | 87.5 / 89.8 % | 28× (flash) and 2.1× (RAM) on the ESP32-S3, 8.8× on the ESP32 | 27 / 187 KB flash |
-| [1D convolutions](benchmarks/conv1d/har_ultracompact/), activity recognition | INT8 about 9 points better | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 6.5-10× less flash |
-| [ECG](benchmarks/conv1d/ecg_mitbih/), arrhythmia beats (inter-patient) | balanced 67-75 / 71-72 %, tied within the spread | 6.0-13.4× (ESP32), 2.0-3.0× (Pico 2 M33), 1.04-1.59× (ESP32-S3) | 6.6-8.4× less flash |
+| [MLP](benchmarks/mlp/mlp_fashion/), Fashion-MNIST | 87.5 / 89.8 % | 28× (flash) and 2.1× (RAM) on the ESP32-S3, 8.8× on the ESP32 (to re-measure: 13.4× with the current library, energy run) | 27 / 187 KB flash |
+| [1D convolutions](benchmarks/conv1d/har_ultracompact/), activity recognition | INT8 9-23 points better (worst on the smallest network) | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 6.5-10× less flash |
+| [ECG](benchmarks/conv1d/ecg_mitbih/), arrhythmia beats (inter-patient) | balanced 67-75 / 71-72 %, tied within the spread | 6.0-13.4× (ESP32), 2.0-3.0× (Pico 2 M33; 12.6× for l with the weights in flash), 1.04-1.59× (ESP32-S3) | 6.6-8.4× less flash |
 | [Digits](benchmarks/mlp/mlp_digits/), on an Arduino Uno | 94.5 % (FP32 on the same input 94.4 %) | 5.3 ms on a 16 MHz AVR | 3.4 KB flash, 0.21 KB RAM |
 
 Against another binary library, ultracompactBNN (Daghero et al. 2021), in its own simulated RISC-V processor, SYMBEX
@@ -128,7 +130,8 @@ needs 1.07-1.37× fewer instructions on its four networks. Every table, chip and
 
 1. **Binary pays most where the chip has no SIMD.** On the classic ESP32, counting bits is an order of magnitude
    cheaper than multiplying bytes (5.3-14.8× on whole networks). On the ESP32-S3, whose SIMD unit speeds up INT8, the
-   standard engine wins by 1.3-2×, and beating Espressif's own INT8 library took a dedicated engine (vertical).
+   standard engine wins by 1.0-2.0× on convolutional networks, and beating Espressif's own INT8 library took a dedicated
+   engine (vertical: 5.0-8.6× faster than TFLite Micro on ResNet-8, depending on its RAM).
 2. **Binary does not replace INT8 on fine-grained classification.** On CIFAR-10 even the best binary recipe stays 10
    points behind. A [study](benchmarks/experiments/training_gap/) found the cause is mostly capacity, not training: the
    binary ResNet-8 fits 72 % of its training images, its full-precision twin 92 %.
@@ -142,7 +145,7 @@ needs 1.07-1.37× fewer instructions on its four networks. Every table, chip and
 6. **Per byte, low-bit integers are more accurate.** INT2 and INT4 beat one bit at the same model size; one bit wins
    speed and the smallest chips.
 7. **Exact, or it does not count.** Every model is checked bit by bit: the C on the PC and on the chip must equal the
-   integer simulation, image by image.
+   integer simulation, input by input.
 
 ## How it works
 
@@ -186,11 +189,11 @@ The full standard, the references and how to repeat a benchmark: [docs/en/method
 
 ## Current state and next steps
 
-Done: fully binary 2D and 1D convolutions, dense networks, five chips (ESP32, ESP32-S3, both cores of the Raspberry
-Pi Pico 2, AVR), the vertical engine for the ESP32-S3, and the int8 first layer and classifier as options (November
+Done: fully binary 2D and 1D convolutions, dense networks, four chips and five processor cores (ESP32, ESP32-S3,
+both cores of the Raspberry Pi Pico 2, the Arduino Uno's AVR), the vertical engine for the ESP32-S3, and the int8 first layer and classifier as options (November
 2026). Next:
 
-- **Energy:** measured with a USB power meter, one 10-minute run each ([ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md)):
+- **Energy (done, Nov 14-15, 2026):** measured with a USB power meter, one 10-minute run each ([ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md)):
   one image costs 6.6× less energy than TFLite Micro INT8 on the ESP32-S3 (7.2 vs 47.7 mJ) and 13× less on the classic
   ESP32 (22 vs 296 mJ). On the classic ESP32 the other benchmarks too: MLP 11×, HAR 8.7×, ECG 8.0× less energy per
   inference; FOMO 96 mJ per frame, where TFLite Micro does not fit. On the S3 every benchmark uses less energy too:

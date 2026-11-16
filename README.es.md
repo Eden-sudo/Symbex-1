@@ -21,8 +21,8 @@ la misma cadena sirve donde las operaciones de bits sean más baratas que las mu
 Las redes binarias no son nuevas: han corrido en FPGA (FINN), en teléfonos (daBNN, Larq) y en microcontroladores (eBNN,
 McDanel et al. 2017; ultracompactBNN, Daghero et al. 2021; CBin-NN, Sakr et al. 2024). Lo que SYMBEX-1 añade es la
 prueba de que la cadena llega hasta el final: cada modelo compilado da la misma respuesta que su simulación entera en el
-100 % de las entradas, y cada resultado es la misma red medida en el mismo chip comercial, en tres arquitecturas
-(Xtensa, Cortex-M33, RISC-V), contra la herramienta oficial de INT8, TensorFlow Lite Micro, con tres semillas y el
+100 % de las entradas verificadas, y cada resultado es la misma red medida en el mismo chip comercial, en cuatro núcleos
+de tres arquitecturas (Xtensa, Arm Cortex-M33, RISC-V) más el AVR del Arduino Uno, contra la herramienta oficial de INT8, TensorFlow Lite Micro, con tres semillas y el
 conjunto de test usado una sola vez.
 
 ## ¿Por qué binario?
@@ -74,7 +74,8 @@ otro supera en los dos ejes a la vez; "vertical" es el motor de SYMBEX para la u
 
 - **INT8 es la más precisa:** el modelo oficial de MLPerf Tiny llega a 87.0 % en CIFAR-10. La ResNet-8 completamente
   binaria llega a 71.3 %, y a 76.7 % con la primera capa y el clasificador en 8 bits: de 10 a 16 puntos menos.
-- **La binaria es mucho más rápida:** en el ESP32-S3, 9.70 ms contra 52.0 ms (5.4×) con el [motor vertical](docs/es/vertical.md);
+- **La binaria es mucho más rápida:** en el ESP32-S3, 9.70 ms contra 52.0 ms (5.4×) con el [motor vertical](docs/es/vertical.md), y 6.02 ms (8.6×) en su
+  modo preparado (217 KB de RAM);
   en el ESP32 clásico, 48.6 ms contra 717.8 ms (14.8×) con el modo compacto del motor vertical (200 KB de RAM; el motor
   estándar 62.5 ms, 79 KB); en la Raspberry Pi Pico 2 (Cortex-M33), 67.8 ms contra 453 ms
   con CMSIS-NN (6.7×).
@@ -82,7 +83,8 @@ otro supera en los dos ejes a la vez; "vertical" es el motor de SYMBEX para la u
 
 TFLite Micro es la ruta INT8 que usa casi todo el mundo, no el INT8 más rápido posible: ESP-DL de Espressif ejecuta
 ResNet-8 en 14.8 ms en el ESP32-S3 (una prueba rápida, no está en la gráfica). El motor vertical sigue siendo más
-rápido ahí con los pesos en flash; [Resultados](docs/es/results.md#qué-tan-rápido-podría-ser-int8) tiene la comparación y
+rápido ahí: 1.53× con los pesos en flash, y contra ESP-DL con sus pesos en RAM (9.8 ms, 147 KB) 1.39× en el modo compacto
+(7.07 ms, 138 KB de RAM de trabajo, pesos en flash) y 1.63× en el modo preparado (6.02 ms, 217 KB); [Resultados](docs/es/results.md#qué-tan-rápido-podría-ser-int8) tiene la comparación y
 lo que falta medir.
 
 ### El MLP: un bit contra INT8, INT4 e INT2
@@ -116,9 +118,9 @@ La misma red en el mismo chip, binaria contra INT8 de TFLite Micro:
 |---|---|---|---|
 | [ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/), imágenes CIFAR-10 | 76.7 / 87.0 % | de 5.4× (ESP32-S3) a 14.8× (ESP32) más rápida | 29 / 96 KB de flash |
 | [FOMO](benchmarks/conv2d/fomo_voc_person/), detección de personas | **F1 31.2 / 30.1 %** | 2.0× más rápido (ESP32-S3); solo SYMBEX cabe en el ESP32 | 41 / 236 KB de flash |
-| [MLP](benchmarks/mlp/mlp_fashion/), Fashion-MNIST | 87.5 / 89.8 % | 28× (flash) y 2.1× (RAM) en el ESP32-S3, 8.8× en el ESP32 | 27 / 187 KB de flash |
-| [Convoluciones 1D](benchmarks/conv1d/har_ultracompact/), reconocimiento de actividad | INT8 unos 9 puntos mejor | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 6.5-10× menos flash |
-| [ECG](benchmarks/conv1d/ecg_mitbih/), latidos arrítmicos (entre pacientes) | balanceada 67-75 / 71-72 %, empate dentro de la dispersión | 6.0-13.4× (ESP32), 2.0-3.0× (Pico 2 M33), 1.04-1.59× (ESP32-S3) | 6.6-8.4× menos flash |
+| [MLP](benchmarks/mlp/mlp_fashion/), Fashion-MNIST | 87.5 / 89.8 % | 28× (flash) y 2.1× (RAM) en el ESP32-S3, 8.8× en el ESP32 (a medir de nuevo: 13.4× con la librería actual, corrida de energía) | 27 / 187 KB de flash |
+| [Convoluciones 1D](benchmarks/conv1d/har_ultracompact/), reconocimiento de actividad | INT8 9-23 puntos mejor (peor en la red más pequeña) | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 6.5-10× menos flash |
+| [ECG](benchmarks/conv1d/ecg_mitbih/), latidos arrítmicos (entre pacientes) | balanceada 67-75 / 71-72 %, empate dentro de la dispersión | 6.0-13.4× (ESP32), 2.0-3.0× (Pico 2 M33; 12.6× para l con los pesos en flash), 1.04-1.59× (ESP32-S3) | 6.6-8.4× menos flash |
 | [Dígitos](benchmarks/mlp/mlp_digits/), en un Arduino Uno | 94.5 % (FP32 con la misma entrada 94.4 %) | 5.3 ms en un AVR de 16 MHz | 3.4 KB de flash, 0.21 KB de RAM |
 
 Contra otra librería binaria, ultracompactBNN (Daghero et al. 2021), en su propio procesador RISC-V simulado, SYMBEX
@@ -129,7 +131,8 @@ necesita 1.07-1.37× menos instrucciones en sus cuatro redes. Todas las tablas, 
 
 1. **Lo binario rinde más donde el chip no tiene SIMD.** En el ESP32 clásico, contar bits es un orden de magnitud más
    barato que multiplicar bytes (5.3-14.8× en redes completas). En el ESP32-S3, cuya unidad SIMD acelera INT8, el
-   motor estándar gana por 1.3-2×, y superar a la propia librería INT8 de Espressif necesitó un motor dedicado (vertical).
+   motor estándar gana por 1.0-2.0× en redes convolucionales, y superar a la propia librería INT8 de Espressif necesitó
+   un motor dedicado (vertical: 5.0-8.6× más rápido que TFLite Micro en ResNet-8, según su RAM).
 2. **Lo binario no reemplaza a INT8 en clasificación fina.** En CIFAR-10 incluso la mejor receta binaria queda 10
    puntos atrás. Un [estudio](benchmarks/experiments/training_gap/) encontró que la causa es sobre todo la capacidad, no
    el entrenamiento: la ResNet-8 binaria ajusta el 72 % de sus imágenes de entrenamiento, su gemela de precisión completa
@@ -146,7 +149,7 @@ necesita 1.07-1.37× menos instrucciones en sus cuatro redes. Todas las tablas, 
 6. **Por byte, los enteros de pocos bits son más precisos.** INT2 e INT4 superan a un bit con el mismo tamaño de
    modelo; un bit gana en velocidad y en los chips más pequeños.
 7. **Exacto, o no cuenta.** Cada modelo se verifica bit a bit: el C en la PC y en el chip tiene que ser igual a la
-   simulación entera, imagen por imagen.
+   simulación entera, entrada por entrada.
 
 ## Cómo funciona
 
@@ -193,14 +196,14 @@ El estándar completo, las referencias y cómo repetir un benchmark: [docs/es/me
 
 ## Estado actual y próximos pasos
 
-Hecho: convoluciones 2D y 1D completamente binarias, redes densas, cinco chips (ESP32, ESP32-S3, los dos núcleos de la
-Raspberry Pi Pico 2, AVR), el motor vertical para el ESP32-S3, y la primera capa y el clasificador int8 como opciones
+Hecho: convoluciones 2D y 1D completamente binarias, redes densas, cuatro chips y cinco núcleos (ESP32, ESP32-S3, los dos
+núcleos de la Raspberry Pi Pico 2, el AVR del Arduino Uno), el motor vertical para el ESP32-S3, y la primera capa y el clasificador int8 como opciones
 (noviembre de 2026). Lo siguiente:
 
-- **Energía:** medida con un medidor USB, una corrida de 10 minutos por caso ([ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md)):
+- **Energía (hecho, 14-15 nov. 2026):** medida con un medidor USB, una corrida de 10 minutos por caso ([ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md)):
   una imagen cuesta 6.6× menos energía que con TFLite Micro INT8 en el ESP32-S3 (7.2 frente a 47.7 mJ) y 13× menos en
   el ESP32 clásico (22 frente a 296 mJ). En el ESP32 clásico también los demás benchmarks: MLP 11×, HAR 8.7×, ECG 8.0×
-  menos energía por inferencia; FOMO 96 mJ por imagen, donde TFLite Micro no cabe
+  menos energía por inferencia; FOMO 96 mJ por imagen, donde TFLite Micro no cabe.
   En el S3 todos los benchmarks gastan menos energía también: MLP 25×, FOMO 2.0×, HAR 1.8×, ECG 1.4×, ResNet-8 con el
   motor preparado 10.5× (4.5 mJ) ([docs/es/results.md](docs/es/results.md#energía)). Después: el Pico 2.
 - **ESP-DL** como referencia INT8 completa (3 semillas, todo el conjunto de prueba, todos los benchmarks).

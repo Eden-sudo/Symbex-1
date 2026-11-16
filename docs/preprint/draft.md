@@ -12,6 +12,8 @@ against the INT8 toolchain.
 **Authors.** Carlos Duarte, Obed Gonzales, Abrahan Aparicio. Universidad Latina de Panamá, Licenciatura en Mecatrónica.
 `[order and contribution lines: to be decided]`
 
+**Last updated.** November 16, 2026.
+
 **Abstract.** Microcontrollers run neural networks mostly in INT8, through TensorFlow Lite Micro and the vendor's
 kernels. Binary networks, with one bit per weight and per activation, promise eight times smaller weights and
 multiply-free arithmetic, but are rarely measured against that toolchain on commercial chips. We present SYMBEX-1, an
