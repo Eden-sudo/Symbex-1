@@ -13,17 +13,44 @@
   <a href="README.md"><img src="https://img.shields.io/badge/read-in%20English-334155" alt="read"></a>
 </p>
 
-**SYMBEX-1 es un framework de extremo a extremo para redes neuronales binarias, un bit por peso y por activación:
-se entrenan, se pliegan a enteros, se compilan a C y se miden en hardware real.** Su primer objetivo es el hardware
-más pequeño que existe, microcontroladores con unos cientos de KB de RAM y sin punto flotante, donde cada bit cuenta;
-la misma cadena sirve donde las operaciones de bits sean más baratas que las multiplicaciones.
+**SYMBEX-1 convierte una red neuronal en una binaria (un bit por peso y por activación) y la ejecuta en C puro en un
+microcontrolador.** Le das un modelo de PyTorch, tus datos y los límites de tu chip; entrena la red binaria, la
+convierte a C solo con enteros y comprueba en tu placa que el C da exactamente las respuestas de su simulación. Está
+hecho para chips con unos cientos de KB de RAM y sin punto flotante, donde un modelo INT8 es demasiado grande o lento.
+
+## Cómo se usa
+
+1. **Describe el trabajo** en un `symbex.toml`: la red, los datos y los límites del chip
+   ([`tools/configs/example.toml`](tools/configs/example.toml) tiene todas las opciones, comentadas).
+2. **Ejecuta el CDT**, el compilador de SYMBEX ([docs/es/cdt.md](docs/es/cdt.md)): `python tools/cdt.py symbex.toml`.
+   Entrena la red binaria, pliega la escala y la BatchNorm en un umbral entero por salida, escribe un header de C y
+   comprueba el C contra la simulación entera del modelo en la PC y, con una placa conectada, en el chip.
+3. **Agrégalo a tu firmware**: copia [`lib_symbex`](Symbex1_PIO/lib/lib_symbex/) y el header generado a tu proyecto
+   (PlatformIO o cualquier compilador de C) y llama a la función de inferencia. Todo modelo exportado tiene la misma
+   interfaz ([`Symbex1_PIO/src/main.cpp`](Symbex1_PIO/src/main.cpp) es un ejemplo completo):
+
+   ```c
+   #include "model_symbex.h"   // escrito por el CDT: pesos, umbrales, buffers; incluye lib_symbex
+
+   int cls = symbex_mlp_infer(input);   // input: SYMBEX_MLP_N_INPUTS valores uint8_t (píxeles o muestras)
+   ```
+
+**Soportado:** capas densas, convoluciones 1D y 2D, atajos residuales, max pooling; como opción, una primera capa int8
+y un clasificador int8 con pooling. El CDT binariza por sí solo un modelo denso de PyTorch; las redes convolucionales se
+escriben con las capas binarias de SYMBEX (ver los [benchmarks](benchmarks/)). **Todavía no:** convoluciones depthwise,
+capas recurrentes. **Chips:** ESP32, ESP32-S3 (con un segundo motor para su unidad SIMD), Raspberry Pi Pico 2 / RP2350
+(núcleos Cortex-M33 y Hazard3 RISC-V), AVR (Arduino Uno) y cualquier compilador de C en una PC.
+
+## Qué tiene de distinto
 
 Las redes binarias no son nuevas: han corrido en FPGA (FINN), en teléfonos (daBNN, Larq) y en microcontroladores (eBNN,
-McDanel et al. 2017; ultracompactBNN, Daghero et al. 2021; CBin-NN, Sakr et al. 2024). Lo que SYMBEX-1 añade es la
-prueba de que la cadena llega hasta el final: cada modelo compilado da la misma respuesta que su simulación entera en el
-100 % de las entradas verificadas, y cada resultado es la misma red medida en el mismo chip comercial, en cuatro núcleos
-de tres arquitecturas (Xtensa, Arm Cortex-M33, RISC-V) contra la herramienta oficial de INT8, TensorFlow Lite Micro, más el AVR del Arduino Uno, con tres semillas y el
-conjunto de test usado una sola vez.
+McDanel et al. 2017; ultracompactBNN, Daghero et al. 2021; CBin-NN, Sakr et al. 2024). Lo que SYMBEX-1 añade:
+
+- **Comprobado, no supuesto.** Cada modelo exportado se compara bit a bit con su simulación entera, en la PC y en el
+  chip, y tiene que coincidir en el 100 % de las entradas verificadas.
+- **Medido contra lo que la gente despliega.** Cada número de abajo es la misma red medida contra TensorFlow Lite Micro
+  INT8 en el mismo chip: cuatro núcleos de tres arquitecturas (Xtensa, Arm Cortex-M33, RISC-V), tres semillas, el
+  conjunto de prueba usado una sola vez. El AVR del Arduino Uno, donde TFLite Micro no corre, se muestra aparte.
 
 ## ¿Por qué binario?
 

@@ -13,17 +13,44 @@
   <a href="README.es.md"><img src="https://img.shields.io/badge/leer-en%20espa%C3%B1ol-334155" alt="leer"></a>
 </p>
 
-**SYMBEX-1 is an end-to-end framework for binary neural networks, one bit per weight and per activation: trained,
-folded into integers, compiled to C and measured on real hardware.** Its first target is the smallest hardware there
-is, microcontrollers with a few hundred KB of RAM and no floating point, where every bit counts; the same chain applies
-wherever bit operations are cheaper than multiplications.
+**SYMBEX-1 turns a neural network into a binary one (one bit per weight and per activation) and runs it in plain C
+on a microcontroller.** You give it a PyTorch model, your data and your chip's limits; it trains the binary network,
+converts it to integer-only C, and checks on your board that the C gives exactly the answers of its simulation. It is
+built for chips with a few hundred KB of RAM and no floating point, where an INT8 model is too big or too slow.
+
+## How you use it
+
+1. **Describe the job** in a `symbex.toml`: the network, the data and the chip's limits
+   ([`tools/configs/example.toml`](tools/configs/example.toml) has every option, commented).
+2. **Run the CDT**, SYMBEX's compiler ([docs/en/cdt.md](docs/en/cdt.md)): `python tools/cdt.py symbex.toml`. It trains
+   the binary network, folds scale and BatchNorm into one integer threshold per output, writes a C header, and checks
+   the C against the model's integer simulation on the PC and, with a board connected, on the chip.
+3. **Add it to your firmware**: copy [`lib_symbex`](Symbex1_PIO/lib/lib_symbex/) and the generated header into your
+   project (PlatformIO or any C toolchain) and call the inference function. Every exported model has the same
+   interface ([`Symbex1_PIO/src/main.cpp`](Symbex1_PIO/src/main.cpp) is a complete example):
+
+   ```c
+   #include "model_symbex.h"   // written by the CDT: weights, thresholds, buffers; it includes lib_symbex
+
+   int cls = symbex_mlp_infer(input);   // input: SYMBEX_MLP_N_INPUTS uint8_t values (pixels or samples)
+   ```
+
+**Supported:** dense layers, 1D and 2D convolutions, residual shortcuts, max pooling; optionally an int8 first layer
+and a pooled int8 classifier. The CDT binarizes a dense PyTorch model by itself; convolutional networks are written
+with SYMBEX's binary layers (see the [benchmarks](benchmarks/)). **Not yet:** depthwise convolutions, recurrent layers.
+**Chips:** ESP32, ESP32-S3 (with a second engine for its SIMD unit), Raspberry Pi Pico 2 / RP2350 (Cortex-M33 and
+Hazard3 RISC-V cores), AVR (Arduino Uno), and any C compiler on a PC.
+
+## What's different
 
 Binary networks are not new: they have run on FPGAs (FINN), on phones (daBNN, Larq) and on microcontrollers (eBNN,
-McDanel et al. 2017; ultracompactBNN, Daghero et al. 2021; CBin-NN, Sakr et al. 2024). What SYMBEX-1 adds is the proof
-that the chain goes all the way: every compiled model gives the same answer as its integer simulation on 100 % of the
-inputs checked, and every result is the same network measured on the same commercial chip, on four processor cores of
-three architectures (Xtensa, Arm Cortex-M33, RISC-V) against the official INT8 toolchain, TensorFlow Lite Micro, plus the Arduino Uno's AVR, with three seeds and the test set
-used once.
+McDanel et al. 2017; ultracompactBNN, Daghero et al. 2021; CBin-NN, Sakr et al. 2024). What SYMBEX-1 adds:
+
+- **Checked, not trusted.** Every exported model is compared bit by bit with its integer simulation, on the PC and on
+  the chip, and must agree on 100 % of the inputs checked.
+- **Measured against what people deploy.** Every number below is the same network measured against TensorFlow Lite
+  Micro INT8 on the same chip: four processor cores of three architectures (Xtensa, Arm Cortex-M33, RISC-V), three
+  seeds, the test set used once. The Arduino Uno's AVR, where TFLite Micro does not run, is shown on its own.
 
 ## Why binary?
 
