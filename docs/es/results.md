@@ -389,8 +389,8 @@ Los demás benchmarks en el ESP32-S3 (semilla 42, pesos en flash, el mismo medid
 - En el S3, el motor vertical preparado (listas y umbrales precalculados, 238 KB de RAM) gasta 1.51× menos energía por
   imagen que el vertical por defecto (1.39-1.64×) con 1.60× la velocidad: leer las tablas preparadas cuesta mucho
   menos que el trabajo que ahorran.
-- MLP en el S3 con los pesos en RAM en los dos lados: 0.38 frente a 0.68 mJ, 1.79× (1.66-1.92×). TFLite no gasta su
-  energía esperando a la flash; su corrida en flash es lenta y cara por la misma razón que la de RAM, solo que más.
+- MLP en el S3 con los pesos en RAM en los dos lados: 0.38 frente a 0.68 mJ, 1.79× (1.66-1.92×). Pasar el modelo de
+  TFLite de flash a RAM lo llevó de 8.18 a 0.68 mJ por inferencia; el porqué (esperas de flash u otros costos) no se midió.
 - El S3 marca un 20 % más por el puerto USB-C del medidor que por el USB-A (el ESP32 no); todos los números del S3
   usan el puerto USB-A.
 

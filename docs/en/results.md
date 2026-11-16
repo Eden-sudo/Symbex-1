@@ -432,8 +432,8 @@ The other benchmarks on the ESP32-S3 (seed 42, weights in flash, same meter, USB
 - On the S3, the vertical prepared engine (precomputed lists and thresholds, 238 KB of RAM) uses 1.51× less energy per
   image than the default vertical engine (1.39-1.64×) for 1.60× the speed: reading the prepared tables costs far
   less than the work they save.
-- MLP on the S3 with the weights in RAM on both sides: 0.38 against 0.68 mJ, 1.79× (1.66-1.92×). TFLite does not
-  waste its energy waiting on flash; its flash run is slow and costly for the same reason as its RAM run, only more.
+- MLP on the S3 with the weights in RAM on both sides: 0.38 against 0.68 mJ, 1.79× (1.66-1.92×). Moving TFLite's
+  model from flash to RAM took it from 8.18 to 0.68 mJ per inference; why (flash waits or other costs) was not measured.
 - The S3 reads about 20 % more through the meter's USB-C port than through its USB-A port (the ESP32 does not); every
   S3 number uses the USB-A port.
 
