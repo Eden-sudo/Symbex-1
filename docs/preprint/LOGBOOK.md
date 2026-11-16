@@ -49,6 +49,8 @@ Newest at the bottom of each list.
 | 40 | Abstract | 1.0-2.0× without "on convolutional networks" (MLP 27.8×); "(section 2.2)" cited in the abstract | both fixed; 247 words | this commit |
 | 41 | Intro, §2.1 | "image by image" (also 1D signals) | "input by input" | this commit |
 | 42 | §3.1 ECG, Not written yet | "the flash effect of the MLP"; blank line; "is under 250 words" read as done | "the same flash effect as the MLP's"; list joined; "keep within 250 words" | this commit |
+| 43 | Abstract | "bit-" / "sliced" split across lines (Markdown renders "bit- sliced") | rewrapped without breaking at hyphens; no line in the draft ends in "-"; 247 words (hyphenated words and ranges as one) | this commit |
+| 44 | §3.1 before the ESP-DL table, §3.2 | "against ESP-DL in flash and against ESP-DL in RAM, which favors ESP-DL" ambiguous; §3.2 sentence with four asides | "compared with ESP-DL in flash and with ESP-DL in RAM (the latter favors ESP-DL)"; §3.2 split into three sentences | this commit |
 
 ## Open
 

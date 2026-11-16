@@ -21,11 +21,11 @@ inputs checked, on the PC and on the board. We measured the same networks, binar
 person detection, Fashion-MNIST, activity recognition, ECG beats) on four processor cores of three commercial chips,
 plus a digit classifier on an 8-bit Arduino Uno, with three seeds and the test set used once. On the classic ESP32 (no
 SIMD) binary networks run 5-15 times faster than INT8; on the Cortex-M33 (INT8 on DSP instructions) 2-8 times; on the
-ESP32-S3 (INT8 on SIMD) our standard engine gains only 1.0-2.0 times on convolutional networks and a second, bit-
-sliced engine 5.0-8.6 times on ResNet-8, depending on its RAM. Binary models need 3-10 times less flash and 8-13 times
-less energy per inference on the ESP32 (1.4-25 times on the S3). The accuracy cost depends on the task: no measured
-loss for person detection (INT8 trained with a smaller budget) and ECG beats, two points on Fashion-MNIST, 10-16 on
-CIFAR-10 and 9-23 on activity recognition.
+ESP32-S3 (INT8 on SIMD) our standard engine gains only 1.0-2.0 times on convolutional networks and a second,
+bit-sliced engine 5.0-8.6 times on ResNet-8, depending on its RAM. Binary models need 3-10 times less flash and 8-13
+times less energy per inference on the ESP32 (1.4-25 times on the S3). The accuracy cost depends on the task: no
+measured loss for person detection (INT8 trained with a smaller budget) and ECG beats, two points on Fashion-MNIST,
+10-16 on CIFAR-10 and 9-23 on activity recognition.
 
 **Keywords.** binary neural networks, microcontrollers, quantization, TinyML, edge inference.
 
@@ -343,8 +343,8 @@ core (`cnn_cifar_resnet8/results/symbex/symbex_seeds_<board>_*.json`, `results/t
 Nov 13); TFLite Oct 24 and Nov 3; ESP-DL Nov 2 (outside the repository). lib_symbex changed after the older rows: they
 are to be re-measured on one library version before submission.*
 
-Against ESP-DL, SYMBEX keeps its weights in flash against ESP-DL in flash and against ESP-DL in RAM, which favors
-ESP-DL, except where noted. The SYMBEX RAM below is working RAM only (its weights stay in flash); ESP-DL's 147 KB
+SYMBEX keeps its weights in flash; it is compared with ESP-DL in flash and with ESP-DL in RAM (the latter favors
+ESP-DL), except where noted. The SYMBEX RAM below is working RAM only (its weights stay in flash); ESP-DL's 147 KB
 include its weights, which it copies to RAM. Latencies with two decimals, as in the result files:
 
 | ESP32-S3, ResNet-8 | Latency | RAM | Against ESP-DL, weights in flash (14.8 ms) | Against ESP-DL, weights in RAM (9.8 ms, 147 KB) |
@@ -527,10 +527,10 @@ measurement of section 1: 11-17×). On Hazard3 the gap is far larger (39-153× o
 TensorFlow Lite Micro's reference kernels run there, so that column measures what exists today, not a tuned INT8.
 With an 8-bit SIMD unit (ESP32-S3) or DSP instructions (Cortex-M33) INT8 gets much of that back: the standard engine
 wins by 1.0-2.0× on the S3's convolutional networks and by 2-8× on the M33, and on the S3 the vendor's
-own INT8 library (ESP-DL) is faster than the standard engine. Beating it took a second engine written for that unit
-(the vertical engine: 1.4-1.5× faster than ESP-DL with the weights in flash in its default mode, and 1.4× faster than
-ESP-DL with its weights in RAM in the compact mode of the most accurate recipe, with less RAM, 138 against 147 KB, its weights in flash and ESP-DL's in RAM;
-1.6× in the prepared mode, with more). The exception to the S3's 1.0-2.0× is the
+own INT8 library (ESP-DL) is faster than the standard engine. Beating it took a second engine written for that unit,
+the vertical engine. With the weights in flash, its default mode is 1.4-1.5× faster than ESP-DL. Against ESP-DL with
+its weights in RAM, the compact mode of the most accurate recipe is 1.4× faster while using less RAM (138 against
+147 KB, its own weights still in flash), and the prepared mode 1.6× faster with more. The exception to the S3's 1.0-2.0× is the
 MLP in flash (28× on the S3, 6.9× on the M33), which is a memory effect: the binary weights fit the flash cache and the
 INT8 ones do not; the large ECG network shows the same on the M33 (12.6× in flash, 3.0× with both in RAM). A
 sub-byte INT4 / INT2 model does not recover that, because the kernels unpack it to int8 before multiplying.
