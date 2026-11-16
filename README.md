@@ -14,7 +14,8 @@
 </p>
 
 **SYMBEX-1 turns a neural network into a binary one (one bit per weight and per activation) and runs it in plain C
-on a microcontroller.** You give it a PyTorch model, your data and your chip's limits; it trains the binary network,
+on a microcontroller.** You give it a PyTorch model (a dense one, or a network built from SYMBEX's binary layers), your data and your
+chip's limits; it trains the binary network,
 converts it to integer-only C, and checks on your board that the C gives exactly the answers of its simulation. It is
 built for chips with a few hundred KB of RAM and no floating point, where an INT8 model is too big or too slow.
 
@@ -22,12 +23,13 @@ built for chips with a few hundred KB of RAM and no floating point, where an INT
 
 1. **Describe the job** in a `symbex.toml`: the network, the data and the chip's limits
    ([`tools/configs/example.toml`](tools/configs/example.toml) has every option, commented).
-2. **Run the CDT**, SYMBEX's compiler ([docs/en/cdt.md](docs/en/cdt.md)): `python tools/cdt.py symbex.toml`. It trains
+2. **Run the CDT**, SYMBEX's compiler ([docs/en/cdt.md](docs/en/cdt.md)), from `tools/`: `python cdt.py symbex.toml`. It trains
    the binary network, folds scale and BatchNorm into one integer threshold per output, writes a C header, and checks
    the C against the model's integer simulation on the PC and, with a board connected, on the chip.
 3. **Add it to your firmware**: copy [`lib_symbex`](Symbex1_PIO/lib/lib_symbex/) and the generated header into your
-   project (PlatformIO or any C toolchain) and call the inference function. Every exported model has the same
-   interface ([`Symbex1_PIO/src/main.cpp`](Symbex1_PIO/src/main.cpp) is a complete example):
+   project (PlatformIO or any C toolchain) and call the inference function. Every exported model, dense or
+   convolutional, has the same single call, `symbex_mlp_infer` (the name is historical: the first models were MLPs);
+   [`Symbex1_PIO/src/main.cpp`](Symbex1_PIO/src/main.cpp) is a complete example:
 
    ```c
    #include "model_symbex.h"   // written by the CDT: weights, thresholds, buffers; it includes lib_symbex
@@ -40,6 +42,25 @@ and a pooled int8 classifier. The CDT binarizes a dense PyTorch model by itself;
 with SYMBEX's binary layers (see the [benchmarks](benchmarks/)). **Not yet:** depthwise convolutions, recurrent layers.
 **Chips:** ESP32, ESP32-S3 (with a second engine for its SIMD unit), Raspberry Pi Pico 2 / RP2350 (Cortex-M33 and
 Hazard3 RISC-V cores), AVR (Arduino Uno), and any C compiler on a PC.
+
+## Quick start
+
+To try it in five minutes (each block starts at the repository root):
+
+```
+# the library on your board (PlatformIO): the example must print "8/8 equal to the PC simulation"
+cd Symbex1_PIO && pio run -t upload && pio device monitor -b 115200
+
+# the library tests (gcc)
+python Symbex1_PIO/lib/lib_symbex/tests/run_tests.py
+
+# a model through the CDT, then on a board (both from tools/)
+cd tools
+python cdt.py symbex.toml
+python chip_test.py <output folder> --board esp32 --port /dev/ttyUSB0
+```
+
+Requirements: Python with PyTorch; gcc; PlatformIO and pyserial for the chip; TensorFlow for the INT8 baselines.
 
 ## What's different
 
@@ -178,14 +199,6 @@ needs 1.07-1.37× fewer instructions on its four networks. Every table, chip and
 
 ## How it works
 
-SYMBEX-1 has three parts:
-
-- **`lib_symbex`**: a portable C inference engine for binary networks: bit counting instead of multiplication,
-  integer thresholds, no floating point. One hardware layer per chip family (generic, ESP32, ESP32-S3, AVR, RP2350).
-- **The CDT** (`tools/cdt.py`): takes a model, your data and your hardware limits, trains the binary network, folds
-  it into integers, writes its C header and checks it bit by bit, on the PC and on the chip.
-- **`benchmarks/`**: reproducible comparisons against INT8 TensorFlow Lite Micro on the same chips.
-
 The engine, step by step:
 
 1. **Every layer is binary.** Weights and activations are one bit. A convolution is a bit count (AND or XOR followed
@@ -255,24 +268,9 @@ tools/
                            arithmetic of each chip), train_bench.py
 benchmarks/                reproducible comparisons against TensorFlow Lite Micro: mlp/, conv1d/, conv2d/, experiments/
 tests/                     Python tests (pytest -q from the root)
-docs/                      documentation: en/ (English), es/ (Spanish), assets/ (charts), preprint/
+docs/                      documentation: en/ (English: how-it-works, cdt, library, results, ...), es/ (Spanish),
+                           assets/ (charts), preprint/
 ```
-
-## Quick start
-
-```
-# the library on your board (PlatformIO): the example must print "8/8 equal to the PC simulation"
-cd Symbex1_PIO && pio run -t upload && pio device monitor -b 115200
-
-# the library tests (gcc)
-python Symbex1_PIO/lib/lib_symbex/tests/run_tests.py
-
-# a model through the CDT (from tools/), then on a board
-python cdt.py my_model.toml
-python chip_test.py <output folder> --board esp32 --port /dev/ttyUSB0
-```
-
-Requirements: Python with PyTorch; gcc; PlatformIO and pyserial for the chip; TensorFlow for the INT8 baselines.
 
 ## Previous versions
 

@@ -14,7 +14,8 @@
 </p>
 
 **SYMBEX-1 convierte una red neuronal en una binaria (un bit por peso y por activación) y la ejecuta en C puro en un
-microcontrolador.** Le das un modelo de PyTorch, tus datos y los límites de tu chip; entrena la red binaria, la
+microcontrolador.** Le das un modelo de PyTorch (uno denso, o una red hecha con las capas binarias de SYMBEX), tus datos y los
+límites de tu chip; entrena la red binaria, la
 convierte a C solo con enteros y comprueba en tu placa que el C da exactamente las respuestas de su simulación. Está
 hecho para chips con unos cientos de KB de RAM y sin punto flotante, donde un modelo INT8 es demasiado grande o lento.
 
@@ -22,12 +23,13 @@ hecho para chips con unos cientos de KB de RAM y sin punto flotante, donde un mo
 
 1. **Describe el trabajo** en un `symbex.toml`: la red, los datos y los límites del chip
    ([`tools/configs/example.toml`](tools/configs/example.toml) tiene todas las opciones, comentadas).
-2. **Ejecuta el CDT**, el compilador de SYMBEX ([docs/es/cdt.md](docs/es/cdt.md)): `python tools/cdt.py symbex.toml`.
+2. **Ejecuta el CDT**, el compilador de SYMBEX ([docs/es/cdt.md](docs/es/cdt.md)), desde `tools/`: `python cdt.py symbex.toml`.
    Entrena la red binaria, pliega la escala y la BatchNorm en un umbral entero por salida, escribe un header de C y
    comprueba el C contra la simulación entera del modelo en la PC y, con una placa conectada, en el chip.
 3. **Agrégalo a tu firmware**: copia [`lib_symbex`](Symbex1_PIO/lib/lib_symbex/) y el header generado a tu proyecto
-   (PlatformIO o cualquier compilador de C) y llama a la función de inferencia. Todo modelo exportado tiene la misma
-   interfaz ([`Symbex1_PIO/src/main.cpp`](Symbex1_PIO/src/main.cpp) es un ejemplo completo):
+   (PlatformIO o cualquier compilador de C) y llama a la función de inferencia. Todo modelo exportado, denso o
+   convolucional, tiene la misma llamada única, `symbex_mlp_infer` (el nombre es histórico: los primeros modelos eran
+   MLP); [`Symbex1_PIO/src/main.cpp`](Symbex1_PIO/src/main.cpp) es un ejemplo completo:
 
    ```c
    #include "model_symbex.h"   // escrito por el CDT: pesos, umbrales, buffers; incluye lib_symbex
@@ -40,6 +42,25 @@ y un clasificador int8 con pooling. El CDT binariza por sí solo un modelo denso
 escriben con las capas binarias de SYMBEX (ver los [benchmarks](benchmarks/)). **Todavía no:** convoluciones depthwise,
 capas recurrentes. **Chips:** ESP32, ESP32-S3 (con un segundo motor para su unidad SIMD), Raspberry Pi Pico 2 / RP2350
 (núcleos Cortex-M33 y Hazard3 RISC-V), AVR (Arduino Uno) y cualquier compilador de C en una PC.
+
+## Cómo empezar
+
+Para probarlo en cinco minutos (cada bloque empieza en la raíz del repositorio):
+
+```
+# la librería en tu placa (PlatformIO): el ejemplo tiene que imprimir "8/8 equal to the PC simulation"
+cd Symbex1_PIO && pio run -t upload && pio device monitor -b 115200
+
+# las pruebas de la librería (gcc)
+python Symbex1_PIO/lib/lib_symbex/tests/run_tests.py
+
+# un modelo con el CDT, y después en una placa (los dos desde tools/)
+cd tools
+python cdt.py symbex.toml
+python chip_test.py <carpeta de salida> --board esp32 --port /dev/ttyUSB0
+```
+
+Requisitos: Python con PyTorch; gcc; PlatformIO y pyserial para el chip; TensorFlow para las referencias INT8.
 
 ## Qué tiene de distinto
 
@@ -182,15 +203,6 @@ necesita 1.07-1.37× menos instrucciones en sus cuatro redes. Todas las tablas, 
 
 ## Cómo funciona
 
-SYMBEX-1 tiene tres partes:
-
-- **`lib_symbex`**: un motor de inferencia portable en C para redes binarias: conteo de bits en vez de multiplicación,
-  umbrales enteros, sin punto flotante. Una capa de hardware por familia de chips (genérica, ESP32, ESP32-S3, AVR,
-  RP2350).
-- **El CDT** (`tools/cdt.py`): toma un modelo, tus datos y los límites de tu hardware, entrena la red binaria, la
-  pliega en enteros, escribe su header de C y lo verifica bit a bit, en la PC y en el chip.
-- **`benchmarks/`**: comparaciones reproducibles contra INT8 de TensorFlow Lite Micro en los mismos chips.
-
 El motor, paso a paso:
 
 1. **Todas las capas son binarias.** Pesos y activaciones son de un bit. Una convolución es un conteo de bits (AND o
@@ -262,24 +274,9 @@ tools/
                            count_bench.py (aritmética pura de cada chip), train_bench.py
 benchmarks/                comparaciones reproducibles contra TensorFlow Lite Micro: mlp/, conv1d/, conv2d/, experiments/
 tests/                     pruebas de Python (pytest -q desde la raíz)
-docs/                      documentación: en/ (inglés), es/ (español), assets/ (gráficas), preprint/
+docs/                      documentación: en/ (inglés: how-it-works, cdt, library, results, ...), es/ (español),
+                           assets/ (gráficas), preprint/
 ```
-
-## Cómo empezar
-
-```
-# la librería en tu placa (PlatformIO): el ejemplo tiene que imprimir "8/8 equal to the PC simulation"
-cd Symbex1_PIO && pio run -t upload && pio device monitor -b 115200
-
-# las pruebas de la librería (gcc)
-python Symbex1_PIO/lib/lib_symbex/tests/run_tests.py
-
-# un modelo con el CDT (desde tools/), y después en una placa
-python cdt.py mi_modelo.toml
-python chip_test.py <carpeta de salida> --board esp32 --port /dev/ttyUSB0
-```
-
-Requisitos: Python con PyTorch; gcc; PlatformIO y pyserial para el chip; TensorFlow para las referencias INT8.
 
 ## Versiones anteriores
 
