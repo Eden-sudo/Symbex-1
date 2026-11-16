@@ -395,9 +395,9 @@ boards, weights in flash (the fastest form of the binary first layer in each row
 
 Here INT8 is clearly more accurate: about 9 points on the three large networks and 23 on the smallest. The
 accelerometer is an 8-bit input, and the benchmark's experiment with an int8 first layer (the option `symbex_bool1d`
-offers) is more accurate on the two small networks (+4.5-4.8 points, equal on the large ones) and as fast as the
-fastest binary first layer (within 1 %; on max it is slower on the ESP32, 14.07 against 12.78 ms, and the M33, 11.81
-against 11.72 ms), because a byte-wide input costs about one operation per sample whether the weights have 1 bit or 8. The published rows keep the fully binary network because that
+offers) is more accurate on the two small networks (+4.5-4.8 points, equal on the large ones) and about as fast as
+the fastest binary first layer (from 1.8 % faster to 2.4 % slower; the exception is max on the ESP32, 14.07 against
+12.78 ms), because a byte-wide input costs about one operation per sample whether the weights have 1 bit or 8. The published rows keep the fully binary network because that
 is what the benchmark set out to measure; the int8 first layer is the recipe the chain recommends for byte inputs.
 
 **ECG arrhythmia: 1D convolutions on MIT-BIH, unseen patients.** AAMI classes N / S / V / F, the inter-patient split

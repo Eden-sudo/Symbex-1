@@ -18,7 +18,7 @@ Newest at the bottom of each list.
 | 9 | §3.2 | clipping "+1.7" alone | +1.7 in the training-gap study; no gain in the benchmark recipe (PR #47, 70.9 ± 1.0 vs 71.3 ± 0.8) | 2c970f6 |
 | 10 | §3.1 HAR table | population std (ddof 0), the README moved to sample std (PR #43) | sample std from har_ultracompact/README.md | this commit |
 | 11 | §3.1 HAR | names min / max-10 % ... while the README uses xs / s / m / l | both names given once | this commit |
-| 12 | §3.1 HAR | int8 first layer "faster on every board" | as fast as the fastest binary first layer within 1 %, slower on max (ESP32 14.07 vs 12.78, M33 11.81 vs 11.72) | this commit |
+| 12 | §3.1 HAR | int8 first layer "faster on every board" | about as fast as the fastest binary first layer (-1.8 % to +2.4 %; review: min on the M33 0.84 vs 0.82), slower on max on the ESP32 (14.07 vs 12.78) | this commit |
 
 ## Open
 
