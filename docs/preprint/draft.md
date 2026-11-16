@@ -335,6 +335,7 @@ core (`cnn_cifar_resnet8/results/symbex/symbex_seeds_<board>_*.json`, `results/t
 | ESP32-S3, Espressif ESP-DL INT8 (quick check, section 2.2) | | | 14.8 ms flash; 9.8 ms with the weights in RAM (147 KB of RAM) |
 | ESP32, standard engine | 63.3 ms (11.3×) | 62.5 ms (11.5×) | 717.8 ms (ESP-NN) |
 | ESP32, vertical engine (compact) | not measured | 48.6 ms (14.8×) | |
+| ESP32, Espressif ESP-DL INT8 (quick check) | | | 712.4 ms flash; 603.4 ms with the weights in RAM |
 | Pico 2, Cortex-M33 | 74.5 ms (6.1×) | 67.8 ms (6.7×) | 453.0 ms (CMSIS-NN; 211.4 ms with the model in RAM) |
 | Pico 2, Hazard3 | 56.1 ms | 57.9 ms | 5702 ms (reference kernels, 100 images) |
 | Flash (the model) | 24.3 KB | 29.0 KB | 96.2 KB |
@@ -357,7 +358,9 @@ include its weights, which it copies to RAM. Latencies with two decimals, as in 
 
 So ESP-DL is faster than SYMBEX only against the standard engine and against the default vertical mode of the fully
 binary network with both in RAM; the compact mode of the most accurate recipe beats it with less RAM, the prepared
-mode by the most. Energy was not measured for ESP-DL.
+mode by the most. On the classic ESP32 (no SIMD) ESP-DL does not catch up: with the weights in flash SYMBEX is
+8.0-14.7× faster than ESP-DL (ResNet-8 48.6 against 712.4 ms; the MLP 3.55 against 28.49 ms), same quick check.
+Energy was not measured for ESP-DL.
 
 The vertical engine's modes trade RAM for time on the S3: default 10.4 ms with 63 KB, compact 7.70 ms with 151 KB,
 prepared 6.44 ms with 238 KB (fully binary); 9.70 / 7.07 / 6.02 ms with the most accurate recipe. The same engine also pays without 128-bit SIMD, by less: on the
@@ -381,7 +384,7 @@ Figure 2 puts every ResNet-8 on one accuracy-latency plane per chip.
 | ESP32-S3 | 126.3 ms (2.03×) | 256.9 ms |
 | ESP32 | 226.3 ms | does not fit (the arena overflows the RAM) |
 | Flash | 41.2 KB | 236.1 KB |
-| RAM | 51 KB | 223 KB |
+| RAM (with the 27 KB input image, as in the arena) | 79 KB | 223 KB |
 | Chip equal to its PC reference | 100 % | 88 % |
 
 *Measured Oct 24-28, 2026 (standard engine; no vertical FOMO measured).*

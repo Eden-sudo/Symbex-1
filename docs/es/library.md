@@ -5,7 +5,7 @@
 lib_symbex ejecuta las redes que exporta el [CDT](cdt.md). Es C simple sin dependencias, la memoria del modelo es
 estática, y cada modelo que ejecuta se comprobó bit a bit contra la simulación entera del CDT. Vive en
 `Symbex1_PIO/lib/lib_symbex/`, y las mismas fuentes compilan para la PC, el ESP32, el ESP32-S3 y la Raspberry Pi Pico 2
-(ambos núcleos), además de para PULP en el benchmark 1D.
+(ambos núcleos) y el Arduino Uno (AVR, redes densas), además de para PULP en el benchmark 1D.
 
 ## Usarla en un proyecto
 
@@ -18,10 +18,15 @@ modelos ofrecen la misma llamada:
 int cls = symbex_mlp_infer(input);   // entrada uint8 -> índice de la clase
 ```
 
-En los modelos convolucionales, `input` es una imagen RGB (uint8, orden HWC); en los densos, es el vector de entrada.
+En los modelos convolucionales 2D, `input` es una imagen RGB (uint8, orden HWC); en los 1D, las muestras en orden
+temporal (todos los canales del paso 0, luego del paso 1, ...; uint8 = muestra int8 + 128); en los densos, el vector de
+entrada.
 `SYMBEX_MLP_N_INPUTS` y `SYMBEX_MLP_N_CLASSES` dan los tamaños. Los pesos y los buffers son arreglos estáticos, y no hay
 llamada de inicialización. La única reserva de memoria es la tabla de conteo de 64 KB de la HAL (tabla de 16 bits, en
-el ESP32 y el M33), hecha una vez en el primer conteo; si no hay RAM para ella, la HAL usa SWAR.
+el ESP32 y el M33), hecha una vez en el primer conteo; si no hay RAM para ella, la HAL usa SWAR. El motor vertical tampoco necesita una
+llamada: se compila con `-DSYMBEX_BOOL_VERTICAL` (y `-DSYMBEX_BOOL_VERTICAL_PREPARED` o
+`-DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT` para sus modos opcionales), y el primer `symbex_mlp_infer` construye sus
+listas y umbrales en buffers estáticos que el header ya declara ([El motor vertical](vertical.md)).
 
 `Symbex1_PIO/` es el proyecto mínimo de PlatformIO. `src/main.cpp` ejecuta una red de demostración pequeña y compara
 cada imagen con la clase que dio la simulación en la PC ("8/8 equal"). Para ejecutar un modelo real, copia su

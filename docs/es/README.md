@@ -10,7 +10,7 @@ entran en los detalles.
 | [Cómo funciona](how-it-works.md) | Redes binarias, contar bits en vez de multiplicar, plegar todo en umbrales enteros, exactitud bit a bit |
 | [CDT](cdt.md) | El compilador: de un modelo de PyTorch a un header de C comprobado, en la PC y en el chip |
 | [Librería](library.md) | lib_symbex: las capas, la capa de hardware de cada chip, cómo añadirla a un proyecto |
-| [Resultados](results.md) | Todos los benchmarks en un solo lugar: velocidad, flash y precisión frente a INT8, con las gráficas |
+| [Resultados](results.md) | Todos los benchmarks en un solo lugar: velocidad, flash, precisión y energía frente a INT8, con las gráficas |
 | [Metodología](methodology.md) | El estándar de medición: qué se compara contra qué (INT8, INT4 / INT2, otro motor binario), la lista que sigue cada benchmark, cómo repetirlo |
 | [El motor vertical](vertical.md) | Contar 128 ventanas a la vez: ResNet-8 en 10.4 ms en el ESP32-S3 (7.7 / 6.4 ms con los modos opcionales compacto / preparado; 6.0 ms con el stem int8), la fórmula y la lógica de inferencia |
 
@@ -40,5 +40,6 @@ detector de personas INT8 ni siquiera cabe. En el ESP32-S3, cuya unidad SIMD ace
 1.0-2.0× en las redes convolucionales (ResNet-8: 1.61×) y ESP-DL de Espressif es más rápido que él (14.8 frente a
 32.3 ms). El [motor vertical](vertical.md) le gana a ESP-DL: 9.70 ms con los pesos en flash, y 7.07 ms en su modo
 compacto frente a ESP-DL con sus pesos en RAM (con menos RAM, 138 frente a 147 KB). Con los pesos en RAM, la
-diferencia del MLP se reduce a 2.14×. La precisión está en [Resultados](results.md) y en el README de cada benchmark. Para volver a crear las gráficas después de una nueva medición:
+diferencia del MLP se reduce a 2.14×. La energía por inferencia sigue a la velocidad: 8-13× menos en el ESP32 clásico y 1.4-25× menos en el
+ESP32-S3 ([Resultados](results.md#energía-por-inferencia)). La precisión está en [Resultados](results.md) y en el README de cada benchmark. Para volver a crear las gráficas después de una nueva medición:
 `python tools/dev/docs_charts.py`.

@@ -4,8 +4,8 @@
 
 Todos los benchmarks de SYMBEX-1 siguen el mismo estándar, para que cualquier resultado se pueda revisar, repetir y
 comparar con los demás. Esta página reúne ese estándar: qué se compara, contra qué, cómo, y cómo repetirlo. La única
-excepción es el benchmark 1D contra Daghero et al. (`benchmarks/conv1d/har_ultracompact`), que sigue las redes y el
-simulador de ese artículo.
+excepción es la comparación con ultracompactBNN dentro del benchmark HAR (`benchmarks/conv1d/har_ultracompact`), que
+sigue las redes y el simulador del artículo de Daghero et al.
 
 ## La pregunta
 
@@ -43,7 +43,7 @@ sobre kernels ESP-NN, latencia de la semilla 42; SYMBEX = las redes dimensionada
 
 Lo que dice, sin adornos: con los pesos en flash, un bit se queda con el extremo rápido de la curva (784-128-512 es
 37× más rápido que INT8 con 1.9 puntos menos) e INT4 le gana a INT2 en los dos ejes (desempaquetar códigos de 2 bits
-cuesta más de lo que ahorra); con los pesos en RAM la ventaja baja a 1.34× por los mismos 1.9 puntos, e INT8 le gana a
+cuesta más de lo que ahorra); con los pesos en RAM la ventaja baja a 1.34× (0.556 frente a 0.414 ms; la tabla los redondea) por los mismos 1.9 puntos, e INT8 le gana a
 todas las redes SYMBEX más grandes. Los demás benchmarks tendrán el mismo gráfico a medida que se midan sus
 referencias INT4 / INT2 (ver la última tabla).
 
@@ -53,7 +53,7 @@ referencias INT4 / INT2 (ver la última tabla).
 |---|---|---|
 | **INT8**: TensorFlow Lite Micro (kernels ESP-NN en los ESP32, CMSIS-NN en el Cortex-M33 del Pico 2); ESP-DL en el ESP32-S3 | ¿Qué gana quien hoy despliega con la herramienta estándar? | La referencia de la industria, la más usada. Hecha para precisión, no para el menor costo |
 | **INT4 / INT2**: [`tools/lowbit`](../../tools/lowbit/README.md), multiplicar y acumular sobre los mismos kernels ESP-NN | Con el mismo presupuesto de bits, ¿contar bits le gana a multiplicar? | La competencia directa en eficiencia. Justa por construcción, pero es implementación nuestra: ningún toolchain oficial corre INT2 |
-| **Otro motor binario**: ultracompactBNN (Daghero et al. 2021) | ¿Es SYMBEX una mejor implementación de la misma idea? | Solo en el benchmark 1D, la excepción de arriba |
+| **Otro motor binario**: ultracompactBNN (Daghero et al. 2021) | ¿Es SYMBEX una mejor implementación de la misma idea? | Solo en el benchmark HAR, la excepción de arriba |
 
 INT8 le dice al lector qué cambia frente a lo que ya usa; INT4 e INT2 dicen si un bit es el lugar correcto de la curva;
 el otro motor dice si la implementación es buena.
@@ -73,6 +73,8 @@ Cada benchmark marca esta lista. Una casilla vacía se escribe en el README del 
 - [ ] Un split de validación sacado de los datos de entrenamiento (`load_data` del CDT devuelve train, validación, test).
 - [ ] Toda elección (checkpoint, umbral, variante, forma) se hace en validación. El **test se usa una sola vez**, en los
       modelos finales, y el README dice cuándo.
+- [ ] Cuando el split de validación es demasiado pequeño para elegir una receta, se elige por validación cruzada dentro
+      de los datos de entrenamiento (ECG: 4 particiones por paciente dentro de DS1), y el README lo dice.
 
 **Métodos**
 - [ ] FP32 (el techo), INT8 (TFLite Micro), INT4, INT2 (`tools/lowbit`), SYMBEX.
@@ -84,14 +86,22 @@ Cada benchmark marca esta lista. Una casilla vacía se escribe en el README del 
 - [ ] Reloj de fábrica (240 MHz en los dos ESP32, 150 MHz en el Pico 2), un núcleo, la mediana de 1000 inferencias.
 - [ ] **Pesos en flash primero** (como se despliega un modelo normalmente), después pesos en RAM. Todos los métodos
       comparados tienen sus pesos en el mismo lugar.
-- [ ] **Exacto**: la placa da la misma salida que la simulación entera en el 100 % de las entradas, imagen por imagen,
-      para SYMBEX y para las referencias enteras.
+- [ ] **Exacto**: la placa da la misma salida que la simulación entera en el 100 % de las entradas verificadas (las de
+      validación), entrada por entrada, para SYMBEX y para las referencias enteras.
 
 **Se reporta**
 - [ ] Precisión (validación; test una vez), latencia (ms), flash y RAM (medidas en el chip), energía cuando se mida.
 - [ ] Media ± desviación estándar sobre las 3 semillas. Una sola semilla se llama ranking, no resultado.
 - [ ] Las diferencias menores que las desviaciones estándar se llaman empate.
 - [ ] Las cifras que no se midieron se llaman **estimaciones** y dicen de dónde salen.
+
+**Energía**
+- [ ] Un medidor USB entre el PC y la placa, leído a ojo en mAh enteros, mientras la placa repite una inferencia
+      durante 10 minutos; la placa en reposo medida igual.
+- [ ] Una corrida por red y método (semilla 42, pesos en flash); los rangos mueven cada lectura 1 mAh en el peor
+      sentido.
+- [ ] Placa completa en el puerto USB (chip, regulador, puente USB). En el ESP32-S3 se usa el puerto USB-A del
+      medidor (su puerto USB-C marca un 20 % más).
 
 ## Primero predecir, después medir
 
@@ -155,18 +165,23 @@ librería, las versiones del toolchain, el reloj y el sha256 del modelo FP32.
   existe un kernel INT2 oficial en estos chips.
 - ESP-NN solo existe para los chips de Espressif; en el Pico 2 las referencias enteras por debajo de INT8 necesitan
   otra librería de kernels.
-- ESP-DL se midió una vez, fuera de este repositorio, y solo en el ESP32-S3.
+- ESP-DL se midió una vez (una prueba rápida: una corrida, 100-200 entradas), fuera de este repositorio, en ResNet-8
+  y el MLP, en el ESP32-S3 y en el ESP32 clásico.
 - La energía se mide con un medidor USB leído a ojo (mAh enteros): una corrida de 10 minutos por caso, cocientes con
   sus rangos de ±1 mAh; todos los benchmarks en los dos ESP32 (FOMO INT8 solo en el S3: no cabe en el ESP32). La
   latencia sola no es energía.
-- El benchmark 1D sigue el montaje de Daghero et al., no este estándar.
+- Dentro del benchmark HAR, la comparación con ultracompactBNN sigue el montaje de Daghero et al. (sus redes, GVSoC),
+  no este estándar.
 
 ## Dónde está cada benchmark
 
-| Benchmark | INT8 (TFLite Micro) | INT4 / INT2 | Pico 2 | ESP-DL |
-|---|---|---|---|---|
-| [mlp_fashion](../../benchmarks/mlp/mlp_fashion/README.md) | ESP32, S3, los dos núcleos del Pico 2 | precisión (PC), ESP32, S3 | SYMBEX e INT8 | S3 (fuera del repositorio) |
-| [mlp_digits](../../benchmarks/mlp/mlp_digits/README.md) | ESP32, S3 | pendiente | pendiente | pendiente |
-| [cnn_cifar_resnet8](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md) | ESP32, S3, los dos núcleos del Pico 2 | pendiente (`tools/lowbit` todavía no pliega las conexiones residuales) | SYMBEX e INT8 | S3 (fuera del repositorio) |
-| [fomo_voc_person](../../benchmarks/conv2d/fomo_voc_person/README.md) | S3 (INT8 no cabe en el ESP32) | pendiente | solo SYMBEX | pendiente |
-| [har_ultracompact](../../benchmarks/conv1d/har_ultracompact/README.md) | ESP32, S3 | solo precisión (PC) | solo SYMBEX | la excepción: se compara con ultracompactBNN en GVSoC |
+| Benchmark | INT8 (TFLite Micro) | INT4 / INT2 | Pico 2 | ESP-DL | Energía |
+|---|---|---|---|---|---|
+| [mlp_fashion](../../benchmarks/mlp/mlp_fashion/README.md) | ESP32, S3, los dos núcleos del Pico 2 | precisión (PC), ESP32, S3 | SYMBEX e INT8 | ESP32, S3 (fuera del repositorio) | ESP32, S3 |
+| [mlp_digits](../../benchmarks/mlp/mlp_digits/README.md) | ESP32, S3 | pendiente | solo SYMBEX | pendiente | pendiente |
+| [cnn_cifar_resnet8](../../benchmarks/conv2d/cnn_cifar_resnet8/README.md) | ESP32, S3, los dos núcleos del Pico 2 | pendiente (`tools/lowbit` todavía no pliega las conexiones residuales) | SYMBEX e INT8 | ESP32, S3 (fuera del repositorio) | ESP32, S3 |
+| [fomo_voc_person](../../benchmarks/conv2d/fomo_voc_person/README.md) | S3 (INT8 no cabe en el ESP32) | pendiente | solo SYMBEX | pendiente | ESP32 (solo SYMBEX), S3 |
+| [har_ultracompact](../../benchmarks/conv1d/har_ultracompact/README.md) | ESP32, S3, los dos núcleos del Pico 2 | solo precisión (PC) | SYMBEX e INT8 | pendiente (se compara con ultracompactBNN en GVSoC) | ESP32, S3 |
+| [ecg_mitbih](../../benchmarks/conv1d/ecg_mitbih/README.md) | ESP32, S3, los dos núcleos del Pico 2 | pendiente | SYMBEX e INT8 | pendiente | ESP32, S3 |
+
+La energía en el Pico 2 sigue pendiente en todos los benchmarks.

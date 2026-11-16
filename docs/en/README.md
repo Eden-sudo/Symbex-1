@@ -10,7 +10,7 @@ go into the details.
 | [How it works](how-it-works.md) | Binary networks, counting bits instead of multiplying, folding everything into integer thresholds, bit-exactness |
 | [CDT](cdt.md) | The compiler: from a PyTorch model to a checked C header, on the PC and on the chip |
 | [Library](library.md) | lib_symbex: the layers, the hardware layer of each chip, how to add it to a project |
-| [Results](results.md) | Every benchmark in one place: speed, flash and accuracy against INT8, with the charts |
+| [Results](results.md) | Every benchmark in one place: speed, flash, accuracy and energy against INT8, with the charts |
 | [Methodology](methodology.md) | The measurement standard: what is compared against what (INT8, INT4 / INT2, another binary engine), the checklist every benchmark follows, how to repeat it |
 | [The vertical engine](vertical.md) | Counting 128 windows at once: ResNet-8 in 10.4 ms on the ESP32-S3 (7.7 / 6.4 ms with the optional compact / prepared modes; 6.0 ms with the int8 stem), the formula and the inference logic |
 
@@ -39,5 +39,6 @@ detector does not fit at all. On the ESP32-S3, whose SIMD unit speeds up INT8, t
 convolutional networks (ResNet-8: 1.61×) and Espressif's ESP-DL is faster than it (14.8 against 32.3 ms). The
 [vertical engine](vertical.md) beats ESP-DL: 9.70 ms with the weights in flash, and 7.07 ms in its compact mode against
 ESP-DL with its weights in RAM (with less RAM, 138 against 147 KB). With the weights in RAM, the MLP's gap closes to
-2.14×. Accuracy is in [Results](results.md) and in each benchmark's README. To re-create the charts after a new
+2.14×. Energy per inference follows the speed: 8-13× less on the classic ESP32 and 1.4-25× less on the ESP32-S3
+([Results](results.md#energy-per-inference)). Accuracy is in [Results](results.md) and in each benchmark's README. To re-create the charts after a new
 measurement: `python tools/dev/docs_charts.py`.
