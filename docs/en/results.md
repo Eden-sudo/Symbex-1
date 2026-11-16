@@ -211,7 +211,7 @@ both on a board without training ([Methodology](methodology.md)).
   14.8 ms, 2.6× faster than this engine (see [How fast could INT8 be?](#how-fast-could-int8-be)).
 - **ESP32:** 63.3 ms with the weights in flash vs 717.8 ms (11.3×); 59.7 ms with the weights in RAM.
 - **Pico 2 (fully binary recipe):** 56.1 ms on Hazard3 and 74.5 ms on the M33; on the M33 the vertical engine's prepared mode runs it in
-  57.4 ms (seed 42, a ranking; [The vertical engine](vertical.md#other-chips-pico-2)). TFLite Micro INT8 with CMSIS-NN
+  57.4 ms (seed 42, a ranking; [The vertical engine](vertical.md#other-chips-pico-2-and-the-classic-esp32)). TFLite Micro INT8 with CMSIS-NN
   on the M33: 453.0 ms (6.1×), 211.4 ms with the model in RAM; on Hazard3, with the reference kernels: 5702 ms.
 - **Memory (fully binary recipe):** 24.3 KB of flash vs 96.2 KB, and 15 KB of RAM vs a 53-80 KB arena.
 - **Accuracy (fully binary recipe):** 71.3 ± 0.8 % vs 87.0 %. With the network shaped for binary (16-32-128 / 1-1-2) it reaches 73.1 % at the
