@@ -150,15 +150,15 @@ fully binary RNN runs on a microcontroller, do a real literature search (not don
 
 ## 2026-11-12: moved into the repo
 
-- Copied from `~/Proyectos/rnn_probe` to `benchmarks/experiments/rnn_probe`. Only change to the script: the path to
-  `training_gap/small_gap_study.py` is now relative (it was `~/Proyectos/Symbex1/...`); nothing else, no rerun.
+- Copied from a local folder outside the repository to `benchmarks/experiments/rnn_probe`. Only change to the script: the path to
+  `training_gap/small_gap_study.py` is now relative (it was an absolute local path); nothing else, no rerun.
 - Every 3-seed number in entries 3, 4 and 7 recomputed from the 34 result JSONs: all equal to this logbook.
 - The JSONs of the first runs (binary / twin / tanh base) predate the `--ste`, `--margin-loss`, `--sparse` options and
   do not record them (they ran with the defaults). The file tag says which option a run used (README, table "Files").
 - The literature search for binary RNNs on microcontrollers goes with the preprint review
   (`docs/preprint/related_work.md`).
 
-## 2026-11-12: review of PR #42 (MendCode)
+## 2026-11-12: review of PR #42 (code review)
 
 - **Margin loss (major):** in training, z uses the batch mean and variance, but the distance was rescaled with the
   running variance, so it was measured to neither the training-time threshold nor the inference one. Fixed:
