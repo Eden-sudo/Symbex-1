@@ -10,7 +10,8 @@ longer be what the library gives today.
 
 A file that records `provenance` (tools/compiler_core/chip/provenance.py) is dated by its own run day and library
 commit. Older files carry no date: they are dated by their last commit, which is when the number reached the
-repository, not when it was measured (it may be some days older). INT8 / TFLite, low-bit, random forest and
+repository, not when it was measured (it may be some days older); a
+rename (results/ reorganized into method folders) is followed back and does not count as a change. INT8 / TFLite, low-bit, random forest and
 ultracompactBNN files do not run lib_symbex: their library column is "-".
 """
 import argparse
@@ -29,15 +30,26 @@ def git(*args):
     return subprocess.run(["git", "-C", REPO, *args], capture_output=True, text=True, check=True).stdout
 
 
-def last_commits(paths):
-    """{file: (unix time, day)} of the last commit that changed each file under paths."""
-    out, when = {}, None
-    for line in git("log", "--format=@%ct %cs", "--name-only", "--", *paths).splitlines():
+def last_commits():
+    """{file: (unix time, day)} of the last commit that changed the content of each JSON under benchmarks/. A pure
+    rename (folders reorganized) is followed back to the older name, not counted as a change."""
+    out, alias, when = {}, {}, None
+    for line in git("log", "-M", "--format=@%ct %cs", "--name-status", "--", "benchmarks").splitlines():
         if line.startswith("@"):
             t, day = line[1:].split()
             when = (int(t), day)
-        elif line and line not in out:
-            out[line] = when
+            continue
+        parts = line.split("\t")
+        if len(parts) < 2 or not parts[-1].endswith(".json"):
+            continue
+        status, path = parts[0], parts[-1]
+        current = alias.get(path, path)
+        if status.startswith("R"):
+            alias[parts[1]] = current
+            if status == "R100":
+                continue
+        if status[0] in "AMR" and current not in out:
+            out[current] = when
     return out
 
 
@@ -56,7 +68,7 @@ def main():
                if f.endswith(".json") and "/results/" in f and (not args.match or re.search(args.match, f))]
     if not tracked:
         sys.exit("[X] no result files match")
-    dates = last_commits(sorted({f.split("/results/")[0] + "/results" for f in tracked}))
+    dates = last_commits()
     lib_times = [int(t) for t in git("log", "--format=%ct", "--", LIB).split()]
 
     rows = []
