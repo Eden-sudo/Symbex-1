@@ -328,6 +328,8 @@ core (`cnn_cifar_resnet8/results/symbex/symbex_seeds_<board>_*.json`, `results/t
 | Test accuracy | 71.3 ± 0.8 % | 76.7 ± 0.3 % | 87.0 % |
 | ESP32-S3, standard engine | 39.2 ms (1.33×) | 32.3 ms (1.61×) | 52.0 ms (ESP-NN) |
 | ESP32-S3, vertical engine | 10.4 ms (5.0×) | 9.70 ms (5.4×) | |
+| ESP32-S3, vertical engine, compact mode | 7.70 ms (6.8×) | 7.07 ms (7.4×) | |
+| ESP32-S3, vertical engine, prepared mode | 6.44 ms (8.1×) | 6.02 ms (8.6×) | |
 | ESP32-S3, Espressif ESP-DL INT8 (quick check, section 2.2) | | | 14.8 ms flash; 9.8 ms with the weights in RAM (147 KB of RAM) |
 | ESP32, standard engine | 63.3 ms (11.3×) | 62.5 ms (11.5×) | 717.8 ms (ESP-NN) |
 | ESP32, vertical engine (compact) | not measured | 48.6 ms (14.8×) | |
@@ -341,9 +343,17 @@ core (`cnn_cifar_resnet8/results/symbex/symbex_seeds_<board>_*.json`, `results/t
 Nov 13); TFLite Oct 24 and Nov 3; ESP-DL Nov 2 (outside the repository). lib_symbex changed after the older rows: they
 are to be re-measured on one library version before submission.*
 
-Against ESP-DL the vertical engine is 1.43× (fully binary) and 1.53× (int8 stem recipe) faster with the weights in
-flash; with both models in RAM ESP-DL (9.8 ms, 147 KB of RAM) is 1.06× faster than the default vertical mode (10.4 ms,
-87 KB of RAM with its weights in RAM; 63 KB with them in flash).
+Against ESP-DL, the SYMBEX rows keep their weights in flash (the RAM below is the engine's working RAM):
+
+| ESP32-S3, ResNet-8 | Latency | RAM | Against ESP-DL, weights in flash (14.8 ms) | Against ESP-DL, weights in RAM (9.8 ms, 147 KB) |
+|---|---|---|---|---|
+| vertical, default (fully binary / int8 stem recipe) | 10.4 / 9.70 ms | 63 / 54 KB | 1.43× / 1.53× faster | 1.06× slower (fully binary, both in RAM: 10.4 ms, 87 KB) / 1.01× faster |
+| vertical, compact | 7.70 / 7.07 ms | 151 / 138 KB | 1.92× / 2.09× faster | 1.27× / 1.39× faster (int8 stem recipe: with less RAM) |
+| vertical, prepared | 6.44 / 6.02 ms | 238 / 217 KB | 2.30× / 2.46× faster | 1.52× / 1.63× faster, with more RAM |
+
+So ESP-DL is faster than SYMBEX only against the standard engine and against the default vertical mode of the fully
+binary network with both in RAM; the compact mode of the most accurate recipe beats it with less RAM, the prepared
+mode by the most. Energy was not measured for ESP-DL.
 
 The vertical engine's modes trade RAM for time on the S3: default 10.4 ms with 63 KB, compact 7.70 ms with 151 KB,
 prepared 6.44 ms with 238 KB (fully binary); 9.70 / 7.07 / 6.02 ms with the most accurate recipe. The same engine also pays without 128-bit SIMD, by less: on the
@@ -516,8 +526,9 @@ TensorFlow Lite Micro's reference kernels run there, so that column measures wha
 With an 8-bit SIMD unit (ESP32-S3) or DSP instructions (Cortex-M33) INT8 gets much of that back: the standard engine
 wins by 1.0-2.0× on the S3's convolutional networks and by 2-8× on the M33, and on the S3 the vendor's
 own INT8 library (ESP-DL) is faster than the standard engine. Beating it took a second engine written for that unit
-(the vertical engine, 1.4-1.5× faster than ESP-DL with the weights in flash, 1.06× slower with both in RAM at a smaller
-RAM budget, faster again in the compact and prepared modes at a larger one). The exception to the S3's 1.0-2.0× is the
+(the vertical engine: 1.4-1.5× faster than ESP-DL with the weights in flash in its default mode, and 1.4× faster than
+ESP-DL with its weights in RAM in the compact mode of the most accurate recipe, with less RAM, 138 against 147 KB;
+1.6× in the prepared mode, with more). The exception to the S3's 1.0-2.0× is the
 MLP in flash (28× on the S3, 6.9× on the M33), which is a memory effect: the binary weights fit the flash cache and the
 INT8 ones do not; the large ECG network shows the same on the M33 (12.6× in flash, 3.0× with both in RAM). A
 sub-byte INT4 / INT2 model does not recover that, because the kernels unpack it to int8 before multiplying.
@@ -559,8 +570,8 @@ disagreed with its simulation was a bug to fix, never a result to report.
 
 - **Fine-grained classification stays behind INT8.** 10-16 points on CIFAR-10, 9-23 on activity recognition; the
   training-gap study says the cause is capacity, so closing it costs width (and speed), not a better optimizer.
-- **ESP-DL is faster than the standard engine on the S3**, and faster than the vertical engine with both models in RAM
-  at its RAM budget. The ESP-DL numbers are a quick check (one run, 100-200 inputs), not a 3-seed benchmark.
+- **ESP-DL is faster than the standard engine on the S3**, and 1.06× faster than the default vertical mode of the fully
+  binary network with both models in RAM; the compact and prepared modes beat it. The ESP-DL numbers are a quick check (one run, 100-200 inputs), not a 3-seed benchmark.
 - **The INT8 side is the official path, not the fastest possible.** The vendor kernels are used as shipped; on
   Hazard3 only reference kernels exist, so its INT8 column measures what runs today.
 - **Energy comes from one run per case, read by eye.** A USB meter with whole-mAh resolution gives ranges, not

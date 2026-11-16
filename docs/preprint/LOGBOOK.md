@@ -42,6 +42,7 @@ Newest at the bottom of each list.
 | 33 | Limitations, Not written yet | re-measurements promised in the date notes were in no list | both lists: one library version, Figures 2-4, abstract ranges; MLP two-model note in Limitations | this commit |
 | 34 | Abstract | ~330 words (venues ask ≤ 250) | 248 words: cores list, MLP 28×, capacity clause and the chain's steps moved to the body | this commit |
 | 35 | Title | "Bit-exact" defined in a parenthesis | parenthesis removed; definition in §2.1 | this commit |
+| 36 | §3.1 ResNet-8, §3.2, Limitations | only the default vertical mode was compared with ESP-DL; "faster again at a larger RAM budget" was wrong for the int8 stem recipe (compact 7.07 ms with 138 KB beats ESP-DL in RAM, 9.8 ms with 147 KB) | compact / prepared rows in the table (6.8-8.6× vs TFLite) + an ESP-DL table (flash and RAM, RAM of each); ESP-DL energy stated as not measured | this commit |
 
 ## Open
 
