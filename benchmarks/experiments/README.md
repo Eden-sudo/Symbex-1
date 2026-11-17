@@ -10,6 +10,7 @@ once the experiments show they really work. One folder per question, each with i
 | [`training_gap/`](training_gap/) | how much of the binary ResNet-8's loss is training, and how much capacity? | mostly capacity; Bop +2.5, twostep +2.35; width, depth (1-3-3: 77.3 %), shortcuts (addpool +1.5, the 1×1 costs ~3.2 ms on the chip), int8 classifier +2.8; padding, BatchNorm, block order: nothing |
 | [`chip_kernels/`](chip_kernels/) | which counting and int8 kernels are fastest on each chip? | `pie_swar`, AND + PIE, the vertical count, the int8 stem (faster only with SIMD) |
 | [`tiny_llm/`](tiny_llm/) | does a small language model still write stories with 1-bit weights (int8 activations), integers only, exact in C? | yes on the PC: 15.7 M parameters, 90 % of them 1-bit, perplexity 4.58 (fp32 3.67), integer model = float, C exact on every score; 3.55 MB; ESP32-S3: exact, 8.28 tokens/s on lib_symbex's 8-bit x 1-bit kernel (seed 42) |
+| [`rnn_probe/`](rnn_probe/) | in a fully binary recurrent network, does a flipped bit grow step after step? | no explosion: the damage settles at ~9 % of the state; but 1 % of the state flipped changes 28 % of the predictions (int8 0.07 %) at the same accuracy; a margin loss brings it to 9 %. Binary RNNs stay out of the CDT |
 | [`other_probes/`](other_probes/) | single questions: PopLUT weight codebooks, arithmetics on the GPU | |
 
 Every study follows the rules of the benchmarks: seeds 42, 43 and 44, choices made on a validation split of the
