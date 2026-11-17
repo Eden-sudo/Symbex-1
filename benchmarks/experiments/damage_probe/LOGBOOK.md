@@ -244,3 +244,12 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   (fixed RAM), deep and thin; a recurrent / convolutional mixer is a new architecture (later).
 - Proposal (not started, Edén decides): the 260K shape with GQA + a window, binary, 3 seeds. Before citing
   Opt.Gear / Super Tiny LMs / RWKV in the paper: read the PDFs.
+
+### 2026-11-17: part 4, do layer interactions rank part 3's configurations better than the sum? (3 seeds)
+- interactions.py: 1,024 subsets x 3 seeds on the GPU, 3 runs in parallel (~10 min, RTX 4000 Ada laptop), BatchNorm
+  recalibrated on 10,000 training images, validation only. acc0 reproduced exactly (0.00).
+- Rule (README, written first): beat additive's same-count Spearman by > 0.05 on each seed. Additive 0.83 / 0.82 /
+  0.72; shapley 0.84 / 0.81 / 0.72, popcount 0.79 / 0.76 / 0.79, pairs 0.59 / 0.58 / 0.47, acc0 0.84 / 0.78 / 0.67.
+  None passes.
+- ResNet-8 is sub-additive (sum of singles ~148 vs all binary ~68: floor at chance), unlike tiny_llm's 2.2-2.5x.
+  Largest interactions: stem with b0 (-8 to -10). popcount group spread 2.08 / 2.08 / 2.96 vs seed spread 2.32.

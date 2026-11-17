@@ -368,3 +368,31 @@ the truth is part 3's 30-epoch training.
 
     python interactions.py --seeds 42 43 44 --runs ~/Proyectos/Symbex1/benchmarks/experiments/training_gap/runs/train_gap \
         --data ~/Proyectos/Symbex1/benchmarks/data/cifar10          # results/interactions.json
+
+## Result
+
+Same-count Spearman with part 3's trained accuracy (seeds 42 / 43 / 44; over all 40 in brackets):
+
+| model | same count | all 40 | beats additive by > 0.05 on every seed? |
+|---|---|---|---|
+| additive | 0.83 / 0.82 / 0.72 | (0.92 / 0.93 / 0.94) | (reference) |
+| pairs | 0.59 / 0.58 / 0.47 | (0.89 / 0.89 / 0.89) | no (worse on all 3) |
+| shapley | 0.84 / 0.81 / 0.72 | (0.92 / 0.93 / 0.94) | no (+0.01 / -0.01 / 0.00) |
+| popcount | 0.79 / 0.76 / 0.79 | (0.83 / 0.89 / 0.95) | no (-0.04 / -0.06 / +0.07) |
+| acc0 | 0.84 / 0.78 / 0.67 | (0.87 / 0.90 / 0.92) | no |
+
+- The one-shot table reproduces part 3's acc0 exactly (max difference 0.00 on every seed).
+- In ResNet-8 the damage is **sub-additive**, the opposite of tiny_llm: the sum of the 10 single drops is 151 / 146 /
+  147 points, all 10 binary at once drop 68 / 68 / 69. Accuracy cannot fall below chance (10 %), so the drops saturate.
+  The largest pair interactions are negative and almost all involve the stem (stem + b0: -10.3 / -9.3 / -8.1).
+- popcount's assumption: mean spread inside a (stem, count) group 2.08 / 2.08 / 2.96 points vs 2.32 for the same subset
+  between seeds: it holds on 2 seeds and fails on 1.
+
+## Answer
+
+No. Using the interactions does not rank the trained configurations better than the plain sum. Shapley ties
+additive. pairs is clearly worse: adding every negative pair term overcorrects a game that saturates. The count model
+is better on one seed and worse on two. As expected beforehand, nothing beats additive; pairs fell below acc0
+(expected: close to it). popcount's assumption is borderline, not clearly broken. For the ResNet-8 the single-layer
+table plus a sum stays the cheapest useful ranking. The super-additivity seen in tiny_llm does not appear here (sub-additive, bounded by
+chance).
