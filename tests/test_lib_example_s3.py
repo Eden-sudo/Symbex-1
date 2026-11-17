@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import shutil
+import pytest
 import subprocess
 
 
@@ -16,7 +17,8 @@ def test_s3_mlp_compiles():
     pio = shutil.which("pio")
     if pio is None:
         pio = os.path.expanduser("~/.platformio/penv/bin/pio")
-        assert os.path.isfile(pio) and os.access(pio, os.X_OK), "needs PlatformIO"
+        if not (os.path.isfile(pio) and os.access(pio, os.X_OK)):
+            pytest.skip("needs PlatformIO (pio): not part of tests/requirements.txt")
     result = subprocess.run(
         [pio, "ci", "--lib", str(LIB), "--board", "esp32-s3-devkitc-1",
          "--project-option=platform=espressif32", "--project-option=framework=arduino",

@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import shutil
+import pytest
 import subprocess
 
 
@@ -15,7 +16,8 @@ def test_esp32_example_compiles():
         candidate = os.path.expanduser("~/.platformio/penv/bin/pio")
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             pio = candidate
-    assert pio, "needs PlatformIO"
+    if not pio:
+        pytest.skip("needs PlatformIO (pio): not part of tests/requirements.txt")
     result = subprocess.run(
         [
             pio, "ci", "--lib", "Symbex1_PIO/lib/lib_symbex",

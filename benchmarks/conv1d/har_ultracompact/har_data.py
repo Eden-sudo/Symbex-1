@@ -77,6 +77,8 @@ def load_cv(fold, folds=5):
     """cross-validation inside the TRAINING subjects (README section 8): the 20 training subjects in `folds` groups of
     consecutive ids (fold k = the k-th group); returns ((x, y) of the other training subjects, (x, y) of fold k).
     The validation and test subjects are never in either part."""
+    if not 0 <= fold < folds:                       # a negative index would keep the held-out group in training
+        raise ValueError(f"cross-validation fold {fold}: expected 0..{folds - 1}")
     d = np.load(OUT)
     groups = np.array_split(np.sort(d["train_subjects"]), folds)
     held, rest = groups[fold], np.concatenate([g for i, g in enumerate(groups) if i != fold])

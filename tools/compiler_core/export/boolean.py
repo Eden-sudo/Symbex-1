@@ -197,6 +197,8 @@ def fold(model, threshold=0.0):
             offsets = np.asarray(threshold, dtype=np.float64)
             if offsets.ndim != 1:
                 raise ValueError("boolean export, per-cell head: thresholds must be one-dimensional")
+            if not np.isfinite(offsets).all():
+                raise ValueError("boolean export, per-cell head: every threshold must be finite")
             c = c.copy()
             c[1:] -= offsets
     for name, v in (("scale", a), ("bias", c)):
