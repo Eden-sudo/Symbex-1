@@ -8,3 +8,19 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - Ground truth = the tiny_llm runs already trained (runs/ in the main folder, gitignored): no new full training.
 - Edén's classic ESP32 checked the same day: no PSRAM (probe firmware: "PSRAM ID read error"), 4 MB flash, 346 KB
   free heap. Not used here; it matters for the on-chip LLM design that this tool should serve.
+
+### 2026-11-16/17: full run (damage_probe.py, 34 rows, ~2.9 h on the GPU, results/damage_probe.json)
+- No errors. Smoke test before (3 pairs, 20 fine-tune steps, /tmp, not kept).
+- Spearman per seed 42 / 43 / 44: cos 0.670 / 0.867 / 0.818, loss0 0.618 / 0.927 / 0.952, fisher 0.007 / 0.200 /
+  0.248, recover 0.815 / 0.988 / 0.976.
+- Rule: recover passes the correlation, FAILS the cost (210-226 s per pair + a control per model A vs 136-201 s =
+  10 % of a full run). Nothing passes. Written as is in README.
+- My expectation (written before) was right for cos (fails on seed 42) and loss0 (overrates large changes) and
+  wrong for fisher (I expected it close to loss0; it is the worst: 1-bit logits break the second-order estimate).
+- Where they fail: the four single-seed input pairs of the W1A1 models (o, q k v, w1 w3, w2 2->1). Without them
+  every measure but fisher is >= 0.90 on seed 42. The fine choice (which group of inputs) is what nobody sees.
+- My mistake to note: the cost limit was set against a compiled full run; the fine-tune runs without compile and
+  evaluates three times. Making it cheaper (compile, one evaluation, fewer windows) is the next step, and it must be
+  judged on new pairs (ResNet-8), not on these.
+- Next (Edén decides): (a) cheaper recover + ResNet-8 pairs from training_gap, same rule; (b) use it for the on-chip
+  LLM: coarse choices with cos / loss0 (seconds), the short fine-tune only between close candidates.

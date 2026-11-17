@@ -63,8 +63,58 @@ Limits known beforehand: 14 pairs, 4 of them single seed; the pairs mix weight a
 
 ## Result
 
-(running)
+`results/damage_probe.json`, 34 pair x seed rows, Nov 16-17 2026, one RTX 4000 Ada laptop GPU.
+
+Spearman correlation with the truth (rule: ≥ 0.8 on each seed):
+
+| Measure | seed 42 (14 pairs) | seed 43 (10) | seed 44 (10) | seed 42, the same 10 pairs | time per pair |
+|---|---|---|---|---|---|
+| cos | 0.670 | 0.867 | 0.818 | 0.903 | 13-20 s (with loss0 and fisher) |
+| loss0 | 0.618 | 0.927 | 0.952 | 0.927 | |
+| fisher | 0.007 | 0.200 | 0.248 | 0.188 | |
+| **recover** (500 steps) | **0.815** | **0.988** | **0.976** | 0.964 | 210-226 s + one control per model A |
+| recover at 100 / 250 steps (not in the rule) | 0.745 / 0.802 | 0.976 / 0.976 | 0.976 / 0.976 | | ~1/5, ~1/2 of that |
+
+Truth and measures per pair (mean over the seeds the pair has):
+
+| Pair | seeds | truth | cos | loss0 | fisher | recover |
+|---|---|---|---|---|---|---|
+| acts_all | 3 | 0.528 | 9.23 | 5.60 | 0.74 | 1.024 |
+| acts_w2 | 3 | 0.240 | 3.00 | 2.44 | 0.17 | 0.353 |
+| fp32_bin | 3 | 0.222 | 7.93 | 4.62 | 0.77 | 0.352 |
+| acts_w13 | 1 | 0.194 | 1.64 | 0.38 | 0.03 | 0.140 |
+| acts_o | 1 | 0.168 | 1.44 | 0.73 | 0.17 | 0.230 |
+| acts_qkv | 1 | 0.153 | 2.35 | 2.22 | 0.11 | 0.189 |
+| acts_w2_2to1 | 1 | 0.145 | 0.63 | 0.09 | 0.03 | 0.047 |
+| fp32_tern | 3 | 0.125 | 4.29 | 3.51 | 0.69 | 0.190 |
+| b07_bin | 3 | 0.102 | 1.91 | 2.37 | 0.63 | 0.192 |
+| tern_bin | 3 | 0.097 | 6.03 | 0.52 | 0.54 | 0.133 |
+| b34_bin | 3 | 0.095 | 1.75 | 1.67 | 0.51 | 0.155 |
+| head_bin | 3 | 0.085 | 0.09 | 0.54 | 2.27 | 0.101 |
+| head_int2 | 3 | 0.049 | 0.10 | 0.19 | 0.72 | 0.041 |
+| head_int4 | 3 | 0.015 | 0.01 | 0.015 | 0.016 | 0.005 |
+
+- **Cost:** a full tiny_llm run takes 22.6-33.5 min (torch.compile on), so 10 % is 136-201 s. recover took 210-226 s
+  per pair (no compile, three validation passes), plus the same again once per model A for the control: 11-17 % of
+  a full run without the control, more with it.
+- fisher fails everywhere: the output layer at 1 bit gets the largest estimate (2.27) and is one of the smallest
+  damages (0.085). The second-order estimate breaks on large output changes (logits at 1 bit).
+- loss0 and cos are good on the 10 pairs with 3 seeds (0.82-0.95) and fall on seed 42's four extra pairs, the inputs
+  of one group in a W1A1 model. Among those five input pairs (one seed, a ranking) no measure gets the order:
+  truth w2 > w1 w3 > o > q k v > w2 2->1 bit; recover w2 > o > q k v > w1 w3 > w2 2->1, loss0 w2 > q k v > o > w1 w3
+  > w2 2->1 (Spearman 0.7, 0.6, cos 0.7).
+- recover overestimates large changes (acts_all 1.02 vs 0.53) and underestimates w2 2->1 bit (0.047 vs 0.145), but
+  keeps the order.
 
 ## Answer
 
-(after the result)
+**No measure passes the rule as written.** recover (a 500-step fine-tune) is the only one that ranks the changes the
+way full training does on every seed (0.815 / 0.988 / 0.976), but it costs 11-17 % of a full run, over the 10 %
+limit. The cheap ones (cos, loss0) rank the coarse choices right (output layer vs blocks vs inputs, 0.82-0.95 on
+the pairs with 3 seeds) and fail on the fine one (which input group to keep at 8 bits); fisher does not work here.
+
+What it means for the tools: the CDT's cosine is fine for coarse decisions and must not be trusted for fine ones;
+the fine-tune check is the measure to make cheaper and then test on ResNet-8 (new data, the same rule).
+
+Limits: 14 pairs, the five input pairs single seed; several truths differ by less than the seed spread (b07 / b34 /
+tern_bin 0.095-0.102); the 100-step curve was recorded but is not part of the rule, so it is a lead, not a result.
