@@ -118,3 +118,54 @@ the fine-tune check is the measure to make cheaper and then test on ResNet-8 (ne
 
 Limits: 14 pairs, the five input pairs single seed; several truths differ by less than the seed spread (b07 / b34 /
 tern_bin 0.095-0.102); the 100-step curve was recorded but is not part of the rule, so it is a lead, not a result.
+
+---
+
+# Part 2 -- per-layer accuracy table: how much does each layer of the binary ResNet-8 cost?
+
+## Question
+
+The binary ResNet-8 is ~13 points below its real-valued twin (training_gap: twin 83.6, binary 70.0 % validation).
+**Which layers lose that accuracy?** A table with one row per layer, in two directions (as AIMET's QuantAnalyzer does
+for INT8; Larq has nothing like it): the twin with only that layer binary (drop), and the binary network with only
+that layer back to real values (recovery). Can that table, measured in seconds without training, be trusted to choose
+which layer to give more bits?
+
+## What
+
+**Networks (already trained, no new long training):** training_gap's `twin_s<seed>` (real weights, hardtanh) and
+`binary_s<seed>` (1-bit weights and activations) of the same graph (thermometer stem, OR shortcuts, binary
+classifier), seeds 42 43 44.
+
+**Layers (10):** stem, the six block convs b0..b5, the two 1x1 shortcut convs ds2 and ds4 (blocks 2 and 4, stride 2),
+the classifier fc. **Parts:** the layer's weights (w), its output activation (a: sign vs hardtanh after its BatchNorm),
+both (wa). fc has weights only.
+
+**The table (one shot, no training):**
+- drop = accuracy(twin) - accuracy(twin with only that part binary)
+- recovery = accuracy(binary with only that part real) - accuracy(binary). Real weights = the binary network's own
+  latent weights.
+
+After every change the BatchNorm statistics are recomputed on 10,000 fixed training images (1-bit weights are ~1/|w|
+times larger than the real ones: the stored statistics are meaningless for the other kind); the reference networks get
+the same recalibration. Accuracy on the 5,000 validation images (the CDT's split); the test set is never read.
+
+**The check (the truth, approximately):** for every layer, the binary network with that layer real (wa) is
+fine-tuned 5 epochs (Adam lr 5e-4 + cosine, batch 128, crop + flip, the benchmark's BatchNorm momentum 0.3); the same
+fine-tune of the unchanged binary network is the control; gain = accuracy(layer real, fine-tuned) - accuracy(control).
+A full training per layer (10 x 3 seeds x 9.4 min) is the real truth; it is future work if this check is not enough.
+
+**Rule (written before measuring, Nov 17 2026):** the one-shot table can be used to choose layers if its recovery (wa)
+has Spearman **≥ 0.8 with the fine-tuned gain on each seed** and the whole table costs **≤ 10 % of one full run**
+(~56 s for the 9.4-min binary ResNet-8). The drop column and drop vs recovery agreement are reported, not judged.
+
+Expectation written beforehand (not a result): the stem is first in recovery (independent evidence: the int8 stem
+trained gave +4.5 points, training_gap), then fc and the last stage; the shortcut convs last. Drop and recovery
+disagree somewhere, because the twin and the binary network are different networks.
+
+Limits known beforehand: one network, 10 layers (Spearman on 10 points is coarse); 5 fine-tune epochs are not a full
+training; the recalibration itself changes the reference accuracy (reported).
+
+    python layer_table.py --seeds 42 43 44 \
+        --runs ~/Proyectos/Symbex1/benchmarks/experiments/training_gap/runs/train_gap \
+        --data ~/Proyectos/Symbex1/benchmarks/data/cifar10            # results/layer_table.json

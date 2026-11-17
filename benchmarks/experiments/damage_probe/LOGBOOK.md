@@ -32,3 +32,10 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   (no GPU work, same Spearman, JSON unchanged); --ft-steps 20 on the same file is refused.
 - Minor: a bare --out file name crashed os.makedirs(""). Fixed; smoke run with --out smoke_dp.json writes the file.
 - The published results were made in one clean run with fixed settings: not affected.
+
+### 2026-11-17: part 2 pre-registration (per-layer accuracy table, ResNet-8)
+- Edén asked for a per-layer accuracy-drop tool (Nov 17). Searched first: AIMET QuantAnalyzer (per-layer
+  enable / disable sweep, INT8) and HAWQ (Hessian trace) exist; no BNN library (Larq) has one.
+- Question, layers, both directions, the fine-tune check and the rule written in README part 2 before any number.
+- Design choice to note: BatchNorm recalibration after every change (needed: 1-bit weights change the conv output
+  scale by ~1/|w|); reference networks recalibrated too.
