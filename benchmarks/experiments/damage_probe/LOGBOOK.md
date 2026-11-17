@@ -39,3 +39,18 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - Question, layers, both directions, the fine-tune check and the rule written in README part 2 before any number.
 - Design choice to note: BatchNorm recalibration after every change (needed: 1-bit weights change the conv output
   scale by ~1/|w|); reference networks recalibrated too.
+
+### 2026-11-17: part 2 run (layer_table.py, 3 seeds, results/layer_table.json)
+- Smoke test first (seed 42, no fine-tune, /tmp): the switch reproduces training_gap's twin and binary outputs
+  exactly (torch.equal on 1,000 validation images, asserted in the script). Table 12 s per seed.
+- Full run ~9 min, no errors. Rule FAILS: one-shot recovery vs fine-tuned gain -0.04 / 0.16 / 0.24. Cost passes (12 s).
+- Drop is stable (seed-vs-seed 0.68-0.83) and finds the stem (37 points; fine-tune +2.2 on every seed, int8 stem
+  trained +4.5). Activations cost more than weights inside the blocks.
+- The check itself is weak: fine-tuned gains 0-1.3 points below the stem, seed-vs-seed 0.29-0.53. Not a truth for
+  the small layers. Noted in README limits.
+- Recalibration lowers the twin 83.6 -> 81.7 (stored statistics come from augmented batches; recalibrated without
+  augmentation) and moves the binary 70.0 -> 69.9. Same for every row, so differences are fair; noted.
+- Expectation: stem first right; fc / last stage second wrong; shortcut convs last right only for the drop.
+- Next (Edén decides): (a) a real truth for ResNet-8 (full training with each layer real or int8, 30 runs, ~4.7 h
+  on the GPU, the binary net's recipe) to judge the drop column below the stem; (b) the same table for the MLP; (c)
+  drop table in a tool (tools/dev) only after (a).

@@ -169,3 +169,67 @@ training; the recalibration itself changes the reference accuracy (reported).
     python layer_table.py --seeds 42 43 44 \
         --runs ~/Proyectos/Symbex1/benchmarks/experiments/training_gap/runs/train_gap \
         --data ~/Proyectos/Symbex1/benchmarks/data/cifar10            # results/layer_table.json
+
+## Result
+
+`results/layer_table.json`, 3 seeds, Nov 17 2026, one RTX 4000 Ada laptop GPU. Mean ± sd over the seeds, points of
+validation accuracy. References after the recalibration: twin 81.7 (stored statistics 83.6), binary 69.9 (70.0).
+
+| Layer | drop w | drop a | drop wa | recovery wa (one shot) | fine-tuned gain (check) |
+|---|---|---|---|---|---|
+| **stem** | **19.6 ± 7.7** | **16.2 ± 4.2** | **37.2 ± 7.3** | -0.05 ± 0.91 | **+2.21 ± 0.76** |
+| b0 | 4.9 ± 1.8 | 12.6 ± 3.4 | 20.4 ± 5.6 | +0.66 ± 0.73 | +0.61 ± 0.80 |
+| b1 | 3.1 ± 0.8 | 8.5 ± 2.6 | 14.0 ± 2.9 | +0.41 ± 0.55 | +0.14 ± 0.86 |
+| b2 | 4.3 ± 0.9 | 7.7 ± 1.2 | 13.2 ± 1.1 | +0.26 ± 0.24 | +1.19 ± 0.90 |
+| ds2 | 2.9 ± 0.9 | 5.0 ± 0.2 | 9.4 ± 1.2 | +0.15 ± 0.56 | +0.40 ± 1.20 |
+| b3 | 4.5 ± 0.3 | 4.8 ± 0.6 | 11.0 ± 1.5 | +0.15 ± 0.18 | +0.28 ± 0.46 |
+| b4 | 4.3 ± 0.5 | 7.5 ± 1.3 | 13.2 ± 2.4 | +0.26 ± 0.33 | +1.27 ± 0.24 |
+| ds4 | 2.9 ± 0.9 | 5.6 ± 0.6 | 9.8 ± 1.4 | -0.58 ± 0.30 | +0.57 ± 0.67 |
+| b5 | 5.1 ± 0.3 | 5.4 ± 0.4 | 11.2 ± 0.8 | -0.28 ± 0.27 | -0.13 ± 0.55 |
+| fc | 8.6 ± 0.1 | -- | 8.6 ± 0.1 | +0.25 ± 0.15 | +0.43 ± 0.33 |
+
+Spearman (10 layers) per seed 42 / 43 / 44:
+
+| | seed 42 | seed 43 | seed 44 |
+|---|---|---|---|
+| one-shot recovery vs fine-tuned gain (the rule: ≥ 0.8) | -0.04 | 0.16 | 0.24 |
+| drop vs fine-tuned gain (not judged) | 0.66 | 0.07 | 0.52 |
+| drop vs one-shot recovery (not judged) | -0.22 | 0.86 | -0.06 |
+
+Agreement of each column with itself across seeds (Spearman of seed pairs): drop 0.68-0.83, fine-tuned gain 0.29-0.53,
+one-shot recovery -0.02-0.45.
+
+- **Cost:** the whole table (10 layers x 3 parts x 2 directions, each with its recalibration) takes 11-12 s per seed
+  (2 % of a full run): it passes the cost. The fine-tune check took 152-191 s per seed (11 fine-tunes).
+- The one-shot recovery is noise: putting one layer back to real values in a network trained around 1-bit layers
+  changes the accuracy by less than a point either way, and the order changes from seed to seed.
+- The drop is stable across seeds and has one clear answer: the **stem** (37 points when only it is binary, about
+  twice the next layer). The fine-tuned check agrees on the stem (+2.2, the largest gain on every seed) and so does
+  the independent trained result (int8 stem +4.5 points, training_gap).
+- In the drop, the **activations cost more than the weights** in every block but b3 / b5 (b0: 12.6 vs 4.9); the stem
+  and fc are the layers whose weights cost most.
+- After the stem, nobody ranks the rest: the fine-tuned gains are 0-1.3 points with sd up to 1.2, and they agree with
+  themselves across seeds only at 0.29-0.53. Five epochs are too short (or one fine-tune per layer too noisy) to be a
+  truth for the small layers. b4 is the only other layer with a gain above its sd (+1.27 ± 0.24).
+
+## Answer
+
+**The one-shot table does not pass the rule:** its recovery column (one layer of the binary network back to real
+values) has Spearman -0.04 / 0.16 / 0.24 with the fine-tuned gain. It costs 12 s (it passes the cost), but in a
+network trained with every layer binary, one real layer alone changes almost nothing until the rest is retrained.
+
+The **drop** column (the twin with one layer binary) is the useful half: stable across seeds, cheap, and it finds the
+one layer that matters, the stem, which the fine-tune and the trained int8 stem confirm. It also says that the
+activations cost more than the weights inside the blocks. Below the stem, neither column nor the 5-epoch check can
+rank the layers.
+
+What it means for the tools: for a binary network, a per-layer table must use the drop direction (start from the
+real network), not the recovery one; it is good at finding the dominant layer, not at ordering the rest. Ordering the
+rest needs a real truth (a full training per layer, 30 runs, ~4.7 h) before any other tool is judged on it.
+
+Expectation check: the stem first was right (drop, fine-tune); fc and the last stage second was wrong (b5 recovers
+nothing; b4 and b2 do); the shortcut convs last was right for the drop, not for the fine-tune (ds4 +0.57).
+
+Limits: one network; the twin and the binary network are different networks (drop and recovery disagree: -0.22 /
+0.86 / -0.06); the recalibration lowers the twin from 83.6 to 81.7 (the stored statistics come from augmented
+images); a single 5-epoch fine-tune per layer is noisy; the MLP is not measured yet.
