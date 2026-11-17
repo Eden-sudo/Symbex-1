@@ -195,3 +195,20 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   accumulated error, not the layer's own. Spearman with the prediction -0.30.
 - Next: a LOCAL error per layer in B (each layer fed the twin's input), then decide whether the slow truth
   (training with one layer real) is worth it.
+
+### 2026-11-17: tiny_llm, before vs after binarizing + propagation (llm_layers.py, 3 seeds, ~33 s each, no training)
+- Edén: which LLM layers hurt at 1 bit, how the damage travels through the blocks, and does the prediction on the
+  fp32 model match the trained binary (W1A8) model? Units: 8 blocks x (qkv, o, w13, w2).
+- BEFORE (fp32, one unit W1A8): b0.w13 +0.289, b0.qkv +0.151, qkv of every block +0.06-0.12, b7.w13 +0.105;
+  o and w2 of the middle blocks +0.01-0.03. All 32 units at once +4.36 / +4.82 / +4.71 vs sum of singles ~1.9:
+  the damage is 2.2-2.5x more than additive.
+- Propagation: the error does NOT grow through the blocks; the residual stream carries it and it fades slowly
+  (b0.w13 0.59 -> 0.40 at block 7, b0.w2 0.49 -> 0.24). Block 0 counts most because its error lives through all 8.
+- AFTER (trained binary, one unit back to int8 latent weights, no training): EVERY unit makes the loss worse
+  (-0.02 to -0.38), as in ResNet-8 (co-adaptation). But how much it hurts follows the prediction: Spearman -0.84 /
+  -0.84 / -0.85 (sign: larger predicted damage = larger loss when changed back). Same top: b7.w13, b0.w13, b0.qkv.
+  Local error (binary vs int8 output, same input): 0.74-0.77, but it mostly sorts by group (qkv ~1.5, w13 ~1.1,
+  o / w2 ~0.5), not by block.
+- Against the trained truth already known: prediction b0+b7 ~0.80 vs b3+b4 ~0.38 (2x), but trained int8 blocks
+  gained 0.102 vs 0.095 (LOGBOOK of tiny_llm): the prediction names the sensitive layers, it does not say how much
+  training recovers.
