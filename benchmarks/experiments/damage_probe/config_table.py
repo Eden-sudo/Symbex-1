@@ -19,6 +19,7 @@ Validation split only (the CDT's); the test set is never read. Resumable (same s
     python config_table.py --seeds 42 43 44 --runs <training_gap>/runs/train_gap --data <repo>/benchmarks/data/cifar10
 """
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -36,6 +37,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 def configurations(n, seed=0):
     """n distinct random subsets of LAYERS (the binary ones), each layer in with probability 1/2"""
+    if not 1 <= n <= 2 ** len(LAYERS):
+        sys.exit(f"--configs must be 1..{2 ** len(LAYERS)} (distinct subsets of {len(LAYERS)} layers)")
     gen, seen, out = torch.Generator().manual_seed(seed), set(), []
     while len(out) < n:
         bits = tuple(int(b) for b in torch.randint(0, 2, (len(LAYERS),), generator=gen))
@@ -98,8 +101,24 @@ def logits(net, x, bs=1000):
     return torch.cat([net(x[i:i + bs]) for i in range(0, len(x), bs)])
 
 
+def table_drops(table, seed, prov):
+    """the seed's per-layer drops from part 2's table, refused unless measured on the same checkpoints and split"""
+    row = table["seeds"].get(str(seed))
+    if row is None:
+        sys.exit(f"s{seed} is not in the --table (run layer_table.py for it first)")
+    if row.get("provenance") != prov:
+        sys.exit(f"s{seed} in the --table was measured on other checkpoints or another split")
+    return row["drop"]
+
+
+def drops_sha256(drop):
+    return hashlib.sha256(json.dumps(drop, sort_keys=True).encode()).hexdigest()
+
+
 def measure_seed(seed, args, dev, configs, table):
     xs, ys, xv, yv = LT.load_tensors(seed, args, dev)
+    prov = LT.provenance(seed, args, dev, (xs, ys, xv, yv))
+    drop = table_drops(table, seed, prov)
     pick = torch.randperm(len(xs), generator=torch.Generator().manual_seed(0))[:args.calib].to(dev)
     xc = xs[pick]
     net = G.build("twin")
@@ -108,7 +127,7 @@ def measure_seed(seed, args, dev, configs, table):
     state = {k: v.clone() for k, v in net.state_dict().items()}
     sw = Recorder(net)
     resnet8.sign = sw
-    row = {"provenance": LT.provenance(seed, args, dev, (xs, ys, xv, yv)), "configs": []}
+    row = {"provenance": prov, "table_drop_sha256": drops_sha256(drop), "configs": []}
 
     t0 = time.time()
     fisher_x = xs[torch.randperm(len(xs), generator=torch.Generator().manual_seed(1))[:args.fisher_samples].to(dev)]
@@ -116,7 +135,7 @@ def measure_seed(seed, args, dev, configs, table):
     row["fisher"] = fisher_terms(net, sw, fisher_x, fisher_y, args.fisher_samples)
     row["fisher_seconds"] = round(time.time() - t0, 1)
     sw.acts = {}
-    drops = {k: v.get("wa", v["w"]) for k, v in table["seeds"][str(seed)]["drop"].items()}
+    drops = {k: v.get("wa", v["w"]) for k, v in drop.items()}
 
     def apply(binary):
         net.load_state_dict(state)
@@ -204,9 +223,12 @@ def main():
     res.setdefault("seeds", {})
     for seed in args.seeds:
         if str(seed) in res["seeds"]:
-            if res["seeds"][str(seed)]["provenance"] != LT.provenance(seed, args, dev):
+            prov = LT.provenance(seed, args, dev)
+            if res["seeds"][str(seed)]["provenance"] != prov:
                 sys.exit(f"s{seed} in {args.out} was measured on other inputs: use another --out")
-            print(f"  s{seed}: already in {args.out}, same checkpoints and split")
+            if res["seeds"][str(seed)].get("table_drop_sha256") != drops_sha256(table_drops(table, seed, prov)):
+                sys.exit(f"s{seed} in {args.out} used other drops than --table: use another --out")
+            print(f"  s{seed}: already in {args.out}, same checkpoints, split and drop table")
             continue
         row = measure_seed(seed, args, dev, configs, table)
         if args.limit:

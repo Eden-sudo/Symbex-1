@@ -143,3 +143,15 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   layers of -log(1 - drop_l / c), c = the recalibrated twin's accuracy - 10 (chance), Hill's coverage model; drop_l
   clipped below c. Computed afterwards from the saved JSON (no rerun). It is NOT a monotone transform of drop_sum
   across configurations, so it can rank differently (it weighs the stem's 37-point drop more).
+
+### 2026-11-17: MendCode review of part 3 (PR #100 at 061b04d, 3 findings)
+- Major, right: config_table.py read the per-layer drops from --table without checking they belong to the same
+  checkpoints / split, and resume did not check the table. Fix: the seed's table row must carry the same provenance
+  as the checkpoints in --runs (else refused); each result row stores table_drop_sha256 and resume compares it.
+  Checked: wrong provenance and a missing seed are refused; smoke run (--limit 1, not saved) gives the same drop_sum
+  (95.3) as the running job.
+- Minor, right: --configs > 1024 (= 2^10 distinct subsets) looped forever. Now refused.
+- Minor, not changed: "twin-only runs need the binary checkpoint". drop_sum comes from part 2, measured with the
+  binary checkpoint; hashing it is what ties the drops to the same networks. Answered on the PR.
+- The running job (started with the old code, same inputs) will save rows without table_drop_sha256: backfilled
+  after it ends, noted in the JSON, as for part 2.
