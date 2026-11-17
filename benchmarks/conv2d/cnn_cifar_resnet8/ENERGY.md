@@ -62,14 +62,14 @@ flash cache), so copying them to RAM buys nothing. Its *prepared* mode spends RA
 thresholds worked out once, so each image does less work. Does that save energy, or only time? Reading more RAM could
 raise the power and eat the gain.
 
-**What.** The same model and seed, vertical default (63 KB of RAM) against vertical prepared (238 KB), weights in
+**What.** The same model and seed, vertical default (54 KB of RAM) against vertical prepared (217 KB), weights in
 flash, lut16; both exact against the simulation on the chip, 100 %. One 10-minute run each on Nov 15, meter zeroed
 before each, same USB-A meter port as Nov 14.
 
 | Engine | RAM | Inferences in 600 s | ms each | Meter (mAh / Wh / timer) | Power | **mJ per inference** |
 |---|---|---|---|---|---|---|
-| vertical (default) | 63 KB | 63,736 | 9.41 | 24 / 0.12 / 10:10 | 0.73 W | **6.86** |
-| vertical prepared | 238 KB | 101,664 | 5.90 | 25 / 0.12 / 10:00 | 0.77 W | **4.54** |
+| vertical (default) | 54 KB | 63,736 | 9.41 | 24 / 0.12 / 10:10 | 0.73 W | **6.86** |
+| vertical prepared | 217 KB | 101,664 | 5.90 | 25 / 0.12 / 10:00 | 0.77 W | **4.54** |
 
 **Answer.** It saves energy: **1.51× less per image** (range 1.39-1.64×) for 1.60× the speed. The prepared engine drew
 about 5 % more power (0.77 against 0.73 W), which is 1 mAh, the meter's limit: reading the prepared tables may cost a

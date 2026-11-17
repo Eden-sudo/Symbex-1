@@ -413,7 +413,7 @@ per benchmark: [ResNet-8](../../benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md),
 
 | Benchmark | ESP32: SYMBEX / INT8 mJ | Less energy | Faster | ESP32-S3: SYMBEX / INT8 mJ | Less energy | Faster |
 |---|---|---|---|---|---|---|
-| ResNet-8 (int8 stem + Bop + pooled classifier) | 22.2 / 296 (vertical compact) | **13.3×** (10.9-16.5) | 14.7× | 7.2 / 47.7 (vertical, Nov 14); 4.5 (prepared, 238 KB of RAM, Nov 15) | **6.6×** (6.1-7.1); **10.5×** (9.8-11.3) | 5.5×; 8.7× |
+| ResNet-8 (int8 stem + Bop + pooled classifier) | 22.2 / 296 (vertical compact) | **13.3×** (10.9-16.5) | 14.7× | 7.2 / 47.7 (vertical, Nov 14); 4.5 (prepared, 217 KB of RAM, Nov 15) | **6.6×** (6.1-7.1); **10.5×** (9.8-11.3) | 5.5×; 8.7× |
 | MLP 784-128-512-10 | 0.91 / 10.3 | **11.3×** (9.5-13.4) | 13.4× | 0.32 / 8.2 | **25.4×** (23.3-27.6) | 28.5× |
 | HAR max, int8 first layer | 5.5 / 47.7 | **8.7×** (7.5-10.1) | 8.7× | 3.0 / 5.4 | **1.83×** (1.69-1.98) | 1.77× |
 | ECG net m | 5.0 / 40.1 | **8.0×** (6.9-9.2) | 8.1× | 4.7 / 6.6 | **1.42×** (1.32-1.53) | 1.08× |
@@ -425,7 +425,7 @@ per benchmark: [ResNet-8](../../benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md),
   in every run; S3: 0.69-0.99 W). The power differences on the S3 go both ways: TFLite drew more on ResNet-8
   (0.92 against 0.77 W) and ECG (0.99 against 0.75 W), the same on HAR and FOMO, less on the MLP (0.69 against
   0.78 W). The cause is not measured.
-- On the S3, the vertical prepared engine (precomputed lists and thresholds, 238 KB of RAM) uses 1.51× less energy per
+- On the S3, the vertical prepared engine (precomputed lists and thresholds, 217 KB of RAM) uses 1.51× less energy per
   image than the default vertical engine (1.39-1.64×) for 1.60× the speed: reading the prepared tables costs far
   less than the work they save.
 - MLP on the S3 with the weights in RAM on both sides: 0.38 against 0.68 mJ, 1.79× (1.66-1.92×). Moving TFLite's

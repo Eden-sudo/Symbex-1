@@ -73,7 +73,7 @@
   "meter_port": "USB-A (as Nov 14)",
   "question": "does spending RAM on prepared lists save energy, or only time? (reading more RAM could raise the power)",
   "default": {
-   "label": "SYMBEX int8stem_pool2 seed 42, vertical engine (default), lut16, flash, 63 KB RAM; exact 100 %",
+   "label": "SYMBEX int8stem_pool2 seed 42, vertical engine (default), lut16, flash, 54 KB RAM; exact 100 %",
    "runs": 63736,
    "seconds": 600.019,
    "ms_per_run": 9.4141,
@@ -92,7 +92,7 @@
    }
   },
   "prepared": {
-   "label": "SYMBEX int8stem_pool2 seed 42, vertical engine, prepared (lists and thresholds prepared in RAM), lut16, flash, 238 KB RAM; exact 100 %",
+   "label": "SYMBEX int8stem_pool2 seed 42, vertical engine, prepared (lists and thresholds prepared in RAM), lut16, flash, 217 KB RAM; exact 100 %",
    "runs": 101664,
    "seconds": 600.026,
    "ms_per_run": 5.902,

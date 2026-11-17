@@ -424,7 +424,7 @@ Detalles por benchmark: [ResNet-8](../../benchmarks/conv2d/cnn_cifar_resnet8/ENE
 
 | Benchmark | ESP32: SYMBEX / INT8 mJ | Menos energía | Más rápido | ESP32-S3: SYMBEX / INT8 mJ | Menos energía | Más rápido |
 |---|---|---|---|---|---|---|
-| ResNet-8 (stem int8 + Bop + clasificador con pooling) | 22.2 / 296 (vertical compacto) | **13.3×** (10.9-16.5) | 14.7× | 7.2 / 47.7 (vertical, 14 nov); 4.5 (preparado, 238 KB de RAM, 15 nov) | **6.6×** (6.1-7.1); **10.5×** (9.8-11.3) | 5.5×; 8.7× |
+| ResNet-8 (stem int8 + Bop + clasificador con pooling) | 22.2 / 296 (vertical compacto) | **13.3×** (10.9-16.5) | 14.7× | 7.2 / 47.7 (vertical, 14 nov); 4.5 (preparado, 217 KB de RAM, 15 nov) | **6.6×** (6.1-7.1); **10.5×** (9.8-11.3) | 5.5×; 8.7× |
 | MLP 784-128-512-10 | 0.91 / 10.3 | **11.3×** (9.5-13.4) | 13.4× | 0.32 / 8.2 | **25.4×** (23.3-27.6) | 28.5× |
 | HAR max, primera capa int8 | 5.5 / 47.7 | **8.7×** (7.5-10.1) | 8.7× | 3.0 / 5.4 | **1.83×** (1.69-1.98) | 1.77× |
 | ECG red m | 5.0 / 40.1 | **8.0×** (6.9-9.2) | 8.1× | 4.7 / 6.6 | **1.42×** (1.32-1.53) | 1.08× |
@@ -436,7 +436,7 @@ Detalles por benchmark: [ResNet-8](../../benchmarks/conv2d/cnn_cifar_resnet8/ENE
   (ESP32: 0.33-0.46 W en todas las corridas; S3: 0.69-0.99 W). Las diferencias de potencia en el S3 van en los dos
   sentidos: TFLite consumió más en ResNet-8 (0.92 frente a 0.77 W) y ECG (0.99 frente a 0.75 W), lo mismo en HAR y
   FOMO, menos en el MLP (0.69 frente a 0.78 W). La causa no está medida.
-- En el S3, el motor vertical preparado (listas y umbrales precalculados, 238 KB de RAM) gasta 1.51× menos energía por
+- En el S3, el motor vertical preparado (listas y umbrales precalculados, 217 KB de RAM) gasta 1.51× menos energía por
   imagen que el vertical por defecto (1.39-1.64×) con 1.60× la velocidad: leer las tablas preparadas cuesta mucho
   menos que el trabajo que ahorran.
 - MLP en el S3 con los pesos en RAM en los dos lados: 0.38 frente a 0.68 mJ, 1.79× (1.66-1.92×). Pasar el modelo de
