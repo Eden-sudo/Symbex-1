@@ -116,3 +116,30 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   (a measure, not the truth; no trained ranking seen). Noted for honesty.
 - Bug caught by the smoke design, not by a crash: retain_grad on activations must be off outside the Fisher pass
   (no-grad recalibration / evaluation); the Recorder has a record flag.
+
+### 2026-11-17: literature round 2 (Edén's deep search, checked by me) + one exploratory measure, before any analysis
+- Written while config_table.py runs (2 of 120 configurations logged; no Spearman computed or looked at).
+- Verified:
+  - PQuantML (github.com/cern-nextgen/PQuantML, CERN group of FIT's authors): src/pquant/core/torch/fit_compress.py
+    exists. Its empirical Fisher uses MINI-BATCH gradients squared x batch size (its docstring says this differs from
+    the paper's per-sample definition); an activation term exists (gradients w.r.t. each layer's input, first layer
+    skipped) but FITCompress's search uses weights only. Ours is per-sample (batch of 1) = the paper's definition, on
+    the BatchNorm OUTPUT (the tensor that is binarized). pruning_methods/fitcompress.py not checked.
+  - Saturation Makes Quantization Error Additive (J. Hill, arXiv 2607.12266, Jul 2026): coverage model
+    f(S) = c (1 - prod_{i in S} (1 - a_i)) from per-layer break rates. Variance claims not checked.
+  - When Does Blockwise Additivity Break? (arXiv 2611.07487): after fine-tuning the additive vs pairwise gap shrinks
+    to <= 1.8 points on Swin-T in 500 steps, 3.3-9.9 remain on DeiT after 10,000 (unequal budgets). The report's
+    "fine-tuning repairs it on Swin, not DeiT" is a stronger reading than the abstract.
+  - MixBin (arXiv 2211.06739): compares amplitude loss (BNAS), Adaptive MBQ, HAWQ-V2, network slimming to choose
+    which layers to binarize; judged only by accuracy / FLOPs of the trained networks, NO rank correlation.
+  - Pandey et al. (arXiv 2302.05397): Kendall tau of FIT / SQNR / accuracy sensitivity lists vs a ground-truth list
+    (per-layer accuracy, no retraining, W4A8 / W8A8). PTQ, not a trained truth.
+  - Sakr 2022 = Charbel Sakr et al., ICML 2022 (arXiv 2206.06501, OCTAV / magnitude-aware differentiation).
+- Not verified: BMPQ, Hybrid-Net, GMPQ, TASA / CASQ, Spike-aware SNN (Oct 2026), DepthQuant, Down-projection
+  fragility, CLADO, CoopQ, QEP, the FIT OpenReview quote on BatchNorm folding, Fouad Sakr EDGE 2022.
+- Consequence: nothing found contradicts the part 3 design; still no paper validates a measure against TRAINED
+  1-bit mixed configurations (MixBin trains them but reports no correlation).
+- Exploratory measure added NOW (not in the pre-registered rule, reported apart): drop_cov = sum over the binary
+  layers of -log(1 - drop_l / c), c = the recalibrated twin's accuracy - 10 (chance), Hill's coverage model; drop_l
+  clipped below c. Computed afterwards from the saved JSON (no rerun). It is NOT a monotone transform of drop_sum
+  across configurations, so it can rank differently (it weighs the stem's 37-point drop more).
