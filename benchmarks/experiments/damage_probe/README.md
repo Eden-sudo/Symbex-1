@@ -234,3 +234,44 @@ nothing; b4 and b2 do); the shortcut convs last was right for the drop, not for 
 Limits: one network; the twin and the binary network are different networks (drop and recovery disagree: -0.22 /
 0.86 / -0.06); the recalibration lowers the twin from 83.6 to 81.7 (the stored statistics come from augmented
 images); a single 5-epoch fine-tune per layer is noisy; the MLP is not measured yet.
+
+---
+
+# Part 3 -- do cheap measures rank whole mixed configurations the way training does?
+
+## Question
+
+Part 2 changed one layer at a time: the trained differences (0-1.3 points) were mostly seed noise, so no measure
+could be judged below the stem. FIT (Zandonati et al., ICLR 2023) validated its measure differently: many random
+mixed-precision configurations, each trained a short time from the full-precision model, ranked by the measure vs
+their trained accuracy. **Done the same way at 1 bit: which cheap measure ranks random binary / real configurations of
+ResNet-8 the way a 30-epoch training does?**
+
+## What
+
+- **Configurations:** 40 distinct random subsets of the 10 layers of part 2 made binary (weights and activation
+  together), each layer in with probability 1/2 (generator seed 0, the same 40 for every seed); the other layers stay
+  real (twin).
+- **Truth:** each configuration trained 30 epochs from the twin checkpoint of the seed (as FIT: 30 epochs from the
+  full-precision model; Adam lr 5e-4 = the twin's 5e-3 / 10, cosine, crop + flip, BatchNorm momentum 0.3), BatchNorm
+  recalibrated, validation accuracy. Seeds 42 43 44.
+- **Measures** (on the trained twin, no training; `config_table.py` docstring has the formulas):
+  drop_sum (sum of part 2's per-layer drops), fit_w / fit_a / fit (FIT on weights, activations, both; empirical
+  Fisher from 512 training images; noise = x - alpha sign(x) with the scale a BatchNorm absorbs), acc0 (accuracy of
+  the configuration without training), cos_end (1 - cosine of its logits with the twin's).
+- **Rule (written before measuring, Nov 17 2026):** a measure passes the **coarse** test if its Spearman with the
+  trained accuracy is ≥ 0.8 on each seed over the 40 configurations, and the **fine** test if it is also ≥ 0.6 on each
+  seed inside each stem group (stem real / stem binary): the stem alone splits the configurations (part 2: 37
+  points), so the coarse test could pass by seeing only the stem. Cost: the per-layer measures once ≤ 10 % of a full
+  run (56 s); the per-configuration ones ≤ 1 s each.
+- **Noise ceiling (reported, not judged):** Spearman of the trained accuracies between seeds.
+
+Expectation written beforehand (not a result): every measure passes the coarse test (the stem); drop_sum and acc0
+pass the fine one at best partly; fit_a weakest (FIT's own table: activation terms 0.33-0.39 with BatchNorm).
+
+Limits known beforehand: one network; 30 epochs from the twin is not the benchmark's recipe (150 epochs from the
+start); only binary vs real per layer (no int8 / 2-bit); 40 configurations out of 1,024.
+
+    python config_table.py --seeds 42 43 44 \
+        --runs ~/Proyectos/Symbex1/benchmarks/experiments/training_gap/runs/train_gap \
+        --data ~/Proyectos/Symbex1/benchmarks/data/cifar10            # results/config_table.json

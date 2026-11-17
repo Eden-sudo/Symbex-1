@@ -106,3 +106,13 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   inference, the last for training, and keeping both real is not always best; RBNN (arXiv 2009.13055) plots
   per-layer cosine between real and binarized WEIGHT vectors (not feature maps). The report's "BD-BNN per-layer
   feature cosine" was not found.
+
+### 2026-11-17: part 3 pre-registration (random mixed configurations, FIT's protocol at 1 bit)
+- Edén agreed to try FIT's validation protocol. README part 3: 40 random configurations, 30 epochs from the twin,
+  measures drop_sum / fit_w / fit_a / fit / acc0 / cos_end, rule coarse (≥ 0.8 all) + fine (≥ 0.6 inside each stem
+  group), each seed.
+- Smoke test before writing the rule (config_table.py --limit 1 --epochs 2, seed 42, not saved): speed only, 2.8 s
+  per epoch -> ~85 s per configuration, ESTIMATE ~2.8 h for 40 x 3. It printed the per-layer FIT values of seed 42
+  (a measure, not the truth; no trained ranking seen). Noted for honesty.
+- Bug caught by the smoke design, not by a crash: retain_grad on activations must be off outside the Fisher pass
+  (no-grad recalibration / evaluation); the Recorder has a record flag.
