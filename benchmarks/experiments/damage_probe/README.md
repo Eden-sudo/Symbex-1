@@ -210,7 +210,8 @@ one-shot recovery -0.02-0.45.
   and fc are the layers whose weights cost most.
 - After the stem, nobody ranks the rest: the fine-tuned gains are 0-1.3 points with sd up to 1.2, and they agree with
   themselves across seeds only at 0.29-0.53. Five epochs are too short (or one fine-tune per layer too noisy) to be a
-  truth for the small layers. b4 is the only other layer with a gain above its sd (+1.27 ± 0.24).
+  truth for the small layers. b2, b4 and fc also have mean gains above their sd (+1.19 ± 0.90, +1.27 ± 0.24,
+  +0.43 ± 0.33); only b4 clearly (sd 0.24).
 
 ## Answer
 

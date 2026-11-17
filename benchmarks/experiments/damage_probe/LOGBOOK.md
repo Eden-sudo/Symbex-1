@@ -54,3 +54,37 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - Next (Edén decides): (a) a real truth for ResNet-8 (full training with each layer real or int8, 30 runs, ~4.7 h
   on the GPU, the binary net's recipe) to judge the drop column below the stem; (b) the same table for the MLP; (c)
   drop table in a tool (tools/dev) only after (a).
+
+### 2026-11-17: MendCode review of part 2 (PR #100 at c89330f, 2 findings, both right)
+- Major: resuming layer_table.py did not check the inputs (--runs, --data were excluded from the settings check):
+  other checkpoints or data would be skipped or mixed silently. Fix: every seed row stores its provenance (sha256 of
+  twin_s<seed>.pth, binary_s<seed>.pth and of the split: validation images + labels, training labels); a cached seed
+  is recomputed and compared, a mismatch is refused. The committed rows got their provenance afterwards (the
+  checkpoints are unchanged since Nov 4, before the run; noted in the JSON as provenance_note). Checked: same inputs
+  resume with no GPU work and the JSON byte-identical; a Bop checkpoint copied as binary_s42.pth is refused.
+- Minor: README said b4 was the only layer after the stem with a fine-tuned gain above its sd; b2 (+1.19 ± 0.90) and
+  fc (+0.43 ± 0.33) are too. My mistake reading the table; fixed (b4 is the only clear one, sd 0.24).
+
+### 2026-11-17: literature (Edén's deep search; checked by me with web search, the rest NOT verified)
+- Verified:
+  - NNCF uses HAWQ-V2 for mixed precision: layer sensitivity = mean Hessian trace (Hutchinson) x squared L2 norm of
+    the weight quantization perturbation (NNCF paper, arXiv 2002.08679).
+  - NNCF `quantize_with_accuracy_control` (max_drop): keeps the most harmful operations in the original precision
+    until the drop is met. INT8 PTQ only, no retraining. The class name "QuantizationAccuracyRestorer" given by the
+    report was not found (only AdvancedAccuracyRestorerParameters).
+  - NNCF binarization (PyTorch, Conv2D only, XNOR or DoReFa scale, staged training: activations then weights). No
+    per-layer damage table for binary networks.
+  - FIT (Zandonati et al., ICLR 2023, arXiv 2210.08502): layer-wise Fisher trace x expected quantization noise,
+    weights and activations in one metric, claims to predict the final accuracy without retraining (authors'
+    claim; their tables not checked).
+- Not verified (report only): BD-BNN per-layer cosine against the FP network, C-PTQ 2026 (per-channel
+  Fisher-weighted), BDM + entropy 2025-26, NNCF v3.3.0 HAWQ aggregator fix, QAIRT / ONNX Runtime / ESP-PPQ /
+  TFLite debuggers (all PTQ, compare tensors without retraining).
+- What it means here: the report's thesis (no-retrain measures overstate the damage because the rest of the network
+  co-adapts; nobody measures damage after retraining because it costs O(N) trainings) is what parts 1 and 2 found
+  (loss0 overrates large changes; one-shot recovery is noise). FIT's Fisher is on the WEIGHTS, not the layer
+  outputs we tried in part 1 (which broke on 1-bit logits): not ruled out. Our networks have no scale alpha (pure
+  sign) and Bop has no latent weights: a FIT-style column needs adapting, not copying.
+- Proposed next (Edén decides): a real truth for ResNet-8 (full training with each layer real, 10 layers x 3 seeds,
+  ESTIMATE ~4.7 h), then judge on it, with a rule written first: drop, FIT on weights, activation entropy (IR-Net),
+  cosine binary vs twin maps (BD-BNN). Risk: at 3 seeds the small layers may stay inside the seed spread.

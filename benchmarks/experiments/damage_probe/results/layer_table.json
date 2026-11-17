@@ -147,7 +147,14 @@
      "fc": 0.06
     }
    },
-   "finetune_seconds": 190.5
+   "finetune_seconds": 190.5,
+   "provenance": {
+    "twin_sha256": "c13eaa34db1109bccbd6a07ec9d6b9e18a61b65efe3df233b60a54f40c62a128",
+    "binary_sha256": "3a8e7403587caa1f096557c45527c7c9ff67819ec29bc77789566fe912d103a5",
+    "split_sha256": "45db0e96c05815b26b2604b0f7f0641043bcbf50509e0194fcdaaa55bfcfcfe4",
+    "n_train": 45000,
+    "n_validation": 5000
+   }
   },
   "43": {
    "n_train": 45000,
@@ -273,7 +280,14 @@
      "fc": 0.58
     }
    },
-   "finetune_seconds": 172.0
+   "finetune_seconds": 172.0,
+   "provenance": {
+    "twin_sha256": "87b9c036964dfb782e28b44d37176973351ef597c44bcd66c0945d927fb9c0c7",
+    "binary_sha256": "17ea29f8a35eec814dc3a3fc2b48c8bf5c925549933facf7be88201d09801026",
+    "split_sha256": "2b1c67e84786ab13880bb1a21e0434613b857474709427f5ded6ef90c6283f78",
+    "n_train": 45000,
+    "n_validation": 5000
+   }
   },
   "44": {
    "n_train": 45000,
@@ -399,7 +413,14 @@
      "fc": 0.66
     }
    },
-   "finetune_seconds": 152.1
+   "finetune_seconds": 152.1,
+   "provenance": {
+    "twin_sha256": "3ff65ce657a0dae2468e07b46332a79362e2764fbe7e798cbfcec2d78526bbc8",
+    "binary_sha256": "a1fe8c303ccf91bfa89f079f25752f9f361ad1f707c73f8cc1eb8c505044cb16",
+    "split_sha256": "f6e35dbc72eb243971446a18e03b35bac5019e4c6b081236772e42be7e9cb8f6",
+    "n_train": 45000,
+    "n_validation": 5000
+   }
   }
  },
  "spearman": {
@@ -418,5 +439,6 @@
    "recovery_vs_finetune": 0.237,
    "drop_vs_finetune": 0.517
   }
- }
+ },
+ "provenance_note": "added on Nov 17 2026 after the run (review of PR #100): hashes of the same checkpoints (unchanged since Nov 4) and of the CDT split of each seed"
 }

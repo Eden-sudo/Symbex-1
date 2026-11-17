@@ -12,9 +12,11 @@ Validation split only (the CDT's 45,000 / 5,000); the test set is never read.
     python layer_table.py --seeds 42 43 44 --runs <training_gap>/runs/train_gap --data <repo>/benchmarks/data/cifar10
 
 The networks are training_gap's twin_s<seed>.pth and binary_s<seed>.pth (gitignored, in the main folder). Resumable:
-seeds already in --out are kept if the settings match.
+seeds already in --out are kept if the settings and the inputs match (provenance: sha256 of the two checkpoints
+and of the split each seed was measured on; a mismatch is refused).
 """
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -120,13 +122,35 @@ def finetune(net, xs, ys, epochs, lr, seed, bs=128):
         sched.step()
 
 
-def measure_seed(seed, args, dev):
+def sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def provenance(seed, args, dev, split=None):
+    """what a seed's row depends on: the two checkpoints and the split (validation images + labels, training labels)"""
+    xs, ys, xv, yv = split or load_tensors(seed, args, dev)
+    data = hashlib.sha256()
+    for t in (xv, yv, ys):
+        data.update(t.cpu().numpy().tobytes())
+    return {f"{kind}_sha256": sha256_file(os.path.join(args.runs, f"{kind}_s{seed}.pth")) for kind in ("twin", "binary")} | {
+        "split_sha256": data.hexdigest(), "n_train": len(xs), "n_validation": len(xv)}
+
+
+def load_tensors(seed, args, dev):
     train, val = load_split(seed, args.data)
-    xs, ys = G._to_gpu(train, dev)
-    xv, yv = G._to_gpu(val, dev)
+    return (*G._to_gpu(train, dev), *G._to_gpu(val, dev))
+
+
+def measure_seed(seed, args, dev):
+    xs, ys, xv, yv = load_tensors(seed, args, dev)
     pick = torch.randperm(len(xs), generator=torch.Generator().manual_seed(0))[:args.calib].to(dev)
     xc = xs[pick]
-    row = {"n_train": len(xs), "n_validation": len(xv), "n_calibration": len(xc)}
+    row = {"n_train": len(xs), "n_validation": len(xv), "n_calibration": len(xc),
+           "provenance": provenance(seed, args, dev, (xs, ys, xv, yv))}
     nets, switches, states = {}, {}, {}
     for kind in ("twin", "binary"):
         net = G.build(kind)
@@ -235,7 +259,12 @@ def main():
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     for seed in args.seeds:
         if str(seed) in res["seeds"]:
-            print(f"  s{seed}: already in {args.out}")
+            stored = res["seeds"][str(seed)].get("provenance")
+            now = provenance(seed, args, dev)
+            if stored != now:
+                sys.exit(f"s{seed} in {args.out} was measured on other inputs (stored {stored}, now {now}): "
+                         "use another --out")
+            print(f"  s{seed}: already in {args.out}, same checkpoints and split")
             continue
         res["seeds"][str(seed)] = measure_seed(seed, args, dev)
         res["spearman"] = spearman(res)
