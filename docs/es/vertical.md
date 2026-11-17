@@ -165,7 +165,7 @@ librería final, con su rama compacta, mide 10.36 y 6.44 ms (3 semillas, 1000 im
 
 El motor vertical se comprueba igual que el estándar:
 
-- `tests/run_tests.py` ejecuta redes aleatorias completas (atajos identidad, 1×1 con pool y 1×1, stride 2, todos los
+- `Symbex1_PIO/lib/lib_symbex/tests/run_tests.py` ejecuta redes aleatorias completas (atajos identidad, 1×1 con pool y 1×1, stride 2, todos los
   bordes, umbrales en los extremos) por los dos motores y comprueba **la clase y el mapa final, bit a bit**, en las 6
   configuraciones de HAL, también con AddressSanitizer y UBSan (`--stress`).
 - La exportación del CDT compila el header con `-DSYMBEX_BOOL_VERTICAL` y lo compara con la simulación entera
