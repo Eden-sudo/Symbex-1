@@ -1,8 +1,9 @@
 """
 config_analysis.py -- README part 3, the checks written AFTER the run (not in the pre-registered rule):
     count       baseline: the number of binary layers (does a measure beat counting?)
-    partial     Spearman with the number of binary layers held fixed (ranks regressed on the count, residuals
-                correlated): does the measure see WHICH layers, not only HOW MANY?
+    partial     Spearman with the number of binary layers held fixed: ranks regressed on one indicator per count
+                (= ranks centered inside each count group), residuals correlated; a measure that is a function of
+                the count alone gets 0. Does the measure see WHICH layers, not only HOW MANY?
     drop_cov    Hill's coverage model (arXiv 2607.12266) on part 2's drops: sum of -log(1 - drop / c), c = recalibrated
                 twin accuracy - 10 (declared in LOGBOOK.md before the analysis)
     ceiling     the same statistics between the trained accuracies of two seeds (how far a measure could go)
@@ -30,9 +31,15 @@ def spear(x, y):
 
 
 def partial(x, y, n):
-    """Spearman of x and y with n held fixed: ranks regressed on n, residuals correlated"""
-    X = np.c_[np.ones(len(n)), n]
-    res = [rankdata(v) - X @ np.linalg.lstsq(X, rankdata(v), rcond=None)[0] for v in (x, y)]
+    """Spearman of x and y within groups of equal n: ranks centered inside each n group, residuals correlated
+    (0.0 when x is constant inside every group, i.e. carries nothing but n)"""
+    n = np.asarray(n)
+    res = []
+    for v in (x, y):
+        r = rankdata(v)
+        res.append(r - np.array([r[n == k].mean() for k in n]))
+    if np.allclose(res[0], 0) or np.allclose(res[1], 0):
+        return 0.0
     return round(float(pearsonr(*res).statistic), 3)
 
 
@@ -48,6 +55,13 @@ def main():
     args = ap.parse_args()
     res, table = json.load(open(args.configs)), json.load(open(args.table))
     seeds = sorted(res["seeds"])
+    from config_table import drops_sha256
+    for s in seeds:
+        row, t = res["seeds"][s], table["seeds"].get(s)
+        if t is None or t.get("provenance") != row["provenance"]:
+            raise SystemExit(f"s{s}: --table was measured on other checkpoints or another split than --configs")
+        if row.get("table_drop_sha256") != drops_sha256(t["drop"]):
+            raise SystemExit(f"s{s}: --table's drops are not the ones --configs used (table_drop_sha256)")
     out = {"seeds": {}, "ceiling": {}}
     for s in seeds:
         rows = res["seeds"][s]["configs"]

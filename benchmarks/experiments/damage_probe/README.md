@@ -298,22 +298,24 @@ Checks written AFTER the run (`config_analysis.py`, not part of the rule):
 
 | measure | all 40 | stem real | stem binary | **number of binary layers held fixed** |
 |---|---|---|---|---|
-| **count** (number of binary layers) | 0.84 / 0.87 / 0.87 | 0.98 / 0.96 / 0.98 | 0.91 / 0.93 / 0.94 | 0.10 / 0.17 / 0.15 |
-| drop_sum | 0.92 / 0.93 / 0.94 | | | **0.82 / 0.80 / 0.73** |
-| acc0 | | | | 0.81 / 0.75 / 0.64 |
-| cos_end | | | | 0.81 / 0.73 / 0.73 |
-| drop_cov (Hill's coverage model) | 0.81 / 0.85 / 0.92 | 0.96 / 0.98 / 0.92 | 0.94 / 0.94 / 0.90 | 0.80 / 0.77 / 0.73 |
-| fit_a | | | | 0.49 / 0.64 / 0.57 |
-| fit_w | | | | 0.02 / -0.38 / 0.18 |
-| fit | | | | 0.12 / -0.23 / 0.25 |
-| *noise ceiling* | | | | 0.86-0.93 |
+| **count** (number of binary layers) | 0.84 / 0.87 / 0.87 | 0.98 / 0.96 / 0.98 | 0.91 / 0.93 / 0.94 | 0.00 (by construction) |
+| drop_sum | 0.92 / 0.93 / 0.94 | | | **0.83 / 0.82 / 0.72** |
+| acc0 | | | | **0.84 / 0.78 / 0.67** |
+| cos_end | | | | **0.84 / 0.78 / 0.75** |
+| drop_cov (Hill's coverage model) | 0.81 / 0.85 / 0.92 | 0.96 / 0.98 / 0.92 | 0.94 / 0.94 / 0.90 | 0.82 / 0.80 / 0.72 |
+| fit_a | | | | 0.47 / 0.64 / 0.54 |
+| fit_w | | | | -0.06 / -0.45 / 0.11 |
+| fit | | | | 0.05 / -0.32 / 0.19 |
+| *noise ceiling* | | | | 0.86-0.92 |
 
 - **The rule was too easy.** Counting the binary layers passes it too: in random configurations the accuracy
   depends mostly on HOW MANY layers are binary, and every measure sees that. The useful question is WHICH layers, at
-  the same count (last column; ranks regressed on the count, residuals correlated).
-- **At the same count:** drop_sum is the best (0.73-0.82, ceiling 0.86-0.93), then acc0 and cos_end (0.64-0.81),
-  then fit_a (0.49-0.64). FIT on the weights sees nothing (-0.38 to 0.18): what it measures at 1 bit is how many
-  layers are binary.
+  the same count (last column: ranks centered inside each group of equal count, residuals correlated; groups of
+  3-9 binary layers, 1-9 configurations each). A first version removed only a linear trend of the count, which
+  left counting itself at 0.10-0.17 (MendCode review); corrected.
+- **At the same count:** drop_sum, acc0 and cos_end tie (0.67-0.84, ceiling 0.86-0.92; none is ahead on every
+  seed), then fit_a (0.47-0.64). FIT on the weights sees nothing (-0.45 to 0.19): what it measures at 1 bit is how
+  many layers are binary.
 - **The stem after 30 epochs:** weighting it more than the count (count + 5 for the stem) ranks WORSE (0.72-0.74
   on all 40): training repairs much of its one-shot 37-point drop. drop_sum still ranks well because the rest of
   its terms carry the order.
@@ -325,9 +327,10 @@ Checks written AFTER the run (`config_analysis.py`, not part of the rule):
 
 **Yes for the pre-registered question, with an honest correction:** drop_sum, fit_a, acc0 and cos_end pass the
 rule, but so does counting the binary layers. The part that matters for choosing layers is the ranking at the same
-number of binary layers: there **part 2's drop table (12 s per network) is the best measure, 0.73-0.82 against a
-seed-to-seed ceiling of 0.86-0.93**; accuracy without training and the logit cosine follow; FIT on the weights does
-not work at 1 bit.
+number of binary layers: there **part 2's drop table (12 s per network), the accuracy of the configuration without
+training and its logit cosine (≤ 0.5 s each) tie, 0.67-0.84 against a seed-to-seed ceiling of 0.86-0.92**; FIT on
+the activations is weaker; FIT on the weights does not work at 1 bit. The drop table is the only one that needs no
+pass per configuration (one table, then sums).
 
 Limits: one network (ResNet-8), 40 random configurations per seed, the truth is a 30-epoch training from the twin
 (not the 150-epoch recipe), binary vs real only. The "same count" check was designed after seeing the results:

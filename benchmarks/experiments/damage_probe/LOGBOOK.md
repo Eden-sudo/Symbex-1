@@ -173,3 +173,25 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - Expectation: wrong on fit_a being weakest (fit_w is) and on drop_sum / acc0 failing the fine test.
 - Next (Edén decides): pre-register the "same count" test on another network (MLP or tiny_llm) before moving the
   drop table to tools/dev.
+
+### 2026-11-17: MendCode review of part 3 results (PR #100 at 63fe400, 2 findings, both right)
+- Major: the "same count" statistic removed only a LINEAR trend of the count from the ranks; counting itself kept
+  0.10-0.17, so the column did not hold the count fixed. Fix: ranks centered inside each group of equal count
+  (counting now gives 0.00). New numbers at the same count: drop_sum 0.83 / 0.82 / 0.72, acc0 0.84 / 0.78 / 0.67,
+  cos_end 0.84 / 0.78 / 0.75, drop_cov 0.82 / 0.80 / 0.72, fit_a 0.47 / 0.64 / 0.54, fit_w -0.06 / -0.45 / 0.11,
+  ceiling 0.86-0.92. The claim changes: drop_sum is NOT the best, it ties with acc0 and cos_end. README fixed.
+- Minor: config_analysis.py did not check that --table belongs to --configs. Now it compares provenance and
+  table_drop_sha256; a table with one drop changed is refused (checked).
+
+### 2026-11-17: quick check, before vs after binarizing (quick_check.py, seed 42, 96 s, a ranking)
+- Edén's question: the measures so far all start from the full-precision network; does the predicted per-layer drop
+  name the layers that cost the most once the network IS binary?
+- Twin 81.26 -> every layer binary, one shot 13.40 -> fine-tuned 30 epochs (B) 53.72 (far below the binary trained
+  from scratch, ~70: 30 epochs are not enough for all layers at once).
+- After-measure 1, one layer of B made real again without training: stem -8.94, b0 -1.04, fc -1.56, others 0 to
+  +1.36. Spearman with the prediction -0.29. Making a layer real HURTS B: its other layers adapted to that layer
+  being binary (same problem as part 2's recovery column). Not a valid after-measure.
+- After-measure 2, cosine of each layer's BatchNorm output B vs twin: grows with depth (stem 0.17, ds4 0.57),
+  accumulated error, not the layer's own. Spearman with the prediction -0.30.
+- Next: a LOCAL error per layer in B (each layer fed the twin's input), then decide whether the slow truth
+  (training with one layer real) is worth it.
