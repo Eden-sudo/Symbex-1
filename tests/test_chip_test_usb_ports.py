@@ -84,6 +84,10 @@ def test_pico2_no_usb_port(monkeypatch, tmp_path, board, kernels):
                         (["--kernels"] if kernels else [str(tmp_path)]))
     with pytest.raises(SystemExit) as exc:
         chip_test.main()
-    assert exc.value.code == "[X] no serial ports found; specify --port."
-    assert len(calls) == 1
+    if kernels:  # chip_test.py refuses the kernel benchmark on the Pico 2 before it looks for a port
+        assert exc.value.code.startswith("[X] the kernel benchmark is for the ESP32 boards")
+        assert len(calls) == 0
+    else:
+        assert exc.value.code == "[X] no serial ports found; specify --port."
+        assert len(calls) == 1
     assert not list(tmp_path.glob("*.json"))
