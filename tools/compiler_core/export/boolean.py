@@ -26,6 +26,7 @@ Every conv computes raw = sum of +-1 products over the in-image window; BatchNor
 
     train / binary_weights / load_trained              the training: train/boolean.py (still importable from here)
     fold(model) / simulate(net, x_u8)                  the integer network, and its exact simulation
+    layer_bits(model, net, x_u8)                       per layer: output bits of PyTorch vs the folded thresholds
     export_and_validate(model, val_ds, out_dir, ...)   header + validation files + the C check on this PC (gcc)
 The header offers the interface of the MLP headers (symbex_mlp_infer, SYMBEX_MLP_N_INPUTS / N_CLASSES / N_STEPS,
 symbex_mlp_steps, SYMBEX_MLP_BYTES_BUFFERS), so firmware/model_test.c and the chip stage measure it unchanged.
@@ -52,6 +53,9 @@ _words, _c_array = c_header.words, c_header.c_array   # the names these helpers 
 
 INT_MIN, INT_MAX = -2 ** 31, 2 ** 31 - 1
 FC_SHIFT = 16
+LAYER_BITS_SAMPLES = 256    # layer_bits on the first validation samples
+LAYER_BITS_LIMIT = 1e-3     # more mismatched bits than this share in any layer = a wrong fold, not float rounding
+SANITIZE_SAMPLES = 64       # the sanitized C builds run on the first validation samples
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -547,11 +551,12 @@ def write_header(net, path, in_size=32):
     return flash, ram, steps, shapes
 
 
-def validate_c(header_path, lib_path, x_u8, expected, vertical=False, prepared=False):
+def validate_c(header_path, lib_path, x_u8, expected, vertical=False, prepared=False, sanitize=False):
     """gcc on this PC: the header + lib_symbex (symbex_bool.c, the generic HAL) on x_u8; (equal, total, message).
     vertical=True: built with -DSYMBEX_BOOL_VERTICAL (the vertical engine, in its portable C form); prepared=True:
     also -DSYMBEX_BOOL_VERTICAL_PREPARED (its lists and thresholds prepared in RAM); prepared="compact":
-    -DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT (the lists prepared, the thresholds compact)"""
+    -DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT (the lists prepared, the thresholds compact). sanitize=True: built with
+    AddressSanitizer + UndefinedBehaviorSanitizer (c_build.SANITIZE): a read past a buffer becomes an error"""
     pflag = ("-DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT" if prepared == "compact" else "-DSYMBEX_BOOL_VERTICAL_PREPARED")
     sources = ["layers/conv/symbex_bool.c", "hal/generic/symbex_hal_impl.c"]
     flags = []
@@ -579,7 +584,51 @@ def validate_c(header_path, lib_path, x_u8, expected, vertical=False, prepared=F
         return ""
 
     return c_build.check(header_path, lib_path, x_u8, expected, sources, flags=flags,
-                         after=sizes_match if vertical else None)
+                         after=sizes_match if vertical else None, sanitize=sanitize)
+
+
+def _folded_pairs(model, net):
+    """(name, conv, BatchNorm, folded layer) of every thresholded layer, in fold's order"""
+    pairs = [("stem", model.stem, model.stem_bn, net["stem"])]
+    for i, (b, fb) in enumerate(zip(model.blocks, net["blocks"])):
+        pairs.append((f"block {i}", b.conv, b.bn, fb["conv"]))
+        if fb["shortcut"] is not None:
+            pairs.append((f"block {i} shortcut", b.ds_conv, b.ds_bn, fb["shortcut"]))
+    return pairs
+
+
+@torch.no_grad()
+def layer_bits(model, net, x_u8):
+    """the fold checked layer by layer: every thresholded layer gets PyTorch's own input (forward hooks) and its
+    output bits are computed twice, by PyTorch (BatchNorm output >= 0, the sign's 0 -> +1) and by the folded integer
+    weights and thresholds. Each layer is checked on its own input, so a mismatch does not travel to the next layer:
+    a wrong fold shows at once in its layer. float32 vs float64 rounding at the threshold gives a few mismatches,
+    rarely. Returns [dict(layer, bits, mismatched)] in network order."""
+    model = model.cpu().eval()
+    pairs = _folded_pairs(model, net)
+    seen = {}
+    hooks = []
+    for name, conv, bn, _ in pairs:
+        hooks.append(conv.register_forward_hook(lambda m, i, o, n=name: seen.__setitem__((n, "in"), i[0].double())))
+        hooks.append(bn.register_forward_hook(lambda m, i, o, n=name: seen.__setitem__((n, "out"), o)))
+    try:
+        model(torch.as_tensor(np.ascontiguousarray(x_u8)).permute(0, 3, 1, 2))
+    finally:
+        for h in hooks:
+            h.remove()
+    out = []
+    for name, _, _, c in pairs:
+        if c.get("int8"):                            # the int8 stem reads the pixels: D = sum of (pixel - 128) * q
+            x = torch.as_tensor(np.ascontiguousarray(x_u8)).permute(0, 3, 1, 2).double() - 128
+        else:
+            x = seen[(name, "in")]
+            if not torch.equal(x.abs(), torch.ones_like(x)):
+                raise ValueError(f"boolean export, {name}: its input is not +-1")
+        raw = F.conv2d(x, torch.as_tensor(c["w"]), stride=c["stride"], padding=c["k"] // 2)
+        folded = raw >= torch.as_tensor(c["thr"], dtype=torch.float64).view(1, -1, 1, 1)
+        torch_bits = seen[(name, "out")] >= 0
+        out.append(dict(layer=name, bits=folded.numel(), mismatched=int((folded != torch_bits).sum())))
+    return out
 
 
 def _val_u8(val_ds, n):
@@ -601,6 +650,7 @@ def export_and_validate(model, val_ds, out_dir, lib_path, n_validation=2000):
                                   for i in range(0, len(x_u8), 250)])
     net = fold(model)
     p_sim = simulate(net, x_u8)
+    bits = layer_bits(model, net, x_u8[:LAYER_BITS_SAMPLES])
     header = os.path.join(out_dir, "model_symbex.h")
     flash, ram, steps, shapes = write_header(net, header, x_u8.shape[1])
     equal, total, msg = validate_c(header, lib_path, x_u8, p_sim)
@@ -611,6 +661,10 @@ def export_and_validate(model, val_ds, out_dir, lib_path, n_validation=2000):
                                else (None, 0, ""))
     c_equal, c_total, c_msg = (validate_c(header, lib_path, x_u8, p_sim, vertical=True, prepared="compact")
                                if has_vertical else (None, 0, ""))
+    n_san = min(len(x_u8), SANITIZE_SAMPLES)       # the sanitized builds are slower: a few samples find a bad read
+    s_equal, s_total, s_msg = validate_c(header, lib_path, x_u8[:n_san], p_sim[:n_san], sanitize=True)
+    sv_equal, sv_total, sv_msg = (validate_c(header, lib_path, x_u8[:n_san], p_sim[:n_san], vertical=True, sanitize=True)
+                                  if has_vertical else (None, 0, ""))
     save_validation(out_dir, x_u8.reshape(len(x_u8), -1), y, p_sim)
     acc_t, acc_s = 100 * (p_torch == y).mean(), 100 * (p_sim == y).mean()
     fid = 100 * (p_sim == p_torch).mean()
@@ -624,6 +678,14 @@ def export_and_validate(model, val_ds, out_dir, lib_path, n_validation=2000):
     print(f"    validation  : {len(x_u8)} samples")
     print(f"    accuracy    : PyTorch {acc_t:.2f}%   integer simulation {acc_s:.2f}%")
     print(f"    FIDELITY    : {fid:.2f}%  (same prediction PyTorch vs. integers)")
+    worst = max(bits, key=lambda b: b["mismatched"] / b["bits"])
+    bits_ok = all(b["mismatched"] <= LAYER_BITS_LIMIT * b["bits"] for b in bits)
+    print(f"    layer bits  : {len(bits)} layers, PyTorch vs. folded thresholds on PyTorch's own input, worst "
+          f"{worst['layer']} {100 * worst['mismatched'] / worst['bits']:.4f}% of {worst['bits']} bits "
+          + ("OK" if bits_ok else f"[X] (limit {100 * LAYER_BITS_LIMIT:.2f}%: the fold is wrong)"))
+    if not bits_ok:
+        for b in bits:
+            print(f"        {b['layer']:22s} {b['mismatched']:8d} / {b['bits']} bits differ")
     if equal is None:
         print(f"    EXACTNESS   : not checked ({msg})")
     else:
@@ -646,10 +708,20 @@ def export_and_validate(model, val_ds, out_dir, lib_path, n_validation=2000):
     elif has_vertical:
         print(f"    compact     : {100 * c_equal / c_total:.2f}%  (+ -DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT, lists prepared, "
               f"thresholds compact, vs. the integer simulation) " + ("OK" if c_equal == c_total else "[X]"))
+    for label, eq, tot, m in (("sanitizer", s_equal, s_total, s_msg), ("sanitizer v", sv_equal, sv_total, sv_msg)):
+        if label == "sanitizer v" and not has_vertical:
+            continue
+        what = "the vertical engine" if label == "sanitizer v" else "the standard engine"
+        print(f"    {label:12s}: " + (f"not checked or [X] ({m})" if eq is None else
+              f"{n_san} samples, {what} built with -fsanitize=address,undefined: no error, "
+              f"{100 * eq / tot:.2f}% equal " + ("OK" if eq == tot else "[X]")))
     return dict(method="boolean", header=header, flash_bytes=flash, ram_buffers=ram, steps=steps, layers=shapes,
                 accuracy_torch=acc_t, accuracy_sim=acc_s, fidelity=fid,
                 exactness=None if equal is None else 100 * equal / total, arithmetic="and (HAL rows)",
                 exactness_vertical=None if v_equal is None else 100 * v_equal / v_total,
                 exactness_vertical_prepared=None if p_equal is None else 100 * p_equal / p_total,
                 exactness_vertical_compact=None if c_equal is None else 100 * c_equal / c_total,
+                layer_bits=bits, layer_bits_ok=bits_ok,
+                sanitizer=None if s_equal is None else 100 * s_equal / s_total, sanitizer_message=s_msg,
+                sanitizer_vertical=None if sv_equal is None else 100 * sv_equal / sv_total, sanitizer_vertical_message=sv_msg,
                 _x_u8=x_u8.reshape(len(x_u8), -1), _y=y, _pred_sim=p_sim)

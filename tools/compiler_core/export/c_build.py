@@ -4,6 +4,7 @@ lib_symbex, run it on the validation inputs and count how many results equal the
 as a compiler command and arguments; when unset or empty, gcc then cc is tried.
 
     check(header_path, lib_path, x_u8, expected, sources, ...)   -> (equal, total, message)
+    SANITIZE                                                      the flags of check(..., sanitize=True)
     TEST_MAIN                                                     the test program (reads uint8 inputs, prints the class)
 
 Every header offers the interface of the MLP headers (symbex_mlp_infer, SYMBEX_MLP_N_INPUTS), so one test program
@@ -36,8 +37,13 @@ int main(int argc, char** argv) {
 }
 """
 
+# check(..., sanitize=True): AddressSanitizer + UndefinedBehaviorSanitizer, stop at the first error. A read past a
+# buffer that happens to find zeros gives the same results on this PC (the exactness check passes) and may fail on a
+# chip; the sanitizer turns it into an error here.
+SANITIZE = ["-fsanitize=address,undefined", "-fno-sanitize-recover=all", "-fno-omit-frame-pointer", "-g"]
 
-def check(header_path, lib_path, x_u8, expected, sources, flags=(), std="gnu11", after=None):
+
+def check(header_path, lib_path, x_u8, expected, sources, flags=(), std="gnu11", after=None, sanitize=False):
     """Build the header + lib_symbex on this PC and run on x_u8; returns (equal, total, message), equal None when it
     could not run (no compiler, library missing, no build, a crash; message says why). CC is split into a command and
     arguments; unset or empty CC tries gcc then cc. Whitespace-only CC or malformed quoting raises ValueError.
@@ -45,7 +51,9 @@ def check(header_path, lib_path, x_u8, expected, sources, flags=(), std="gnu11",
     flags: extra compiler flags (-D..., -mpopcnt). std: the C standard.
     after(build, folder): an extra check run in the build folder after the results; build(c_file, exe) builds a
     program of that folder with the same sources and flags (None on success, else the compiler's error). It returns "" when
-    the check passes, else the message (the result is then None)."""
+    the check passes, else the message (the result is then None).
+    sanitize=True: built with SANITIZE (address + undefined behavior); a sanitizer report makes the result None and
+    the message carries its first lines."""
     cc = os.environ.get("CC")
     if cc:
         compiler = shlex.split(cc)
@@ -65,6 +73,8 @@ def check(header_path, lib_path, x_u8, expected, sources, flags=(), std="gnu11",
     for r in [inc] + sources:
         if not os.path.exists(r):
             return None, 0, f"lib_symbex not found at {lib_path} ({r} missing): set [output] lib_path"
+    if sanitize:
+        flags = [*flags, *SANITIZE]
     with tempfile.TemporaryDirectory() as d:
         shutil.copy(header_path, os.path.join(d, "model_symbex.h"))
 
@@ -82,6 +92,9 @@ def check(header_path, lib_path, x_u8, expected, sources, flags=(), std="gnu11",
         np.ascontiguousarray(x_u8, dtype=np.uint8).tofile(data)
         r = subprocess.run([exe, data, str(len(x_u8))], capture_output=True, text=True)
         if r.returncode != 0:
+            if sanitize and "Sanitizer" in r.stderr:
+                report = [l for l in r.stderr.splitlines() if l.strip()][:12]
+                return None, 0, "the sanitizer found an error:\n" + "\n".join(report)
             return None, 0, "the C program failed while running"
         pred_c = np.array([int(v) for v in r.stdout.split()])
         if after is not None:
