@@ -396,3 +396,24 @@ is better on one seed and worse on two. As expected beforehand, nothing beats ad
 (expected: close to it). popcount's assumption is borderline, not clearly broken. For the ResNet-8 the single-layer
 table plus a sum stays the cheapest useful ranking. The super-additivity seen in tiny_llm does not appear here (sub-additive, bounded by
 chance).
+
+# Part 4b -- is the sub-additive damage only the 10 % floor? The same table with the validation loss
+
+## Question
+
+Accuracy cannot fall below chance (10 %), so the drops of part 4 may saturate only because of that floor. The
+cross-entropy has no such ceiling (tiny_llm's damage, super-additive, was measured in loss). With the loss, is the
+ResNet-8 damage still sub-additive?
+
+## What
+
+- The same one-shot table (1,024 subsets, BatchNorm recalibrated on the same 10,000 images, seeds 42 43 44), now
+  recording the mean validation cross-entropy (natural log) in the same pass as the accuracy. Game: v(S) = loss(S) -
+  loss(no layer binary). `interactions.py --metric loss --out results/interactions_loss.json`.
+- **Rule (written before measuring, Nov 17 2026):** ratio = loss increase with all 10 layers binary / sum of the 10
+  single increases. Super-additive if ratio > 1 on each of the 3 seeds (then the part 4 "sub-additive" was the floor:
+  ResNet-8 and tiny_llm tell the same story); sub-additive if ratio < 1 on each seed (a property of the network, not
+  of the metric); otherwise mixed. Also reported, not judged: the share of the 45 pair interactions that are positive,
+  and part 4's ranking table with the loss models.
+
+Expectation written beforehand (not a result): no expectation either way; the stem's pair interactions are the place to look.
