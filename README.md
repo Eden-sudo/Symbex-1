@@ -49,7 +49,7 @@ To try it in five minutes (each block starts at the repository root):
 
 ```
 # the library on your board (PlatformIO): the example must print "8/8 equal to the PC simulation"
-cd Symbex1_PIO && pio run -t upload && pio device monitor -b 115200
+(cd Symbex1_PIO && pio run -t upload && pio device monitor -b 115200)
 
 # the library tests (gcc)
 python Symbex1_PIO/lib/lib_symbex/tests/run_tests.py
@@ -242,7 +242,7 @@ both cores of the Raspberry Pi Pico 2, the Arduino Uno's AVR), the vertical engi
   ESP32 (22 vs 296 mJ). On the classic ESP32 the other benchmarks too: MLP 11×, HAR 8.7×, ECG 8.0× less energy per
   inference; FOMO 96 mJ per frame, where TFLite Micro does not fit. On the S3 every benchmark uses less energy too:
   MLP 25×, FOMO 2.0×, HAR 1.8×, ECG 1.4×, ResNet-8 with the prepared engine 10.5× (4.5 mJ)
-  ([docs/en/results.md](docs/en/results.md#energy)).
+  ([docs/en/results.md](docs/en/results.md#energy-per-inference)).
 
 Next:
 
