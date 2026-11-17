@@ -88,3 +88,21 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - Proposed next (Edén decides): a real truth for ResNet-8 (full training with each layer real, 10 layers x 3 seeds,
   ESTIMATE ~4.7 h), then judge on it, with a rule written first: drop, FIT on weights, activation entropy (IR-Net),
   cosine binary vs twin maps (BD-BNN). Risk: at 3 seeds the small layers may stay inside the seed spread.
+
+### 2026-11-17: FIT paper read (arXiv 2210.08502, full text) + two BNN sources (search snippets only)
+- FIT = sum over layers of Tr(empirical Fisher of the layer) / n(l) x ||quantization noise||^2, weights and
+  activations (derivatives w.r.t. activations for the activation term); EF trace by sampling until tolerance 0.01
+  (82 iterations on U-Net). Computed on the trained FULL-PRECISION model (our "drop" direction, not "recovery").
+- How they validate (the part we need): their truth is many RANDOM mixed-precision configurations (every layer gets
+  a random bit width from {8, 6, 4, 3}), each trained 30 epochs from the same full-precision checkpoint; metric vs
+  final accuracy by rank correlation over the configurations ("hundreds"; U-Net 50 configs: 0.86). Table 2: FIT
+  ~0.6-0.9; activation-only terms much worse with BatchNorm (0.33-0.39). Never tested at 1 bit.
+- Lesson for us: (1) their truth changes many layers per configuration, so the accuracies spread widely and a rank
+  correlation is meaningful; our one-layer-at-a-time gains (0-1.3 points, sd up to 1.2) are mostly seed noise;
+  (2) their truth is a short training from the full-precision model (30 epochs), not a full run; (3) BatchNorm hurts
+  activation sensitivity measures: ResNet-8 has BN after every conv.
+- Search snippets, NOT read: BNN survey (arXiv 2004.03333) describes switching one layer between 1 bit and full
+  precision as an importance test (= our drop column); arXiv 2208.00398 says the first layer matters more for
+  inference, the last for training, and keeping both real is not always best; RBNN (arXiv 2009.13055) plots
+  per-layer cosine between real and binarized WEIGHT vectors (not feature maps). The report's "BD-BNN per-layer
+  feature cosine" was not found.
