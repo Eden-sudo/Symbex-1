@@ -335,3 +335,36 @@ pass per configuration (one table, then sums).
 Limits: one network (ResNet-8), 40 random configurations per seed, the truth is a 30-epoch training from the twin
 (not the 150-epoch recipe), binary vs real only. The "same count" check was designed after seeing the results:
 it needs its own pre-registered test on another network (MLP, or tiny_llm's layers) before drop_sum goes to tools/dev.
+
+# Part 4 -- do the interactions between layers rank the configurations better than the plain sum?
+
+## Question
+
+The damage does not add up (tiny_llm: all units binary at once costs 2.2-2.5x the sum of the single units). Part 3
+ranked its trained configurations with the plain sum of single-layer drops. Do models that include the interactions
+(pairs, Shapley values, a count model), all measured without training, rank them better?
+
+## What
+
+- **One shot table:** the twin with each of the 2^10 = 1,024 subsets of the 10 layers binary (weights and
+  activation together, as part 3), BatchNorm recalibrated (10,000 training images), validation accuracy. Seeds 42 43 44.
+- **Models** (`interactions.py` docstring): additive (sum of single drops), pairs (+ every pair interaction
+  I_ij = d_ij - d_i - d_j inside the configuration), shapley (sum of the exact Shapley values of its layers),
+  popcount (mean one-shot drop of the subsets with the same stem state and the same number of other binary layers),
+  and acc0 (the configuration's own one-shot accuracy, which all the others approximate).
+- **Truth:** part 3's trained accuracies (40 configurations x 3 seeds, results/config_table.json, no new training).
+  Statistic: Spearman at the same number of binary layers (config_analysis.partial), and over all 40.
+- **Rule (written before measuring, Nov 17 2026):** a model is useful if its same-count Spearman beats additive's by
+  > 0.05 on each of the 3 seeds. popcount's assumption (the non-stem layers interchangeable) holds if the mean spread
+  of the one-shot accuracy inside its (stem, count) groups is not larger than the spread of the same subset between
+  seeds.
+
+Expectation written beforehand (not a result): pairs and shapley close to acc0 (they approximate it) and not above
+it; none beats additive by > 0.05 on every seed (part 3: acc0 did not beat drop_sum at the same count); popcount
+fails its assumption (part 2: b0 drops 12, b5 ~1).
+
+Limits known beforehand: one-shot interactions may not survive training (co-adaptation, quick_check); one network;
+the truth is part 3's 30-epoch training.
+
+    python interactions.py --seeds 42 43 44 --runs ~/Proyectos/Symbex1/benchmarks/experiments/training_gap/runs/train_gap \
+        --data ~/Proyectos/Symbex1/benchmarks/data/cifar10          # results/interactions.json
