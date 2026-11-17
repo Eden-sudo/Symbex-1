@@ -230,3 +230,17 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - Context (Edén, Nov 17): the goal is LLMs on the ESP32 and Pico 2 too (Obed's: llama2.c 260K / 15M). The current
   15.7 M model does not fit there (RAM ~1.9 MB, the KV cache 1.67 MB; ESTIMATE from tinylm.c's allocations). Next
   (agreed in principle): llama2.c's 260K shape (dim 64, 5 layers, vocab 512), fp32 vs binary, 3 seeds, to the chips.
+
+### 2026-11-17: are there LLM designs made for the edge, or are tiny LLMs small because of their data? (reading only)
+- Both. Small because of the data: llama2.c 260K / 15M and our tiny_llm are a standard Llama on TinyStories (simple
+  stories, short vocabulary). Designs for the edge: MobileLLM (arXiv 2402.14905, ICML 2024: deep and thin, shared
+  input / output embedding, GQA, block-wise weight sharing, 125-350 M, phones); Super Tiny LMs (2405.14159, weight
+  sharing, 10-100 M; abstract only); Opt.Gear-1M (2608.01034, Cortex-M7 STM32H747, W4A32, 20 tok/s by the authors,
+  convolutional key-value gated mixer + local-global attention to cut the KV cache; abstract only); slvDev/esp32-ai
+  (per-layer embeddings in flash, S3); RWKV-type recurrent models (constant state, no KV cache; blogs only, no MCU
+  deployment found).
+- For the ESP32 / Pico 2 our limit is the KV cache in RAM, not the weights (already 1-bit). What attacks it, easiest
+  first: GQA (llama2.c 260K already has 4 kv heads of 8; tinylm.c does not support it yet), sliding-window attention
+  (fixed RAM), deep and thin; a recurrent / convolutional mixer is a new architecture (later).
+- Proposal (not started, Edén decides): the 260K shape with GQA + a window, binary, 3 seeds. Before citing
+  Opt.Gear / Super Tiny LMs / RWKV in the paper: read the PDFs.
