@@ -206,7 +206,7 @@ one-shot recovery -0.02-0.45.
 - The drop is stable across seeds and has one clear answer: the **stem** (37 points when only it is binary, about
   twice the next layer). The fine-tuned check agrees on the stem (+2.2, the largest gain on every seed) and so does
   the independent trained result (int8 stem +4.5 points, training_gap).
-- In the drop, the **activations cost more than the weights** in every block but b3 / b5 (b0: 12.6 vs 4.9); the stem
+- In the drop, the **activations cost more than the weights** in every block and shortcut conv (b0: 12.6 vs 4.9; b3 and b5 by only 0.3); the stem
   and fc are the layers whose weights cost most.
 - After the stem, nobody ranks the rest: the fine-tuned gains are 0-1.3 points with sd up to 1.2, and they agree with
   themselves across seeds only at 0.29-0.53. Five epochs are too short (or one fine-tune per layer too noisy) to be a
