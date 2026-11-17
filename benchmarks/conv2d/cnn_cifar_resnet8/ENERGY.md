@@ -64,9 +64,12 @@ raise the power and eat the gain.
 
 **What.** The same model and seed, vertical default (54 KB of RAM) against vertical prepared (217 KB), weights in
 flash, lut16; both exact against the simulation on the chip, 100 %. One 10-minute run each on Nov 15, meter zeroed
-before each, same USB-A meter port as Nov 14. lut16 / swar is only a build flag here: this model's layers on the S3
-are AND layers counted with PIE, the 64 KB table serves XNOR layers only, so it is never allocated (`popcount_table`
-0 in the chip JSON) and the RAM, the arithmetic and the time are the same with either flag (the Nov 14 run used swar).
+before each, same USB-A meter port as Nov 14. lut16 / swar does not change the arithmetic or the time here: this
+model's layers on the S3 are AND layers counted with PIE, and the 64 KB table serves XNOR layers only. The RAM column
+is what inference needs (measured around the first inference: `popcount_table` 0 in the chip JSON). In a lut16 build
+the firmware still allocates the unused 64 KB table afterwards, when it prints the HAL name (`symbex_hal_name()`), so
+during these lut16 runs the chip held about 54 + 64 / 217 + 64 KB (estimate from the code, not measured). The Nov 14
+run used swar (no table).
 
 | Engine | RAM | Inferences in 600 s | ms each | Meter (mAh / Wh / timer) | Power | **mJ per inference** |
 |---|---|---|---|---|---|---|
