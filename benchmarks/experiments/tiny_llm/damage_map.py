@@ -28,7 +28,8 @@ def load(run, dev):
                {"ste_mode": a.get("ste", "identity"), "ste_k": a.get("ste_k", 2.0),
                 "learn_thr": a.get("learn_thr", False)},
                tuple(a.get("a8_inputs", [])), W2_ACTS[a.get("w2_acts", "same")], a.get("ffn_act", "silu"),
-               tuple(a.get("hadamard", [])), tuple(a.get("a8_blocks", []))).to(dev)
+               tuple(a.get("hadamard", [])), tuple(a.get("a8_blocks", [])),
+                 tuple(a.get("int8_units", []))).to(dev)
     m.load_state_dict(ck["model"])
     return m, a["seq"]
 

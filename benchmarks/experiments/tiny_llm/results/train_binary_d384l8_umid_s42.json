@@ -1,0 +1,176 @@
+{
+  "weights": "binary",
+  "seed": 42,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42
+    ],
+    "head": "fp32",
+    "int8_blocks": [],
+    "int8_units": [
+      "3.w13",
+      "3.qkv",
+      "4.w13"
+    ],
+    "acts": 8,
+    "ste": "identity",
+    "ste_k": 2.0,
+    "learn_thr": false,
+    "a8_inputs": [],
+    "a8_blocks": [],
+    "w2_acts": "same",
+    "hadamard": [],
+    "ffn_act": "silu",
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "d384l8_umid",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.4832,
+  "val_perplexity": 4.407,
+  "minutes": 22.56,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.3094,
+      "val_loss": 2.2532,
+      "minutes": 1.6
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.9295,
+      "val_loss": 1.9397,
+      "minutes": 2.7
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.7684,
+      "val_loss": 1.8251,
+      "minutes": 3.8
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.7292,
+      "val_loss": 1.7586,
+      "minutes": 4.91
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.75,
+      "val_loss": 1.7173,
+      "minutes": 6.01
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.6579,
+      "val_loss": 1.6845,
+      "minutes": 7.1
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.6397,
+      "val_loss": 1.6574,
+      "minutes": 8.2
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.6312,
+      "val_loss": 1.6353,
+      "minutes": 9.31
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.6211,
+      "val_loss": 1.6126,
+      "minutes": 10.41
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.6229,
+      "val_loss": 1.5939,
+      "minutes": 11.51
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.5661,
+      "val_loss": 1.5788,
+      "minutes": 12.62
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.4994,
+      "val_loss": 1.5615,
+      "minutes": 13.73
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.5981,
+      "val_loss": 1.5478,
+      "minutes": 14.83
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.5917,
+      "val_loss": 1.5311,
+      "minutes": 15.93
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.4956,
+      "val_loss": 1.5187,
+      "minutes": 17.03
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.4652,
+      "val_loss": 1.5068,
+      "minutes": 18.14
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.4489,
+      "val_loss": 1.4986,
+      "minutes": 19.25
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.4564,
+      "val_loss": 1.4897,
+      "minutes": 20.35
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.4667,
+      "val_loss": 1.4841,
+      "minutes": 21.46
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.4779,
+      "val_loss": 1.4832,
+      "minutes": 22.56
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and eat yummy food. One day, she found a big, red apple in her yard. Lily was very happy and wanted to eat it.\nLily took the apple to her mom and said, \"Mom, can I eat this apple?\" Her mom looked at the apple and said, \"Yes, Lily, you can eat the apple. But first, you must help me with the laundry.\"\nLily was a little scared, but she wanted to help her mom. So, she helped her mom pick the laundry. They put the laundry in the big, red basket. Lily was very happy to help her mom.\nWhen they finished, Lily and her mom went to the laundry room. Lily saw the big, red apple and picked it up. She took the apple to her mom and said, \"Mom, I found a big apple! Can I eat it now?\" Her mom"
+}

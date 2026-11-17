@@ -141,6 +141,9 @@ class QLinear(nn.Linear):
 
 # ---- model ---------------------------------------------------------------------------------------------------------
 
+UNIT_GROUPS = {"qkv": ("q", "k", "v"), "o": ("o",), "w13": ("w1", "w3"), "w2": ("w2",)}
+
+
 def rope(x, cos, sin):
     x1, x2 = x[..., ::2], x[..., 1::2]
     return torch.stack((x1 * cos - x2 * sin, x1 * sin + x2 * cos), dim=-1).flatten(-2)
@@ -174,13 +177,18 @@ class Block(nn.Module):
 
 class TinyLM(nn.Module):
     def __init__(self, vocab, dim, layers, heads, hidden, seq, kind, head="fp32", int8_blocks=(), acts=8,
-                 act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=()):
+                 act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=(),
+                 int8_units=()):
         super().__init__()
         self.head_kind = head
         self.emb = nn.Embedding(vocab, dim)
         self.blocks = nn.ModuleList(Block(dim, heads, hidden, "int8" if i in int8_blocks else kind, acts, act_opts,
                                           a8_inputs if not a8_blocks or i in a8_blocks else (), w2_acts, ffn_act,
                                           rotate) for i in range(layers))
+        for unit in int8_units:  # "<block>.<group>": only these linears get int8 weights (damage_probe's test)
+            bi, group = unit.split(".")
+            for n in UNIT_GROUPS[group]:
+                getattr(self.blocks[int(bi)], n).kind = "int8"
         self.norm = nn.RMSNorm(dim, eps=1e-5)
         hd = dim // heads
         freq = 1.0 / (10000 ** (torch.arange(0, hd, 2).float() / hd))
@@ -268,7 +276,7 @@ def run(args, seed):
                    args.weights, args.head, tuple(args.int8_blocks), args.acts,
                    {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
                    tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
-                   tuple(args.a8_blocks)).to(device)
+                   tuple(args.a8_blocks), tuple(args.int8_units)).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)
@@ -363,6 +371,8 @@ def main():
     ap.add_argument("--seeds", type=int, nargs="+", default=[42])
     ap.add_argument("--head", choices=["fp32", "binary", "int4", "int2"], default="fp32", help="output layer weights (see above)")
     ap.add_argument("--int8-blocks", type=int, nargs="*", default=[], help="blocks with int8 weights (see above)")
+    ap.add_argument("--int8-units", nargs="*", default=[],
+                    help="int8 weights only in these <block>.<group> units, group qkv / o / w13 / w2 (e.g. 0.w13 7.w13)")
     ap.add_argument("--acts", type=int, choices=[8, 1], default=8, help="bits of the blocks' linear inputs (see above)")
     ap.add_argument("--ste", choices=["identity", "clip"], default="identity",
                     help="--acts 1 gradient: everywhere, or only where |x| <= --ste-k x mean|x| (see above)")

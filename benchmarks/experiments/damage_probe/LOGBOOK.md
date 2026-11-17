@@ -212,3 +212,21 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - Against the trained truth already known: prediction b0+b7 ~0.80 vs b3+b4 ~0.38 (2x), but trained int8 blocks
   gained 0.102 vs 0.095 (LOGBOOK of tiny_llm): the prediction names the sensitive layers, it does not say how much
   training recovers.
+
+### 2026-11-17: does it improve when we change them? (training test, rule written BEFORE the runs)
+- Question: llm_layers.py names b0.w13, b0.qkv, b7.w13 as the most sensitive units. If those 3 keep int8 weights
+  (the rest 1-bit, W1A8, same recipe as binary_d384l8, 10,000 steps), is the trained model better than with 3
+  middle units of the SAME shapes and bytes at int8 (b3.w13, b3.qkv, b4.w13)? 2,015,232 int8 weights each.
+- train.py `--int8-units 0.w13 0.qkv 7.w13` (name d384l8_utop) vs `--int8-units 3.w13 3.qkv 4.w13` (d384l8_umid).
+  Reference: binary_d384l8 s42 1.5252 (3 seeds 1.5224 ± 0.0026).
+- Rule: seed 42 first (a ranking). If utop's validation loss is lower than umid's by > 0.01 (~4x the seed sd), the
+  selection helps: then seeds 43, 44 and a paired result. Otherwise the answer is "no, the bytes matter, not which
+  units" (as b07 vs b34 already hinted: 1.4219 vs 1.4262). The test split is not read.
+- RESULT (seed 42, a ranking): utop 1.4820, umid 1.4832 (binary base 1.5252): utop is better by 0.0012 < 0.01.
+  The rule says NO: with the same int8 bytes, the units the table names do not train better than middle units of the
+  same shapes. Both gain ~0.043 over the base: the bytes matter, not which units (as b07 vs b34: 1.4219 vs 1.4262).
+  Seeds 43 / 44 not run (the rule did not pass). The table names the sensitive units without training, but in this
+  model, after training, protecting them is worth no more than protecting others.
+- Context (Edén, Nov 17): the goal is LLMs on the ESP32 and Pico 2 too (Obed's: llama2.c 260K / 15M). The current
+  15.7 M model does not fit there (RAM ~1.9 MB, the KV cache 1.67 MB; ESTIMATE from tinylm.c's allocations). Next
+  (agreed in principle): llama2.c's 260K shape (dim 64, 5 layers, vocab 512), fp32 vs binary, 3 seeds, to the chips.
