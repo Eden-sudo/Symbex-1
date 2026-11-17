@@ -24,3 +24,11 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   judged on new pairs (ResNet-8), not on these.
 - Next (Edén decides): (a) cheaper recover + ResNet-8 pairs from training_gap, same rule; (b) use it for the on-chip
   LLM: coarse choices with cos / loss0 (seconds), the short fine-tune only between close candidates.
+
+### 2026-11-17: MendCode review (PR #100, 2 findings, both right)
+- Major: resuming from an existing --out reused rows and controls without checking the settings (another
+  --ft-steps / lr / data would mix measurements, or KeyError on missing report steps). Fix: the script now refuses
+  an --out measured with other settings (seeds, pairs and --no-recover may differ). Checked: same settings resume
+  (no GPU work, same Spearman, JSON unchanged); --ft-steps 20 on the same file is refused.
+- Minor: a bare --out file name crashed os.makedirs(""). Fixed; smoke run with --out smoke_dp.json writes the file.
+- The published results were made in one clean run with fixed settings: not affected.

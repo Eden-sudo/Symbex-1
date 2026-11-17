@@ -221,6 +221,12 @@ def main():
     dev = "cuda"
     train, val = T.load_split("train", dev), T.load_split("val", dev)
     res = json.load(open(args.out)) if os.path.exists(args.out) else {}
+    # resuming only with the same measurement settings: seeds, pairs and the output may differ
+    same = {k: v for k, v in vars(args).items() if k not in ("seeds", "pairs", "out", "recover")}
+    old = {k: v for k, v in res.get("args", {}).items() if k in same}
+    if old and old != same:
+        diff = {k: (old.get(k), same[k]) for k in same if old.get(k) != same[k]}
+        sys.exit(f"{args.out} was measured with other settings {diff} (old, new): use another --out")
     res.setdefault("args", vars(args))
     rows = res.setdefault("rows", {})
     controls = res.setdefault("controls", {})
@@ -258,7 +264,7 @@ def main():
             print(f"{key:20s} truth {tr:+.4f}  cos {row['cos']:.4f}  loss0 {row['loss0']:+.4f}  "
                   f"fisher {row['fisher']:.4f}" + (f"  recover {row['recover']:+.4f}" if "recover" in row else "")
                   + f"  ({time.time() - t0:.0f} s)", flush=True)
-            os.makedirs(os.path.dirname(args.out), exist_ok=True)
+            os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
             json.dump(res, open(args.out, "w"), indent=2)
             del model
             torch.cuda.empty_cache()
