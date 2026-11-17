@@ -1,0 +1,21 @@
+{
+ "arch": "min",
+ "seed": 44,
+ "board": "s3",
+ "weights": "flash",
+ "windows": 1000,
+ "equal_to_pc": 100.0,
+ "median_ms": 0.6665,
+ "min_ms": 0.617,
+ "model_kb": 7.359375,
+ "arena_kb": 2.85546875,
+ "ram": {
+  "arena": 2924,
+  "objects": 368,
+  "input_bytes": 709,
+  "heap": 176,
+  "stack_used": 2036,
+  "model_in_ram": 0,
+  "total": 6213
+ }
+}
