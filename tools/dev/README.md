@@ -1,7 +1,8 @@
 # Development tools
 
 Tools that measure the chips, the library and the training, to decide with numbers: which way of counting bits a chip
-should use, where the time of a network goes, and how fast the CDT trains. Run them from this folder.
+should use, where the time of a network goes, how fast the CDT trains and whether its bits stay free. Run them from this
+folder.
 
 ## count_bench.py — the raw arithmetic of a chip
 
@@ -67,3 +68,36 @@ python docs_charts.py      # writes docs/assets/*.svg and prints every number wi
 ```
 
 Run it again after a benchmark is re-measured.
+
+## binary_health.py — are the trained bits still free to flip?
+
+The straight-through sign gives no gradient to a latent 1-bit weight beyond |w| > 1: once Adam pushes it past 1, its bit
+is frozen for the rest of the training (52 % of the binary ResNet-8's weights, November 2026). This reads the
+checkpoints already in `runs/` and prints, per file, the % of weights beyond 1 and the largest |w|. New trainings write
+the same numbers (`binary_health`) into their `train.json`; `[training] clip_latent = true` (CDT) or `--clip`
+(ECG, FOMO, `resnet8_symbex.py`) clamps the latent weights to [-1, 1] after every step. `tests/test_training_health.py`
+trains every benchmark's model a few steps and checks it.
+
+```
+python binary_health.py                                          # every runs/**/*.pth under benchmarks/
+python binary_health.py ../../benchmarks/conv1d --limit 5 --tensors   # files above 5 %, one line per tensor
+```
+
+An int8 layer is counted too (the checkpoint does not say which tensors are 1-bit): read it with `--tensors`.
+
+## results_age.py — how current is every result?
+
+A SYMBEX number measured before a change of lib_symbex may not be what the library gives today. For every result JSON
+under `benchmarks/`, the day it was measured and how many lib_symbex commits came after it. Files that record
+`provenance` (date, repository commit, lib_symbex commit: `compiler_core/chip/provenance.py`) are dated by their own run;
+older files by their last commit, which is when the number reached the repository (the measurement may be some days
+older). TFLite, low-bit (also the earlier `int4_` / `int8_` files), random forest and ultracompactBNN files do not run lib_symbex and are not counted as SYMBEX.
+
+```
+python results_age.py                          # one line per benchmark folder
+python results_age.py --files --stale          # every SYMBEX file with library commits after it
+python results_age.py --files --match resnet8  # one benchmark, one line per file
+```
+
+A library commit after a result does not mean the number changed (most commits add code another network uses): it says
+which results to re-measure before a table calls them current.

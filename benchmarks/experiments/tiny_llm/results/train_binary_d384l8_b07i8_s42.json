@@ -1,0 +1,162 @@
+{
+  "weights": "binary",
+  "seed": 42,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "fp32",
+    "int8_blocks": [
+      0,
+      7
+    ],
+    "name": "d384l8_b07i8",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.4219,
+  "val_perplexity": 4.145,
+  "minutes": 33.47,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.2641,
+      "val_loss": 2.2079,
+      "minutes": 2.19
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.8964,
+      "val_loss": 1.9108,
+      "minutes": 3.84
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.7344,
+      "val_loss": 1.7953,
+      "minutes": 5.49
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.7085,
+      "val_loss": 1.7272,
+      "minutes": 7.13
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.7049,
+      "val_loss": 1.6793,
+      "minutes": 8.78
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.6167,
+      "val_loss": 1.6443,
+      "minutes": 10.42
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.6032,
+      "val_loss": 1.6161,
+      "minutes": 12.07
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.576,
+      "val_loss": 1.5874,
+      "minutes": 13.72
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.5673,
+      "val_loss": 1.5668,
+      "minutes": 15.36
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.5684,
+      "val_loss": 1.5451,
+      "minutes": 17.01
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.5157,
+      "val_loss": 1.5262,
+      "minutes": 18.65
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.4387,
+      "val_loss": 1.5089,
+      "minutes": 20.3
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.5393,
+      "val_loss": 1.4924,
+      "minutes": 21.94
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.5338,
+      "val_loss": 1.4764,
+      "minutes": 23.59
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.4353,
+      "val_loss": 1.4625,
+      "minutes": 25.24
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.4067,
+      "val_loss": 1.4501,
+      "minutes": 26.88
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.3875,
+      "val_loss": 1.4393,
+      "minutes": 28.53
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.3911,
+      "val_loss": 1.4315,
+      "minutes": 30.17
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.4066,
+      "val_loss": 1.4254,
+      "minutes": 31.82
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.4085,
+      "val_loss": 1.4219,
+      "minutes": 33.47
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She had a big, soft blanket that she loved very much. One day, Lily went to the park with her mom. She saw a boy named Tim who was sad. Lily wanted to make Tim happy, so she decided to invite him to play with her blanket.\nLily went to Tim and said, \"Hi, I am Lily. Do you want to play with my blanket?\" Tim looked at Lily and said, \"Yes, I would love to play with your blanket. Thank you, Lily!\" They played together and had lots of fun.\nBut then, a big wind came and took the blanket away. Lily and Tim were very sad. They looked for the blanket, but they could not find it. Then, they saw a big bird flying with the blanket in its beak. The bird dropped the blanket back to them. Lily and Tim were so happy! They thanked the bird and played with the blanket together."
+}

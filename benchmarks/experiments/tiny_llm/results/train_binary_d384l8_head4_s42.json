@@ -1,0 +1,173 @@
+{
+  "weights": "binary",
+  "seed": 42,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "int4",
+    "int8_blocks": [],
+    "acts": 8,
+    "ste": "identity",
+    "ste_k": 2.0,
+    "learn_thr": false,
+    "a8_inputs": [],
+    "a8_blocks": [],
+    "w2_acts": "same",
+    "hadamard": [],
+    "ffn_act": "silu",
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "d384l8_head4",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.5373,
+  "val_perplexity": 4.652,
+  "minutes": 22.66,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.3668,
+      "val_loss": 2.2987,
+      "minutes": 1.63
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.9772,
+      "val_loss": 1.9935,
+      "minutes": 2.73
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.8201,
+      "val_loss": 1.878,
+      "minutes": 3.83
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.7954,
+      "val_loss": 1.8176,
+      "minutes": 4.94
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.8055,
+      "val_loss": 1.7741,
+      "minutes": 6.04
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.7168,
+      "val_loss": 1.7412,
+      "minutes": 7.15
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.7004,
+      "val_loss": 1.7182,
+      "minutes": 8.25
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.6823,
+      "val_loss": 1.692,
+      "minutes": 9.37
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.6826,
+      "val_loss": 1.6708,
+      "minutes": 10.49
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.6816,
+      "val_loss": 1.6522,
+      "minutes": 11.59
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.6311,
+      "val_loss": 1.6359,
+      "minutes": 12.7
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.558,
+      "val_loss": 1.6195,
+      "minutes": 13.81
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.6559,
+      "val_loss": 1.6044,
+      "minutes": 14.91
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.6515,
+      "val_loss": 1.5908,
+      "minutes": 16.02
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.5586,
+      "val_loss": 1.5753,
+      "minutes": 17.13
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.5224,
+      "val_loss": 1.5632,
+      "minutes": 18.24
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.5121,
+      "val_loss": 1.5544,
+      "minutes": 19.35
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.5097,
+      "val_loss": 1.546,
+      "minutes": 20.45
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.5251,
+      "val_loss": 1.5381,
+      "minutes": 21.54
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.5306,
+      "val_loss": 1.5373,
+      "minutes": 22.65
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and eat yummy food. One day, Lily found a big, red apple in her kitchen. She was very happy and wanted to eat it.\nLily took the apple to her mom and said, \"Mom, can I have a bite of the apple?\" Her mom looked at the apple and said, \"Yes, Lily, but be careful not to eat it. It is very hot.\" Lily took the apple and started to eat it.\nAs Lily was eating the apple, she heard a loud noise. It was a big, red bird! The bird said, \"Hello, Lily! I am not a bird, but I am a magic bird. I can make your wish come true for you.\" Lily was very surprised and happy. She wished for a new friend to play with. The magic bird made her wish come true, and they played together all day."
+}

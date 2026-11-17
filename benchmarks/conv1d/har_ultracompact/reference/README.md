@@ -50,7 +50,7 @@ INT8 arena is 10.3 KB (ESP32) / 25.5 KB (S3). Every SYMBEX row was 100 % equal t
 ## Use it
 
 To build it into a project, copy `model_symbex.h` (or `model_symbex_bytes.h`) next to your code and follow the
-[library guide](../../../../docs/library.md).
+[library guide](../../../../docs/en/library.md).
 
 To measure it on a board (environment `env_bench`, UniMiB-SHAR prepared once with `python har_data.py`):
 

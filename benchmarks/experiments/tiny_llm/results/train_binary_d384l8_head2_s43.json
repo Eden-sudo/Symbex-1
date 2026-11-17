@@ -1,0 +1,173 @@
+{
+  "weights": "binary",
+  "seed": 43,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "int2",
+    "int8_blocks": [],
+    "acts": 8,
+    "ste": "identity",
+    "ste_k": 2.0,
+    "learn_thr": false,
+    "a8_inputs": [],
+    "a8_blocks": [],
+    "w2_acts": "same",
+    "hadamard": [],
+    "ffn_act": "silu",
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "d384l8_head2",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.567,
+  "val_perplexity": 4.792,
+  "minutes": 22.19,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.3189,
+      "val_loss": 2.3268,
+      "minutes": 1.1
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.9752,
+      "val_loss": 2.0086,
+      "minutes": 2.24
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.8704,
+      "val_loss": 1.8989,
+      "minutes": 3.35
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.8155,
+      "val_loss": 1.839,
+      "minutes": 4.46
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.7471,
+      "val_loss": 1.8037,
+      "minutes": 5.57
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.7461,
+      "val_loss": 1.7668,
+      "minutes": 6.68
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.6551,
+      "val_loss": 1.7438,
+      "minutes": 7.79
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.7107,
+      "val_loss": 1.7178,
+      "minutes": 8.91
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.7106,
+      "val_loss": 1.7005,
+      "minutes": 10.01
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.6998,
+      "val_loss": 1.6805,
+      "minutes": 11.12
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.6849,
+      "val_loss": 1.6696,
+      "minutes": 12.23
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.5989,
+      "val_loss": 1.6486,
+      "minutes": 13.34
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.6166,
+      "val_loss": 1.6359,
+      "minutes": 14.44
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.6466,
+      "val_loss": 1.6212,
+      "minutes": 15.54
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.6129,
+      "val_loss": 1.6045,
+      "minutes": 16.64
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.5801,
+      "val_loss": 1.5941,
+      "minutes": 17.75
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.6032,
+      "val_loss": 1.583,
+      "minutes": 18.87
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.5976,
+      "val_loss": 1.5726,
+      "minutes": 19.98
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.5498,
+      "val_loss": 1.5682,
+      "minutes": 21.08
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.5267,
+      "val_loss": 1.567,
+      "minutes": 22.19
+    }
+  ],
+  "sample": "Once upon a time, there was a little boy named Tim. Tim loved to play with his toy cars. One day, he saw a big, red car in his yard. He wanted to play with it, but it was too big for him to carry. Tim felt sad.\nTim's mom saw him and said, \"Tim, you should share your toys with your friends.\" Tim thought about it and decided to share his toys with his friends. They played together and had lots of fun.\nAfter playing, Tim's mom gave him a big hug. She said, \"Tim, we are going to the park now.\" Tim was so happy! He played with his cars all day and shared his toys with his friends. They all had a great time at the park."
+}

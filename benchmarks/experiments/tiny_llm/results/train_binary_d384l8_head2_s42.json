@@ -1,0 +1,173 @@
+{
+  "weights": "binary",
+  "seed": 42,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head": "int2",
+    "int8_blocks": [],
+    "acts": 8,
+    "ste": "identity",
+    "ste_k": 2.0,
+    "learn_thr": false,
+    "a8_inputs": [],
+    "a8_blocks": [],
+    "w2_acts": "same",
+    "hadamard": [],
+    "ffn_act": "silu",
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "d384l8_head2",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15735168,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.5756,
+  "val_perplexity": 4.834,
+  "minutes": 25.52,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.3974,
+      "val_loss": 2.3329,
+      "minutes": 1.45
+    },
+    {
+      "step": 1000,
+      "train_loss": 2.015,
+      "val_loss": 2.0331,
+      "minutes": 2.55
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.8509,
+      "val_loss": 1.9183,
+      "minutes": 4.09
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.8339,
+      "val_loss": 1.8547,
+      "minutes": 5.54
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.8393,
+      "val_loss": 1.8102,
+      "minutes": 6.64
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.7497,
+      "val_loss": 1.779,
+      "minutes": 7.8
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.7388,
+      "val_loss": 1.7537,
+      "minutes": 8.99
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.7214,
+      "val_loss": 1.7296,
+      "minutes": 10.23
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.7236,
+      "val_loss": 1.7089,
+      "minutes": 11.34
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.7232,
+      "val_loss": 1.6888,
+      "minutes": 12.45
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.6686,
+      "val_loss": 1.672,
+      "minutes": 13.56
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.5902,
+      "val_loss": 1.6563,
+      "minutes": 14.67
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.6959,
+      "val_loss": 1.6456,
+      "minutes": 16.41
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.687,
+      "val_loss": 1.6275,
+      "minutes": 17.76
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.5875,
+      "val_loss": 1.6122,
+      "minutes": 18.99
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.556,
+      "val_loss": 1.6017,
+      "minutes": 20.1
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.5479,
+      "val_loss": 1.5912,
+      "minutes": 21.79
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.5454,
+      "val_loss": 1.5816,
+      "minutes": 23.18
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.562,
+      "val_loss": 1.577,
+      "minutes": 24.41
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.5647,
+      "val_loss": 1.5756,
+      "minutes": 25.52
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She had a big, red ball that she loved to play with. One day, Lily went to the park with her mom. She saw a big tree with a lot of leaves. Lily wanted to pick some leaves to play with.\nLily's mom said, \"Lily, you can pick some leaves. But you have to be careful with them.\" Lily was very happy and picked many leaves. She picked the biggest and the biggest, and she was very proud of her work.\nLily took the big, red ball to the park to play. She threw the ball high into the sky and it went up, up, up. Lily was so happy to see her ball high in the sky. She knew that she had done a good job."
+}

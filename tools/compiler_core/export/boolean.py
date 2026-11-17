@@ -30,7 +30,7 @@ Every conv computes raw = sum of +-1 products over the in-image window; BatchNor
 The header offers the interface of the MLP headers (symbex_mlp_infer, SYMBEX_MLP_N_INPUTS / N_CLASSES / N_STEPS,
 symbex_mlp_steps, SYMBEX_MLP_BYTES_BUFFERS), so firmware/model_test.c and the chip stage measure it unchanged.
 Built with -DSYMBEX_BOOL_VERTICAL, the same header runs the vertical engine (symbex_bool_vertical.h, the fastest on
-the ESP32-S3; docs/vertical.md) on the same data, with the same results: chip_test.py --engine vertical.
+the ESP32-S3; docs/en/vertical.md) on the same data, with the same results: chip_test.py --engine vertical.
 Adding -DSYMBEX_BOOL_VERTICAL_PREPARED (optional) builds its plane lists and thresholds once into RAM: more RAM,
 faster (chip_test.py --engine vertical_prepared). -DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT instead: the lists prepared,
 the thresholds kept compact (one value per output channel and border kind): about half that RAM, a little slower
@@ -148,8 +148,9 @@ def _fold_stem_i8(conv, bn):
 
 def fold(model, threshold=0.0):
     """the trained BoolResNet8-like model -> integer network (dict of numpy arrays). A model with head / head_bn (a
-    per-cell detector, FOMO-style) gets a per-cell head; threshold = the calibrated decision threshold on
-    (logit of class 1 - logit of class 0), folded into the integer bias of class 1"""
+    per-cell detector, FOMO-style) gets a per-cell head; a scalar threshold offsets class 1 for two classes, while
+    multiclass heads accept scalar zero or a sequence with one threshold per object class. Without a per-cell head,
+    threshold is ignored"""
     model = model.cpu().eval()
     kind = getattr(model, "stem_kind", "thermometer")
     if kind not in ("thermometer", "int8"):
@@ -181,9 +182,23 @@ def fold(model, threshold=0.0):
     sd = torch.sqrt(bn.running_var.detach().double() + bn.eps)
     a = (g / sd).numpy()
     c = (bn.bias.detach().double() - bn.running_mean.detach().double() * g / sd).numpy()
-    if hasattr(model, "head") and threshold:
-        c = c.copy()
-        c[1] -= threshold                                  # class 1 wins only where its margin passes the threshold
+    if hasattr(model, "head"):
+        if np.ndim(threshold) == 0:
+            if threshold:
+                if len(c) > 2:
+                    raise ValueError("boolean export, per-cell head: provide one threshold per object class "
+                                     "for a nonzero threshold with more than 2 classes")
+                c = c.copy()
+                c[1] -= threshold                          # class 1 wins only where its margin passes the threshold
+        else:
+            expected, actual = len(c) - 1, len(threshold)
+            if actual != expected:
+                raise ValueError(f"boolean export, per-cell head: threshold length {actual}, expected {expected}")
+            offsets = np.asarray(threshold, dtype=np.float64)
+            if offsets.ndim != 1:
+                raise ValueError("boolean export, per-cell head: thresholds must be one-dimensional")
+            c = c.copy()
+            c[1:] -= offsets
     for name, v in (("scale", a), ("bias", c)):
         if np.abs(v).max() * 2 ** FC_SHIFT >= 2 ** 31:
             raise ValueError(f"boolean export: the classifier {name} does not fit in int32 with {FC_SHIFT} fraction bits")

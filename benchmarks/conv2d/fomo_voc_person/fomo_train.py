@@ -4,6 +4,7 @@ fomo_train.py -- does the binary FOMO detector learn? A quick training on the PC
     python fomo_train.py                                    # 16-32-64 channels, 1-1-1 blocks, 60 epochs
     python fomo_train.py --channels 32-64-128 --blocks 1-1-2 --weight 30 --epochs 100
     python fomo_train.py --fp32                             # the same architecture in floating point (the ceiling)
+    python fomo_train.py --clip                             # latent 1-bit weights clamped to [-1, 1] (runs/..._clip)
 
 Run from benchmarks/conv2d/fomo_voc_person/ (main environment; needs data/fomo_*.npz from fomo_data.py). The whole data set
 goes to the GPU once (uint8, ~600 MB). Loss: cross-entropy per cell, the person cells weighted --weight times more
@@ -14,7 +15,8 @@ At the end, the decision THRESHOLD is calibrated, fairly: --val random training 
 fixed split, model.SPLIT_SEED: the same for every seed and for fomo_tflite.py); on them,
 a range of thresholds on (person logit - background logit) is tried and the one with the best F1 is kept; the test F1
 is then measured with that fixed threshold (the test images never choose anything). On the chip the threshold is free:
-it only shifts the integer bias of the person class in the head. Saves runs/<name>/model.pth and train.json.
+it only shifts the integer bias of the person class in the head. Saves runs/<name>/model.pth and train.json (with
+binary_health: the % of 1-bit weights frozen at |w| > 1 and flipped, tools/compiler_core/train/health.py).
 """
 import argparse
 import json
@@ -28,7 +30,10 @@ import torch.nn.functional as F
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(1, os.path.join(HERE, "..", "..", "..", "tools"))
 from model import SPLIT_SEED, BoolFOMO, RealFOMO, f1_score, held_out_centers, load, split_indices         # noqa: E402
+from compiler_core.train.boolean import binary_weights                                       # noqa: E402
+from compiler_core.train.health import binary_health, clip_latent, warn                     # noqa: E402
 
 
 @torch.no_grad()
@@ -63,6 +68,9 @@ def main():
     ap.add_argument("--lr", type=float, default=5e-3)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--fp32", action="store_true", help="the same architecture in floating point (the reference)")
+    ap.add_argument("--clip", action="store_true",
+                    help="clamp the latent 1-bit weights to [-1, 1] after every step: without it a weight past 1 "
+                         "freezes (tools/compiler_core/train/health.py)")
     ap.add_argument("--val", type=int, default=1000, help="training images kept out to calibrate the threshold (1000)")
     args = ap.parse_args()
     os.chdir(HERE)
@@ -88,7 +96,11 @@ def main():
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, args.epochs)
     cw = torch.tensor([1.0, args.weight], device=dev)
-    name = f"{'fp32_' if args.fp32 else ''}c{args.channels}_b{args.blocks}_w{args.weight:g}_e{args.epochs}_s{args.seed}"
+    bits = [] if args.fp32 else binary_weights(model)
+    clip = args.clip and not args.fp32
+    bits0 = [w.detach().clone() for w in bits]
+    name = (f"{'fp32_' if args.fp32 else ''}c{args.channels}_b{args.blocks}_w{args.weight:g}_e{args.epochs}_s{args.seed}"
+            + ("_clip" if clip else ""))
     out = os.path.join("runs", name)
     print(f"[*] {'FP32' if args.fp32 else 'binary'} FOMO {args.channels} / {args.blocks}, thermometer {args.levels} levels, person weight {args.weight:g},"
           f" {args.epochs} epochs ({dev}) -> {out}/")
@@ -106,12 +118,17 @@ def main():
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
+            if clip:
+                clip_latent(bits)
         sched.step()
         if (ep + 1) % 10 == 0 or ep == args.epochs - 1:
             s = f1_score(margins(model, xte_t) > 0, cte, ote)
             history.append(dict(epoch=ep + 1, **s))
             print(f"    epoch {ep + 1:3d}/{args.epochs} | precision {s['precision']:5.1f}% | recall {s['recall']:5.1f}% | "
                   f"F1 {s['f1']:5.1f}% | {(time.time() - t0) / 60:.1f} min")
+    health = binary_health(bits, bits0) if bits else None
+    if health:
+        warn(health, name)
     th, sva = calibrate(margins(model, xva_t), cva, ova)
     ste = f1_score(margins(model, xte_t) > th, cte, ote)
     print(f"\n    THRESHOLD  calibrated on {nv} held-out training images: {th:+.3f} (default 0)  -> validation F1 {sva['f1']:.1f}%")
@@ -121,7 +138,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     torch.save(model.state_dict(), os.path.join(out, "model.pth"))
     json.dump(dict(fp32=args.fp32, channels=ch, blocks=bl, levels=args.levels, weight=args.weight, epochs=args.epochs, seed=args.seed,
-                   split_seed=SPLIT_SEED, val=nv, final=history[-1], threshold=th, calibrated_validation=sva,
+                   split_seed=SPLIT_SEED, val=nv, clip=clip, binary_health=health, final=history[-1], threshold=th, calibrated_validation=sva,
                    calibrated_test=ste, history=history),
               open(os.path.join(out, "train.json"), "w"), indent=1)
     print(f"[*] saved {out}/model.pth -- test F1 {ste['f1']:.1f}% with the calibrated threshold "

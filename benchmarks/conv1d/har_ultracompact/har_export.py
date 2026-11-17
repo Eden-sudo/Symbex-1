@@ -6,6 +6,8 @@ har_export.py -- a trained HAR network (har_train.py) into integers, checked, an
                                                           # layer with int8 weights (SymbexBool1D.weights_i8)
     python har_export.py runs/max_binary_e100_s42 --first-bytes   # the same 1-bit network, its first layer as +-1
                                                           # bytes for the int8 kernel: runs/max_binary_e100_s42_bytes/
+    python har_export.py runs/max_int8_e100_a2_s42       # a two-bit / ternary network (README section 9, int8 first
+                                                          # layer): acts1d.py, the kernel in planes1d.h (section 10)
 
 Run from benchmarks/conv1d/har_ultracompact/ (main environment). With the CDT's 1D exporter (compiler_core/export/
 bool1d.py):
@@ -18,6 +20,9 @@ bool1d.py):
 Writes into the run folder: net.npz (the integer network: what the ultracompactBNN side reads), validation_x.u8
 (uint8 = int8 + 128) / validation_y / validation_sim (the classes of the integer simulation: the chip test and
 har_gvsoc.py), export.json and model_symbex.h.
+Runs with two-bit / ternary activations (har_train.py --acts) go through acts1d.py instead (an experiment of this
+benchmark: several thresholds per channel, two bit planes per map, on lib_symbex's HAL row functions); the same steps,
+the C check once (HAL row functions).
 """
 import argparse
 import json
@@ -26,6 +31,8 @@ import sys
 
 import numpy as np
 import torch
+
+import acts1d
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.normpath(os.path.join(HERE, "..", "..", "..", "tools"))
@@ -46,6 +53,9 @@ def main():
                     help="binary runs: the 1-bit first layer as +-1 bytes (int8 kernel), written to <run>_bytes/")
     args = ap.parse_args()
     info = json.load(open(os.path.join(args.run, "train.json")))
+    acts = info.get("acts", "1")
+    if acts != "1":
+        return export_acts(args, info)
     model = BinaryHAR(info["arch"], info["first"])
     model.load_state_dict(torch.load(os.path.join(args.run, "model.pth"), map_location="cpu"))
     model.eval()
@@ -90,6 +100,52 @@ def main():
         res["exactness_native" if native else "exactness"] = None if equal is None else 100 * equal / total
     json.dump(res, open(os.path.join(out, "export.json"), "w"), indent=1)
     print(f"    -> {os.path.join(out, 'export.json')}")
+
+
+def export_acts(args, info):
+    """a two-bit / ternary run (README section 9) with acts1d.py: fold, fidelity, header, exactness on the PC"""
+    if args.first_bytes:
+        sys.exit("[X] --first-bytes is for the 1-bit runs with a binary first layer")
+    model = BinaryHAR(info["arch"], info["first"], acts=info["acts"])
+    model.load_state_dict(torch.load(os.path.join(args.run, "model.pth"), map_location="cpu"))
+    model.eval()
+    try:
+        net = acts1d.fold(model)
+    except ValueError as e:
+        sys.exit(f"[X] {args.run}: {e}")
+    np.savez(os.path.join(args.run, "net.npz"), acts=net["acts"], length=net["length"], fc_w=net["fc_w"],
+             fc_scale=net["fc_scale"], fc_bias=net["fc_bias"],
+             **{f"{k}{i}": c[k] for i, c in enumerate(net["layers"]) for k in ("w", "thr", "k", "stride", "pool")})
+    res = dict(arch=info["arch"], first=info["first"], seed=info["seed"], acts=info["acts"])
+    print(f"\n    HAR EXPORT  ({args.run}: {info['arch']}, first layer {info['first']}, activations {info['acts']})")
+    for split in ("validation", "test"):
+        x, y = load(split)
+        with torch.no_grad():
+            p_torch = model(torch.as_tensor(x)).argmax(1).numpy()
+        p_sim = acts1d.simulate(net, x)
+        res[split] = dict(accuracy_torch=100 * float((p_torch == y).mean()), accuracy_sim=100 * float((p_sim == y).mean()),
+                          fidelity=100 * float((p_sim == p_torch).mean()))
+        r = res[split]
+        print(f"    {split:<11}: PyTorch {r['accuracy_torch']:.2f}%  integer simulation {r['accuracy_sim']:.2f}%  "
+              f"FIDELITY {r['fidelity']:.2f}%")
+    x, y = load("validation")
+    n = min(args.images, len(x))
+    x_u8 = (x[:n].astype(np.int16) + 128).astype(np.uint8).reshape(n, -1)
+    sim = acts1d.simulate(net, x[:n])
+    save_validation(args.run, x_u8, y[:n], sim)
+    header = os.path.join(args.run, "model_symbex.h")
+    flash, ram, steps = acts1d.write_header(net, header, LENGTH, AXES)
+    print(f"    header     : {header}  ({flash / 1024:.2f} KB of weights + thresholds, {ram / 1024:.2f} KB of buffers)")
+    res.update(header=header, flash_bytes=flash, ram_buffers=ram, steps=steps, images=n)
+    equal, total, msg = acts1d.validate_c(header, LIB, x_u8, sim)
+    if equal is None:
+        print(f"    EXACTNESS  : not checked ({msg})")
+    else:
+        print(f"    EXACTNESS  : {100 * equal / total:.2f}%  of {total} windows, HAL row functions (must be 100%) "
+              + ("OK" if equal == total else "[X]"))
+    res["exactness"] = None if equal is None else 100 * equal / total
+    json.dump(res, open(os.path.join(args.run, "export.json"), "w"), indent=1)
+    print(f"    -> {os.path.join(args.run, 'export.json')}")
 
 
 if __name__ == "__main__":

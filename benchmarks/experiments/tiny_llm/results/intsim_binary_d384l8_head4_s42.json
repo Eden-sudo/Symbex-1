@@ -1,0 +1,11 @@
+{
+  "run": "binary_d384l8_head4_s42",
+  "weights": "binary",
+  "val_windows": 1024,
+  "val_loss_float": 1.546,
+  "val_loss_integer": 1.546,
+  "val_perplexity_float": 4.693,
+  "val_perplexity_integer": 4.693,
+  "next_token_agreement_float_vs_integer": 0.9871,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and eat yummy food. One day, Lily found a big, red apple in her kitchen. She was very happy and wanted to eat it.\nLily took the apple to her mom and said, \"Mom, can I have a bite of the apple?\" Her mom looked at the apple and said, \"Yes, Lily, but be careful not to eat it. It is very hot.\" Lily took the apple and started to eat it.\nAs Lily was eating the apple, she heard a loud noise. It was a"
+}

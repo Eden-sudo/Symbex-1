@@ -1,0 +1,390 @@
+% References of the SYMBEX-1 preprint (docs/preprint/draft.md, section 5).
+% "checked": venue, DOI or arXiv id looked up on the publisher / arXiv page on 2026-11-11.
+% "verify": written from the citation in the repository READMEs; check before submission.
+
+% ---------------------------------------------------------------- training binary networks
+@inproceedings{courbariaux2015binaryconnect,
+  author    = {Courbariaux, Matthieu and Bengio, Yoshua and David, Jean-Pierre},
+  title     = {{BinaryConnect}: Training Deep Neural Networks with Binary Weights during Propagations},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  pages     = {3123--3131},
+  year      = {2015},
+  eprint    = {1511.00363},
+  archivePrefix = {arXiv},
+  note      = {checked}
+}
+@inproceedings{hubara2016bnn,
+  author    = {Hubara, Itay and Courbariaux, Matthieu and Soudry, Daniel and El-Yaniv, Ran and Bengio, Yoshua},
+  title     = {Binarized Neural Networks},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  pages     = {4107--4115},
+  year      = {2016},
+  eprint    = {1602.02830},
+  archivePrefix = {arXiv},
+  note      = {checked}
+}
+@inproceedings{rastegari2016xnor,
+  author    = {Rastegari, Mohammad and Ordonez, Vicente and Redmon, Joseph and Farhadi, Ali},
+  title     = {{XNOR-Net}: {ImageNet} Classification Using Binary Convolutional Neural Networks},
+  booktitle = {European Conference on Computer Vision (ECCV)},
+  series    = {LNCS},
+  volume    = {9908},
+  pages     = {525--542},
+  year      = {2016},
+  doi       = {10.1007/978-3-319-46493-0_32},
+  eprint    = {1603.05279},
+  archivePrefix = {arXiv},
+  note      = {checked}
+}
+@inproceedings{liu2018bireal,
+  author    = {Liu, Zechun and Wu, Baoyuan and Luo, Wenhan and Yang, Xin and Liu, Wei and Cheng, Kwang-Ting},
+  title     = {{Bi-Real Net}: Enhancing the Performance of 1-bit {CNNs} with Improved Representational Capability and Advanced Training Algorithm},
+  booktitle = {European Conference on Computer Vision (ECCV)},
+  year      = {2018},
+  eprint    = {1808.00278},
+  archivePrefix = {arXiv},
+  note      = {checked (venue, authors, id)}
+}
+@inproceedings{liu2020reactnet,
+  author    = {Liu, Zechun and Shen, Zhiqiang and Savvides, Marios and Cheng, Kwang-Ting},
+  title     = {{ReActNet}: Towards Precise Binary Neural Network with Generalized Activation Functions},
+  booktitle = {European Conference on Computer Vision (ECCV)},
+  year      = {2020},
+  eprint    = {2003.03488},
+  archivePrefix = {arXiv},
+  note      = {checked (venue, authors, id)}
+}
+@inproceedings{helwegen2019bop,
+  author    = {Helwegen, Koen and Widdicombe, James and Geiger, Lukas and Liu, Zechun and Cheng, Kwang-Ting and Nusselder, Roeland},
+  title     = {Latent Weights Do Not Exist: Rethinking Binarized Neural Network Optimization},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  pages     = {7533--7544},
+  year      = {2019},
+  eprint    = {1906.02107},
+  archivePrefix = {arXiv},
+  note      = {checked; author list: verify}
+}
+@inproceedings{liu2021adambnn,
+  author    = {Liu, Zechun and Shen, Zhiqiang and Li, Shichao and Helwegen, Koen and Huang, Dong and Cheng, Kwang-Ting},
+  title     = {How Do {Adam} and Training Strategies Help {BNNs} Optimization?},
+  booktitle = {International Conference on Machine Learning (ICML)},
+  year      = {2021},
+  eprint    = {2106.11309},
+  archivePrefix = {arXiv},
+  note      = {checked (the two-step schedule); author list: verify}
+}
+@inproceedings{zhang2021fracbnn,
+  author    = {Zhang, Yichi and Pan, Junhao and Liu, Xinheng and Chen, Hongzheng and Chen, Deming and Zhang, Zhiru},
+  title     = {{FracBNN}: Accurate and {FPGA}-Efficient Binary Neural Networks with Fractional Activations},
+  booktitle = {ACM/SIGDA International Symposium on Field-Programmable Gate Arrays (FPGA)},
+  year      = {2021},
+  doi       = {10.1145/3431920.3439296},
+  eprint    = {2012.12206},
+  archivePrefix = {arXiv},
+  note      = {checked (thermometer input encoding)}
+}
+@article{qin2020bnnsurvey,
+  author    = {Qin, Haotong and Gong, Ruihao and Liu, Xianglong and Bai, Xiao and Song, Jingkuan and Sebe, Nicu},
+  title     = {Binary Neural Networks: A Survey},
+  journal   = {Pattern Recognition},
+  volume    = {105},
+  pages     = {107281},
+  year      = {2020},
+  doi       = {10.1016/j.patcog.2020.107281},
+  eprint    = {2004.03333},
+  archivePrefix = {arXiv},
+  note      = {checked}
+}
+
+% ---------------------------------------------------------------- binary networks on hardware
+@inproceedings{umuroglu2017finn,
+  author    = {Umuroglu, Yaman and Fraser, Nicholas J. and Gambardella, Giulio and Blott, Michaela and Leong, Philip and Jahre, Magnus and Vissers, Kees},
+  title     = {{FINN}: A Framework for Fast, Scalable Binarized Neural Network Inference},
+  booktitle = {ACM/SIGDA International Symposium on Field-Programmable Gate Arrays (FPGA)},
+  year      = {2017},
+  doi       = {10.1145/3020078.3021744},
+  eprint    = {1612.07119},
+  archivePrefix = {arXiv},
+  note      = {checked (venue, authors, id); DOI from the ACM record: verify}
+}
+@inproceedings{zhang2019dabnn,
+  author    = {Zhang, Jianhao and Pan, Yingwei and Yao, Ting and Zhao, He and Mei, Tao},
+  title     = {{daBNN}: A Super Fast Inference Framework for Binary Neural Networks on {ARM} Devices},
+  booktitle = {Proceedings of the 27th ACM International Conference on Multimedia (MM)},
+  pages     = {2272--2275},
+  year      = {2019},
+  doi       = {10.1145/3343031.3350534},
+  eprint    = {1908.05858},
+  archivePrefix = {arXiv},
+  note      = {checked}
+}
+@inproceedings{bannink2021lce,
+  author    = {Bannink, Tom and Bakhtiari, Arash and Hillier, Adam and Geiger, Lukas and de Bruin, Tim and Overweel, Leon and Neeven, Jelmer and Helwegen, Koen},
+  title     = {{Larq Compute Engine}: Design, Benchmark and Deploy State-of-the-Art Binarized Neural Networks},
+  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
+  year      = {2021},
+  eprint    = {2011.09398},
+  archivePrefix = {arXiv},
+  note      = {checked (venue, id, authors from the PDF)}
+}
+@article{garofalo2020pulpnn,
+  author    = {Garofalo, Angelo and Rusci, Manuele and Conti, Francesco and Rossi, Davide and Benini, Luca},
+  title     = {{PULP-NN}: Accelerating Quantized Neural Networks on Parallel Ultra-Low-Power {RISC-V} Processors},
+  journal   = {Philosophical Transactions of the Royal Society A},
+  volume    = {378},
+  number    = {2164},
+  pages     = {20190155},
+  year      = {2020},
+  doi       = {10.1098/rsta.2019.0155},
+  eprint    = {1908.11263},
+  archivePrefix = {arXiv},
+  note      = {checked}
+}
+@inproceedings{garofalo2020xpulpnn,
+  author    = {Garofalo, Angelo and Tagliavini, Giuseppe and Conti, Francesco and Rossi, Davide and Benini, Luca},
+  title     = {{XpulpNN}: Accelerating Quantized Neural Networks on {RISC-V} Processors Through {ISA} Extensions},
+  booktitle = {Design, Automation and Test in Europe Conference (DATE)},
+  pages     = {186--191},
+  year      = {2020},
+  doi       = {10.23919/DATE48585.2020.9116529},
+  note      = {checked}
+}
+@inproceedings{daghero2021ultracompact,
+  author    = {Daghero, Francesco and Xie, Chen and Jahier Pagliari, Daniele and Burrello, Alessio and Castellano, Marco and Gandolfi, Luca and Calimera, Andrea and Macii, Enrico and Poncino, Massimo},
+  title     = {Ultra-compact Binary Neural Networks for Human Activity Recognition on {RISC-V} Processors},
+  booktitle = {Proceedings of the 18th ACM International Conference on Computing Frontiers (CF)},
+  pages     = {3--11},
+  year      = {2021},
+  doi       = {10.1145/3457388.3458656},
+  eprint    = {2205.12781},
+  archivePrefix = {arXiv},
+  note      = {checked (venue, DOI, authors)}
+}
+@inproceedings{rutishauser2024xtern,
+  author    = {Rutishauser, Georg and Mihali, Joan and Scherer, Moritz and Benini, Luca},
+  title     = {{xTern}: Energy-Efficient Ternary Neural Network Inference on {RISC-V}-Based Edge Systems},
+  booktitle = {IEEE International Conference on Application-specific Systems, Architectures and Processors (ASAP)},
+  year      = {2024},
+  eprint    = {2405.19065},
+  archivePrefix = {arXiv},
+  note      = {checked}
+}
+@inproceedings{cerutti2020sed,
+  author    = {Cerutti, Gianmarco and Andri, Renzo and Cavigelli, Lukas and Magno, Michele and Farella, Elisabetta and Benini, Luca},
+  title     = {Sound Event Detection with Binary Neural Networks on Tightly Power-Constrained {IoT} Devices},
+  booktitle = {ACM/IEEE International Symposium on Low Power Electronics and Design (ISLPED)},
+  year      = {2020},
+  doi       = {10.1145/3370748.3406588},
+  eprint    = {2101.04446},
+  archivePrefix = {arXiv},
+  note      = {checked}
+}
+@inproceedings{mcdanel2017ebnn,
+  author    = {McDanel, Bradley and Teerapittayanon, Surat and Kung, H. T.},
+  title     = {Embedded Binarized Neural Networks},
+  booktitle = {Proceedings of the International Conference on Embedded Wireless Systems and Networks (EWSN)},
+  pages     = {168--173},
+  publisher = {Junction Publishing},
+  year      = {2017},
+  eprint    = {1709.02260},
+  archivePrefix = {arXiv},
+  note      = {checked}
+}
+@article{sakr2024cbinnn,
+  author    = {Sakr, Fouad and Berta, Riccardo and Doyle, Joseph and Capello, Alessio and Dabbous, Ali and Lazzaroni, Luca and Bellotti, Francesco},
+  title     = {{CBin-NN}: An Inference Engine for Binarized Neural Networks},
+  journal   = {Electronics},
+  volume    = {13},
+  number    = {9},
+  pages     = {1624},
+  year      = {2024},
+  doi       = {10.3390/electronics13091624},
+  note      = {checked}
+}
+
+% ---------------------------------------------------------------- INT8 toolchains, kernels, compilers
+@inproceedings{david2021tflm,
+  author    = {David, Robert and Duke, Jared and Jain, Advait and Janapa Reddi, Vijay and Jeffries, Nat and Li, Jian and Kreeger, Nick and Nappier, Ian and Natraj, Meghna and Regev, Shlomi and Rhodes, Rocky and Wang, Tiezhen and Warden, Pete},
+  title     = {{TensorFlow Lite Micro}: Embedded Machine Learning for {TinyML} Systems},
+  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
+  volume    = {3},
+  year      = {2021},
+  eprint    = {2010.08678},
+  archivePrefix = {arXiv},
+  note      = {checked (MLSys title; the arXiv title says "on TinyML Systems")}
+}
+@misc{lai2018cmsisnn,
+  author    = {Lai, Liangzhen and Suda, Naveen and Chandra, Vikas},
+  title     = {{CMSIS-NN}: Efficient Neural Network Kernels for {Arm Cortex-M} {CPUs}},
+  year      = {2018},
+  eprint    = {1801.06601},
+  archivePrefix = {arXiv},
+  note      = {checked; the kernels used are the CMSIS-NN release bundled with TFLite Micro}
+}
+@misc{espnn,
+  author    = {{Espressif Systems}},
+  title     = {{ESP-NN}: optimized neural network kernels for Espressif chips},
+  howpublished = {\url{https://github.com/espressif/esp-nn}},
+  year      = {2026},
+  note      = {software; record the commit used}
+}
+@misc{espdl,
+  author    = {{Espressif Systems}},
+  title     = {{ESP-DL}: deep learning library for Espressif chips},
+  howpublished = {\url{https://github.com/espressif/esp-dl}},
+  year      = {2026},
+  note      = {software; record the version used in the quick check}
+}
+@misc{executorch,
+  author    = {{PyTorch contributors}},
+  title     = {{ExecuTorch}: {Arm Cortex-M} backend},
+  howpublished = {\url{https://docs.pytorch.org/executorch/stable/backends/arm-cortex-m}},
+  year      = {2026},
+  note      = {documentation, read 2026-11-10}
+}
+@inproceedings{chen2018tvm,
+  author    = {Chen, Tianqi and Moreau, Thierry and Jiang, Ziheng and Zheng, Lianmin and Yan, Eddie and Cowan, Meghan and Shen, Haichen and Wang, Leyuan and Hu, Yuwei and Ceze, Luis and Guestrin, Carlos and Krishnamurthy, Arvind},
+  title     = {{TVM}: An Automated End-to-End Optimizing Compiler for Deep Learning},
+  booktitle = {USENIX Symposium on Operating Systems Design and Implementation (OSDI)},
+  pages     = {578--594},
+  year      = {2018},
+  eprint    = {1802.04799},
+  archivePrefix = {arXiv},
+  note      = {MicroTVM, cited through CBin-NN; checked}
+}
+@inproceedings{lin2020mcunet,
+  author    = {Lin, Ji and Chen, Wei-Ming and Lin, Yujun and Cohn, John and Gan, Chuang and Han, Song},
+  title     = {{MCUNet}: Tiny Deep Learning on {IoT} Devices},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2020},
+  eprint    = {2007.10319},
+  archivePrefix = {arXiv},
+  note      = {TinyEngine, cited through CBin-NN; checked}
+}
+@misc{pappalardo2023brevitas,
+  author    = {Pappalardo, Alessandro},
+  title     = {{Xilinx/brevitas}},
+  howpublished = {\url{https://github.com/Xilinx/brevitas}},
+  year      = {2023},
+  doi       = {10.5281/zenodo.3333552},
+  note      = {software; DOI checked (the Zenodo record now lists Franco, Pappalardo, Fraser); record the version used}
+}
+@inproceedings{bruschi2021gvsoc,
+  author    = {Bruschi, Nazareno and Haugou, Germain and Tagliavini, Giuseppe and Conti, Francesco and Benini, Luca and Rossi, Davide},
+  title     = {{GVSoC}: A Highly Configurable, Fast and Accurate Full-Platform Simulator for {RISC-V} based {IoT} Processors},
+  booktitle = {IEEE International Conference on Computer Design (ICCD)},
+  pages     = {409--416},
+  year      = {2021},
+  eprint    = {2201.08166},
+  archivePrefix = {arXiv},
+  note      = {checked (venue, pages, id); author list: verify}
+}
+@inproceedings{paszke2019pytorch,
+  author    = {Paszke, Adam and others},
+  title     = {{PyTorch}: An Imperative Style, High-Performance Deep Learning Library},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2019},
+  eprint    = {1912.01703},
+  archivePrefix = {arXiv},
+  note      = {checked (venue, id)}
+}
+@misc{abadi2016tensorflow,
+  author    = {Abadi, Mart{\'\i}n and others},
+  title     = {{TensorFlow}: Large-Scale Machine Learning on Heterogeneous Distributed Systems},
+  year      = {2016},
+  eprint    = {1603.04467},
+  archivePrefix = {arXiv},
+  note      = {verify}
+}
+
+% ---------------------------------------------------------------- benchmarks and datasets
+@inproceedings{banbury2021mlperftiny,
+  author    = {Banbury, Colby and others},
+  title     = {{MLPerf Tiny} Benchmark},
+  booktitle = {NeurIPS Datasets and Benchmarks Track},
+  year      = {2021},
+  eprint    = {2106.07597},
+  archivePrefix = {arXiv},
+  note      = {checked}
+}
+@techreport{krizhevsky2009cifar,
+  author      = {Krizhevsky, Alex},
+  title       = {Learning Multiple Layers of Features from Tiny Images},
+  institution = {University of Toronto},
+  year        = {2009},
+  note        = {CIFAR-10; checked}
+}
+@misc{xiao2017fashion,
+  author    = {Xiao, Han and Rasul, Kashif and Vollgraf, Roland},
+  title     = {{Fashion-MNIST}: a Novel Image Dataset for Benchmarking Machine Learning Algorithms},
+  year      = {2017},
+  eprint    = {1708.07747},
+  archivePrefix = {arXiv},
+  note      = {checked}
+}
+@article{everingham2010voc,
+  author    = {Everingham, Mark and Van Gool, Luc and Williams, Christopher K. I. and Winn, John and Zisserman, Andrew},
+  title     = {The {PASCAL} Visual Object Classes ({VOC}) Challenge},
+  journal   = {International Journal of Computer Vision},
+  volume    = {88},
+  number    = {2},
+  pages     = {303--338},
+  year      = {2010},
+  doi       = {10.1007/s11263-009-0275-4},
+  note      = {checked}
+}
+@misc{edgeimpulse2022fomo,
+  author    = {{Edge Impulse}},
+  title     = {{FOMO}: Object Detection for Constrained Devices},
+  howpublished = {\url{https://docs.edgeimpulse.com/docs/edge-impulse-studio/learning-blocks/object-detection/fomo-object-detection-for-constrained-devices}},
+  year      = {2022},
+  note      = {documentation; URL checked}
+}
+@article{micucci2017unimib,
+  author    = {Micucci, Daniela and Mobilio, Marco and Napoletano, Paolo},
+  title     = {{UniMiB SHAR}: A Dataset for Human Activity Recognition Using Acceleration Data from Smartphones},
+  journal   = {Applied Sciences},
+  volume    = {7},
+  number    = {10},
+  pages     = {1101},
+  year      = {2017},
+  doi       = {10.3390/app7101101},
+  note      = {checked}
+}
+@article{moody2001mitbih,
+  author    = {Moody, George B. and Mark, Roger G.},
+  title     = {The Impact of the {MIT-BIH} Arrhythmia Database},
+  journal   = {IEEE Engineering in Medicine and Biology Magazine},
+  volume    = {20},
+  number    = {3},
+  pages     = {45--50},
+  year      = {2001},
+  doi       = {10.1109/51.932724},
+  note      = {checked}
+}
+@article{dechazal2004ecg,
+  author    = {de Chazal, Philip and O'Dwyer, Maria and Reilly, Richard B.},
+  title     = {Automatic Classification of Heartbeats Using {ECG} Morphology and Heartbeat Interval Features},
+  journal   = {IEEE Transactions on Biomedical Engineering},
+  volume    = {51},
+  number    = {7},
+  pages     = {1196--1206},
+  year      = {2004},
+  doi       = {10.1109/TBME.2004.827359},
+  note      = {inter-patient split DS1 / DS2; checked}
+}
+@misc{aami2012ec57,
+  author    = {{Association for the Advancement of Medical Instrumentation}},
+  title     = {{ANSI/AAMI EC57}: Testing and Reporting Performance Results of Cardiac Rhythm and {ST} Segment Measurement Algorithms},
+  year      = {2012},
+  note      = {AAMI classes N/S/V/F; checked (EC57:2012, reaffirmed 2020)}
+}
+@article{pedregosa2011sklearn,
+  author    = {Pedregosa, Fabian and others},
+  title     = {Scikit-learn: Machine Learning in {Python}},
+  journal   = {Journal of Machine Learning Research},
+  volume    = {12},
+  pages     = {2825--2830},
+  year      = {2011},
+  note      = {the Digits dataset (UCI optical digits, test part); checked}
+}

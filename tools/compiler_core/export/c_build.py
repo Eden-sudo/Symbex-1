@@ -1,6 +1,7 @@
 """
 c_build.py -- the exactness check on this PC, shared by every exporter: build an exported model_symbex.h with
-lib_symbex (gcc), run it on the validation inputs and count how many results equal the integer simulation.
+lib_symbex, run it on the validation inputs and count how many results equal the integer simulation. CC is parsed
+as a compiler command and arguments; when unset or empty, gcc then cc is tried.
 
     check(header_path, lib_path, x_u8, expected, sources, ...)   -> (equal, total, message)
     TEST_MAIN                                                     the test program (reads uint8 inputs, prints the class)
@@ -9,6 +10,7 @@ Every header offers the interface of the MLP headers (symbex_mlp_infer, SYMBEX_M
 serves them all. Each exporter's validate_c names its library sources and flags and calls check().
 """
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -36,15 +38,28 @@ int main(int argc, char** argv) {
 
 
 def check(header_path, lib_path, x_u8, expected, sources, flags=(), std="gnu11", after=None):
-    """gcc on this PC: the header + lib_symbex, run on x_u8; returns (equal, total, message), equal None when it could
-    not run (no gcc, library missing, no build, a crash; message says why).
+    """Build the header + lib_symbex on this PC and run on x_u8; returns (equal, total, message), equal None when it
+    could not run (no compiler, library missing, no build, a crash; message says why). CC is split into a command and
+    arguments; unset or empty CC tries gcc then cc. Whitespace-only CC or malformed quoting raises ValueError.
     sources: library files, relative to <lib_path>/src (an absolute path is taken as it is: an application's own C).
-    flags: extra gcc flags (-D..., -mpopcnt). std: the C standard.
+    flags: extra compiler flags (-D..., -mpopcnt). std: the C standard.
     after(build, folder): an extra check run in the build folder after the results; build(c_file, exe) builds a
-    program of that folder with the same sources and flags (None on success, else gcc's error). It returns "" when
+    program of that folder with the same sources and flags (None on success, else the compiler's error). It returns "" when
     the check passes, else the message (the result is then None)."""
-    if shutil.which("gcc") is None:
-        return None, 0, "gcc not found: the C exactness check was skipped"
+    cc = os.environ.get("CC")
+    if cc:
+        compiler = shlex.split(cc)
+        if not compiler:
+            raise ValueError("CC must contain a compiler command")
+        found = shutil.which(compiler[0])
+    else:
+        compiler = ["gcc"]
+        found = shutil.which("gcc")
+        if found is None:
+            compiler = ["cc"]
+            found = shutil.which("cc")
+    if found is None:
+        return None, 0, f"{compiler[0]} not found: the C exactness check was skipped"
     inc = os.path.join(lib_path, "include")
     sources = [os.path.join(lib_path, "src", s) for s in sources]
     for r in [inc] + sources:
@@ -54,7 +69,7 @@ def check(header_path, lib_path, x_u8, expected, sources, flags=(), std="gnu11",
         shutil.copy(header_path, os.path.join(d, "model_symbex.h"))
 
         def build(c_file, exe):
-            r = subprocess.run(["gcc", "-O2", f"-std={std}", *flags, "-I", inc, "-I", d, "-o", exe, c_file] + sources,
+            r = subprocess.run([*compiler, "-O2", f"-std={std}", *flags, "-I", inc, "-I", d, "-o", exe, c_file] + sources,
                                capture_output=True, text=True)
             return None if r.returncode == 0 else r.stderr
 

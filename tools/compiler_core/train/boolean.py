@@ -3,7 +3,10 @@ boolean.py -- training of the CDT's "boolean" method (fully binary convolutional
 DEFINED (it is already binary), labels only. The model's contract and the export are in export/boolean.py.
 
     train(model, train_ds, val_ds, cfg, out_dir)       labels only, Adam + cosine, crop + flip on the GPU; with
-                                                       [training] binary_optimizer = "bop", Bop for the 1-bit weights
+                                                       [training] binary_optimizer = "bop", Bop for the 1-bit weights;
+                                                       with clip_latent = true, Adam's latent 1-bit weights are
+                                                       clamped to [-1, 1] after every step (health.py: without it
+                                                       a weight past 1 gets no gradient and its bit freezes)
     binary_weights(model)                              the 1-bit weights of the model (export/boolean.py's contract)
     load_trained(model, out_dir)                       a trained model (model_binarized.pth)
 """
@@ -14,6 +17,8 @@ import time
 
 import torch
 import torch.nn.functional as F
+
+from compiler_core.train.health import binary_health, clip_latent, warn
 
 
 def _augment(x):
@@ -107,11 +112,14 @@ def train(model, train_ds, val_ds, cfg, out_dir, test_ds=None):
     else:
         opt = torch.optim.Adam(student.parameters(), lr=tr["learning_rate"])
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, tr["epochs"])
+    clip = bool(tr.get("clip_latent")) and not bop       # Bop keeps no latent weights: nothing to clip
+    bits0 = [w.detach().clone() for w in binary_weights(student)]
     if tr.get("distill"):
         print("    [!] method 'boolean' trains on the labels only: [training] distill is ignored")
     print(f"\n[3] TRAIN  (method 'boolean': the network as defined, {tr['epochs']} epochs, labels only, Adam "
           f"lr {tr['learning_rate']} + cosine"
           + (f", Bop for the 1-bit weights (gamma {bop.gamma:g}, tau {bop.tau:g})" if bop else "")
+          + (", latent 1-bit weights clipped to [-1, 1]" if clip else "")
           + f", crop + flip | {dev}"
           + (", data on the GPU" if on_gpu else "") + (f", compile {mode}" if mode and dev.type == "cuda" else "") + ")")
     history, t0 = [], time.time()
@@ -126,6 +134,8 @@ def train(model, train_ds, val_ds, cfg, out_dir, test_ds=None):
             opt.step()
             if bop:                                  # gamma follows the learning rate's cosine
                 bop.step(opt.param_groups[0]["lr"] / tr["learning_rate"])
+            if clip:
+                clip_latent(binary_weights(student))
         sched.step()
         if (ep + 1) % 10 == 0 or ep == tr["epochs"] - 1:
             acc = _evaluate(student, val_l, dev)
@@ -136,10 +146,13 @@ def train(model, train_ds, val_ds, cfg, out_dir, test_ds=None):
         acc_test = _evaluate(student, DataLoader(test_ds, batch_size=512, num_workers=2), dev)
         print(f"    HELD-OUT TEST ({len(test_ds)} samples, not used for any choice): {acc_test:.2f}%")
     student = student.cpu().eval()
+    health = binary_health(binary_weights(student), bits0)
+    print(f"    1-bit weights: {health['frozen']:.1f} % frozen (|w| > 1), {health['flipped']:.1f} % flipped since the start")
+    warn(health, "train")
     torch.save(student.state_dict(), os.path.join(out_dir, "model_binarized.pth"))
     width = float(getattr(student, "width", 1.0))
     info = dict(method="boolean", width=width, levels=int(student.levels),
-                binary_optimizer="bop" if bop else "adam",
+                binary_optimizer="bop" if bop else "adam", clip_latent=clip, binary_health=health,
                 stem=getattr(student, "stem_kind", "thermometer"), plan={}, epochs=tr["epochs"],
                 acc_last=history[-1][3], acc_test=acc_test, n_train=len(train_ds), n_validation=len(val_ds),
                 n_test=None if test_ds is None else len(test_ds), history=history)
