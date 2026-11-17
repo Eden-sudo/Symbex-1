@@ -166,7 +166,7 @@ library, with its compact branch, measures 10.36 and 6.44 ms (3 seeds, 1000 imag
 
 The vertical engine is checked like the standard one:
 
-- `tests/run_tests.py` runs whole random networks (identity, pooled 1×1 and 1×1 shortcuts, stride 2, every border,
+- `Symbex1_PIO/lib/lib_symbex/tests/run_tests.py` runs whole random networks (identity, pooled 1×1 and 1×1 shortcuts, stride 2, every border,
   thresholds at the extremes) through both engines and checks **the class and the final map, bit by bit**, in the 6
   HAL configurations, also with AddressSanitizer and UBSan (`--stress`).
 - The CDT export compiles the header with `-DSYMBEX_BOOL_VERTICAL` and checks it against the integer simulation

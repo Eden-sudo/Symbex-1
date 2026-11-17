@@ -176,10 +176,12 @@ extern "C" void app_main(void) {
 #else
     const tflite::Model* model = tflite::GetModel(g_model);
 #endif
+    const size_t heap0 = esp_get_free_heap_size();   /* heap taken by the interpreter (besides its arena) */
     static tflite::MicroMutableOpResolver<6> ops;
     ops.AddFullyConnected(); ops.AddReshape(); ops.AddQuantize(); ops.AddDequantize(); ops.AddSoftmax(); ops.AddRelu();
     static tflite::MicroInterpreter it(model, ops, arena, sizeof arena);
     if (it.AllocateTensors() != kTfLiteOk) { printf("\nERROR:AllocateTensors failed\n"); fflush(stdout); while (true) vTaskDelay(portMAX_DELAY); }
+    const int heap_used = (int)heap0 - (int)esp_get_free_heap_size();
     TfLiteTensor* inp = it.input(0);
     TfLiteTensor* out = it.output(0);
     for (int p = 0; p < 256; p++) {
@@ -197,6 +199,15 @@ extern "C" void app_main(void) {
         read_exact(&mark, 1);
         if (mark == 0x55) {                           /* the host asks for the ready line again */
             printf("\nTFLITE ready | arena used %u bytes\n", (unsigned)it.arena_used_bytes());
+            fflush(stdout);
+            continue;
+        }
+        if (mark == 0x5A) {                           /* memory request, as SYMBEX's firmware: stack never touched
+                                                         (bytes) of its reserve, the interpreter and resolver objects,
+                                                         the input buffer + quantization table, the heap they took */
+            printf("MEM:%u,%u,%u,%u,%d\n", (unsigned)uxTaskGetStackHighWaterMark(NULL),
+                   (unsigned)CONFIG_ESP_MAIN_TASK_STACK_SIZE, (unsigned)(sizeof it + sizeof ops),
+                   (unsigned)(sizeof x + sizeof q8), heap_used);
             fflush(stdout);
             continue;
         }
@@ -413,7 +424,10 @@ def tflm_project(project_dir, tflite, board, port, baud, arena_kb, n_inputs, n_c
                      + ("#define USB_SERIAL_JTAG 1\n" if usb else "") + MAIN_TFLM)
 
 
-def measure_chip(project_dir, board, port, baud, x_u8, upload, usb=False):
+def measure_chip(project_dir, board, port, baud, x_u8, upload, usb=False, memory=None):
+    """memory: a dict filled (ESP32 boards) with the RAM besides the arena, measured as chip_test.py does for SYMBEX:
+    stack_used (main task's reserve minus the bytes it never touched), objects (interpreter + op resolver),
+    input_bytes (input buffer + quantization table), heap (taken while building the interpreter)"""
     import serial
     pico = board.startswith("pico2")
     if upload:
@@ -481,6 +495,16 @@ def measure_chip(project_dir, board, port, baud, x_u8, upload, usb=False):
                 sys.exit(f"[X] no answer for image {i}")
         if (i + 1) % max(1, len(x_u8) // 5) == 0:
             print(f"      {i + 1}/{len(x_u8)} | median {np.median(times) / 1000:.3f} ms")
+    if memory is not None and not pico:
+        s.write(bytes([0x5A]))
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            l = s.readline().decode(errors="replace").strip()
+            if l.startswith("MEM:"):
+                free, total, objects, input_bytes, heap = (int(v) for v in l[4:].split(","))
+                memory.update(stack_used=total - free, stack_reserved=total, objects=objects,
+                              input_bytes=input_bytes, heap=heap)
+                break
     s.close()
     return np.array(pred), np.array(times), arena
 

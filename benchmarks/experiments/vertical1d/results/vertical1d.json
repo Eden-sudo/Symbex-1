@@ -1,0 +1,2065 @@
+{
+ "note": "standard = the source run's chip JSON, vertical = the same network with the listed layers on v1d_conv (vertical1d.h); times in ms, median over the windows",
+ "rows": [
+  {
+   "run": "max10_binary_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max10_binary_e100_s42",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 2.362,
+   "vertical_ms": 1.525,
+   "speedup": 1.5488524590163937,
+   "standard_steps": [
+    0.974,
+    1.087,
+    0.288,
+    0.011
+   ],
+   "vertical_steps": [
+    0.979,
+    0.241,
+    0.294,
+    0.0155
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 9792,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 11049
+   },
+   "ram_standard": {
+    "buffers": 1152,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2409
+   },
+   "work_bytes": 8640
+  },
+  {
+   "run": "max10_binary_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max10_binary_e100_s42",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 2.362,
+   "vertical_ms": 1.524,
+   "speedup": 1.5498687664041995,
+   "standard_steps": [
+    0.977,
+    1.086,
+    0.288,
+    0.009
+   ],
+   "vertical_steps": [
+    0.979,
+    0.241,
+    0.295,
+    0.013
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 9792,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 2956,
+    "code_in_ram": 0,
+    "total": 14005
+   },
+   "ram_standard": {
+    "buffers": 1152,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 2956,
+    "total": 5365
+   },
+   "work_bytes": 8640
+  },
+  {
+   "run": "max10_binary_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max10_binary_e100_s43",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 2.358,
+   "vertical_ms": 1.51,
+   "speedup": 1.56158940397351,
+   "standard_steps": [
+    0.972,
+    1.086,
+    0.289,
+    0.011
+   ],
+   "vertical_steps": [
+    0.978,
+    0.219,
+    0.295,
+    0.0155
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 9280,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 10537
+   },
+   "ram_standard": {
+    "buffers": 640,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 1897
+   },
+   "work_bytes": 8640
+  },
+  {
+   "run": "max10_binary_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max10_binary_e100_s43",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 2.358,
+   "vertical_ms": 1.51,
+   "speedup": 1.56158940397351,
+   "standard_steps": [
+    0.975,
+    1.085,
+    0.289,
+    0.009
+   ],
+   "vertical_steps": [
+    0.978,
+    0.219,
+    0.295,
+    0.0155
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 9280,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 2956,
+    "code_in_ram": 0,
+    "total": 13493
+   },
+   "ram_standard": {
+    "buffers": 640,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 2956,
+    "total": 4853
+   },
+   "work_bytes": 8640
+  },
+  {
+   "run": "max10_binary_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max10_binary_e100_s44",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 2.357,
+   "vertical_ms": 1.5075,
+   "speedup": 1.5635157545605307,
+   "standard_steps": [
+    0.972,
+    1.086,
+    0.289,
+    0.011
+   ],
+   "vertical_steps": [
+    0.977,
+    0.223,
+    0.295,
+    0.013
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 9280,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 10537
+   },
+   "ram_standard": {
+    "buffers": 640,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 1897
+   },
+   "work_bytes": 8640
+  },
+  {
+   "run": "max10_binary_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max10_binary_e100_s44",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 2.357,
+   "vertical_ms": 1.507,
+   "speedup": 1.5640345056403453,
+   "standard_steps": [
+    0.975,
+    1.085,
+    0.289,
+    0.009
+   ],
+   "vertical_steps": [
+    0.977,
+    0.223,
+    0.295,
+    0.013
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 9280,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 2956,
+    "code_in_ram": 0,
+    "total": 13493
+   },
+   "ram_standard": {
+    "buffers": 640,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 2956,
+    "total": 4853
+   },
+   "work_bytes": 8640
+  },
+  {
+   "run": "max10_int8_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max10_int8_e100_s42",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 1.833,
+   "vertical_ms": 0.983,
+   "speedup": 1.8646998982706002,
+   "standard_steps": [
+    0.448,
+    1.087,
+    0.288,
+    0.009
+   ],
+   "vertical_steps": [
+    0.449,
+    0.234,
+    0.294,
+    0.014
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 9280,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 10537
+   },
+   "ram_standard": {
+    "buffers": 640,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 1897
+   },
+   "work_bytes": 8640
+  },
+  {
+   "run": "max10_int8_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max10_int8_e100_s42",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 1.833,
+   "vertical_ms": 0.983,
+   "speedup": 1.8646998982706002,
+   "standard_steps": [
+    0.448,
+    1.087,
+    0.288,
+    0.009
+   ],
+   "vertical_steps": [
+    0.449,
+    0.234,
+    0.294,
+    0.0155
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 9280,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 3188,
+    "code_in_ram": 0,
+    "total": 13725
+   },
+   "ram_standard": {
+    "buffers": 640,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 3188,
+    "total": 5085
+   },
+   "work_bytes": 8640
+  },
+  {
+   "run": "max10_int8_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max10_int8_e100_s43",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 1.832,
+   "vertical_ms": 0.975,
+   "speedup": 1.878974358974359,
+   "standard_steps": [
+    0.447,
+    1.087,
+    0.289,
+    0.009
+   ],
+   "vertical_steps": [
+    0.448,
+    0.218,
+    0.295,
+    0.016
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 9280,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 10537
+   },
+   "ram_standard": {
+    "buffers": 640,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 1897
+   },
+   "work_bytes": 8640
+  },
+  {
+   "run": "max10_int8_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max10_int8_e100_s43",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 1.832,
+   "vertical_ms": 0.975,
+   "speedup": 1.878974358974359,
+   "standard_steps": [
+    0.447,
+    1.087,
+    0.289,
+    0.009
+   ],
+   "vertical_steps": [
+    0.448,
+    0.218,
+    0.295,
+    0.014
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 9280,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 3188,
+    "code_in_ram": 0,
+    "total": 13725
+   },
+   "ram_standard": {
+    "buffers": 640,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 3188,
+    "total": 5085
+   },
+   "work_bytes": 8640
+  },
+  {
+   "run": "max10_int8_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max10_int8_e100_s44",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 1.83,
+   "vertical_ms": 0.984,
+   "speedup": 1.8597560975609757,
+   "standard_steps": [
+    0.448,
+    1.083,
+    0.289,
+    0.009
+   ],
+   "vertical_steps": [
+    0.449,
+    0.228,
+    0.295,
+    0.0155
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 9280,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 10537
+   },
+   "ram_standard": {
+    "buffers": 640,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 1897
+   },
+   "work_bytes": 8640
+  },
+  {
+   "run": "max10_int8_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max10_int8_e100_s44",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 1.83,
+   "vertical_ms": 0.984,
+   "speedup": 1.8597560975609757,
+   "standard_steps": [
+    0.448,
+    1.083,
+    0.289,
+    0.009
+   ],
+   "vertical_steps": [
+    0.449,
+    0.228,
+    0.295,
+    0.014
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 9280,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 3188,
+    "code_in_ram": 0,
+    "total": 13725
+   },
+   "ram_standard": {
+    "buffers": 640,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 3188,
+    "total": 5085
+   },
+   "work_bytes": 8640
+  },
+  {
+   "run": "max5_binary_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max5_binary_e100_s42",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 4.862,
+   "vertical_ms": 3.138,
+   "speedup": 1.5493945188017846,
+   "standard_steps": [
+    2.061,
+    2.484,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    2.064,
+    0.751,
+    0.316,
+    0.011
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 21204,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 22461
+   },
+   "ram_standard": {
+    "buffers": 2084,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 3341
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max5_binary_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max5_binary_e100_s42",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 4.866,
+   "vertical_ms": 3.138,
+   "speedup": 1.5506692160611855,
+   "standard_steps": [
+    2.064,
+    2.483,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    2.064,
+    0.751,
+    0.316,
+    0.0105
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 21204,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5724,
+    "code_in_ram": 0,
+    "total": 28185
+   },
+   "ram_standard": {
+    "buffers": 2084,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5724,
+    "total": 9065
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max5_binary_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max5_binary_e100_s43",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 4.864,
+   "vertical_ms": 3.132,
+   "speedup": 1.553001277139208,
+   "standard_steps": [
+    2.059,
+    2.486,
+    0.31,
+    0.009
+   ],
+   "vertical_steps": [
+    2.062,
+    0.745,
+    0.316,
+    0.0105
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20692,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 21949
+   },
+   "ram_standard": {
+    "buffers": 1572,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2829
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max5_binary_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max5_binary_e100_s43",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 4.864,
+   "vertical_ms": 3.132,
+   "speedup": 1.553001277139208,
+   "standard_steps": [
+    2.062,
+    2.484,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    2.062,
+    0.745,
+    0.316,
+    0.0135
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20692,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5724,
+    "code_in_ram": 0,
+    "total": 27673
+   },
+   "ram_standard": {
+    "buffers": 1572,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5724,
+    "total": 8553
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max5_binary_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max5_binary_e100_s44",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 4.868,
+   "vertical_ms": 3.125,
+   "speedup": 1.55776,
+   "standard_steps": [
+    2.062,
+    2.486,
+    0.31,
+    0.009
+   ],
+   "vertical_steps": [
+    2.065,
+    0.735,
+    0.316,
+    0.0135
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20692,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 21949
+   },
+   "ram_standard": {
+    "buffers": 1572,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2829
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max5_binary_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max5_binary_e100_s44",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 4.868,
+   "vertical_ms": 3.125,
+   "speedup": 1.55776,
+   "standard_steps": [
+    2.065,
+    2.485,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    2.065,
+    0.735,
+    0.316,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20692,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5724,
+    "code_in_ram": 0,
+    "total": 27673
+   },
+   "ram_standard": {
+    "buffers": 1572,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5724,
+    "total": 8553
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max5_int8_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max5_int8_e100_s42",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 3.759,
+   "vertical_ms": 2.0395,
+   "speedup": 1.843098798725178,
+   "standard_steps": [
+    0.958,
+    2.484,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    0.958,
+    0.759,
+    0.316,
+    0.0105
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20692,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 21949
+   },
+   "ram_standard": {
+    "buffers": 1572,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2829
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max5_int8_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max5_int8_e100_s42",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 3.759,
+   "vertical_ms": 2.0395,
+   "speedup": 1.843098798725178,
+   "standard_steps": [
+    0.958,
+    2.483,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    0.958,
+    0.759,
+    0.316,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20692,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5884,
+    "code_in_ram": 0,
+    "total": 27833
+   },
+   "ram_standard": {
+    "buffers": 1572,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5884,
+    "total": 8713
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max5_int8_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max5_int8_e100_s43",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 3.754,
+   "vertical_ms": 2.033,
+   "speedup": 1.8465322183964585,
+   "standard_steps": [
+    0.952,
+    2.484,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    0.951,
+    0.757,
+    0.316,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20692,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 21949
+   },
+   "ram_standard": {
+    "buffers": 1572,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2829
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max5_int8_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max5_int8_e100_s43",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 3.754,
+   "vertical_ms": 2.033,
+   "speedup": 1.8465322183964585,
+   "standard_steps": [
+    0.952,
+    2.484,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    0.951,
+    0.757,
+    0.316,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20692,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5884,
+    "code_in_ram": 0,
+    "total": 27833
+   },
+   "ram_standard": {
+    "buffers": 1572,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5884,
+    "total": 8713
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max5_int8_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max5_int8_e100_s44",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 3.757,
+   "vertical_ms": 2.0185,
+   "speedup": 1.8612831310378994,
+   "standard_steps": [
+    0.954,
+    2.484,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    0.953,
+    0.739,
+    0.316,
+    0.0135
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20692,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 21949
+   },
+   "ram_standard": {
+    "buffers": 1572,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2829
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max5_int8_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max5_int8_e100_s44",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 3.757,
+   "vertical_ms": 2.0185,
+   "speedup": 1.8612831310378994,
+   "standard_steps": [
+    0.954,
+    2.484,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    0.953,
+    0.739,
+    0.316,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20692,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5884,
+    "code_in_ram": 0,
+    "total": 27833
+   },
+   "ram_standard": {
+    "buffers": 1572,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5884,
+    "total": 8713
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_binary_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s42",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 4.825,
+   "vertical_ms": 3.271,
+   "speedup": 1.47508407214919,
+   "standard_steps": [
+    2.179,
+    2.327,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    2.185,
+    0.763,
+    0.316,
+    0.0135
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 21140,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 22397
+   },
+   "ram_standard": {
+    "buffers": 2020,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 3277
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_binary_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s42",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 4.829,
+   "vertical_ms": 3.271,
+   "speedup": 1.4763069397737694,
+   "standard_steps": [
+    2.184,
+    2.327,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    2.185,
+    0.763,
+    0.316,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 21140,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5724,
+    "code_in_ram": 0,
+    "total": 28121
+   },
+   "ram_standard": {
+    "buffers": 2020,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5724,
+    "total": 9001
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_binary_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s43",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 4.828,
+   "vertical_ms": 3.252,
+   "speedup": 1.4846248462484626,
+   "standard_steps": [
+    2.177,
+    2.331,
+    0.31,
+    0.009
+   ],
+   "vertical_steps": [
+    2.181,
+    0.746,
+    0.316,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20628,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 21885
+   },
+   "ram_standard": {
+    "buffers": 1508,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2765
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_binary_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s43",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 4.8285,
+   "vertical_ms": 3.252,
+   "speedup": 1.484778597785978,
+   "standard_steps": [
+    2.18,
+    2.329,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    2.18,
+    0.746,
+    0.316,
+    0.0135
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20628,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5724,
+    "code_in_ram": 0,
+    "total": 27609
+   },
+   "ram_standard": {
+    "buffers": 1508,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5724,
+    "total": 8489
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_binary_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s44",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 4.827,
+   "vertical_ms": 3.268,
+   "speedup": 1.4770501835985312,
+   "standard_steps": [
+    2.178,
+    2.328,
+    0.31,
+    0.009
+   ],
+   "vertical_steps": [
+    2.182,
+    0.759,
+    0.317,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20628,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 21885
+   },
+   "ram_standard": {
+    "buffers": 1508,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2765
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_binary_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_binary_e100_s44",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 4.827,
+   "vertical_ms": 3.268,
+   "speedup": 1.4770501835985312,
+   "standard_steps": [
+    2.181,
+    2.327,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    2.182,
+    0.759,
+    0.317,
+    0.0105
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20628,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5724,
+    "code_in_ram": 0,
+    "total": 27609
+   },
+   "ram_standard": {
+    "buffers": 1508,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 5724,
+    "total": 8489
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_int8_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_int8_e100_s42",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 3.835,
+   "vertical_ms": 2.26,
+   "speedup": 1.6969026548672568,
+   "standard_steps": [
+    1.1915,
+    2.325,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    1.191,
+    0.745,
+    0.316,
+    0.0105
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20628,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 21885
+   },
+   "ram_standard": {
+    "buffers": 1508,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2765
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_int8_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_int8_e100_s42",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 3.836,
+   "vertical_ms": 2.2595,
+   "speedup": 1.6977207346758132,
+   "standard_steps": [
+    1.191,
+    2.327,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    1.19,
+    0.745,
+    0.316,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20628,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 6652,
+    "code_in_ram": 0,
+    "total": 28537
+   },
+   "ram_standard": {
+    "buffers": 1508,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 6652,
+    "total": 9417
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_int8_e100_s42_v12",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_int8_e100_s42",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1,
+    2
+   ],
+   "standard_ms": 3.835,
+   "vertical_ms": 2.707,
+   "speedup": 1.416697451052826,
+   "standard_steps": [
+    1.1915,
+    2.325,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    1.191,
+    0.774,
+    0.735,
+    0.008
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20628,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 21885
+   },
+   "ram_standard": {
+    "buffers": 1508,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2765
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_int8_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_int8_e100_s43",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 3.835,
+   "vertical_ms": 2.2575,
+   "speedup": 1.6987818383167221,
+   "standard_steps": [
+    1.189,
+    2.327,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    1.187,
+    0.744,
+    0.317,
+    0.0135
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20628,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 21885
+   },
+   "ram_standard": {
+    "buffers": 1508,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2765
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_int8_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_int8_e100_s43",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 3.835,
+   "vertical_ms": 2.2575,
+   "speedup": 1.6987818383167221,
+   "standard_steps": [
+    1.188,
+    2.328,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    1.187,
+    0.744,
+    0.316,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20628,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 6652,
+    "code_in_ram": 0,
+    "total": 28537
+   },
+   "ram_standard": {
+    "buffers": 1508,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 6652,
+    "total": 9417
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_int8_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_int8_e100_s44",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 3.835,
+   "vertical_ms": 2.2715,
+   "speedup": 1.6883116883116882,
+   "standard_steps": [
+    1.188,
+    2.328,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    1.188,
+    0.759,
+    0.316,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20628,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 21885
+   },
+   "ram_standard": {
+    "buffers": 1508,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2765
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "max_int8_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/max_int8_e100_s44",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 3.835,
+   "vertical_ms": 2.2715,
+   "speedup": 1.6883116883116882,
+   "standard_steps": [
+    1.188,
+    2.329,
+    0.31,
+    0.007
+   ],
+   "vertical_steps": [
+    1.188,
+    0.759,
+    0.316,
+    0.0135
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 20628,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 6652,
+    "code_in_ram": 0,
+    "total": 28537
+   },
+   "ram_standard": {
+    "buffers": 1508,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 6652,
+    "total": 9417
+   },
+   "work_bytes": 19120
+  },
+  {
+   "run": "min_binary_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/min_binary_e100_s42",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 0.83,
+   "vertical_ms": 0.741,
+   "speedup": 1.1201079622132253,
+   "standard_steps": [
+    0.571,
+    0.208,
+    0.043,
+    0.008
+   ],
+   "vertical_steps": [
+    0.577,
+    0.107,
+    0.05,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 8516,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 9773
+   },
+   "ram_standard": {
+    "buffers": 916,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 2173
+   },
+   "work_bytes": 7600
+  },
+  {
+   "run": "min_binary_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/min_binary_e100_s42",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 0.829,
+   "vertical_ms": 0.741,
+   "speedup": 1.1187584345479082,
+   "standard_steps": [
+    0.574,
+    0.206,
+    0.043,
+    0.006
+   ],
+   "vertical_steps": [
+    0.578,
+    0.107,
+    0.052,
+    0.014
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 8516,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 748,
+    "code_in_ram": 0,
+    "total": 10521
+   },
+   "ram_standard": {
+    "buffers": 916,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 748,
+    "total": 2921
+   },
+   "work_bytes": 7600
+  },
+  {
+   "run": "min_binary_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/min_binary_e100_s43",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 0.828,
+   "vertical_ms": 0.73,
+   "speedup": 1.1342465753424658,
+   "standard_steps": [
+    0.568,
+    0.207,
+    0.043,
+    0.008
+   ],
+   "vertical_steps": [
+    0.576,
+    0.086,
+    0.052,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 8004,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 9261
+   },
+   "ram_standard": {
+    "buffers": 404,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 1661
+   },
+   "work_bytes": 7600
+  },
+  {
+   "run": "min_binary_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/min_binary_e100_s43",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 0.827,
+   "vertical_ms": 0.73,
+   "speedup": 1.132876712328767,
+   "standard_steps": [
+    0.571,
+    0.206,
+    0.043,
+    0.006
+   ],
+   "vertical_steps": [
+    0.576,
+    0.086,
+    0.05,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 8004,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 748,
+    "code_in_ram": 0,
+    "total": 10009
+   },
+   "ram_standard": {
+    "buffers": 404,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 748,
+    "total": 2409
+   },
+   "work_bytes": 7600
+  },
+  {
+   "run": "min_binary_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/min_binary_e100_s44",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 0.83,
+   "vertical_ms": 0.752,
+   "speedup": 1.103723404255319,
+   "standard_steps": [
+    0.571,
+    0.207,
+    0.043,
+    0.008
+   ],
+   "vertical_steps": [
+    0.578,
+    0.11,
+    0.0495,
+    0.0115
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 8004,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 9261
+   },
+   "ram_standard": {
+    "buffers": 404,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 1661
+   },
+   "work_bytes": 7600
+  },
+  {
+   "run": "min_binary_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/min_binary_e100_s44",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 0.829,
+   "vertical_ms": 0.752,
+   "speedup": 1.1023936170212765,
+   "standard_steps": [
+    0.574,
+    0.205,
+    0.043,
+    0.006
+   ],
+   "vertical_steps": [
+    0.578,
+    0.11,
+    0.052,
+    0.014
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 8004,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 748,
+    "code_in_ram": 0,
+    "total": 10009
+   },
+   "ram_standard": {
+    "buffers": 404,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 748,
+    "total": 2409
+   },
+   "work_bytes": 7600
+  },
+  {
+   "run": "min_int8_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/min_int8_e100_s42",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 0.487,
+   "vertical_ms": 0.387,
+   "speedup": 1.2583979328165373,
+   "standard_steps": [
+    0.229,
+    0.207,
+    0.043,
+    0.008
+   ],
+   "vertical_steps": [
+    0.229,
+    0.101,
+    0.0495,
+    0.0125
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 8004,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 9261
+   },
+   "ram_standard": {
+    "buffers": 404,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 1661
+   },
+   "work_bytes": 7600
+  },
+  {
+   "run": "min_int8_e100_s42_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/min_int8_e100_s42",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 0.488,
+   "vertical_ms": 0.388,
+   "speedup": 1.2577319587628866,
+   "standard_steps": [
+    0.229,
+    0.207,
+    0.043,
+    0.008
+   ],
+   "vertical_steps": [
+    0.229,
+    0.1,
+    0.0495,
+    0.0125
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 8004,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 768,
+    "code_in_ram": 0,
+    "total": 10029
+   },
+   "ram_standard": {
+    "buffers": 404,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 768,
+    "total": 2429
+   },
+   "work_bytes": 7600
+  },
+  {
+   "run": "min_int8_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/min_int8_e100_s43",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 0.486,
+   "vertical_ms": 0.384,
+   "speedup": 1.265625,
+   "standard_steps": [
+    0.228,
+    0.206,
+    0.043,
+    0.008
+   ],
+   "vertical_steps": [
+    0.228,
+    0.091,
+    0.05,
+    0.0125
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 8004,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 9261
+   },
+   "ram_standard": {
+    "buffers": 404,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 1661
+   },
+   "work_bytes": 7600
+  },
+  {
+   "run": "min_int8_e100_s43_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/min_int8_e100_s43",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 0.486,
+   "vertical_ms": 0.384,
+   "speedup": 1.265625,
+   "standard_steps": [
+    0.228,
+    0.206,
+    0.043,
+    0.008
+   ],
+   "vertical_steps": [
+    0.228,
+    0.09,
+    0.05,
+    0.014
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 8004,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 768,
+    "code_in_ram": 0,
+    "total": 10029
+   },
+   "ram_standard": {
+    "buffers": 404,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 768,
+    "total": 2429
+   },
+   "work_bytes": 7600
+  },
+  {
+   "run": "min_int8_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/min_int8_e100_s44",
+   "chip": "s3_swar_flash_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 0.488,
+   "vertical_ms": 0.388,
+   "speedup": 1.2577319587628866,
+   "standard_steps": [
+    0.229,
+    0.207,
+    0.043,
+    0.008
+   ],
+   "vertical_steps": [
+    0.229,
+    0.098,
+    0.0495,
+    0.014
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 8004,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 9261
+   },
+   "ram_standard": {
+    "buffers": 404,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 0,
+    "total": 1661
+   },
+   "work_bytes": 7600
+  },
+  {
+   "run": "min_int8_e100_s44_v1",
+   "source": "benchmarks/conv1d/har_ultracompact/runs/min_int8_e100_s44",
+   "chip": "s3_swar_ram_mask",
+   "vertical_layers": [
+    1
+   ],
+   "standard_ms": 0.488,
+   "vertical_ms": 0.387,
+   "speedup": 1.2609819121447028,
+   "standard_steps": [
+    0.229,
+    0.207,
+    0.043,
+    0.008
+   ],
+   "vertical_steps": [
+    0.229,
+    0.098,
+    0.05,
+    0.014
+   ],
+   "equal_simulation": 100.0,
+   "ram_vertical": {
+    "buffers": 8004,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 768,
+    "code_in_ram": 0,
+    "total": 10029
+   },
+   "ram_standard": {
+    "buffers": 404,
+    "input_bytes": 453,
+    "popcount_table": 0,
+    "stack_used": 804,
+    "weights_in_ram": 768,
+    "total": 2429
+   },
+   "work_bytes": 7600
+  }
+ ]
+}

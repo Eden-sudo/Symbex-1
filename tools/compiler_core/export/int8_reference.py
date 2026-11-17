@@ -64,6 +64,8 @@ def quantize_multiplier(M):
     if qf == (1 << 31):
         qf //= 2
         shift += 1
+    if shift < -31:
+        return 0, 0
     return qf, int(shift)
 
 

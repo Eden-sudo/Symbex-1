@@ -36,6 +36,7 @@
 #include "layers/dense/symbex_gated.h"
 #include "layers/dense/symbex_ternary.h"
 #include "layers/conv/symbex_conv2d.h"
+#include "layers/conv/symbex_fomo.h"
 #include "layers/conv/symbex_bpr.h"
 #include "layers/conv/symbex_binary_pool.h"
 #include "layers/conv/symbex_bool.h"
