@@ -155,3 +155,21 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   binary checkpoint; hashing it is what ties the drops to the same networks. Answered on the PR.
 - The running job (started with the old code, same inputs) will save rows without table_drop_sha256: backfilled
   after it ends, noted in the JSON, as for part 2.
+
+### 2026-11-17: part 3 run (config_table.py, 3 seeds x 40 configurations, results/config_table.json)
+- ~2.7 h, no errors (the watcher scripts hung, not the run: `pgrep -f` matched itself; waits by PID now).
+  Seed 44 ran slower (~100 s per configuration vs ~73): the GPU was shared.
+- Rule: drop_sum, fit_a, acc0, cos_end pass; fit_w (0.70 on s43) and fit (0.76 on s43) fail the coarse test. Cost
+  passes for all (Fisher 3-6 s, per-configuration measures ≤ 0.5 s). Noise ceiling 0.97-0.98: the truth is stable
+  (unlike part 2's one-layer gains).
+- Found AFTER the run (config_analysis.py, results/config_analysis.json): counting the binary layers passes the rule
+  too (0.84-0.87 all, 0.91-0.98 in groups). The pre-registered rule did not ask the useful question. With the count
+  held fixed: drop_sum 0.82 / 0.80 / 0.73, acc0 0.81 / 0.75 / 0.64, cos_end 0.81 / 0.73 / 0.73, drop_cov 0.80 /
+  0.77 / 0.73, fit_a 0.49 / 0.64 / 0.57, fit_w 0.02 / -0.38 / 0.18; ceiling 0.86-0.93. Written as found, labelled
+  post-hoc in README.
+- drop_cov (declared before the analysis): no better than the plain sum.
+- table_drop_sha256 added to the three rows after the run (the job used the code before the MendCode fix); each
+  seed's provenance was checked equal to its layer_table.json row first. Noted in the JSON (table_drop_note).
+- Expectation: wrong on fit_a being weakest (fit_w is) and on drop_sum / acc0 failing the fine test.
+- Next (Edén decides): pre-register the "same count" test on another network (MLP or tiny_llm) before moving the
+  drop table to tools/dev.

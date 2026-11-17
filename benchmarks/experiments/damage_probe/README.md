@@ -275,3 +275,60 @@ start); only binary vs real per layer (no int8 / 2-bit); 40 configurations out o
     python config_table.py --seeds 42 43 44 \
         --runs ~/Proyectos/Symbex1/benchmarks/experiments/training_gap/runs/train_gap \
         --data ~/Proyectos/Symbex1/benchmarks/data/cifar10            # results/config_table.json
+
+    python config_analysis.py                                          # results/config_analysis.json (checks below)
+
+## Result
+
+120 configurations trained (40 x 3 seeds), ~2.7 h on the GPU, no errors. The trained accuracies spread 56-79 %
+(sd ~4.2 per seed); 25 configurations have the stem binary, 15 real. Spearman with the trained accuracy, seeds
+42 / 43 / 44:
+
+| measure | all 40 (≥ 0.8) | stem real (≥ 0.6) | stem binary (≥ 0.6) | cost | rule |
+|---|---|---|---|---|---|
+| drop_sum | 0.92 / 0.93 / 0.94 | 0.96 / 0.98 / 0.94 | 0.93 / 0.94 / 0.92 | 12 s once (part 2 table) | **passes** |
+| fit_w | 0.79 / 0.70 / 0.85 | 0.94 / 0.88 / 0.94 | 0.82 / 0.75 / 0.89 | 3-6 s once | fails (coarse) |
+| fit_a | 0.88 / 0.91 / 0.91 | 0.91 / 0.92 / 0.94 | 0.95 / 0.93 / 0.92 | (same pass) | **passes** |
+| fit | 0.82 / 0.76 / 0.87 | 0.95 / 0.90 / 0.94 | 0.87 / 0.81 / 0.91 | (same pass) | fails (coarse) |
+| acc0 | 0.87 / 0.90 / 0.92 | 0.96 / 0.96 / 0.86 | 0.93 / 0.91 / 0.95 | ≤ 0.5 s per configuration | **passes** |
+| cos_end | 0.87 / 0.86 / 0.93 | 0.97 / 0.96 / 0.87 | 0.94 / 0.89 / 0.95 | (same pass) | **passes** |
+| *noise ceiling* (seed vs seed) | 0.97-0.98 | 0.95-0.97 | 0.97-0.98 | | |
+
+Checks written AFTER the run (`config_analysis.py`, not part of the rule):
+
+| measure | all 40 | stem real | stem binary | **number of binary layers held fixed** |
+|---|---|---|---|---|
+| **count** (number of binary layers) | 0.84 / 0.87 / 0.87 | 0.98 / 0.96 / 0.98 | 0.91 / 0.93 / 0.94 | 0.10 / 0.17 / 0.15 |
+| drop_sum | 0.92 / 0.93 / 0.94 | | | **0.82 / 0.80 / 0.73** |
+| acc0 | | | | 0.81 / 0.75 / 0.64 |
+| cos_end | | | | 0.81 / 0.73 / 0.73 |
+| drop_cov (Hill's coverage model) | 0.81 / 0.85 / 0.92 | 0.96 / 0.98 / 0.92 | 0.94 / 0.94 / 0.90 | 0.80 / 0.77 / 0.73 |
+| fit_a | | | | 0.49 / 0.64 / 0.57 |
+| fit_w | | | | 0.02 / -0.38 / 0.18 |
+| fit | | | | 0.12 / -0.23 / 0.25 |
+| *noise ceiling* | | | | 0.86-0.93 |
+
+- **The rule was too easy.** Counting the binary layers passes it too: in random configurations the accuracy
+  depends mostly on HOW MANY layers are binary, and every measure sees that. The useful question is WHICH layers, at
+  the same count (last column; ranks regressed on the count, residuals correlated).
+- **At the same count:** drop_sum is the best (0.73-0.82, ceiling 0.86-0.93), then acc0 and cos_end (0.64-0.81),
+  then fit_a (0.49-0.64). FIT on the weights sees nothing (-0.38 to 0.18): what it measures at 1 bit is how many
+  layers are binary.
+- **The stem after 30 epochs:** weighting it more than the count (count + 5 for the stem) ranks WORSE (0.72-0.74
+  on all 40): training repairs much of its one-shot 37-point drop. drop_sum still ranks well because the rest of
+  its terms carry the order.
+- **Hill's coverage model** (drop_cov) does not beat the plain sum: ≤ on every seed over all 40 and at the same count.
+- Expectation (written before): every measure passes the coarse test, right for 4 of 6 (fit_w and fit fail);
+  drop_sum and acc0 fail the fine one at least partly, wrong (both pass); fit_a weakest, wrong (fit_w is).
+
+## Answer
+
+**Yes for the pre-registered question, with an honest correction:** drop_sum, fit_a, acc0 and cos_end pass the
+rule, but so does counting the binary layers. The part that matters for choosing layers is the ranking at the same
+number of binary layers: there **part 2's drop table (12 s per network) is the best measure, 0.73-0.82 against a
+seed-to-seed ceiling of 0.86-0.93**; accuracy without training and the logit cosine follow; FIT on the weights does
+not work at 1 bit.
+
+Limits: one network (ResNet-8), 40 random configurations per seed, the truth is a 30-epoch training from the twin
+(not the 150-epoch recipe), binary vs real only. The "same count" check was designed after seeing the results:
+it needs its own pre-registered test on another network (MLP, or tiny_llm's layers) before drop_sum goes to tools/dev.

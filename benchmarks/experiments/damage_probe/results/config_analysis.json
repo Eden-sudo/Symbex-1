@@ -1,0 +1,174 @@
+{
+ "seeds": {
+  "42": {
+   "drop_sum": {
+    "all": 0.916,
+    "stem_real": 0.957,
+    "stem_binary": 0.933,
+    "partial_count": 0.821
+   },
+   "fit_w": {
+    "all": 0.788,
+    "stem_real": 0.936,
+    "stem_binary": 0.82,
+    "partial_count": 0.022
+   },
+   "fit_a": {
+    "all": 0.875,
+    "stem_real": 0.907,
+    "stem_binary": 0.947,
+    "partial_count": 0.492
+   },
+   "fit": {
+    "all": 0.819,
+    "stem_real": 0.95,
+    "stem_binary": 0.872,
+    "partial_count": 0.124
+   },
+   "acc0": {
+    "all": 0.868,
+    "stem_real": 0.957,
+    "stem_binary": 0.927,
+    "partial_count": 0.805
+   },
+   "cos_end": {
+    "all": 0.867,
+    "stem_real": 0.971,
+    "stem_binary": 0.937,
+    "partial_count": 0.811
+   },
+   "drop_cov": {
+    "all": 0.813,
+    "stem_real": 0.957,
+    "stem_binary": 0.936,
+    "partial_count": 0.799
+   },
+   "count": {
+    "all": 0.84,
+    "stem_real": 0.98,
+    "stem_binary": 0.91,
+    "partial_count": 0.098
+   }
+  },
+  "43": {
+   "drop_sum": {
+    "all": 0.928,
+    "stem_real": 0.982,
+    "stem_binary": 0.945,
+    "partial_count": 0.8
+   },
+   "fit_w": {
+    "all": 0.699,
+    "stem_real": 0.875,
+    "stem_binary": 0.748,
+    "partial_count": -0.378
+   },
+   "fit_a": {
+    "all": 0.913,
+    "stem_real": 0.921,
+    "stem_binary": 0.928,
+    "partial_count": 0.644
+   },
+   "fit": {
+    "all": 0.759,
+    "stem_real": 0.896,
+    "stem_binary": 0.809,
+    "partial_count": -0.227
+   },
+   "acc0": {
+    "all": 0.899,
+    "stem_real": 0.957,
+    "stem_binary": 0.908,
+    "partial_count": 0.75
+   },
+   "cos_end": {
+    "all": 0.857,
+    "stem_real": 0.964,
+    "stem_binary": 0.887,
+    "partial_count": 0.726
+   },
+   "drop_cov": {
+    "all": 0.854,
+    "stem_real": 0.982,
+    "stem_binary": 0.945,
+    "partial_count": 0.772
+   },
+   "count": {
+    "all": 0.866,
+    "stem_real": 0.962,
+    "stem_binary": 0.933,
+    "partial_count": 0.175
+   }
+  },
+  "44": {
+   "drop_sum": {
+    "all": 0.935,
+    "stem_real": 0.942,
+    "stem_binary": 0.923,
+    "partial_count": 0.732
+   },
+   "fit_w": {
+    "all": 0.852,
+    "stem_real": 0.938,
+    "stem_binary": 0.893,
+    "partial_count": 0.177
+   },
+   "fit_a": {
+    "all": 0.906,
+    "stem_real": 0.945,
+    "stem_binary": 0.919,
+    "partial_count": 0.571
+   },
+   "fit": {
+    "all": 0.866,
+    "stem_real": 0.938,
+    "stem_binary": 0.905,
+    "partial_count": 0.252
+   },
+   "acc0": {
+    "all": 0.918,
+    "stem_real": 0.86,
+    "stem_binary": 0.949,
+    "partial_count": 0.643
+   },
+   "cos_end": {
+    "all": 0.926,
+    "stem_real": 0.867,
+    "stem_binary": 0.947,
+    "partial_count": 0.726
+   },
+   "drop_cov": {
+    "all": 0.918,
+    "stem_real": 0.917,
+    "stem_binary": 0.898,
+    "partial_count": 0.733
+   },
+   "count": {
+    "all": 0.871,
+    "stem_real": 0.981,
+    "stem_binary": 0.942,
+    "partial_count": 0.152
+   }
+  }
+ },
+ "ceiling": {
+  "42_vs_43": {
+   "all": 0.976,
+   "stem_real": 0.957,
+   "stem_binary": 0.975,
+   "partial_count": 0.915
+  },
+  "42_vs_44": {
+   "all": 0.979,
+   "stem_real": 0.971,
+   "stem_binary": 0.982,
+   "partial_count": 0.928
+  },
+  "43_vs_44": {
+   "all": 0.965,
+   "stem_real": 0.949,
+   "stem_binary": 0.973,
+   "partial_count": 0.862
+  }
+ }
+}
