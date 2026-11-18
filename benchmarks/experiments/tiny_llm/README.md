@@ -282,6 +282,37 @@ windows and seeds. Fixed now: (a) hadqjl 64 and 128 bits per key; (b) rot at 1 a
 sd. (d): if seeds 1 / 2 move d by more than 2x the sd from seed 0's +0.409, the single-S result is fragile and the
 comparison uses the mean of the 3 S. Same thresholds for "usable" (< 0.03) as above.
 
+**Result (val loss, 3 seeds, V8, `results/kv_modes2.json`; reference 8 bits 1.5307):**
+
+| Keys | Bits per dim | d vs 8 bits | Rule (vs the best of the same bits) |
+|---|---|---|---|
+| Gaussian QJL 64, S seed 0 / 1 / 2 | 1 | +0.409 / +0.407 / +0.435 (mean +0.417) | seed 2 moves d by 0.026 (= 2x its sd 0.013): fragile, use the mean |
+| rot, 1 bit | 1 | +0.376 ± 0.002 | helps, barely (-0.041 vs 0.026) |
+| **hadqjl 64** | 1 | **+0.198 ± 0.005** | **helps (-0.219)**; same as 2 bits per token (+0.200) |
+| **rot, 2 bits** | 2 | **+0.076 ± 0.001** | **helps (-0.088 vs 0.008)** |
+| hadqjl 128 | 2 | +0.084 ± 0.005 | helps (-0.080); ties rot 2 bits |
+| res (1 bit per token + hadqjl 64) | 2 | +0.090 ± 0.003 | helps (-0.074) |
+
+**Answer:** a +-1 Hadamard S is better than a Gaussian one (+0.20 instead of +0.42 at 1 bit per dimension) and
+needs only additions. At 2 bits per dimension a rotation before plain 2-bit quantization halves the damage
+(+0.076 instead of +0.164); the TurboQuant-style residual is no better than that. Nothing is usable yet (< 0.03):
+training is still needed, but it now starts from a key at half the damage. Why hadqjl 64 beats rot 1 bit: both
+store the same bits, sign(R k); only the scale differs, by pi / 2 (next section).
+
+## KV cache: is the 1-bit key's damage a scale bias? (rule Nov 18 2026, before measuring)
+
+**Question:** hadqjl 64 and rot 1 bit store the same bits, sign(R k). Their rebuilt keys differ only by a factor
+pi / 2: rot uses the least-squares scale mean|y| (y = R k), QJL the unbiased one sqrt(pi / 2) ||k|| / sqrt(d), and
+mean|y| ~ sqrt(2 / pi) ||k|| / sqrt(d) for Gaussian y. A least-squares scale shrinks every score by ~2 / pi, which
+flattens the softmax. Is that most of the 1-bit key's damage, and does a fixed factor fix plain 1 bit per token too?
+
+**What:** `intsim.py --k-scale f` multiplies the stored key scale (integer, one multiply per head and token).
+Fixed now: K1 per token x pi / 2; rot 1 bit x pi / 2; V8, same models, windows and seeds.
+
+**Rule:** rot 1 bit x pi / 2 should equal hadqjl 64 (+0.198) within 2x the larger sd if the explanation holds.
+K1 per token x pi / 2 "helps" if its d is below +0.698 by more than 2x the larger sd, and is compared with hadqjl 64
+(same bits; hadqjl needs S q per query, the plain one does not).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

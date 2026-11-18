@@ -280,6 +280,8 @@ def attention(q, k, v, heads, C, S, exp_t, kv=None):
     kv = kv or {}
     kq, km = kv_store(k, kv.get("k_bits", 8), kv.get("k_mode", "token"), kv.get("qjl_m", 128), kv.get("keep_first"),
                       kv.get("qjl_seed", 0))
+    if kv.get("k_scale", 1.0) != 1.0:                                           # experiment: key scale times a factor
+        km = (km.double() * kv["k_scale"]).round().long()
     vq, vm = kv_store(v, kv.get("v_bits", 8), kv.get("v_mode", "token"), kv.get("qjl_m", 128), kv.get("keep_first"))
     u = check(mm(qq, kq.transpose(-1, -2)) * km[..., None, :], 61, "scores")       # b, h, t(query), t(key)
     causal = torch.ones(t, t, dtype=torch.bool, device=q.device).tril()
@@ -458,6 +460,8 @@ def main():
     ap.add_argument("--v-mode", choices=["token", "channel"], default="token")
     ap.add_argument("--qjl-m", type=int, default=128, help="--k-mode qjl: bits per key and head")
     ap.add_argument("--qjl-seed", type=int, default=0, help="seed of S (qjl / hadqjl / rot / res)")
+    ap.add_argument("--k-scale", type=float, default=1.0,
+                    help="multiply the stored key scale (pi / 2 = 1.5708 makes 1-bit keys unbiased for Gaussian data)")
     ap.add_argument("--keep-first", action="store_true", help="position 0 of the KV cache stays int8")
     ap.add_argument("--check-windows", type=int, default=4, help="validation windows in check.bin")
     args = ap.parse_args()
@@ -476,12 +480,13 @@ def main():
     kb = args.kv_bits if args.k_bits is None else args.k_bits
     vb = args.kv_bits if args.v_bits is None else args.v_bits
     P["kv"] = {"k_bits": kb, "v_bits": vb, "k_mode": args.k_mode, "v_mode": args.v_mode, "qjl_m": args.qjl_m,
-               "keep_first": args.keep_first, "qjl_seed": args.qjl_seed}
+               "keep_first": args.keep_first, "qjl_seed": args.qjl_seed, "k_scale": args.k_scale}
     simple = args.k_bits is None and args.v_bits is None and args.k_mode == args.v_mode == "token" \
-        and not args.keep_first
+        and not args.keep_first and args.k_scale == 1.0
     tag = (f"kv{args.kv_bits}" if simple else f"k{kb}{KV_MODE_TAG[args.k_mode]}" + (str(args.qjl_m) if args.k_mode in ("qjl", "hadqjl", "res")
-           else "") + (f"s{args.qjl_seed}" if args.qjl_seed else "")  + f"_v{vb}{args.v_mode[0]}" + ("_f" if args.keep_first else ""))
-    if args.export and (kb, vb) != (8, 8):
+           else "") + (f"s{args.qjl_seed}" if args.qjl_seed else "")
+           + (f"g{args.k_scale:g}" if args.k_scale != 1.0 else "")  + f"_v{vb}{args.v_mode[0]}" + ("_f" if args.keep_first else ""))
+    if args.export and ((kb, vb) != (8, 8) or args.k_scale != 1.0):
         ap.error("--export: the C keeps an int8 KV cache (--kv-bits 8)")
     val = T.load_split("val", dev)
 

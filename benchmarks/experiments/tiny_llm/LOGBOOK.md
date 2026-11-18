@@ -427,3 +427,9 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
 - Unit check (random ints, 1 outlier channel; score correlation, NOT the metric): Gaussian QJL 64 0.65, hadqjl 64
   0.71, 128 0.80; rot 1 bit 0.71, 2 bits 0.89 (plain 2 bits 0.95: on Gaussian data rotation cannot help); res 64 0.87.
   Signed Hadamard / 8 orthonormal (checked).
+- Result (results/kv_modes2.json, V8): hadqjl 64 +0.198 (Gaussian QJL 64 +0.409 / +0.407 / +0.435 over S seeds 0-2:
+  fragile, mean +0.417); rot 1 bit +0.376; rot 2 bits +0.076, hadqjl 128 +0.084, res 64 +0.090 (QJL 128 +0.164).
+  Discovery: hadqjl 64 and rot 1 bit store the SAME bits sign(R k); only the scale differs, by pi / 2 (QJL unbiased
+  vs mean|y| least squares). So most of the gap may be a temperature bias: a shrunk key flattens the softmax.
+  Gaussian S rows are not orthogonal at m = d (extra noise): that is the other half of hadqjl's gain over QJL.
+  Next check (rule in README first): --k-scale pi / 2 on rot 1 bit and on plain K1 per token.
