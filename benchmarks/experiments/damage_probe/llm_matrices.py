@@ -12,6 +12,7 @@ import os
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from scipy.stats import spearmanr
 
 import damage_probe as D
@@ -22,6 +23,16 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 MATRICES = ("q", "k", "v", "o", "w1", "w3", "w2")
 
 
+def only(lin, part):
+    """make one QLinear quantize only its weights (1-bit x alpha, input in floating point: part "w") or only its
+    input (int8 absmax per token, weights in floating point: part "a"); returns the undo"""
+    if part == "w":
+        lin.forward = lambda x: F.linear(x, T.quant_weight(lin.weight, "binary"))
+    else:
+        lin.forward = lambda x: F.linear(T.quant_act8(x), lin.weight)
+    return lambda: delattr(lin, "forward")
+
+
 def measure_seed(seed, args, dev):
     val = T.load_split("val", dev)
     fp, a = D.load(args.runs, f"fp32_d384l8_s{seed}", dev)
@@ -29,9 +40,14 @@ def measure_seed(seed, args, dev):
     rows = {}
     for i, b in enumerate(fp.blocks):
         for n in MATRICES:
-            old = D.apply([(getattr(b, n), "kind", "binary")])
+            lin = getattr(b, n)
+            if args.part == "wa":
+                old = D.apply([(lin, "kind", "binary")])
+            else:
+                assert lin.kind == "fp32"
+                undo = only(lin, args.part)
             rows[f"b{i}.{n}"] = round(T.evaluate(fp, val, a["seq"], args.batches, 32) - base, 4)
-            D.apply(old)
+            D.apply(old) if args.part == "wa" else undo()
         print(f"  s{seed}: block {i} " + " ".join(f"{n} {rows[f'b{i}.{n}']:+.4f}" for n in MATRICES), flush=True)
     del fp
     torch.cuda.empty_cache()
@@ -49,6 +65,8 @@ def analyze(res, layers):
         out[s] = {"base_equals_llm_layers": r["loss"] == layers["seeds"][s]["before"]["loss"],
                   "mean_by_matrix": {k: round(v, 4) for k, v in mean.items()},
                   "w2_below_w1w3_blocks": f"{sum(m[f'b{i}.w2'] < (m[f'b{i}.w1'] + m[f'b{i}.w3']) / 2 for i in range(nb))}/{nb}",
+                  "w2_over_w1w3": round(mean["w2"] / ((mean["w1"] + mean["w3"]) / 2), 3),
+                  "w2_above_w1w3_blocks": f"{sum(m[f'b{i}.w2'] > (m[f'b{i}.w1'] + m[f'b{i}.w3']) / 2 for i in range(nb))}/{nb}",
                   "qkv_mean_over_o": round(float(np.mean([mean['q'], mean['k'], mean['v']]) / mean["o"]), 3),
                   "unit_vs_sum_of_matrices": round(float(spearmanr(summed, [units[u]["dloss"] for u in units]).statistic), 3),
                   "unit_over_sum_of_matrices": round(float(sum(units[u]["dloss"] for u in units) / sum(summed)), 3)}
@@ -63,8 +81,13 @@ def main():
     ap.add_argument("--batches", type=int, default=20, help="validation batches of 32 windows (as llm_layers.py)")
     ap.add_argument("--out", default=os.path.join(HERE, "results", "llm_matrices.json"))
     ap.add_argument("--analyze", action="store_true", help="only the analysis of --out")
+    ap.add_argument("--part", choices=("wa", "w", "a"), default="wa",
+                    help="1-bit weights x alpha and int8 input (wa, part 5), only the weights (w) or only the input (a)")
     args = ap.parse_args()
-    res = json.load(open(args.out)) if os.path.exists(args.out) else {"args": {"batches": args.batches}, "seeds": {}}
+    res = json.load(open(args.out)) if os.path.exists(args.out) else {"args": {"batches": args.batches, "part": args.part},
+                                                                      "seeds": {}}
+    if res["args"].get("part", "wa") != args.part:
+        raise SystemExit(f"{args.out} holds part {res['args'].get('part', 'wa')}: use another --out")
     if not args.analyze:
         args.runs, T.DATA = os.path.expanduser(args.runs), os.path.expanduser(args.data)
         for s in args.seeds:

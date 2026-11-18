@@ -644,3 +644,31 @@ effect (larger fan-in, larger weight-binarization drop) stays unexplained.
 Code review (Nov 17): `fanin_depth.partial_rho` broke ties (equal fan-ins / depths) by order instead of average
 ranks; fixed with rankdata. The check values change slightly (given fan-in 0.69 / 0.88 / 0.81 -> 0.71 / 0.89 /
 0.83), and the verdicts do not change.
+
+# Part 5d -- the fan-in effect: the scale, the 8-bit input, or the layer type?
+
+## Question
+
+Part 5's checks: binarizing the weights of a larger fan-in layer costs more (tiny_llm w2 > w1 / w3 at equal size in
+8 / 8 blocks; ResNet-8 weights-only drop +0.6 to +0.7 with fan-in). Edén's candidates (Nov 17):
+- **tiny_llm, the scale:** without a scale factor, sign(w) inflates the output by ~sqrt(n). **Read in the code
+  first:** `train.quant_weight` already scales every row by alpha = mean|w| (XNOR-Net / BWN's optimal scale), so the
+  sqrt(n) inflation is not there. But `kind = "binary"` also quantizes the layer's INPUT to int8 (absmax per token,
+  `quant_act8`), and w2's input (silu(w1 x) * w3 x) is the place where LLMs carry massive activations (DuQuant,
+  Super Weight). New candidate: the w2 excess comes from its 8-bit input, not its weights.
+- **ResNet-8, the layer type:** the fan-in goes with the stage and with conv vs 1x1 shortcut. Check the fan-in with
+  stage and type held fixed.
+
+## What
+
+- `llm_matrices.py --part w | a`: the same 56 single matrices with only the 1-bit weights (x alpha, input in floating
+  point) or only the int8 input (weights in floating point); `wa` = part 5 (both).
+- `fanin_depth.py`: on the 8 block convs and shortcuts (stem and fc are their own types), partial Spearman(drop w,
+  fan-in | stage, type) (ranks, residuals of a linear fit on stage and type dummies); the only same-stage same-type
+  pairs with different fan-in: b3 (288) vs b2 (144), b5 (576) vs b4 (288).
+
+**Rule (written before measuring, Nov 17 2026), each on every seed:** r = mean w2 drop / mean of w1, w3 drops (part 5
+wa: 1.19-1.40).
+- The 8-bit input explains the excess if r(w only) <= 1.05 and w2's input-only drop is larger than mean(w1, w3)'s
+  in >= 6 of 8 blocks. The weights explain it if r(w only) >= 1.2. Otherwise both share it.
+- ResNet-8: the fan-in effect survives stage and type if the partial Spearman >= 0.5 and b3 > b2 and b5 > b4 (drop w).
