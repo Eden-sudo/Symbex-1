@@ -274,3 +274,7 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - Not a few images: worst 5 % = 13.6 % of the all-binary loss; 24-28 % of images exceed 10 (the clip is a floor).
   The median is a threshold statistic (single layers leave the median image right). Like-for-like vs tiny_llm is
   mean vs mean only: 0.95 vs 2.2-2.5.
+- Synthesis (Edén, Nov 17): additivity = network + statistic (floor -> looks sub-, threshold -> looks super-,
+  mean loss closest to neutral). For the paper: "claiming per-layer damage is additive requires naming the
+  statistic". For the CDT: use the sum for ORDER (Spearman 0.72-0.83 at same count), never for MAGNITUDE.
+  README part 4 summary paragraph added.

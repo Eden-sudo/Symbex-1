@@ -485,3 +485,16 @@ The clipped loss caps 24-28 % of the images: another floor.
 So "ResNet-8 sub- or super-additive" has no answer apart from the statistic. The only like-for-like comparison with
 tiny_llm is mean vs mean loss: 0.92-0.98 vs 2.2-2.5. That gap is still there, and the OR-shortcut hypothesis
 (LOGBOOK) is still unmeasured.
+
+## Part 4 in one paragraph: magnitude vs order
+
+Additivity is a property of the network **and** the statistic, not of the network alone. A statistic with a floor or
+a threshold bends the sum: accuracy saturates at chance and looks sub-additive (0.45); the median has a threshold that
+a single layer does not cross and looks super-additive (2.1-3.1); the mean loss, with neither, sits near the sum
+(0.92-0.98). A claim that per-layer damage is (or is not) additive must name its statistic. For the CDT two claims
+are separate:
+
+- **Magnitude** (does the sum predict how much the network drops?): depends on the statistic. Not used.
+- **Order** (does the sum rank the configurations?): holds. Same-count Spearman with the trained accuracy 0.72-0.83
+  (accuracy table) and 0.68-0.83 (loss table), and no interaction model beats it. Choosing the better configuration
+  is what the CDT needs, not the exact number.
