@@ -1,0 +1,130 @@
+{
+ "board": "esp32",
+ "head_dim": 64,
+ "positions": 256,
+ "psram_copies": null,
+ "reps": "best of 7",
+ "unit": "cycles",
+ "date": "2026-11-18",
+ "bytes_per_position": {
+  "8": 64,
+  "4": 32,
+  "3": 28,
+  "2": 16,
+  "1": 8
+ },
+ "rows": [
+  {
+   "op": "scores",
+   "bits": 8,
+   "where": "ram",
+   "cycles": 151061,
+   "us": 629.42,
+   "equal_numpy": true
+  },
+  {
+   "op": "values",
+   "bits": 8,
+   "where": "ram",
+   "cycles": 218418,
+   "us": 910.08,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores",
+   "bits": 4,
+   "where": "ram",
+   "cycles": 204350,
+   "us": 851.46,
+   "equal_numpy": true
+  },
+  {
+   "op": "values",
+   "bits": 4,
+   "where": "ram",
+   "cycles": 271724,
+   "us": 1132.18,
+   "equal_numpy": true
+  },
+  {
+   "op": "unpack",
+   "bits": 4,
+   "where": "ram",
+   "cycles": 53307,
+   "us": 222.11,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores",
+   "bits": 3,
+   "where": "ram",
+   "cycles": 332854,
+   "us": 1386.89,
+   "equal_numpy": true
+  },
+  {
+   "op": "values",
+   "bits": 3,
+   "where": "ram",
+   "cycles": 400194,
+   "us": 1667.47,
+   "equal_numpy": true
+  },
+  {
+   "op": "unpack",
+   "bits": 3,
+   "where": "ram",
+   "cycles": 181811,
+   "us": 757.55,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores",
+   "bits": 2,
+   "where": "ram",
+   "cycles": 179776,
+   "us": 749.07,
+   "equal_numpy": true
+  },
+  {
+   "op": "values",
+   "bits": 2,
+   "where": "ram",
+   "cycles": 247128,
+   "us": 1029.7,
+   "equal_numpy": true
+  },
+  {
+   "op": "unpack",
+   "bits": 2,
+   "where": "ram",
+   "cycles": 28733,
+   "us": 119.72,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores",
+   "bits": 1,
+   "where": "ram",
+   "cycles": 179767,
+   "us": 749.03,
+   "equal_numpy": true
+  },
+  {
+   "op": "values",
+   "bits": 1,
+   "where": "ram",
+   "cycles": 247137,
+   "us": 1029.74,
+   "equal_numpy": true
+  },
+  {
+   "op": "unpack",
+   "bits": 1,
+   "where": "ram",
+   "cycles": 28724,
+   "us": 119.68,
+   "equal_numpy": true
+  }
+ ]
+}

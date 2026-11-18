@@ -1,0 +1,130 @@
+{
+ "board": "pico2_arm",
+ "head_dim": 64,
+ "positions": 256,
+ "psram_copies": null,
+ "reps": "best of 7",
+ "unit": "ns",
+ "date": "2026-11-18",
+ "bytes_per_position": {
+  "8": 64,
+  "4": 32,
+  "3": 28,
+  "2": 16,
+  "1": 8
+ },
+ "rows": [
+  {
+   "op": "scores",
+   "bits": 8,
+   "where": "ram",
+   "ns": 669375,
+   "us": 669.38,
+   "equal_numpy": true
+  },
+  {
+   "op": "values",
+   "bits": 8,
+   "where": "ram",
+   "ns": 606812,
+   "us": 606.81,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores",
+   "bits": 4,
+   "where": "ram",
+   "ns": 970937,
+   "us": 970.94,
+   "equal_numpy": true
+  },
+  {
+   "op": "values",
+   "bits": 4,
+   "where": "ram",
+   "ns": 908375,
+   "us": 908.38,
+   "equal_numpy": true
+  },
+  {
+   "op": "unpack",
+   "bits": 4,
+   "where": "ram",
+   "ns": 301375,
+   "us": 301.38,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores",
+   "bits": 3,
+   "where": "ram",
+   "ns": 1686687,
+   "us": 1686.69,
+   "equal_numpy": true
+  },
+  {
+   "op": "values",
+   "bits": 3,
+   "where": "ram",
+   "ns": 1624125,
+   "us": 1624.12,
+   "equal_numpy": true
+  },
+  {
+   "op": "unpack",
+   "bits": 3,
+   "where": "ram",
+   "ns": 1017125,
+   "us": 1017.12,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores",
+   "bits": 2,
+   "where": "ram",
+   "ns": 861312,
+   "us": 861.31,
+   "equal_numpy": true
+  },
+  {
+   "op": "values",
+   "bits": 2,
+   "where": "ram",
+   "ns": 798750,
+   "us": 798.75,
+   "equal_numpy": true
+  },
+  {
+   "op": "unpack",
+   "bits": 2,
+   "where": "ram",
+   "ns": 191937,
+   "us": 191.94,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores",
+   "bits": 1,
+   "where": "ram",
+   "ns": 875125,
+   "us": 875.12,
+   "equal_numpy": true
+  },
+  {
+   "op": "values",
+   "bits": 1,
+   "where": "ram",
+   "ns": 812437,
+   "us": 812.44,
+   "equal_numpy": true
+  },
+  {
+   "op": "unpack",
+   "bits": 1,
+   "where": "ram",
+   "ns": 205625,
+   "us": 205.62,
+   "equal_numpy": true
+  }
+ ]
+}

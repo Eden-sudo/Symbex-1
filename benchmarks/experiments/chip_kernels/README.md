@@ -277,3 +277,45 @@ python dense_vertical_bench.py --host                               # the exactn
 python dense_vertical_bench.py --port /dev/ttyACM0                  # ESP32-S3; --weights ram
 python dense_vertical_bench.py --board esp32 --port /dev/ttyUSB0    # pico2_arm / pico2_riscv /dev/ttyACM1
 ```
+
+## A KV cache below 8 bits: time on the chip (`kv_attn_bench.py`, Nov 18)
+
+**Question.** ../tiny_llm measures the loss of a 4, 3, 2 or 1-bit KV cache on the PC. What does it cost or save
+in time on each chip, where the cache has to be unpacked before the int8 loops?
+
+**What.** One attention head of one decoding step: 256 cached positions × 64 values, the cache packed at its width
+(4 bits: 2 per byte; 3 bits: 10 per 32-bit word; 2 bits: 4 per byte; 1 bit: 8 per byte), unpacked into int8 rows
+(lookup tables, 32-bit stores; shifts for 3 bits), then tinylm.c's loops: scores = query · keys (plain C, and
+`symbex_s8_dot_rows` PIE on the S3), values = tinylm.c's weight-halves loop (plain C). Cache in internal RAM; on
+the S3 also in PSRAM as tiny_llm keeps it (48 copies = 8 layers × 6 heads, so the data cache cannot hold them).
+Every run checked against numpy (256 scores, 64 sums): **exact on all 4 cores**. Best of 7, µs per head.
+
+**Result** (`results/kv_attn_bench_<board>.json`):
+
+| bits | KB / head | ESP32 scores + values | M33 | Hazard3 | S3 scores PIE, PSRAM | S3 scores PIE, RAM |
+|---|---|---|---|---|---|---|
+| 8 | 16 | 629 + 910 = 1539 | 669 + 607 = 1276 | 788 + 720 = 1508 | 277 | 47 |
+| 4 | 8 | 852 + 1132 = 1984 (1.29×) | 1879 (1.47×) | 2221 (1.47×) | 327 (1.18×) | 235 |
+| 3 | 7 | 3054 (1.98×) | 3311 (2.59×) | 3341 (2.21×) | 874 (3.16×) | 797 |
+| 2 | 4 | 749 + 1030 = 1779 (1.16×) | 1660 (1.30×) | 1892 (1.25×) | **194 (0.70×)** | 150 |
+| 1 | 2 | (K1 + V2) 1779 (1.16×) | 1674 (1.31×) | 1878 (1.25×) | **172 (0.62×)** | 150 |
+
+(× = time / time at 8 bits; below 1 = faster.) The unpacking adds the same time to scores and values
+(scores 1-bit on the ESP32: 749 = 629 + unpack 120).
+
+**Answer.** On the boards without PSRAM (ESP32, Pico 2) a smaller KV costs time: +16-31 % at 2 bits, +29-47 % at
+4 bits, 2-2.6× at 3 bits (its shift unpacking is slow; a table version is not written). What it buys there is
+room: the cache is 2-8× smaller, the difference between a model that fits and one that does not. On the S3, where
+the cache sits in PSRAM, the 2 and 1-bit keys make the PIE scores faster (0.70× / 0.62×: fewer PSRAM bytes beat the
+unpacking); 4 bits is slower (1.18×: its unpacking costs more than the bytes it saves).
+
+- Per token on the S3 (48 heads, ESTIMATE from these per-head times): scores 13.3 ms at int8, 9.3 at K2, 8.2 at K1,
+  of a ~105 ms token: ~4-5 % at most. tiny_llm's S3 values run on a PIE kernel with a transposed cache, not on the
+  plain C loop timed here: the S3 values column is left out.
+- Unpack-then-int8 is the simple way. A 1-bit key could skip it (masked sums, lib_symbex's u8 × 1-bit row), and
+  the 4-bit one could unpack inside the PIE loop: both not written.
+
+```
+python kv_attn_bench.py --board s3 --port /dev/ttyACM0
+python kv_attn_bench.py --board esp32 --port /dev/ttyUSB0         # pico2_arm / pico2_riscv /dev/ttyACM1
+```
