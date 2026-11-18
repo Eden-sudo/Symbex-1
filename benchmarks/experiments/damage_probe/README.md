@@ -759,3 +759,28 @@ Also measured (`results/llm_columns.json`):
   output is next to the residual, more than its relative error. Next check (a rule first): per matrix, absolute
   error / residual as the predictor; and for the fix, keep 1-bit (a per-column or per-block output scale) before any
   int8 protection.
+
+# Part 5f -- block 0's w2: a large output, a weak residual, or a super weight?
+
+## Question
+
+Part 5e's lead: block 0's w2 error energy is ~50x the residual it joins. Two readings (Edén, Nov 17): (1) the
+denominator: block 0's residual is the token embedding, still small, so an ordinary output weighs more there (and its
+error then lives through all 8 blocks); (2) a super weight (Sun et al. / Yu et al., "The Super Weight", 2411.07191:
+a few huge weights in the early layers' down_proj = our w2): one weight of 10-100x alpha, which sign() flattens to
+alpha, breaking the mechanism behind the large output. A mean |w| / alpha of 0.93 per channel would hide it.
+
+## What
+
+`llm_superweight.py`, fp32 model, training windows for the norms (as part 5e), validation for the dloss:
+- per block, RMS per token of w2's output, of its 1-bit error, of the residual it joins (and the same for o);
+- per w2 (and block 0's w1 / w3): the largest |w| / alpha, its input channel's energy rank, the 5 largest values;
+  Gaussian reference: max |w| / alpha ~5.7 over 393,216 weights, ~3.9 over one row of 1,024;
+- causal check: block 0's w2 1-bit (weights only, as part 5d) but its k largest |w| / alpha weights kept in floating
+  point, k = 0, 1, 8, 64 (64 = 0.016 % of the matrix).
+
+**Rule (written before measuring, Nov 17 2026), each on every seed:**
+- R1 weak residual: block 0's residual RMS < 0.5x the smallest of blocks 1-7, and block 0's w2 output RMS within
+  [0.5x min, 2x max] of blocks 1-7. R1' large output: block 0's w2 output RMS > 2x the largest of blocks 1-7.
+- R2 super weight: block 0's w2 has a weight with |w| / alpha >= 10 and > 1.5x the largest of every other w2.
+- R3 few weights fix it: keeping k = 64 weights in floating point cuts block 0's w2 dloss by >= 50 %.
