@@ -387,3 +387,8 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   ee.vmulas.s8.accx, dot = 2 (sum >> 6) + sum x. **3 seeds exact 512 / 512 + story 120 / 120; output head 8.43 ms
   (int4 14.68, int8 28.0); 10.13 ± 0.00 tokens/s (int4 9.52, int8 8.48)**. Internal RAM free 234 KB, PSRAM free
   4.22 MB (int4 3.82). Trade-off: +6 % speed and -0.39 MB vs int4 for +0.034 loss (int2 +0.049 vs int4 +0.015).
+
+## Nov 18 2026 -- KV cache at 1 / 2 / 4 bits (rule in README first)
+
+- Edén: we never tried a KV below int8. intsim.py --kv-bits (quant_kv, kept in quant8's code x m / 127 form).
+  Unit check on random ints: rel. squared error 4b 0.005, 2b 0.068, 1b 0.276. Order asked: 1 bit, then 2.

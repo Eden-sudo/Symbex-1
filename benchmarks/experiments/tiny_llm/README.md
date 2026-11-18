@@ -200,6 +200,20 @@ Yes: the 1-bit model writes stories with dialogue and a plot, the integer versio
 exact). It costs perplexity against fp32 (4.58 vs 3.67): the binary model
 repeats itself more. Ternary sits between the two at twice the weight memory.
 
+## KV cache below 8 bits (rule Nov 18 2026, before measuring)
+
+**Question:** the KV cache is int8 (1.5 MB for 256 tokens here; ~328 KB for a 260K-size model with 512 tokens,
+computed). It grows with the context, unlike the weights. How much loss does it cost at 1, 2 and 4 bits?
+
+**What:** `intsim.py --kv-bits 1|2|4` on the trained binary W1A8 models (no retraining), keys and values quantized per
+token and head (1 bit: sign x mean|x|; 2 bits: train.py's int2 levels; 4 bits: -7..7 x max / 7), the rest of the
+integer model unchanged. Validation, 1024 windows, 3 seeds; reference: the same runs at `--kv-bits 8`. PC only: no
+speed measured here (the C keeps int8).
+
+**Rule:** d = mean over seeds of (loss at b bits - loss at 8 bits). d < 0.003 (the base sd): free. d < 0.03 (a third
+of the 1-bit output layer's +0.085): usable without training. Larger: it needs training with the KV quantized (a
+follow-up, only if Edén wants it), not "the KV cannot be binary".
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
