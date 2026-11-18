@@ -3,17 +3,86 @@
 A running log of what each pull request brings, what is still in progress and what comes next. One section per
 pull request, newest first.
 
-## In progress (November 10, 2026)
+## In progress (November 16, 2026)
 
-- **Ternary dense kernel, first layer** (branch `perf/ternary-kernel`): the uint8 × ternary first layer now counts
-  with SWAR, 4 inputs per 32-bit operation (out = 2·P − M, P over the positive weights, M over every non-zero weight),
-  instead of one input per bit. It is exact in the 6 HAL configurations of `run_tests.py`, with and without
-  `--stress`, and the test now covers layers above 1,024 inputs. The speed on the chips is not measured yet; the
-  first layer took 97 % of the ternary MLP's time (S3 RAM: 11.5 of 11.9 ms).
-- **#33** (docs: `en/` / `es/` folders, `preprint/`, ResNet-8 Pareto chart, main README rewritten around the
-  trade-off): open.
-- **#36** (Obed): related research in both READMEs; open, one wording fix asked (the HAR comparison with Daghero et
-  al. is done, not planned).
+- **#83** (energy per inference): one energy loop in both firmwares (SYMBEX and TFLite Micro), a USB meter, one
+  10-minute run per network. ResNet-8 (int8 stem + Bop + pool2, seed 42, weights in flash): ESP32-S3 vertical 7.2 mJ
+  vs TFLite 47.7 mJ (6.6x), prepared mode 4.5 mJ (10.5x); classic ESP32 vertical compact 22.2 vs 296 mJ (13.3x).
+  Classic ESP32: MLP 11.3x, HAR 8.7x, ECG 8.0x less energy; S3: MLP 25x, HAR 1.8x, ECG 1.4x, FOMO 2.0x. Also the
+  docs review rounds (results, methodology, library, vertical.md) and the ESP32 headline (vertical compact 48.6 ms).
+- **#84** (vertical engine for 1D convolutions, experiment): HAR on the S3 1.26-1.87x faster than the standard 1D
+  engine, 1.72-3.51x faster than TFLite INT8 in flash, exact (3 seeds).
+- **#85** (docs/preprint): related work review (BNNs on microcontrollers, the vertical engine's arithmetic, BNN
+  energy) and the draft.
+- **#90** (docs charts): the charts read the same results as the README (ResNet-8 int8 stem, current engines).
+- **#97** (docs): neutral wording in the public logs, no result changed.
+- **#98** (tools): result provenance (date, commit, lib_symbex commit) and `tools/dev/results_age.py`.
+- **#42** (experiments/rnn_probe): how errors spread in a fully binary RNN; incomplete, at most a "limits" note.
+- **Ternary dense kernel, first layer** (branch `perf/ternary-kernel`, no PR): SWAR version exact in the 6 HAL
+  configurations; chip speed not measured yet.
+- Obed's PRs (#36, #39, #49-#96): his to finish; drafts #49, #63, #75.
+
+## PR #48: vertical engine on the classic ESP32 (November 15, 2026)
+
+- ResNet-8 int8 stem + Bop + pool2, lut16, weights in flash, 3 seeds, exact: standard 62.52 ms (79 KB RAM),
+  vertical 54.68 ± 0.09 ms (1.14x, 116 KB), compact 48.57 ± 0.10 ms (1.29x, 200 KB). Prepared mode does not fit
+  (DRAM 51 KB over).
+- Engine rule from the measurements: native popcount (Hazard3) -> standard; wide SIMD without popcount (S3) ->
+  vertical; Cortex-M33 and classic ESP32 -> vertical, modest gain (1.15x / 1.29x).
+
+## PR #47: frozen latent 1-bit weights (November 15, 2026)
+
+- The straight-through sign gave no gradient past |w| > 1 and nothing clamped the latent weights: Adam-trained
+  ResNet-8 had 52 % of its bits frozen (HAR 7-45 %, ECG 24-32 %, FOMO 5-17 %; Bop 0 %).
+- `clip_latent`, `binary_health` (compiler_core/train/health.py), `tests/test_training_health.py` and
+  `tools/dev/binary_health.py`. Exactness tests cannot see training quality; every binary recipe now records its
+  health.
+- ResNet-8, validation, 3 seeds: clip 70.93 ± 1.02 vs base 71.17 ± 0.32 %; int8 stem + clip 75.33 ± 0.72 vs
+  75.63 ± 0.50 %. A correct fix with no accuracy gain: `clip_latent` stays off by default.
+
+## PR #46: vertical binary dense layers (November 15, 2026)
+
+- Lanes = output neurons (128 per PIE register). Whole MLP 784-128-512-10, flash, 3 seeds, exact: S3 411 -> 292 us
+  (1.41x), Pico 2 both cores 1.40x, classic ESP32 1.16x. Layer 128 -> 512: flash 12.3 -> 9.0 KB, RAM +6.5 KB.
+  Experiment in `chip_kernels`, not in lib_symbex yet.
+
+## PRs #43 / #45: HAR review and retraining (November 15, 2026)
+
+- #43: standard deviations now use n - 1 (the earlier ones were ~1.22x too small); notes on the FP32 column (one
+  low-bit model, not TFLite's floats) and on the test subjects (validation 5-10 points above test).
+- #45: every idea screened on validation with a rule written before scoring the test set once: Bop, wider networks
+  (x1.5 / x2, INT8 widened alike), clipped weights, pooling before the sign, cross-validated checkpoints, distillation,
+  2-bit / ternary activations (with an exact 2-bit / ternary C kernel, 1.3-2.2x the 1-bit time) and augmentation.
+- Result: none closes the gap. With augmentation the chosen binary networks stay 6.8-10.4 points behind INT8. The
+  binary networks fit only ~84 % of the training data and lose ~10 points from validation to test (INT8 ~6): a
+  capacity / information limit, not threshold drift (checked with `har_shift.py`). HAR stays the open case; ECG,
+  also 1D, ties INT8.
+
+## PR #44: the CDT's chip stage gets chip_test.py's options (November 15, 2026)
+
+- `[chip]` keys and flags `--engine`, `--usb`, `--code`, `--first-layer`, `--flash-config` (defaults = earlier
+  behavior), validated and saved in chip.json. `chip_test.py --kernels` on the Pico 2 gives a clear error.
+  `fine_profile.py` takes the clock from `BOARD_MHZ`.
+
+## PR #41: tiny_llm, a story model with 1-bit weights (November 15, 2026)
+
+- 15.7 M Llama-style model on TinyStories, 1-bit weights + int8 activations (W1A8), 3 seeds: validation loss fp32
+  1.300, ternary 1.425, binary 1.522. Integer model and C exact (PC, 3 seeds; ESP32-S3 N16R8).
+- S3: 8.48 tokens/s exact; with an int4 output head 9.52 tokens/s (+0.015 loss, 2.77 MB). W1A1 trained (best 1.81
+  ± 0.01) is only slightly faster (8.88 tokens/s) for +0.26 loss: language models stay W1A8.
+
+## PR #33: docs in en/ and es/, preprint folder, main README rewritten (November 15, 2026)
+
+- `docs/en` and `docs/es`, `docs/preprint/`, the ResNet-8 Pareto chart, and a main README built around the
+  accuracy / efficiency trade-off.
+
+## PRs #37 / #38 / #40: updates log, library and tools review, ECG fixes (November 12, 2026)
+
+- #37: this file brought up to date (PRs #5-#35).
+- #38: library checks (`rescale_shift` when `q_mult <= q_act`, kernel > 3 refused in `symbex_bool_conv`) and tools
+  clean-up (header name, docstrings, "skipped" when ESP-NN is missing, board comments). No behavior change.
+- #40: ECG cross-validation no longer mixes folds trained with another `--lr`; `ecg_export.py` exits with an error
+  when the C check fails. Published results unchanged.
 
 ## PR #35: ECG MIT-BIH, binary 1D vs TFLite INT8 (November 9, 2026)
 
