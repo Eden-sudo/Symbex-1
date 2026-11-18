@@ -1,0 +1,74 @@
+{
+ "args": {
+  "calib": 10000,
+  "clip": 10.0
+ },
+ "seeds": {
+  "42": {
+   "mean": {
+    "sum_of_singles": 6.9807,
+    "all_binary": 6.449,
+    "ratio": 0.924,
+    "positive_pairs": "43/45"
+   },
+   "median": {
+    "sum_of_singles": 3.0933,
+    "all_binary": 6.4818,
+    "ratio": 2.095,
+    "positive_pairs": "45/45"
+   },
+   "clipped": {
+    "sum_of_singles": 6.7738,
+    "all_binary": 5.4554,
+    "ratio": 0.805,
+    "positive_pairs": "42/45"
+   },
+   "all_binary_images_above_clip": 27.5,
+   "all_binary_loss_share_of_top_5pct": 0.135
+  },
+  "43": {
+   "mean": {
+    "sum_of_singles": 6.6571,
+    "all_binary": 6.4629,
+    "ratio": 0.971,
+    "positive_pairs": "42/45"
+   },
+   "median": {
+    "sum_of_singles": 2.6033,
+    "all_binary": 6.4343,
+    "ratio": 2.472,
+    "positive_pairs": "45/45"
+   },
+   "clipped": {
+    "sum_of_singles": 6.4886,
+    "all_binary": 5.4327,
+    "ratio": 0.837,
+    "positive_pairs": "41/45"
+   },
+   "all_binary_images_above_clip": 28.02,
+   "all_binary_loss_share_of_top_5pct": 0.136
+  },
+  "44": {
+   "mean": {
+    "sum_of_singles": 6.2042,
+    "all_binary": 6.0735,
+    "ratio": 0.979,
+    "positive_pairs": "43/45"
+   },
+   "median": {
+    "sum_of_singles": 1.9556,
+    "all_binary": 6.1442,
+    "ratio": 3.142,
+    "positive_pairs": "45/45"
+   },
+   "clipped": {
+    "sum_of_singles": 6.0994,
+    "all_binary": 5.2661,
+    "ratio": 0.863,
+    "positive_pairs": "43/45"
+   },
+   "all_binary_images_above_clip": 24.1,
+   "all_binary_loss_share_of_top_5pct": 0.136
+  }
+ }
+}

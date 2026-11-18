@@ -457,3 +457,31 @@ super-additive bulk; if < 0.85, the mean hid a sub-additive one.
 
 Note on 4b's comparison with tiny_llm (Edén): the ratio has no units, so it compares across models; what differs is
 the task and the architecture.
+
+### Result
+
+The mean ratio reproduces 4b exactly (0.924 / 0.971 / 0.979).
+
+| seed | mean | median | clipped at 10 | images above 10 (all binary) | loss share of the worst 5 % (all binary) |
+|---|---|---|---|---|---|
+| 42 | 0.92 | 2.10 | 0.81 | 27.5 % | 13.5 % |
+| 43 | 0.97 | 2.47 | 0.84 | 28.0 % | 13.6 % |
+| 44 | 0.98 | 3.14 | 0.86 | 24.1 % | 13.6 % |
+
+Positive pair interactions: mean 42-43 / 45, median 45 / 45, clipped 41-43 / 45.
+
+### Answer
+
+The rule fails: the median goes > 1.05 on every seed, and the clipped ratio goes < 0.85 on 2 seeds. The 4b reading
+"close to additive" is not solid. The ratio depends on the statistic: 0.45 (accuracy), 0.81-0.86 (clipped),
+0.92-0.98 (mean), 2.1-3.1 (median).
+
+A few images are NOT the cause: with all 10 binary the worst 5 % of images carry only 13.6 % of the loss, and the
+median increase (6.1-6.5) is close to the mean one. What moves the ratio is the single layers. One layer alone
+leaves most images right, so the median image's loss barely rises. All 10 together push it past the decision.
+The median, like accuracy, has a threshold inside it, so it sees super-additivity where the mean sees about the sum.
+The clipped loss caps 24-28 % of the images: another floor.
+
+So "ResNet-8 sub- or super-additive" has no answer apart from the statistic. The only like-for-like comparison with
+tiny_llm is mean vs mean loss: 0.92-0.98 vs 2.2-2.5. That gap is still there, and the OR-shortcut hypothesis
+(LOGBOOK) is still unmeasured.

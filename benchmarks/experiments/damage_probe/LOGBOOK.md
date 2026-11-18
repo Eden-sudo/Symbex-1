@@ -267,3 +267,10 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   super-additive (LLM) vs ~additive (ResNet-8).
 - Edén on 4b's caveats: the ratio has no units, comparable across models (only task and architecture differ); the
   extreme-image caveat is worth checking -> loss_tails.py (median, clipped at 10), rule in README first.
+
+### 2026-11-17: part 4b check, median / clipped loss (3 seeds, 57 subsets each, ~2 min GPU)
+- Ratio by statistic: mean 0.92-0.98 (= 4b), median 2.10 / 2.47 / 3.14, clipped at 10 0.81 / 0.84 / 0.86. Rule
+  (0.85-1.05 for both) FAILS: "close to additive" is not solid; the ratio depends on the statistic.
+- Not a few images: worst 5 % = 13.6 % of the all-binary loss; 24-28 % of images exceed 10 (the clip is a floor).
+  The median is a threshold statistic (single layers leave the median image right). Like-for-like vs tiny_llm is
+  mean vs mean only: 0.95 vs 2.2-2.5.
