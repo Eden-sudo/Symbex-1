@@ -248,6 +248,9 @@ def main():
     if args.cv_fold is not None:                                     # train / choice inside the training subjects
         if args.score_test or args.all:
             raise SystemExit("[X] --cv-fold trains one network per call and never scores the test subjects")
+        if args.distill:
+            raise SystemExit("[X] --cv-fold with --distill: the FP32 teacher was trained on all 20 training subjects, "
+                             "the held-out fold included")
         outside, args.no_test = data[1], True
         data = [tuple((torch.as_tensor(x, device=dev), torch.as_tensor(y, device=dev).long()))
                 for x, y in load_cv(args.cv_fold)] + [data[2]]

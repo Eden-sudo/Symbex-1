@@ -37,8 +37,11 @@ int main(int argc, char **argv) {
         fprintf(stderr, "cannot load the model or check.bin\n");
         return 2;
     }
+    if (csize < 8) { fprintf(stderr, "check.bin too short\n"); return 2; }
     const int32_t *hdr = (const int32_t *)cb;
     int n = hdr[0], T = hdr[1];
+    long need = 8 + 4L * n * T + 8L * n * T * m.vocab + 8L * n * T + 8;   /* header, tokens, logits, h, ids header */
+    if (n <= 0 || T <= 0 || csize < need) { fprintf(stderr, "check.bin does not match its header\n"); return 2; }
     const int32_t *tok = hdr + 2;
     const int64_t *zref = (const int64_t *)(tok + (long)n * T);
     const int64_t *href = zref + (long)n * T * m.vocab;

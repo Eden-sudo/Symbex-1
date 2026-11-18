@@ -153,6 +153,12 @@ def test_nested_and_overflow(models):
         boolean.fold(model, [100000.0, 0.0])
 
 
+@pytest.mark.parametrize("bad", [np.nan, np.inf, -np.inf])
+def test_nonfinite_threshold(models, bad):
+    with pytest.raises(ValueError, match="must be finite"):
+        boolean.fold(fomo(models), [bad, 0.0])
+
+
 @pytest.mark.parametrize("head", ["binary", "pool2"])
 def test_no_cell_head_ignores_thresholds(models, head):
     model = models._r8.BoolResNet8(channels=(4, 4, 8), blocks=(1, 1, 1), levels=2, classes=3, head=head).eval()
