@@ -532,3 +532,32 @@ Two hypotheses (Edén, Nov 17) for where the one-shot damage comes from, both ch
 - The model drop = a + b log(fan-in) + c (layers left), least squares per model and seed, is useful if its
   leave-one-out R^2 > 0.5.
 With 10 (ResNet-8) or 32 (tiny_llm) points, a Spearman of 0.5 is a modest bar; the per-seed repetition is the check.
+
+## Result
+
+Spearman per seed (42 / 43 / 44), results/fanin_depth.json:
+
+| | ResNet-8 drop wa | ResNet-8 drop w only | ResNet-8 drop a only | tiny_llm dloss |
+|---|---|---|---|---|
+| vs fan-in (A predicts < 0) | 0.11 / -0.10 / -0.17 | **+0.63 / +0.70 / +0.60** | 0.09 / 0.01 / -0.25 | -0.32 / -0.30 / -0.31 |
+| vs layers left (B predicts > 0) | **0.54 / 0.80 / 0.78** | 0.06 / -0.07 / 0.04 | 0.39 / 0.72 / 0.89 | 0.04 / 0.04 / 0.03 |
+| model a + b log(fan-in) + c left, LOO R^2 | -0.20 / 0.13 / 0.59 | | | -0.07 / -0.11 / -0.07 |
+
+tiny_llm: w2 drops less than o in 3 / 3 / 2 of 8 blocks (A needs >= 6). w2 drops less than w13 in 8 / 8 / 8, but
+w13 is two matrices. Inside each group across the 8 blocks, the Spearman with blocks left averages 0.01 / 0.05 /
+-0.08. Mean dloss by group: qkv 0.105 (3 matrices), w13 0.079 (2), w2 0.035 (1, 1024 x 384), o 0.022 (1, 384 x 384).
+
+## Answer
+
+- **A (fan-in): not supported.** In ResNet-8 the whole-layer drop has no relation to the fan-in. With the weights
+  alone it is the opposite: the larger the fan-in, the larger the drop. In tiny_llm the sign is right but weak
+  (-0.31), and o, with the smallest fan-in, drops less than w2 in most blocks. The stem is not a small-fan-in layer
+  in this network (216 inputs, more than b0-b2).
+- **B (distance): supported in ResNet-8 only.** It passes on every seed, carried by the activations, not the weights.
+  In ResNet-8 the distance overlaps with the stage, the channel count and the stem, so this does not single out
+  distance as the cause. In tiny_llm, the one-shot damage of a unit does not depend on its block (inside every group
+  about 0). Block 0's weight in part 3 came from training, not from this table.
+- **The model drop ≈ f(fan-in) x g(layers left): not useful** (LOO R^2 > 0.5 only on ResNet-8 seed 44).
+- Seen, not tested (after looking at the numbers): in tiny_llm the order of the groups follows how many matrices a
+  unit binarizes (qkv 3 > w13 2 > w2, o 1), then their size (w2 > o). A test written beforehand would need units of
+  equal size.

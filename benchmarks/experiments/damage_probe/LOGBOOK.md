@@ -278,3 +278,11 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   mean loss closest to neutral). For the paper: "claiming per-layer damage is additive requires naming the
   statistic". For the CDT: use the sum for ORDER (Spearman 0.72-0.83 at same count), never for MAGNITUDE.
   README part 4 summary paragraph added.
+
+### 2026-11-17: part 5, fan-in (A) and distance to the output (B) vs the one-shot drop (no training)
+- Hypotheses from Edén. fanin_depth.py on part 2 (ResNet-8) and llm_layers (tiny_llm) tables; rule in README first.
+- Fan-ins from the checkpoints: ResNet-8 stem 216 (not 54: no BPR here; more than b0-b2's 144), ds2 16, ds4 32, fc 4096.
+- A fails: ResNet-8 wa ~0, weights only +0.60..+0.70 (opposite); tiny_llm -0.31 and w2 < o only 2-3 / 8.
+- B passes on ResNet-8 only (wa 0.54 / 0.80 / 0.78, from the activations; confounded with stage / stem); tiny_llm 0.03.
+- Model LOO R^2 -0.20 / 0.13 / 0.59 (ResNet-8), ~-0.1 (tiny_llm): not useful.
+- Post hoc, untested: tiny_llm groups ordered by number of matrices binarized (qkv 3 > w13 2 > w2 / o 1), then size.

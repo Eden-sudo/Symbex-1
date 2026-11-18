@@ -42,11 +42,12 @@ def resnet(table):
     left = [RESNET[k][1] for k in names]
     for s, row in table["seeds"].items():
         o = {}
+        drop = {k: {"wa": v["w"], **v} for k, v in row["drop"].items()}   # fc has weights only: its wa is its w
         for part in ("wa", "w", "a"):
-            ks = [k for k in names if part in row["drop"][k]]
-            d = [row["drop"][k][part] for k in ks]
+            ks = [k for k in names if part in drop[k]]
+            d = [drop[k][part] for k in ks]
             o[part] = {"fanin": rho(d, [RESNET[k][0] for k in ks]), "left": rho(d, [RESNET[k][1] for k in ks])}
-        d = [row["drop"][k]["wa"] for k in names]
+        d = [drop[k]["wa"] for k in names]
         o["wa"]["loo_r2"], o["wa"]["coef"] = loo_r2(d, fanin, left)
         out[s] = o
     return out
