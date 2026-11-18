@@ -141,6 +141,20 @@ class QLinear(nn.Linear):
 
 # ---- model ---------------------------------------------------------------------------------------------------------
 
+def quant_kv(x, bits, scale=1.0):
+    """KV cache below 8 bits, per token and head as intsim.py's quant_kv: 1 = sign(x) x mean|x| x scale, 2 = levels
+    (c + 0.5) x mean|x|, c = floor(x / mean|x|) in -2..1, 4 = round(x / (max|x| / 7)) x max|x| / 7; identity
+    straight-through gradient. scale: the key factor of intsim's --k-scale (pi / 2: unbiased for Gaussian data)."""
+    if bits == 8:
+        return x
+    if bits == 4:
+        s4 = x.abs().amax(dim=-1, keepdim=True).clamp(min=1e-8) / 7.0
+        return ste(x, (x / s4).round().clamp(-7, 7) * s4 * scale)
+    m = x.abs().mean(dim=-1, keepdim=True).clamp(min=1e-8)
+    q = torch.where(x >= 0, 1.0, -1.0) if bits == 1 else (x / m).floor().clamp(-2, 1) + 0.5
+    return ste(x, q * m * scale)
+
+
 def rope(x, cos, sin):
     x1, x2 = x[..., ::2], x[..., 1::2]
     return torch.stack((x1 * cos - x2 * sin, x1 * sin + x2 * cos), dim=-1).flatten(-2)
@@ -148,9 +162,10 @@ def rope(x, cos, sin):
 
 class Block(nn.Module):
     def __init__(self, dim, heads, hidden, kind, acts=8, act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu",
-                 rotate=()):
+                 rotate=(), kv=(8, 8, 1.0)):
         super().__init__()
         self.heads = heads
+        self.kv = kv
         self.gate = F.relu if ffn_act == "relu" else F.silu
         self.n1, self.n2 = nn.RMSNorm(dim, eps=1e-5), nn.RMSNorm(dim, eps=1e-5)
 
@@ -166,7 +181,9 @@ class Block(nn.Module):
         b, t, d = x.shape
         h = self.n1(x)
         q, k, v = (m(h).view(b, t, self.heads, -1).transpose(1, 2) for m in (self.q, self.k, self.v))
-        a = F.scaled_dot_product_attention(rope(q, cos, sin), rope(k, cos, sin), v, is_causal=True)
+        kb, vb, ks = self.kv
+        a = F.scaled_dot_product_attention(rope(q, cos, sin), quant_kv(rope(k, cos, sin), kb, ks), quant_kv(v, vb),
+                                           is_causal=True)
         x = x + self.o(a.transpose(1, 2).reshape(b, t, d))
         h = self.n2(x)
         return x + self.w2(self.gate(self.w1(h)) * self.w3(h))
@@ -174,13 +191,14 @@ class Block(nn.Module):
 
 class TinyLM(nn.Module):
     def __init__(self, vocab, dim, layers, heads, hidden, seq, kind, head="fp32", int8_blocks=(), acts=8,
-                 act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=()):
+                 act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=(),
+                 kv=(8, 8, 1.0)):
         super().__init__()
         self.head_kind = head
         self.emb = nn.Embedding(vocab, dim)
         self.blocks = nn.ModuleList(Block(dim, heads, hidden, "int8" if i in int8_blocks else kind, acts, act_opts,
                                           a8_inputs if not a8_blocks or i in a8_blocks else (), w2_acts, ffn_act,
-                                          rotate) for i in range(layers))
+                                          rotate, kv) for i in range(layers))
         self.norm = nn.RMSNorm(dim, eps=1e-5)
         hd = dim // heads
         freq = 1.0 / (10000 ** (torch.arange(0, hd, 2).float() / hd))
@@ -268,7 +286,7 @@ def run(args, seed):
                    args.weights, args.head, tuple(args.int8_blocks), args.acts,
                    {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
                    tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
-                   tuple(args.a8_blocks)).to(device)
+                   tuple(args.a8_blocks), (args.k_bits, args.v_bits, args.k_scale)).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)
@@ -377,6 +395,10 @@ def main():
     ap.add_argument("--hadamard", nargs="*", default=[], choices=["q", "k", "v", "o", "w1", "w3", "w2"],
                     help="block Hadamard rotation of these layers' inputs before quantization")
     ap.add_argument("--ffn-act", choices=["silu", "relu"], default="silu", help="gate activation of the FFN")
+    ap.add_argument("--k-bits", type=int, choices=[8, 4, 2, 1], default=8,
+                    help="train with the cached keys quantized per token and head (intsim.py --k-bits, mode token)")
+    ap.add_argument("--v-bits", type=int, choices=[8, 4, 2, 1], default=8, help="the same for the cached values")
+    ap.add_argument("--k-scale", type=float, default=1.0, help="key factor (intsim.py --k-scale; pi / 2 = 1.5708)")
     ap.add_argument("--clip-groups", action="store_true",
                     help="clip the gradient norm per block (and the rest apart) instead of the whole model")
     ap.add_argument("--init-from", default="", help="start from this checkpoint ({seed} is replaced): two-step")

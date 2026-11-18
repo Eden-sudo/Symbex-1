@@ -437,3 +437,13 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   the pi / 2 explanation holds. ~2/3 of the 1-bit key damage is a temperature (scale) bias, fixed by one integer
   multiply. Remaining: rotation -0.046. Ideas (not measured): tune the factor on val (also for K2 / V1 / V2 / rot 2),
   or learn it in QAT (it is a free parameter there anyway: the QAT should start from it).
+
+## Nov 18 2026 -- QAT with the KV quantized: K1 x pi / 2 + V2 (rule in README first)
+
+- Why (Edén asked for the goal again): Obed's plan (PR #2, docs/llm_1bit_embedded.md) sizes 15M / 30M / 110M / 200M;
+  the KV, not the weights, is what stops the next size (computed: 15M on a 4 MB PSRAM 4.4 -> 3.4 MB; 30M on the S3
+  ~9.3 -> ~5.5 MB with K1 / V2). Speed on the S3 only ~+5-8 % (ESTIMATE).
+- train.py quant_kv (K after rope, V; per token and head; STE identity); --k-bits / --v-bits / --k-scale. intsim
+  records "trained_kv". Level check train vs intsim on random ints: K1 equal, V2 / K4 differ on ~1e-4 of the values
+  (rounded integer mean: a value at a level edge). Smoke run 40 steps + intsim OK (removed).
+- Queue: runs/logs/qat_kv_queue.sh -> qat_kv_queue.log (no-training reference, 3 trainings ~25 min each, intsim).

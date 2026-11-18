@@ -326,6 +326,22 @@ key flattens the softmax. One integer multiply on the key scale takes plain 1 bi
 with no rotation and no new kernel. The rotation adds the rest (+0.20). Still not usable without training (> 0.03).
 pi / 2 is the Gaussian value, not a tuned one.
 
+## KV cache trained at 1-bit keys and 2-bit values (rule Nov 18 2026, before measuring)
+
+**Question:** without training, the best plain KV below 4 bits is the 1-bit key x pi / 2 (no rotation, no new
+kernel). Does training with the KV quantized (QAT) make 1-bit keys (x pi / 2) and 2-bit values usable? This KV is
+0.59 MB instead of 1.67 MB for 256 tokens (computed), what lets the 15M fit a 4 MB PSRAM or the 30M an 8 MB one.
+
+**What:** `train.py --k-bits 1 --v-bits 2 --k-scale 1.5708` (quant_kv: the same levels as intsim.py per token and
+head, identity straight-through gradient; train / intsim levels checked equal except ~1e-4 of the values at a
+rounding edge). Same recipe as the base binary model (10,000 steps, seeds 42-44, name d384l8_k1v2). Scored by
+intsim.py with `--k-bits 1 --v-bits 2 --k-scale 1.5708` (validation, 1024 windows). Also measured: the base models
+with the same KV and no training (the reference to beat), and the QAT models with an int8 KV (informative).
+
+**Rule:** d = QAT model with its KV minus the base model with KV int8 (1.5307). QAT "helps" if d is below the
+no-training d of the same KV by more than 2x the larger sd. Same thresholds: < 0.03 usable. Next step (C, exact,
+S3) only if usable; between 0.03 and 0.10 Edén decides; above, the result is reported and the KV stays int8.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

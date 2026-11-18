@@ -494,7 +494,8 @@ def main():
     il = int_loss(P, val, a["seq"], args.windows, 16)
     agree = float_argmax_agreement(model, P, val, a["seq"], 64, 16)
     ids = generate(P, sp, "Once upon a time", 120, a["seq"], dev)
-    res = {"run": os.path.basename(os.path.normpath(args.run)), "weights": kind, "kv_bits": args.kv_bits, "kv": P["kv"], "kv_tag": tag, "val_windows": args.windows,
+    res = {"run": os.path.basename(os.path.normpath(args.run)), "weights": kind, "kv_bits": args.kv_bits, "kv": P["kv"], "kv_tag": tag,
+           "trained_kv": [a.get("k_bits", 8), a.get("v_bits", 8), a.get("k_scale", 1.0)], "val_windows": args.windows,
            "val_loss_float": round(fl, 4), "val_loss_integer": round(il, 4),
            "val_perplexity_float": round(math.exp(fl), 3), "val_perplexity_integer": round(math.exp(il), 3),
            "next_token_agreement_float_vs_integer": round(agree, 4), "sample_integer": sp.decode(ids[1:])}
