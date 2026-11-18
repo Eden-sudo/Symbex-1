@@ -392,3 +392,4 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
 
 - Edén: we never tried a KV below int8. intsim.py --kv-bits (quant_kv, kept in quant8's code x m / 127 form).
   Unit check on random ints: rel. squared error 4b 0.005, 2b 0.068, 1b 0.276. Order asked: 1 bit, then 2.
+- Result: d vs kv8 = 4b +0.0098, 2b +0.386, 1b +1.214 (3 seeds, ~1 min per run). 4 bits usable, 2 / 1 need training.

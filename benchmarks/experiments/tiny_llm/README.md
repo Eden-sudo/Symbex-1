@@ -214,6 +214,19 @@ speed measured here (the C keeps int8).
 of the 1-bit output layer's +0.085): usable without training. Larger: it needs training with the KV quantized (a
 follow-up, only if Edén wants it), not "the KV cannot be binary".
 
+**Result (val loss of the integer model, 3 seeds, `results/kv_bits.json`):**
+
+| KV cache | loss | d vs 8 bits | KV bytes, 256 tokens (computed) |
+|---|---|---|---|
+| 8 bits | 1.5307 ± 0.0013 | | 1.57 MB |
+| 4 bits | 1.5405 ± 0.0011 | +0.0098 ± 0.0003 | 0.79 MB |
+| 2 bits | 1.9163 ± 0.0205 | +0.386 ± 0.021 | 0.39 MB |
+| 1 bit | 2.7450 ± 0.0390 | +1.214 ± 0.039 | 0.20 MB |
+
+**Answer:** without retraining, 4 bits is usable (not free); 2 and 1 bit break the model (1 bit: the next token
+agrees with the float model 49 % of the time). By the rule this does not say a binary KV is impossible, only that it
+needs training with the KV quantized.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
