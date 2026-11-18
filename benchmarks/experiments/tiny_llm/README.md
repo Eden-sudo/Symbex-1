@@ -358,6 +358,31 @@ is 0.29 MB for 256 tokens (0.39 MB with the int32 scales), not 0.59 MB (that is 
 token) loses information the model cannot work around in 10,000 steps, not a bias it can learn away. The KV stays
 int8 for K1 / V2. What is usable today is the 4-bit KV without training (+0.0098, above): half the bytes.
 
+## KV cache: 3 bits, mixed bits, a recent int8 window, tuned scales (rule Nov 18 2026, before measuring)
+
+**Question:** the 4-bit KV is usable without training (+0.0098). Three ideas from the papers were not tried: 3 bits
+and mixed K / V bits (keys hurt more), KIVI's recent window (the last N tokens of every query kept at full
+precision, the rest at 2 bits), and a scale factor tuned beyond pi / 2 (2-bit levels at mean / 2 and 3 mean / 2 are
+also shrunk for Gaussian data: ESTIMATE ~1.2x). Does any of them reach "usable" (< 0.03) with fewer bytes than KV4?
+
+**What:** `intsim.py --k-bits / --v-bits 3` (codes -3..3 x max / 3, per token and head), `--kv-recent N` (per query
+the N nearest keys and values, itself included, read int8, the others at the low bits; checked: N = 256 gives
+exactly the int8 loss), `--v-scale f` (as `--k-scale`). No training, same models, 1024 validation windows, seeds
+42-44. Fixed now:
+(a) per token: K3 V8, K8 V3, K8 V4, K3 V3, K3 V4, K4 V3, K4 V2, K3 V2, K2 V4.
+(b) recent window N = 16 / 32 / 64 with K2 V2, K1 x pi / 2 V2 and K3 V3.
+(c) scale factor, chosen on seed 42 only: K1 {1.4, 1.5708, 1.75, 1.9}, K2 and K2 rot {1.1, 1.2, 1.3, 1.4} (V8), V2
+{1.1, 1.2, 1.3, 1.4} (K8). The best factor of each then on 3 seeds; then the best K2 and V2 factors together, with and
+without N = 32. Seed 42 chose the factor: its own number is slightly optimistic; seeds 43 / 44 are reported apart.
+
+**Bytes** (computed, 15M model, 256 tokens, int32 scale per token and head included: 49 KB per side): int8 1.67 MB,
+KV4 0.88 MB. A recent window of N tokens is counted as N int8 tokens + 256 - N low-bit ones (a ring buffer).
+
+**Rule:** d = mean over seeds of (loss - loss at int8), reference 1.5307. Usable: d < 0.03 (as above). A config
+**beats KV4** if it is usable and has fewer bytes than 0.88 MB. A scale factor "helps" if its 3-seed d is below the
+same config at factor 1 (or pi / 2 for K1) by more than 2x the larger sd. Next step (C, exact, S3) for the usable
+config with the fewest bytes; none -> KV4 goes to C.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

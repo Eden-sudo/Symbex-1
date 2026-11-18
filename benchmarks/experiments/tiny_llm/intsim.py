@@ -187,14 +187,16 @@ def quant8(x):
 
 def quant_kv(x, bits):
     """the KV cache at `bits` bits per value, per token and head, kept in quant8's form (x ~ code * m / 127) so the
-    attention below is unchanged: 8 = quant8; 4 = codes -7..7 x max / 7; 2 = codes -3, -1, 1, 3 x mean / 2 (train.py's
-    int2 levels); 1 = sign x mean|x| (train.py's 1-bit scale). Experiment only (--kv-bits): no C for bits < 8."""
+    attention below is unchanged: 8 = quant8; 4 = codes -7..7 x max / 7; 3 = codes -3..3 x max / 3; 2 = codes -3, -1,
+    1, 3 x mean / 2 (train.py's int2 levels); 1 = sign x mean|x| (train.py's 1-bit scale). Experiment only
+    (--kv-bits): no C for bits < 8."""
     if bits == 8:
         return quant8(x)
     a = x.abs()
-    if bits == 4:
+    if bits in (4, 3):
+        L = 7 if bits == 4 else 3
         m = a.amax(-1).clamp(min=1)
-        return rdiv(7 * x, m[..., None]).clamp(-7, 7), rdiv(127 * m, torch.full_like(m, 7))
+        return rdiv(L * x, m[..., None]).clamp(-L, L), rdiv(127 * m, torch.full_like(m, L))
     m = rdiv(a.sum(-1), torch.full_like(a[..., 0], a.shape[-1])).clamp(min=1)       # mean |x|, rounded
     if bits == 2:
         c = torch.div(x, m[..., None], rounding_mode="floor").clamp(-2, 1)               # level (2c + 1) mean / 2
@@ -283,8 +285,17 @@ def attention(q, k, v, heads, C, S, exp_t, kv=None):
     if kv.get("k_scale", 1.0) != 1.0:                                           # experiment: key scale times a factor
         km = (km.double() * kv["k_scale"]).round().long()
     vq, vm = kv_store(v, kv.get("v_bits", 8), kv.get("v_mode", "token"), kv.get("qjl_m", 128), kv.get("keep_first"))
+    if kv.get("v_scale", 1.0) != 1.0:                                           # experiment: value scale times a factor
+        vm = (vm.double() * kv["v_scale"]).round().long()
     u = check(mm(qq, kq.transpose(-1, -2)) * km[..., None, :], 61, "scores")       # b, h, t(query), t(key)
     causal = torch.ones(t, t, dtype=torch.bool, device=q.device).tril()
+    recent = kv.get("recent", 0)
+    if recent:      # experiment (KIVI's residual): the last `recent` keys and values of every query stay int8
+        pos = torch.arange(t, device=q.device)
+        near = causal & (pos[:, None] - pos[None, :] < recent)
+        k8, km8 = quant8(k)
+        v8, vm8 = quant8(v)
+        u = torch.where(near, check(mm(qq, k8.transpose(-1, -2)) * km8[..., None, :], 61, "scores"), u)
     u = torch.where(causal, u, torch.iinfo(torch.int64).min)
     umax = u.amax(-1, keepdim=True)
     dist = torch.where(causal, umax - u, 0)
@@ -292,7 +303,10 @@ def attention(q, k, v, heads, C, S, exp_t, kv=None):
     x = check(dist * qm[..., None], 62, "score distance") // (16129 << 20)
     p = torch.where(causal & (x < EXP_N), exp_t[x.clamp(max=EXP_N - 1)], 0)
     P = p.sum(-1, keepdim=True)
-    acc = mm(p * vm[..., None, :], vq)
+    if recent:
+        acc = mm(torch.where(near, 0, p) * vm[..., None, :], vq) + mm(torch.where(near, p, 0) * vm8[..., None, :], v8)
+    else:
+        acc = mm(p * vm[..., None, :], vq)
     a = rdiv(acc, P * 127)
     return a.transpose(1, 2).reshape(b, t, d)
 
@@ -452,16 +466,19 @@ def main():
     ap.add_argument("run", help="runs/<weights>_<name>_s<seed>")
     ap.add_argument("--windows", type=int, default=1024, help="validation windows of 256 tokens (same as train.py)")
     ap.add_argument("--export", action="store_true", help="write model.bin and check.bin for the C check")
-    ap.add_argument("--kv-bits", type=int, choices=[8, 4, 2, 1], default=8,
+    ap.add_argument("--kv-bits", type=int, choices=[8, 4, 3, 2, 1], default=8,
                     help="bits of the KV cache (experiment, PC only: see quant_kv); result in intsim_kv<b>.json")
-    ap.add_argument("--k-bits", type=int, choices=[8, 4, 2, 1], help="keys only (overrides --kv-bits; see kv_store)")
-    ap.add_argument("--v-bits", type=int, choices=[8, 4, 2, 1], help="values only (overrides --kv-bits)")
+    ap.add_argument("--k-bits", type=int, choices=[8, 4, 3, 2, 1], help="keys only (overrides --kv-bits; see kv_store)")
+    ap.add_argument("--v-bits", type=int, choices=[8, 4, 3, 2, 1], help="values only (overrides --kv-bits)")
     ap.add_argument("--k-mode", choices=["token", "channel", "qjl", "hadqjl", "rot", "res"], default="token")
     ap.add_argument("--v-mode", choices=["token", "channel"], default="token")
     ap.add_argument("--qjl-m", type=int, default=128, help="--k-mode qjl: bits per key and head")
     ap.add_argument("--qjl-seed", type=int, default=0, help="seed of S (qjl / hadqjl / rot / res)")
     ap.add_argument("--k-scale", type=float, default=1.0,
                     help="multiply the stored key scale (pi / 2 = 1.5708 makes 1-bit keys unbiased for Gaussian data)")
+    ap.add_argument("--v-scale", type=float, default=1.0, help="multiply the stored value scale (as --k-scale)")
+    ap.add_argument("--kv-recent", type=int, default=0,
+                    help="the last N keys and values of every query stay int8 (KIVI's residual window), the rest at --k/v-bits")
     ap.add_argument("--keep-first", action="store_true", help="position 0 of the KV cache stays int8")
     ap.add_argument("--check-windows", type=int, default=4, help="validation windows in check.bin")
     args = ap.parse_args()
@@ -480,13 +497,15 @@ def main():
     kb = args.kv_bits if args.k_bits is None else args.k_bits
     vb = args.kv_bits if args.v_bits is None else args.v_bits
     P["kv"] = {"k_bits": kb, "v_bits": vb, "k_mode": args.k_mode, "v_mode": args.v_mode, "qjl_m": args.qjl_m,
-               "keep_first": args.keep_first, "qjl_seed": args.qjl_seed, "k_scale": args.k_scale}
+               "keep_first": args.keep_first, "qjl_seed": args.qjl_seed, "k_scale": args.k_scale,
+               "v_scale": args.v_scale, "recent": args.kv_recent}
     simple = args.k_bits is None and args.v_bits is None and args.k_mode == args.v_mode == "token" \
-        and not args.keep_first and args.k_scale == 1.0
+        and not args.keep_first and args.k_scale == 1.0 and args.v_scale == 1.0 and not args.kv_recent
     tag = (f"kv{args.kv_bits}" if simple else f"k{kb}{KV_MODE_TAG[args.k_mode]}" + (str(args.qjl_m) if args.k_mode in ("qjl", "hadqjl", "res")
            else "") + (f"s{args.qjl_seed}" if args.qjl_seed else "")
-           + (f"g{args.k_scale:g}" if args.k_scale != 1.0 else "")  + f"_v{vb}{args.v_mode[0]}" + ("_f" if args.keep_first else ""))
-    if args.export and ((kb, vb) != (8, 8) or args.k_scale != 1.0):
+           + (f"g{args.k_scale:g}" if args.k_scale != 1.0 else "")  + f"_v{vb}{args.v_mode[0]}" + (f"g{args.v_scale:g}" if args.v_scale != 1.0 else "")
+           + ("_f" if args.keep_first else "") + (f"_r{args.kv_recent}" if args.kv_recent else ""))
+    if args.export and ((kb, vb) != (8, 8) or args.k_scale != 1.0 or args.v_scale != 1.0 or args.kv_recent):
         ap.error("--export: the C keeps an int8 KV cache (--kv-bits 8)")
     val = T.load_split("val", dev)
 
