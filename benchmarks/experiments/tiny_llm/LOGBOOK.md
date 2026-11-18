@@ -394,3 +394,5 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   enough; distillation only with a well-trained external teacher. Not run.
 - train.py --weights binary_rc (computed rank-1 row x column scale + learned column gain). Smoke 20 steps OK.
   One-shot rel. error 0.366 -> 0.362 (fp32 weights). Queue: seeds 42 43 44, one at a time, ESTIMATE ~35 min each.
+- Nov 18 result: binary_rc val 1.5138 / 1.5100 / 1.5078 = 1.5105 +- 0.0030 vs binary 1.5224 (paired -0.011 to -0.012
+  every seed). Rule passes (threshold 1.5194). ~23 min per seed. Next: intsim + C for the column scale.

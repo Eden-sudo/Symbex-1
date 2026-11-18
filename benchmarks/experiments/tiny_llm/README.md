@@ -215,6 +215,13 @@ labels only, 10,000 steps, 3 seeds (42, 43, 44), validation only. Extra memory: 
 max(0.0026, its sd). If it helps, the next step is its integer model and C (the column scale goes on the input
 before the 8-bit quantization); if not, row scales stay.
 
+**Result (val loss, 3 seeds, `results/train_binary_rc_d384l8_s*.json`):** binary_rc 1.5105 +- 0.0030 (1.5138, 1.5100,
+1.5078) vs binary 1.5224 +- 0.0026; paired per seed -0.0114 / -0.0119 / -0.0122. Threshold 1.5224 - 0.0030 = 1.5194:
+passes. Ternary (1.4251) stays far ahead: binary_rc closes about 1/8 of the binary -> ternary gap.
+
+**Answer:** yes, a small but steady gain with the weights still 1 bit. Next: its integer model (intsim) and C, then
+the extra memory and speed measured on the S3 (the +20 KB above is an ESTIMATE).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
