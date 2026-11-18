@@ -326,3 +326,10 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 ### 2026-11-18: part 7 rule (README first)
 - train.py --bin2-units (kind "binary2", residual binarization); A = 0.w2, B = 4.w2 (control picked before), 3 seeds,
   queued after part 6 + its R2 measurements (/tmp/part7_queue.sh).
+
+### 2026-11-18: parts 6 and 7 done (night chain, one run at a time, ~22 min each)
+- Part 6 R1 fails: binary x sqrt(d) 1.5203 +- 0.0037, no decay 1.5203 +- 0.0006 vs 1.5224; fp32 x sqrt(d) 1.3061 (worse).
+  R2: x sqrt(d) makes block 0 ordinary (residual 22, b0.w2 one-shot 0.021 = 0.9-1.0x middle w2); no decay does not
+  (residual 1.9). -> weak residual explains the one-shot excess, training absorbs it.
+- Part 7: A (0.w2 two bases) 1.5187 +- 0.0028, B (4.w2) 1.5173 +- 0.0017: T1 passes, T2 fails -> bytes, not where.
+- First 3-parallel launch hit CUDA OOM (6.5 GB per run on 12 GB): relaunched one at a time.

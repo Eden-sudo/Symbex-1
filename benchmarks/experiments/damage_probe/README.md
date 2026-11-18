@@ -835,6 +835,36 @@ tiny_llm `train.py --emb-scale 19.6` (name d384l8_es) and `--emb-no-decay` (d384
   dloss <= 2x the mean of the w2 of blocks 1-6 (base: ~4x). Both -> the weak residual was the cause. Residual strong
   but block 0's w2 still > 2x -> "entering first". Residual still weak -> training compensated: inconclusive.
 
+## Result (Nov 18 2026, 3 seeds, validation; `results/part6_7_training.json`, `part6_superweight_*.json`, `part6_matrices_w_*.json`)
+
+Trained loss (mean +- sd):
+
+| variant | binary | fp32 | R1 |
+|---|---|---|---|
+| base | 1.5224 +- 0.0026 | 1.3000 +- 0.0022 | -- |
+| embedding x sqrt(d) (19.6) | 1.5203 +- 0.0037 (needs < 1.5187) | 1.3061 +- 0.0018 (needs <= 1.3022) | fails both |
+| no decay on the embedding | 1.5203 +- 0.0006 (needs < 1.5198) | 1.2978 +- 0.0017 | fails (binary by 0.0005) |
+
+R2, on each variant's fp32 models (seeds 42 / 43 / 44):
+
+| variant | block 0 residual RMS (min of blocks 1-7) | b0.w2 one-shot dloss | / mean w2 blocks 1-6 | R2 |
+|---|---|---|---|---|
+| base | 1.33 / 1.31 / 1.29 (20.3-21.4) | 0.088 / 0.086 / 0.086 | 3.97 / 3.89 / 3.92 | fails |
+| x sqrt(d) | 22.3 / 22.4 / 22.3 (30.9-31.6) | 0.022 / 0.020 / 0.021 | 1.02 / 0.90 / 0.94 | **passes** |
+| no decay | 1.93 / 1.89 / 1.87 (20.8-21.9) | 0.086 / 0.087 / 0.082 | 4.00 / 3.88 / 3.69 | fails |
+
+## Answer
+
+- **The cause of the one-shot sensitivity is the weak residual.** With the embedding x sqrt(d), block 0's residual is
+  as strong as the others and its w2 stops being special: one-shot damage 4x smaller, equal to a middle w2, every seed.
+- **But it does not help after training.** The binary model gains 0.002, inside the seed spread, and fp32 gets 0.006
+  worse. Block 0's one-shot excess was not what limits the trained binary model: training absorbs it (as the int8
+  units test of part 4).
+- **Weight decay is not why the residual is weak.** Without it the embedding grows only 1.3 -> 1.9 (the init std
+  0.02 sets it); its binary gain (0.002, very steady, sd 0.0006) misses the rule.
+- For SYMBEX: no reason to change the tiny_llm recipe. A one-shot damage ranking is a diagnosis of the untrained
+  model, not a guide to where training needs help.
+
 # Part 7 -- two binary bases: does block 0's w2 still need them most after training?
 
 ## Question
@@ -858,3 +888,22 @@ the extra bits stay binary (two bases, W ~ a1 s1 + a2 s2, close to Edén's "bit 
 - T2 (block 0 still special after training): mean A < mean B - max(sd A, sd B).
 - Reading: T1 and T2 -> block 0's w2 is a real bottleneck worth a 1-bit fix (a per-block scale, part 6's residual);
   T1 without T2 -> bytes matter, not where (as the int8 test); no T1 -> one more base on one matrix is noise.
+
+## Result (Nov 18 2026, 3 seeds, validation; `results/part6_7_training.json`)
+
+| variant | 42 | 43 | 44 | mean +- sd |
+|---|---|---|---|---|
+| base binary | 1.5252 | 1.5219 | 1.5200 | 1.5224 +- 0.0026 |
+| A: two bases in block 0's w2 | 1.5158 | 1.5213 | 1.5189 | 1.5187 +- 0.0028 |
+| B: two bases in block 4's w2 | 1.5192 | 1.5169 | 1.5158 | 1.5173 +- 0.0017 |
+
+T1: 1.5187 < 1.5196: **passes** (by 0.0009). T2: 1.5187 < 1.5173 - 0.0028: **fails** (B is even a little better).
+
+## Answer
+
+- **Bytes, not where.** One more binary base on one matrix helps a little (0.004-0.005), and it helps the same (or
+  more) in a middle block. After training block 0's w2 is not a bottleneck: the same answer as part 4 (int8 units)
+  and part 6.
+- The gain is small (+48 KB for 0.004 of the 0.22 binary-fp32 gap): not worth 2 bits on any matrix.
+- The damage_probe LLM line closes here: one-shot sensitivity is real and explained (weak residual at block 0), and
+  training makes it irrelevant. Spending bytes unevenly does not beat spending them evenly in this model.
