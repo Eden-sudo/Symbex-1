@@ -378,6 +378,7 @@ def main():
     sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, "tok4096.model"))
     model, a = load_model(args.run, sp.get_piece_size(), dev)
     kind = a["weights"]
+    assert kind != "binary_rc", "--weights binary_rc has no integer model yet"
     assert kind in ("binary", "ternary"), "the integer model needs quantized weights"
     assert a["dim"] // a["heads"] == 64 and a["dim"] % a["heads"] == 0, \
         "the integer attention scale (16129 << 20) assumes 64-wide heads"
