@@ -342,6 +342,22 @@ with the same KV and no training (the reference to beat), and the QAT models wit
 no-training d of the same KV by more than 2x the larger sd. Same thresholds: < 0.03 usable. Next step (C, exact,
 S3) only if usable; between 0.03 and 0.10 Edén decides; above, the result is reported and the KV stays int8.
 
+**Result (val loss of the integer model, 3 seeds, `results/kv_qat.json`; reference: base model, KV int8, 1.5307):**
+
+| Model | KV | loss | d vs 8 bits | Rule |
+|---|---|---|---|---|
+| base binary (no KV training) | K1 x pi / 2, V2 | 1.8977 | +0.367 ± 0.015 | |
+| **trained with that KV (QAT)** | K1 x pi / 2, V2 | 1.8514 | **+0.321 ± 0.022** | helps, barely (-0.046 vs 0.044); > 0.10: KV stays int8 |
+| the same QAT model | int8 | 13.78 | +12.25 ± 3.53 | (informative) it only works with the KV it was trained with |
+
+The float loss during training is the same (1.825-1.865 best val): the gap is what the model can learn with this
+KV, not an integer / float mismatch. Training took 22.3-22.4 min per seed. Correction to the question above: K1 / V2
+is 0.29 MB for 256 tokens (0.39 MB with the int32 scales), not 0.59 MB (that is K4 / V2).
+
+**Answer:** no. Training with 1-bit keys recovers only 0.05 of the 0.37: the 1-bit key (64 bits per head and
+token) loses information the model cannot work around in 10,000 steps, not a bias it can learn away. The KV stays
+int8 for K1 / V2. What is usable today is the 4-bit KV without training (+0.0098, above): half the bytes.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

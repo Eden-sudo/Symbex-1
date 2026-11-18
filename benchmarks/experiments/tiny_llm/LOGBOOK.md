@@ -447,3 +447,10 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   records "trained_kv". Level check train vs intsim on random ints: K1 equal, V2 / K4 differ on ~1e-4 of the values
   (rounded integer mean: a value at a level edge). Smoke run 40 steps + intsim OK (removed).
 - Queue: runs/logs/qat_kv_queue.sh -> qat_kv_queue.log (no-training reference, 3 trainings ~25 min each, intsim).
+- Result (results/kv_qat.json): no training K1 x pi/2 V2 +0.367 ± 0.015; QAT +0.321 ± 0.022 (helps by 0.046 vs
+  2 sd 0.044: barely); > 0.10 -> KV stays int8 for K1 / V2. Train float val 1.825-1.865 = intsim: real limit of this
+  KV, not a mismatch. QAT models with KV int8: loss 10-17 (they depend on the quantized KV). 22.3 min per seed.
+- My byte error (chat + rule text): K1 / V2 = 0.29 MB + 0.10 MB scales = 0.39 MB, not 0.59 MB (= K4 / V2). Corrected
+  in the README result.
+- Meaning: 1-bit keys lose information, not only scale; QAT does not bring them back. Usable now: KV4 without
+  training (+0.0098, 0.79 MB). Not measured: K4 V2 (ESTIMATE ~+0.07 if additive), K2 V2 or rotated-key QAT.
