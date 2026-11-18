@@ -64,7 +64,8 @@ def load(runs, run, dev):
                   "learn_thr": a.get("learn_thr", False)},
                  tuple(a.get("a8_inputs", [])), T.W2_ACTS[a.get("w2_acts", "same")], a.get("ffn_act", "silu"),
                  tuple(a.get("hadamard", [])), tuple(a.get("a8_blocks", [])),
-                 tuple(a.get("int8_units", [])), a.get("emb_scale", 1.0)).to(dev)
+                 tuple(a.get("int8_units", [])), a.get("emb_scale", 1.0),
+                 tuple(a.get("bin2_units", []))).to(dev)
     m.load_state_dict(ck["model"])
     return m, a
 

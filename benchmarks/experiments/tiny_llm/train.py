@@ -72,6 +72,11 @@ def quant_weight(w, kind):
         return ste(w, (w / s4).round().clamp(-7, 7) * s4)
     if kind == "int2":
         return ste(w, ((w / scale).floor().clamp(-2, 1) + 0.5) * scale)
+    if kind == "binary2":  # two binary bases: sign(w) a1 + sign(residual) a2 (residual binarization, damage_probe part 7)
+        b1 = torch.where(w >= 0, 1.0, -1.0) * scale
+        r = w - b1
+        b2 = torch.where(r >= 0, 1.0, -1.0) * r.abs().mean(dim=1, keepdim=True).clamp(min=1e-5)
+        return ste(w, b1 + b2)
     return ste(w, torch.where(w >= 0, 1.0, -1.0) * scale)
 
 
@@ -178,7 +183,7 @@ class Block(nn.Module):
 class TinyLM(nn.Module):
     def __init__(self, vocab, dim, layers, heads, hidden, seq, kind, head="fp32", int8_blocks=(), acts=8,
                  act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=(),
-                 int8_units=(), emb_scale=1.0):
+                 int8_units=(), emb_scale=1.0, bin2_units=()):
         super().__init__()
         self.head_kind = head
         self.emb_scale = emb_scale  # constant on the embedding lookup only (the tied output layer is unchanged)
@@ -190,6 +195,10 @@ class TinyLM(nn.Module):
             bi, group = unit.split(".")
             for n in UNIT_GROUPS[group]:
                 getattr(self.blocks[int(bi)], n).kind = "int8"
+        for unit in bin2_units:  # "<block>.<group>": only these linears get two binary bases (damage_probe part 7)
+            bi, group = unit.split(".")
+            for n in UNIT_GROUPS[group]:
+                getattr(self.blocks[int(bi)], n).kind = "binary2"
         self.norm = nn.RMSNorm(dim, eps=1e-5)
         hd = dim // heads
         freq = 1.0 / (10000 ** (torch.arange(0, hd, 2).float() / hd))
@@ -279,7 +288,7 @@ def run(args, seed):
                    args.weights, args.head, tuple(args.int8_blocks), args.acts,
                    {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
                    tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
-                   tuple(args.a8_blocks), tuple(args.int8_units), args.emb_scale).to(device)
+                   tuple(args.a8_blocks), tuple(args.int8_units), args.emb_scale, tuple(args.bin2_units)).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)
@@ -377,6 +386,8 @@ def main():
     ap.add_argument("--int8-blocks", type=int, nargs="*", default=[], help="blocks with int8 weights (see above)")
     ap.add_argument("--int8-units", nargs="*", default=[],
                     help="int8 weights only in these <block>.<group> units, group qkv / o / w13 / w2 (e.g. 0.w13 7.w13)")
+    ap.add_argument("--bin2-units", nargs="*", default=[],
+                    help="two binary bases (2 bits per weight) only in these <block>.<group> units (damage_probe part 7)")
     ap.add_argument("--acts", type=int, choices=[8, 1], default=8, help="bits of the blocks' linear inputs (see above)")
     ap.add_argument("--ste", choices=["identity", "clip"], default="identity",
                     help="--acts 1 gradient: everywhere, or only where |x| <= --ste-k x mean|x| (see above)")

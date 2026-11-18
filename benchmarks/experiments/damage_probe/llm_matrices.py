@@ -35,7 +35,7 @@ def only(lin, part):
 
 def measure_seed(seed, args, dev):
     val = T.load_split("val", dev)
-    fp, a = D.load(args.runs, f"fp32_d384l8_s{seed}", dev)
+    fp, a = D.load(args.runs, f"fp32_{args.name}_s{seed}", dev)
     base = T.evaluate(fp, val, a["seq"], args.batches, 32)
     rows = {}
     for i, b in enumerate(fp.blocks):
@@ -78,6 +78,7 @@ def main():
     ap.add_argument("--seeds", type=int, nargs="+", default=[42, 43, 44])
     ap.add_argument("--runs")
     ap.add_argument("--data")
+    ap.add_argument("--name", default="d384l8", help="run name between fp32_ and _s<seed> (part 6: d384l8_es / d384l8_nd)")
     ap.add_argument("--batches", type=int, default=20, help="validation batches of 32 windows (as llm_layers.py)")
     ap.add_argument("--out", default=os.path.join(HERE, "results", "llm_matrices.json"))
     ap.add_argument("--analyze", action="store_true", help="only the analysis of --out")

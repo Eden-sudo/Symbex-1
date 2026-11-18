@@ -322,3 +322,7 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - R1 weak residual passes 3/3 (b0 w2 out 18-19 ordinary, residual 1.3 vs >= 20 later). R2 super weight fails (max
   |w|/alpha 7-9, other w2 10-13). R3 keep 64 weights: -4..-5 % of the damage, fails. -> the first-writer effect, error
   spread over the whole matrix. Next idea (Edén decides): two binary bases or row x column scales on b0.w2, trained.
+
+### 2026-11-18: part 7 rule (README first)
+- train.py --bin2-units (kind "binary2", residual binarization); A = 0.w2, B = 4.w2 (control picked before), 3 seeds,
+  queued after part 6 + its R2 measurements (/tmp/part7_queue.sh).

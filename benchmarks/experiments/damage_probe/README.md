@@ -832,3 +832,27 @@ tiny_llm `train.py --emb-scale 19.6` (name d384l8_es) and `--emb-no-decay` (d384
 - R2 mechanism (every seed): block 0's residual RMS >= 0.5x the smallest of blocks 1-7, and block 0's w2 weights-only
   dloss <= 2x the mean of the w2 of blocks 1-6 (base: ~4x). Both -> the weak residual was the cause. Residual strong
   but block 0's w2 still > 2x -> "entering first". Residual still weak -> training compensated: inconclusive.
+
+# Part 7 -- two binary bases: does block 0's w2 still need them most after training?
+
+## Question
+
+Part 5f: one-shot, block 0's w2 hurts ~4x a middle w2. Part 3 / the Nov 17 int8 test: after training, giving the
+"sensitive" units more bits did not beat giving the same bytes to middle units. Does that hold for block 0's w2 when
+the extra bits stay binary (two bases, W ~ a1 s1 + a2 s2, close to Edén's "bit pairs" idea)?
+
+## What
+
+- `tiny_llm/train.py --bin2-units <block>.w2`: that one matrix gets two binary bases (sign(w) a1 + sign(residual) a2,
+  per-row scales, straight-through), the rest of the model as the binary base (1-bit weights, int8 inputs).
+  Same recipe, 3 seeds (42, 43, 44), validation only. One-shot check (random weights): squared relative error
+  0.36 (1 base) -> 0.13 (2 bases).
+- A: two bases in block 0's w2. B (control, same bytes, chosen before measuring): two bases in block 4's w2
+  (a middle block; both matrices 1024 -> 384, +48 KB each).
+- 2 bits per weight on one matrix: a diagnostic, not an export candidate (the goal stays 1-bit / ternary).
+
+**Rule (written before training, Nov 18 2026):** base binary 1.5224 +- 0.0026.
+- T1 (two bases help at all): mean A < 1.5224 - max(sd base, sd A).
+- T2 (block 0 still special after training): mean A < mean B - max(sd A, sd B).
+- Reading: T1 and T2 -> block 0's w2 is a real bottleneck worth a 1-bit fix (a per-block scale, part 6's residual);
+  T1 without T2 -> bytes matter, not where (as the int8 test); no T1 -> one more base on one matrix is noise.
