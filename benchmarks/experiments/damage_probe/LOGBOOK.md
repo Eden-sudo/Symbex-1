@@ -315,3 +315,10 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   seeds in parallel, seconds of GPU (laptop on battery). First run: C in bf16 under autocast -> fixed to fp32.
 - Fails: P1 7 / 7 / 5 of 8, P2 yes / no / yes. rel_c w2 / w1w3 1.13-1.16, rel_i 1.01. Top-8 channel weights typical
   (0.93). Lead: block 0's w2 error ~50x its residual and half of the w2 excess -> output size vs residual.
+
+## Nov 17 2026 (night) -- part 5f
+
+- Rule committed first (66ac25f). llm_superweight.py, 3 seeds in parallel, seconds of GPU.
+- R1 weak residual passes 3/3 (b0 w2 out 18-19 ordinary, residual 1.3 vs >= 20 later). R2 super weight fails (max
+  |w|/alpha 7-9, other w2 10-13). R3 keep 64 weights: -4..-5 % of the damage, fails. -> the first-writer effect, error
+  spread over the whole matrix. Next idea (Edén decides): two binary bases or row x column scales on b0.w2, trained.

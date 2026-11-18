@@ -784,3 +784,28 @@ alpha, breaking the mechanism behind the large output. A mean |w| / alpha of 0.9
   [0.5x min, 2x max] of blocks 1-7. R1' large output: block 0's w2 output RMS > 2x the largest of blocks 1-7.
 - R2 super weight: block 0's w2 has a weight with |w| / alpha >= 10 and > 1.5x the largest of every other w2.
 - R3 few weights fix it: keeping k = 64 weights in floating point cuts block 0's w2 dloss by >= 50 %.
+
+## Result (Nov 17 2026, 3 seeds; `results/llm_superweight.json`)
+
+| seed | b0 w2 output RMS | b0 w2 1-bit error RMS | b0 residual RMS | blocks 1-7: output / residual | max \|w\|/alpha b0 w2 / other w2 | dloss keep k = 0 / 1 / 8 / 64 |
+|---|---|---|---|---|---|---|
+| 42 | 18.6 | 9.2 | 1.33 | 13.6-57.0 / 20.6-112 | 9.2 / 10.5 | 0.0875 / 0.0871 / 0.0871 / 0.0828 |
+| 43 | 18.3 | 9.1 | 1.31 | 15.1-58.7 / 20.3-112 | 8.9 / 10.3 | 0.0861 / 0.0851 / 0.0848 / 0.0823 |
+| 44 | 19.4 | 9.5 | 1.29 | 14.1-55.2 / 21.4-113 | 7.0 / 12.7 | 0.0860 / 0.0861 / 0.0857 / 0.0820 |
+
+R1 weak residual: passes on every seed. R1' large output: fails. R2 super weight: fails. R3 keep 64: fails (-4 to -5 %).
+
+## Answer
+
+- **The denominator.** Block 0's w2 output is ordinary (18-19, inside the 14-59 of the other blocks); the residual
+  it joins is the embedding plus block 0's attention, RMS 1.3, 15x smaller than any later one. So block 0's w2 output
+  becomes most of the residual every later block reads, and its 1-bit error (RMS 9, half the output) enters the
+  stream before anything else and lives through all 8 blocks.
+- **No super weight in this model.** The largest |w| / alpha of block 0's w2 is 7-9 (Gaussian reference ~5.7: a
+  little heavy-tailed), and other w2 have larger ones (10-13). Keeping its 64 largest weights in floating point
+  removes 4-5 % of its damage: protecting a few elements does not help here. (The paper's super weights are in much
+  larger trained LLMs; this 15.7 M model does not show one.)
+- What this suggests for the fix (ESTIMATE, not measured): the error is spread over the whole matrix, so the
+  remedy is more information in block 0's w2 as a whole, while staying 1-bit: e.g. two binary bases
+  (W ~ a1 s1 + a2 s2, 1-bit arithmetic, +48 KB, 0.4 % of the model) or OneBit-style row x column scales, trained.
+  Part 4's "bytes, not which units" was measured at unit level; this one matrix is a candidate to test it again.
