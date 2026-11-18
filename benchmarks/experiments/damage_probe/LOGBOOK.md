@@ -338,3 +338,9 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - Same-bytes control on ResNet-8 (the "Limits" item): protected (real) layer sets, pairs by part 2's drop table
   fixed before training: b0 vs b1, stem vs b2, b0+b1 vs b2, b0..b3 vs b4; part 3's recipe, 3 seeds, validation.
   ESTIMATE ~31 min GPU (9 configurations x 3 seeds x ~78 s, part 3's time).
+
+### 2026-11-18: part 8 done (~37 min GPU, one process)
+- same_bytes.py (reuses config_table.measure_seed). Mixed: WHERE on P2 (stem 62.45 vs b2 59.11) and P4 (b0..b3
+  66.87 vs b4 58.72, confounded by 4 real activations vs 1), TIE on P1 / P3. Nothing changes in the CDT.
+- First launch: the pid file kept setsid's pid (gone at once) -> thought it died; the python child ran fine.
+  Waited on the python pid instead.

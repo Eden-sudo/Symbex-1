@@ -19,6 +19,7 @@ validation only, every rule written in this README before measuring. Each part's
 | 5f | Block 0's w2 (4x a middle w2): large output, weak residual, super weight? | Weak residual (the embedding, 15x smaller than any later); no super weight in block 0's w2; keeping 64 weights fixes 4-5 % | residual RMS 1.3 vs >= 20; b0 w2 output 18-19 (ordinary) |
 | 6 | Does a strong residual from the start (embedding x sqrt(d), or no decay) help after training? | It removes the one-shot cause (block 0 becomes ordinary) but the trained model does not improve, and fp32 gets worse with x sqrt(d); decay is not the cause | 3 seeds each: binary base 1.5224 +- 0.0026, x sqrt(d) 1.5203 +- 0.0037, no decay 1.5203 +- 0.0006 (gain 0.0021 < base sd); fp32 x sqrt(d) 1.3061 +- 0.0018 vs 1.3000 +- 0.0022; x sqrt(d): b0 / middle w2 3.9 -> 0.9-1.0x |
 | 7 | Two binary bases: better in block 0's w2 than in a middle w2 (same bytes)? | No: bytes, not where | 3 seeds each: 0.w2 1.5187 +- 0.0028, 4.w2 1.5173 +- 0.0017 (+49 KB each) |
+| 8 | ResNet-8, same weights: does the one-shot order tell where real layers help after training? | Mixed (2 of 4): the stem yes, middle layers of the same size tie; the 4-vs-1 layer pair is confounded | 3 seeds: stem 62.45 +- 1.00 vs b2 59.11 +- 2.55 (b2 more weights); b0 57.73 vs b1 56.62; b0+b1 61.03 vs b2 59.11 |
 
 **What it means for SYMBEX:**
 - One-shot sensitivity is real and can be explained, but after training it does not tell where extra bytes help (parts
@@ -32,8 +33,8 @@ validation only, every rule written in this README before measuring. Each part's
   gain 0.004-0.005.
 
 **Limits:** two small networks; one LLM size, 10000 steps; the same-bytes control after training was run only on
-tiny_llm (not on ResNet-8); part 7's control is one block. Future work: the same-bytes control on a vision network,
-the 260K LLM for the ESP32 / Pico 2, a ternary base.
+tiny_llm and, with real weights and 30 epochs, ResNet-8 (part 8); part 7's control is one block. Future work: the
+260K LLM for the ESP32 / Pico 2, a ternary base.
 
 ## Question
 
@@ -978,3 +979,37 @@ of the two sds.
   the CDT's `estimate` premise holds for vision, tiny_llm is the exception; keep it. WHERE in <= 1 -> "bytes, not
   where" holds on vision too: the per-layer raise of `estimate` is not supported (write it in the CDT docs; Edén
   decides any change). 2 -> mixed: nothing changes.
+
+## Result (Nov 18 2026, 3 seeds, validation; `results/same_bytes.json`)
+
+| protected (real) | weights | 42 | 43 | 44 | mean +- sd |
+|---|---|---|---|---|---|
+| none (all binary) | 0 | 53.72 | 53.28 | 55.58 | 54.19 +- 1.22 |
+| b0 | 2304 | 57.22 | 55.84 | 60.14 | 57.73 +- 2.20 |
+| b1 | 2304 | 56.28 | 56.50 | 57.08 | 56.62 +- 0.41 |
+| stem | 3456 | 61.36 | 62.68 | 63.32 | 62.45 +- 1.00 |
+| b2 | 4608 | 56.48 | 59.28 | 61.58 | 59.11 +- 2.55 |
+| b0 + b1 | 4608 | 60.74 | 60.58 | 61.78 | 61.03 +- 0.65 |
+| b0 + b1 + b2 + b3 | 18432 | 65.88 | 67.00 | 67.72 | 66.87 +- 0.93 |
+| b4 | 18432 | 57.40 | 57.50 | 61.26 | 58.72 +- 2.20 |
+
+| pair | d | s | verdict |
+|---|---|---|---|
+| P1 b0 vs b1 | +1.11 | 2.20 | TIE |
+| P2 stem vs b2 (control +33 % weights) | +3.34 | 2.55 | WHERE |
+| P3 b0 + b1 vs b2 | +1.92 | 2.55 | TIE |
+| P4 b0..b3 vs b4 | +8.15 | 2.20 | WHERE |
+
+WHERE in 2 of 4 pairs: **mixed** by the rule -> nothing changes in the CDT.
+
+## Answer
+
+- The **first layer** is where extra bytes help: the real stem beats b2 with fewer weights (+3.3 points), as the
+  int8 stem did with the full recipe (+4.5). Between middle layers of the same size the one-shot order ties (P1, P3).
+- P4 is confounded: "same weights" is not "same bytes" overall. Protecting 4 layers makes 4 activations real against
+  1 (activation RAM), and it is 4 layers against 1. It does not show that the one-shot order works inside the middle.
+- Together with tiny_llm (parts 4, 7): the edges can matter, the middle does not tell. A per-layer search over the
+  middle is not supported by any measurement here; a fixed rule for the edges (first layer, classifier), decided by
+  the chip's measured cost, is.
+- Limits: real weights, not k bits (an upper bound); 30 epochs from the twin (all binary 54 %, not the full recipe's
+  71 %); activations protected with the weights; one network.
