@@ -387,3 +387,9 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   ee.vmulas.s8.accx, dot = 2 (sum >> 6) + sum x. **3 seeds exact 512 / 512 + story 120 / 120; output head 8.43 ms
   (int4 14.68, int8 28.0); 10.13 ± 0.00 tokens/s (int4 9.52, int8 8.48)**. Internal RAM free 234 KB, PSRAM free
   4.22 MB (int4 3.82). Trade-off: +6 % speed and -0.39 MB vs int4 for +0.034 loss (int2 +0.049 vs int4 +0.015).
+
+## Nov 18 2026 -- distillation for W1A8 and ternary (rule in README first)
+
+- Rule written before training (README section "Distillation from the fp32 model"). Queue: binary then ternary x
+  seeds 42 43 44, one run at a time (6.5 GB each; 3 in parallel hit OOM on Nov 18). ESTIMATE ~35 min per run
+  (base runs 30-33 min + the teacher's forward), ~3.5 h total.

@@ -200,6 +200,19 @@ Yes: the 1-bit model writes stories with dialogue and a plot, the integer versio
 exact). It costs perplexity against fp32 (4.58 vs 3.67): the binary model
 repeats itself more. Ternary sits between the two at twice the weight memory.
 
+## Distillation from the fp32 model, W1A8 and ternary (rule Nov 18 2026, before training)
+
+**Question:** with the recipe unchanged, does distillation from the fp32 model (same seed) close part of the gap?
+It did not help the fully 1-bit W1A1 model (LOGBOOK, Nov 13: it plateaus late); W1A8 and ternary were never tried.
+
+**What:** `train.py --weights binary|ternary --distill runs/fp32_d384l8_s{seed}/model.pt` (alpha 0.5, T 1, the
+script's defaults, fixed before), names `binary_d384l8kd` / `ternary_d384l8kd`, 10,000 steps, 3 seeds (42, 43, 44),
+validation only. Same bytes as the base runs: the model does not change, only the loss.
+
+**Rule:** base val loss binary 1.5224 +- 0.0026, ternary 1.4251 +- 0.0026, fp32 1.3000 +- 0.0022. Distillation helps a
+kind if its mean < base mean - max(sd base, sd distilled). If it helps, it becomes the tiny_llm recipe for that kind
+(the integer model and C do not change: same weights format).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
