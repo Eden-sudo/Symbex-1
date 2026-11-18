@@ -561,3 +561,18 @@ w13 is two matrices. Inside each group across the 8 blocks, the Spearman with bl
 - Seen, not tested (after looking at the numbers): in tiny_llm the order of the groups follows how many matrices a
   unit binarizes (qkv 3 > w13 2 > w2, o 1), then their size (w2 > o). A test written beforehand would need units of
   equal size.
+
+## Checks of part 5 (Nov 17, rules written before measuring)
+
+1. **ResNet-8 B without the stem and at equal fan-in** (`fanin_depth.py`, no run): Spearman(drop wa, layers left)
+   on the 9 layers without the stem, and partial Spearman(drop wa, layers left | fan-in) on all 10 (ranks, residuals
+   of a linear fit on the fan-in rank). B survives the confound if both are >= 0.5 on every seed.
+2. **tiny_llm, one matrix at a time** (`llm_matrices.py`, GPU, no training): the fp32 model with only one of the 56
+   matrices (8 blocks x q k v o w1 w3 w2) 1-bit, validation loss increase, same 20 batches as llm_layers (the base
+   loss must equal llm_layers'). Shapes: q k v o 384 x 384; w1 w3 384 -> 1024 and w2 1024 -> 384 have the same number
+   of weights.
+   - A at equal size: w2 (fan-in 1024) drops less than the mean of w1 and w3 (fan-in 384) in >= 6 of 8 blocks on
+     every seed.
+   - Matrix count: the post hoc order (qkv > w13 > w2, o) is explained by the number of matrices if q, k, v alone
+     each drop like o (mean of q, k, v within 0.5x-2x of o's mean on every seed); the role matters if not.
+   - Also reported: Spearman of each unit's dloss with the sum of its matrices' single drops (32 units).
