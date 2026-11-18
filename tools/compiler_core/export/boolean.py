@@ -665,6 +665,10 @@ def export_and_validate(model, val_ds, out_dir, lib_path, n_validation=2000):
     s_equal, s_total, s_msg = validate_c(header, lib_path, x_u8[:n_san], p_sim[:n_san], sanitize=True)
     sv_equal, sv_total, sv_msg = (validate_c(header, lib_path, x_u8[:n_san], p_sim[:n_san], vertical=True, sanitize=True)
                                   if has_vertical else (None, 0, ""))
+    sp_equal, sp_total, sp_msg = (validate_c(header, lib_path, x_u8[:n_san], p_sim[:n_san], vertical=True, prepared=True,
+                                             sanitize=True) if has_vertical else (None, 0, ""))
+    sc_equal, sc_total, sc_msg = (validate_c(header, lib_path, x_u8[:n_san], p_sim[:n_san], vertical=True,
+                                             prepared="compact", sanitize=True) if has_vertical else (None, 0, ""))
     save_validation(out_dir, x_u8.reshape(len(x_u8), -1), y, p_sim)
     acc_t, acc_s = 100 * (p_torch == y).mean(), 100 * (p_sim == y).mean()
     fid = 100 * (p_sim == p_torch).mean()
@@ -708,10 +712,13 @@ def export_and_validate(model, val_ds, out_dir, lib_path, n_validation=2000):
     elif has_vertical:
         print(f"    compact     : {100 * c_equal / c_total:.2f}%  (+ -DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT, lists prepared, "
               f"thresholds compact, vs. the integer simulation) " + ("OK" if c_equal == c_total else "[X]"))
-    for label, eq, tot, m in (("sanitizer", s_equal, s_total, s_msg), ("sanitizer v", sv_equal, sv_total, sv_msg)):
-        if label == "sanitizer v" and not has_vertical:
+    engines = {"sanitizer": "the standard engine", "sanitizer v": "the vertical engine",
+               "sanitizer vp": "the vertical engine, prepared", "sanitizer vc": "the vertical engine, compact"}
+    for label, eq, tot, m in (("sanitizer", s_equal, s_total, s_msg), ("sanitizer v", sv_equal, sv_total, sv_msg),
+                              ("sanitizer vp", sp_equal, sp_total, sp_msg), ("sanitizer vc", sc_equal, sc_total, sc_msg)):
+        if label != "sanitizer" and not has_vertical:
             continue
-        what = "the vertical engine" if label == "sanitizer v" else "the standard engine"
+        what = engines[label]
         print(f"    {label:12s}: " + (f"not checked or [X] ({m})" if eq is None else
               f"{n_san} samples, {what} built with -fsanitize=address,undefined: no error, "
               f"{100 * eq / tot:.2f}% equal " + ("OK" if eq == tot else "[X]")))
@@ -724,4 +731,8 @@ def export_and_validate(model, val_ds, out_dir, lib_path, n_validation=2000):
                 layer_bits=bits, layer_bits_ok=bits_ok,
                 sanitizer=None if s_equal is None else 100 * s_equal / s_total, sanitizer_message=s_msg,
                 sanitizer_vertical=None if sv_equal is None else 100 * sv_equal / sv_total, sanitizer_vertical_message=sv_msg,
+                sanitizer_vertical_prepared=None if sp_equal is None else 100 * sp_equal / sp_total,
+                sanitizer_vertical_prepared_message=sp_msg,
+                sanitizer_vertical_compact=None if sc_equal is None else 100 * sc_equal / sc_total,
+                sanitizer_vertical_compact_message=sc_msg,
                 _x_u8=x_u8.reshape(len(x_u8), -1), _y=y, _pred_sim=p_sim)

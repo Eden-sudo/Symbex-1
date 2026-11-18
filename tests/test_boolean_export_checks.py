@@ -74,8 +74,9 @@ def test_random_shapes_exact_and_sanitized(resnet, tmp_path, channels, blocks, s
     eq, tot, msg = boolean.validate_c(header, LIB, x, p_sim, sanitize=True)
     assert eq == tot == len(x), msg
     if "symbex_bool_net_run_vertical" in header.read_text():
-        eq, tot, msg = boolean.validate_c(header, LIB, x, p_sim, vertical=True, sanitize=True)
-        assert eq == tot == len(x), msg
+        for prepared in (False, True, "compact"):
+            eq, tot, msg = boolean.validate_c(header, LIB, x, p_sim, vertical=True, prepared=prepared, sanitize=True)
+            assert eq == tot == len(x), (prepared, msg)
 
 
 def test_layer_bits_points_at_the_wrong_layer(resnet):
