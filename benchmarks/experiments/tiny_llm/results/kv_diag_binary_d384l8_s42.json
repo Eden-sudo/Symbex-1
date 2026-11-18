@@ -1,0 +1,2299 @@
+{
+ "run": "binary_d384l8_s42",
+ "windows": 32,
+ "layers": [
+  {
+   "D1": {
+    "K pre-RoPE": {
+     "max/median RMS": [
+      2.997383812381147,
+      2.105799186145641,
+      3.4495033437905676,
+      3.0905210977506883,
+      2.6078545103444313,
+      4.031353895955682
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "K post-RoPE": {
+     "max/median RMS": [
+      1.655977441330609,
+      1.3568108781548018,
+      2.24168036148852,
+      2.00624901768472,
+      1.851385597656707,
+      2.40221469722293
+     ],
+     "top4 same": [
+      0.75,
+      0.5,
+      1.0,
+      1.0,
+      0.75,
+      1.0
+     ]
+    },
+    "Q post-RoPE": {
+     "max/median RMS": [
+      2.1509133845749253,
+      1.415617041626637,
+      2.2676596483943445,
+      2.0235510631593687,
+      1.5025034885526136,
+      2.624693093970621
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      0.75,
+      1.0,
+      0.75
+     ]
+    },
+    "V": {
+     "max/median RMS": [
+      1.4893371289739379,
+      1.5685505005975067,
+      1.6283421399455325,
+      1.724201030614922,
+      1.6260259165752706,
+      1.6722768065317268
+     ],
+     "top4 same": [
+      0.75,
+      0.75,
+      1.0,
+      0.75,
+      0.75,
+      1.0
+     ]
+    }
+   },
+   "K4": {
+    "slope (temperature bias)": 0.0007889491906559449,
+    "Var_p8 delta (shift removed)": 0.005836740289690727,
+    "share of it explained by the slope": 0.1449654304390372,
+    "share of Var from top-4 key channels": 0.14528837535981956,
+    "KL": 0.002920341039154374,
+    "KL predicted 1/2 Var": 0.0029183701448453636,
+    "TV": 0.026925185206707048,
+    "TV share pos 0": 0.010165369177765638,
+    "TV share int8 top-1": 0.18509103454087367,
+    "TV share recent 32": 0.6638342532624607,
+    "Spearman key error size vs weight gain": -0.012664409213950966,
+    "entropy int8 -> quant": [
+     3.618765155601844,
+     3.6161088282009346
+    ]
+   },
+   "K3": {
+    "slope (temperature bias)": 0.003856754821477467,
+    "Var_p8 delta (shift removed)": 0.03113613931749673,
+    "share of it explained by the slope": 0.14281295207329858,
+    "share of Var from top-4 key channels": 0.1467171544407481,
+    "KL": 0.01556942466179927,
+    "KL predicted 1/2 Var": 0.015568069658748365,
+    "TV": 0.06221168344540482,
+    "TV share pos 0": 0.01003726854017976,
+    "TV share int8 top-1": 0.1830997051240792,
+    "TV share recent 32": 0.662748810066652,
+    "Spearman key error size vs weight gain": -0.04060993455220424,
+    "entropy int8 -> quant": [
+     3.618765155601844,
+     3.604105481763121
+    ]
+   },
+   "K3 channel": {
+    "slope (temperature bias)": 0.0037182869068480007,
+    "Var_p8 delta (shift removed)": 0.022256324414408002,
+    "share of it explained by the slope": 0.12076656555942455,
+    "share of Var from top-4 key channels": 0.22038359875912808,
+    "KL": 0.011104344016554604,
+    "KL predicted 1/2 Var": 0.011128162207204001,
+    "TV": 0.05404521092913368,
+    "TV share pos 0": 0.009870376380707223,
+    "TV share int8 top-1": 0.16493318047707803,
+    "TV share recent 32": 0.6318535578142891,
+    "Spearman key error size vs weight gain": -0.03853544098565596,
+    "entropy int8 -> quant": [
+     3.618765155601844,
+     3.6074629431237764
+    ]
+   },
+   "K3 pre": {
+    "slope (temperature bias)": 0.004180625131935673,
+    "Var_p8 delta (shift removed)": 0.01645638109324829,
+    "share of it explained by the slope": 0.11043205915608878,
+    "share of Var from top-4 key channels": 0.19064427092457606,
+    "KL": 0.00820037862138083,
+    "KL predicted 1/2 Var": 0.008228190546624145,
+    "TV": 0.046531204746744284,
+    "TV share pos 0": 0.009834821511622955,
+    "TV share int8 top-1": 0.15601353195596418,
+    "TV share recent 32": 0.6023897164899191,
+    "Spearman key error size vs weight gain": -0.03498059186568656,
+    "entropy int8 -> quant": [
+     3.618765155601844,
+     3.6078415252815903
+    ]
+   },
+   "K3 rot": {
+    "slope (temperature bias)": 0.003539529807374381,
+    "Var_p8 delta (shift removed)": 0.02860129905428569,
+    "share of it explained by the slope": 0.15297240778464793,
+    "share of Var from top-4 key channels": 0.15583870674677366,
+    "KL": 0.014288631786636497,
+    "KL predicted 1/2 Var": 0.014300649527142845,
+    "TV": 0.05940400370148248,
+    "TV share pos 0": 0.009525055241725831,
+    "TV share int8 top-1": 0.18951463407347305,
+    "TV share recent 32": 0.6640010840045427,
+    "Spearman key error size vs weight gain": -0.023438423168752883,
+    "entropy int8 -> quant": [
+     3.618765155601844,
+     3.604639191691167
+    ]
+   },
+   "K2": {
+    "slope (temperature bias)": -0.2508344048873097,
+    "Var_p8 delta (shift removed)": 0.1472022323992636,
+    "share of it explained by the slope": 0.7243776062699467,
+    "share of Var from top-4 key channels": 0.18011844180307301,
+    "KL": 0.08027519725616347,
+    "KL predicted 1/2 Var": 0.0736011161996318,
+    "TV": 0.1452103576353067,
+    "TV share pos 0": 0.010106787918669383,
+    "TV share int8 top-1": 0.24349071287849994,
+    "TV share recent 32": 0.6100272004875568,
+    "Spearman key error size vs weight gain": -0.4250219606363002,
+    "entropy int8 -> quant": [
+     3.618765155601844,
+     3.992296383920899
+    ]
+   },
+   "K2 channel": {
+    "slope (temperature bias)": -0.16013948391375749,
+    "Var_p8 delta (shift removed)": 0.14566144156354743,
+    "share of it explained by the slope": 0.5737535213220559,
+    "share of Var from top-4 key channels": 0.10514023516582748,
+    "KL": 0.07641867560063881,
+    "KL predicted 1/2 Var": 0.07283072078177372,
+    "TV": 0.13106009003292945,
+    "TV share pos 0": 0.008887142300897946,
+    "TV share int8 top-1": 0.2738928846314129,
+    "TV share recent 32": 0.6948733788853505,
+    "Spearman key error size vs weight gain": -0.47216537451529483,
+    "entropy int8 -> quant": [
+     3.618765155601844,
+     3.8735640663003776
+    ]
+   },
+   "K2 pre": {
+    "slope (temperature bias)": -0.13218671799338588,
+    "Var_p8 delta (shift removed)": 0.12511500345950843,
+    "share of it explained by the slope": 0.535720846865769,
+    "share of Var from top-4 key channels": 0.08740431872521041,
+    "KL": 0.06384494043169109,
+    "KL predicted 1/2 Var": 0.06255750172975422,
+    "TV": 0.11618630038832811,
+    "TV share pos 0": 0.009436922639326625,
+    "TV share int8 top-1": 0.26309419177802706,
+    "TV share recent 32": 0.6744176487731468,
+    "Spearman key error size vs weight gain": -0.4414565273406783,
+    "entropy int8 -> quant": [
+     3.618765155601844,
+     3.8149044571095367
+    ]
+   },
+   "K2 rot": {
+    "slope (temperature bias)": -0.20972026138223648,
+    "Var_p8 delta (shift removed)": 0.12018603480993025,
+    "share of it explained by the slope": 0.6968360778363045,
+    "share of Var from top-4 key channels": 0.08351467463632932,
+    "KL": 0.06498804979354039,
+    "KL predicted 1/2 Var": 0.06009301740496512,
+    "TV": 0.12911484398246792,
+    "TV share pos 0": 0.009533144157510423,
+    "TV share int8 top-1": 0.25356118297143826,
+    "TV share recent 32": 0.6380023146899699,
+    "Spearman key error size vs weight gain": -0.42126185431874824,
+    "entropy int8 -> quant": [
+     3.618765155601844,
+     3.951344442587029
+    ]
+   },
+   "K1 x pi/2": {
+    "slope (temperature bias)": -0.07416946169907795,
+    "Var_p8 delta (shift removed)": 0.25129655907817083,
+    "share of it explained by the slope": 0.19507865149472037,
+    "share of Var from top-4 key channels": 0.15867160696184454,
+    "KL": 0.1284103731271395,
+    "KL predicted 1/2 Var": 0.12564827953908542,
+    "TV": 0.18025075486284994,
+    "TV share pos 0": 0.011342492817877232,
+    "TV share int8 top-1": 0.17479273087880426,
+    "TV share recent 32": 0.6211373793822268,
+    "Spearman key error size vs weight gain": -0.2867497725124977,
+    "entropy int8 -> quant": [
+     3.618765155601844,
+     3.671705739089039
+    ]
+   },
+   "K1": {
+    "slope (temperature bias)": -0.40917851944172245,
+    "Var_p8 delta (shift removed)": 0.3785635105365399,
+    "share of it explained by the slope": 0.7834483567013613,
+    "share of Var from top-4 key channels": 0.12097081986988165,
+    "KL": 0.21636718582492587,
+    "KL predicted 1/2 Var": 0.18928175526826996,
+    "TV": 0.2368984094729325,
+    "TV share pos 0": 0.011156765701564032,
+    "TV share int8 top-1": 0.24708659663525154,
+    "TV share recent 32": 0.6025344227038072,
+    "Spearman key error size vs weight gain": -0.5016567858285256,
+    "entropy int8 -> quant": [
+     3.618765155601844,
+     4.208762125742387
+    ]
+   }
+  },
+  {
+   "D1": {
+    "K pre-RoPE": {
+     "max/median RMS": [
+      5.465895847848022,
+      5.346894698468027,
+      8.760775235736823,
+      3.5389225268125712,
+      3.814956000124061,
+      3.691419171644734
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.75,
+      1.0
+     ]
+    },
+    "K post-RoPE": {
+     "max/median RMS": [
+      3.482839177554087,
+      3.8060317927146703,
+      6.193675546381921,
+      2.8194799461297335,
+      2.9591872513168545,
+      2.9197389505303377
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "Q post-RoPE": {
+     "max/median RMS": [
+      3.0501753055594008,
+      2.7719082117352696,
+      3.8996865351666092,
+      2.0446191865211434,
+      2.2796018534922777,
+      2.5602649734143035
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "V": {
+     "max/median RMS": [
+      1.346231055914181,
+      1.0903869793065193,
+      1.2252363819594352,
+      1.2401461706330084,
+      1.1844269604151552,
+      1.2270826447148833
+     ],
+     "top4 same": [
+      0.75,
+      0.25,
+      0.75,
+      0.75,
+      0.5,
+      0.75
+     ]
+    }
+   },
+   "K4": {
+    "slope (temperature bias)": 0.0024842441440870435,
+    "Var_p8 delta (shift removed)": 0.03518401092880553,
+    "share of it explained by the slope": 0.14366147880094338,
+    "share of Var from top-4 key channels": 0.2663883721428919,
+    "KL": 0.01757097938892457,
+    "KL predicted 1/2 Var": 0.017592005464402764,
+    "TV": 0.06488611015467377,
+    "TV share pos 0": 0.008464808836124599,
+    "TV share int8 top-1": 0.20807263732129333,
+    "TV share recent 32": 0.7713968966437806,
+    "Spearman key error size vs weight gain": -0.06644956041501117,
+    "entropy int8 -> quant": [
+     2.967273009419557,
+     2.9571122496153395
+    ]
+   },
+   "K3": {
+    "slope (temperature bias)": -0.005310318032734608,
+    "Var_p8 delta (shift removed)": 0.18737552662094326,
+    "share of it explained by the slope": 0.15117730848785882,
+    "share of Var from top-4 key channels": 0.2619657679914454,
+    "KL": 0.09368795812227737,
+    "KL predicted 1/2 Var": 0.09368776331047163,
+    "TV": 0.1494045977785775,
+    "TV share pos 0": 0.0081694299890917,
+    "TV share int8 top-1": 0.206424970613911,
+    "TV share recent 32": 0.7692106270785808,
+    "Spearman key error size vs weight gain": -0.13408239214299517,
+    "entropy int8 -> quant": [
+     2.967273009419557,
+     2.924490826345874
+    ]
+   },
+   "K3 channel": {
+    "slope (temperature bias)": 0.002920772781067113,
+    "Var_p8 delta (shift removed)": 0.07675325979392619,
+    "share of it explained by the slope": 0.11682065543449649,
+    "share of Var from top-4 key channels": 0.5486984346676769,
+    "KL": 0.03815652169672402,
+    "KL predicted 1/2 Var": 0.038376629896963096,
+    "TV": 0.09968376517657507,
+    "TV share pos 0": 0.008185648143243055,
+    "TV share int8 top-1": 0.18761540492716872,
+    "TV share recent 32": 0.7430055631266129,
+    "Spearman key error size vs weight gain": -0.05528798226395838,
+    "entropy int8 -> quant": [
+     2.967273009419557,
+     2.939470972771654
+    ]
+   },
+   "K3 pre": {
+    "slope (temperature bias)": -0.0010009870358203728,
+    "Var_p8 delta (shift removed)": 0.04628828024611352,
+    "share of it explained by the slope": 0.09901909561327482,
+    "share of Var from top-4 key channels": 0.32349341878984034,
+    "KL": 0.0231156631693404,
+    "KL predicted 1/2 Var": 0.02314414012305676,
+    "TV": 0.08002699867844826,
+    "TV share pos 0": 0.009301434305740793,
+    "TV share int8 top-1": 0.1749810642647707,
+    "TV share recent 32": 0.7015039514770771,
+    "Spearman key error size vs weight gain": -0.011972134144145441,
+    "entropy int8 -> quant": [
+     2.967273009419557,
+     2.949499830839178
+    ]
+   },
+   "K3 rot": {
+    "slope (temperature bias)": 0.003089606300053923,
+    "Var_p8 delta (shift removed)": 0.08900734004696911,
+    "share of it explained by the slope": 0.14575949952858513,
+    "share of Var from top-4 key channels": 0.26908248164496507,
+    "KL": 0.044478147409333715,
+    "KL predicted 1/2 Var": 0.04450367002348456,
+    "TV": 0.10844634802556966,
+    "TV share pos 0": 0.008207313338035637,
+    "TV share int8 top-1": 0.20866809418021068,
+    "TV share recent 32": 0.7487523259893335,
+    "Spearman key error size vs weight gain": -0.04580917568279845,
+    "entropy int8 -> quant": [
+     2.967273009419557,
+     2.936733663105172
+    ]
+   },
+   "K2": {
+    "slope (temperature bias)": -0.31424444928258255,
+    "Var_p8 delta (shift removed)": 0.3430142827980188,
+    "share of it explained by the slope": 0.6379758386204993,
+    "share of Var from top-4 key channels": 0.5252879549082704,
+    "KL": 0.23816996066102739,
+    "KL predicted 1/2 Var": 0.1715071413990094,
+    "TV": 0.25670452119055287,
+    "TV share pos 0": 0.00851999196426404,
+    "TV share int8 top-1": 0.21200971930115997,
+    "TV share recent 32": 0.5794911079111503,
+    "Spearman key error size vs weight gain": -0.3833824153200651,
+    "entropy int8 -> quant": [
+     2.967273009419557,
+     3.641407784815307
+    ]
+   },
+   "K2 channel": {
+    "slope (temperature bias)": -0.1851655778788049,
+    "Var_p8 delta (shift removed)": 0.35876235306281395,
+    "share of it explained by the slope": 0.34831408357318383,
+    "share of Var from top-4 key channels": 0.4888911643787936,
+    "KL": 0.19556794279347917,
+    "KL predicted 1/2 Var": 0.17938117653140698,
+    "TV": 0.2240937223401081,
+    "TV share pos 0": 0.007057994115551527,
+    "TV share int8 top-1": 0.2477768239190836,
+    "TV share recent 32": 0.7463474820150217,
+    "Spearman key error size vs weight gain": -0.35362423999973586,
+    "entropy int8 -> quant": [
+     2.967273009419557,
+     3.2626631606170804
+    ]
+   },
+   "K2 pre": {
+    "slope (temperature bias)": -0.17571118905651262,
+    "Var_p8 delta (shift removed)": 0.23800580559796328,
+    "share of it explained by the slope": 0.4468918452639482,
+    "share of Var from top-4 key channels": 0.266052952696746,
+    "KL": 0.12937628730612508,
+    "KL predicted 1/2 Var": 0.11900290279898164,
+    "TV": 0.1874589254259579,
+    "TV share pos 0": 0.008121710141354092,
+    "TV share int8 top-1": 0.25250391035703984,
+    "TV share recent 32": 0.7012374121092297,
+    "Spearman key error size vs weight gain": -0.37746479568473207,
+    "entropy int8 -> quant": [
+     2.967273009419557,
+     3.2941884417506455
+    ]
+   },
+   "K2 rot": {
+    "slope (temperature bias)": -0.20075357251269704,
+    "Var_p8 delta (shift removed)": 0.2029172495387131,
+    "share of it explained by the slope": 0.4858284293531039,
+    "share of Var from top-4 key channels": 0.2151807405035514,
+    "KL": 0.11188213359540869,
+    "KL predicted 1/2 Var": 0.10145862476935655,
+    "TV": 0.17854234847990194,
+    "TV share pos 0": 0.008350777863599598,
+    "TV share int8 top-1": 0.23700771311889593,
+    "TV share recent 32": 0.7017985571372243,
+    "Spearman key error size vs weight gain": -0.32344340968381335,
+    "entropy int8 -> quant": [
+     2.967273009419557,
+     3.3320023489596147
+    ]
+   },
+   "K1 x pi/2": {
+    "slope (temperature bias)": -0.14544164621556266,
+    "Var_p8 delta (shift removed)": 0.7361969616192523,
+    "share of it explained by the slope": 0.2041264172249574,
+    "share of Var from top-4 key channels": 0.31791267096729,
+    "KL": 0.41306744085371927,
+    "KL predicted 1/2 Var": 0.36809848080962615,
+    "TV": 0.3259701250199912,
+    "TV share pos 0": 0.009111340334550789,
+    "TV share int8 top-1": 0.17696738035364853,
+    "TV share recent 32": 0.6265915654016462,
+    "Spearman key error size vs weight gain": -0.2599104023403715,
+    "entropy int8 -> quant": [
+     2.967273009419557,
+     3.1075718909813626
+    ]
+   },
+   "K1": {
+    "slope (temperature bias)": -0.45455180132474726,
+    "Var_p8 delta (shift removed)": 0.6614713798578111,
+    "share of it explained by the slope": 0.6410059107855871,
+    "share of Var from top-4 key channels": 0.3778255539943125,
+    "KL": 0.4737997993150949,
+    "KL predicted 1/2 Var": 0.33073568992890556,
+    "TV": 0.3693450547392215,
+    "TV share pos 0": 0.00931382235624466,
+    "TV share int8 top-1": 0.2163095660819526,
+    "TV share recent 32": 0.5720591637808495,
+    "Spearman key error size vs weight gain": -0.43737776042593784,
+    "entropy int8 -> quant": [
+     2.967273009419557,
+     3.876730573339423
+    ]
+   }
+  },
+  {
+   "D1": {
+    "K pre-RoPE": {
+     "max/median RMS": [
+      1.9295036056869237,
+      2.3534518579236425,
+      3.6499641757841235,
+      2.74722126820314,
+      10.401987596380701,
+      2.678985868447937
+     ],
+     "top4 same": [
+      1.0,
+      0.75,
+      1.0,
+      1.0,
+      1.0,
+      0.75
+     ]
+    },
+    "K post-RoPE": {
+     "max/median RMS": [
+      1.6388572510614203,
+      1.8109316374962505,
+      2.86514706773866,
+      2.2531617107985835,
+      7.46012822805036,
+      2.0940438866744833
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "Q post-RoPE": {
+     "max/median RMS": [
+      1.5844630723502635,
+      1.6411259289055713,
+      2.2147523488705776,
+      1.6966460867832562,
+      4.3870622433216875,
+      1.725891668522736
+     ],
+     "top4 same": [
+      1.0,
+      0.75,
+      1.0,
+      1.0,
+      1.0,
+      0.75
+     ]
+    },
+    "V": {
+     "max/median RMS": [
+      1.4630643544782156,
+      1.1896703644770772,
+      1.2277594154659075,
+      1.1827674238637715,
+      1.1748570932606492,
+      1.1990255498699924
+     ],
+     "top4 same": [
+      0.75,
+      1.0,
+      1.0,
+      0.5,
+      0.25,
+      0.5
+     ]
+    }
+   },
+   "K4": {
+    "slope (temperature bias)": 0.00022993051646728283,
+    "Var_p8 delta (shift removed)": 0.028650769046841346,
+    "share of it explained by the slope": 0.12562662014639014,
+    "share of Var from top-4 key channels": 0.22022228601967736,
+    "KL": 0.014314216840835937,
+    "KL predicted 1/2 Var": 0.014325384523420673,
+    "TV": 0.05869159935452291,
+    "TV share pos 0": 0.008932214492450281,
+    "TV share int8 top-1": 0.19535228143885466,
+    "TV share recent 32": 0.6739149354141267,
+    "Spearman key error size vs weight gain": -0.05769795564652574,
+    "entropy int8 -> quant": [
+     3.0482482165826044,
+     3.0380664055623425
+    ]
+   },
+   "K3": {
+    "slope (temperature bias)": -0.007911063713017998,
+    "Var_p8 delta (shift removed)": 0.15256616835298614,
+    "share of it explained by the slope": 0.14087179425957563,
+    "share of Var from top-4 key channels": 0.21602159920654107,
+    "KL": 0.07690019890523257,
+    "KL predicted 1/2 Var": 0.07628308417649307,
+    "TV": 0.13594139934651803,
+    "TV share pos 0": 0.009033282993306335,
+    "TV share int8 top-1": 0.19599093930274106,
+    "TV share recent 32": 0.670321462141178,
+    "Spearman key error size vs weight gain": -0.11019324421071272,
+    "entropy int8 -> quant": [
+     3.0482482165826044,
+     3.0084895321893415
+    ]
+   },
+   "K3 channel": {
+    "slope (temperature bias)": 0.004041921324654824,
+    "Var_p8 delta (shift removed)": 0.08125743120235353,
+    "share of it explained by the slope": 0.09786560303080372,
+    "share of Var from top-4 key channels": 0.4515957393993275,
+    "KL": 0.04042455158954352,
+    "KL predicted 1/2 Var": 0.040628715601176764,
+    "TV": 0.10269486626934968,
+    "TV share pos 0": 0.010170959014100776,
+    "TV share int8 top-1": 0.17321229626862283,
+    "TV share recent 32": 0.6532389230961823,
+    "Spearman key error size vs weight gain": -0.045107350686092874,
+    "entropy int8 -> quant": [
+     3.0482482165826044,
+     3.0178885831191415
+    ]
+   },
+   "K3 pre": {
+    "slope (temperature bias)": 0.004199234899258072,
+    "Var_p8 delta (shift removed)": 0.058320921123674964,
+    "share of it explained by the slope": 0.09301586664941552,
+    "share of Var from top-4 key channels": 0.2653345693346858,
+    "KL": 0.029098348319966695,
+    "KL predicted 1/2 Var": 0.029160460561837482,
+    "TV": 0.08894288044529237,
+    "TV share pos 0": 0.011037507728425912,
+    "TV share int8 top-1": 0.16972469131682036,
+    "TV share recent 32": 0.6136993763692451,
+    "Spearman key error size vs weight gain": -0.01818564029190266,
+    "entropy int8 -> quant": [
+     3.0482482165826044,
+     3.0248137742589893
+    ]
+   },
+   "K3 rot": {
+    "slope (temperature bias)": 0.0014697623534660885,
+    "Var_p8 delta (shift removed)": 0.08622752478030404,
+    "share of it explained by the slope": 0.1304961202824756,
+    "share of Var from top-4 key channels": 0.18975928539343773,
+    "KL": 0.04298745161360488,
+    "KL predicted 1/2 Var": 0.04311376239015202,
+    "TV": 0.10736285034311138,
+    "TV share pos 0": 0.009267897571053589,
+    "TV share int8 top-1": 0.19784665939823562,
+    "TV share recent 32": 0.6444762385912368,
+    "Spearman key error size vs weight gain": -0.03127095180420189,
+    "entropy int8 -> quant": [
+     3.0482482165826044,
+     3.0146975645097474
+    ]
+   },
+   "K2": {
+    "slope (temperature bias)": -0.2990993760185078,
+    "Var_p8 delta (shift removed)": 0.3251343639673313,
+    "share of it explained by the slope": 0.612735443250533,
+    "share of Var from top-4 key channels": 0.41900309029489863,
+    "KL": 0.2122775333209187,
+    "KL predicted 1/2 Var": 0.16256718198366565,
+    "TV": 0.24000009369304315,
+    "TV share pos 0": 0.009783120698048108,
+    "TV share int8 top-1": 0.21254977100803338,
+    "TV share recent 32": 0.5482920204241073,
+    "Spearman key error size vs weight gain": -0.4740298473583633,
+    "entropy int8 -> quant": [
+     3.0482482165826044,
+     3.6154960576642656
+    ]
+   },
+   "K2 channel": {
+    "slope (temperature bias)": -0.22141306738887973,
+    "Var_p8 delta (shift removed)": 0.38071997046139994,
+    "share of it explained by the slope": 0.4238754864160774,
+    "share of Var from top-4 key channels": 0.371525283584101,
+    "KL": 0.21250286902748666,
+    "KL predicted 1/2 Var": 0.19035998523069997,
+    "TV": 0.23317595721610812,
+    "TV share pos 0": 0.008709431849998235,
+    "TV share int8 top-1": 0.244923678333456,
+    "TV share recent 32": 0.6410218606906886,
+    "Spearman key error size vs weight gain": -0.45879579395793335,
+    "entropy int8 -> quant": [
+     3.0482482165826044,
+     3.419318702787171
+    ]
+   },
+   "K2 pre": {
+    "slope (temperature bias)": -0.22100241179178148,
+    "Var_p8 delta (shift removed)": 0.29690086393928805,
+    "share of it explained by the slope": 0.5101780352165859,
+    "share of Var from top-4 key channels": 0.20047257658056414,
+    "KL": 0.1677012862929061,
+    "KL predicted 1/2 Var": 0.14845043196964403,
+    "TV": 0.2085291863158604,
+    "TV share pos 0": 0.009710440531113397,
+    "TV share int8 top-1": 0.2495555154567232,
+    "TV share recent 32": 0.5973997053909758,
+    "Spearman key error size vs weight gain": -0.5017429931192902,
+    "entropy int8 -> quant": [
+     3.0482482165826044,
+     3.449433710663984
+    ]
+   },
+   "K2 rot": {
+    "slope (temperature bias)": -0.20416345988643791,
+    "Var_p8 delta (shift removed)": 0.20484967301221174,
+    "share of it explained by the slope": 0.475185607442978,
+    "share of Var from top-4 key channels": 0.1582429899511129,
+    "KL": 0.11151499728368572,
+    "KL predicted 1/2 Var": 0.10242483650610587,
+    "TV": 0.17774611155676961,
+    "TV share pos 0": 0.010271853212654735,
+    "TV share int8 top-1": 0.2268500930220449,
+    "TV share recent 32": 0.6155895670918989,
+    "Spearman key error size vs weight gain": -0.35903610955813153,
+    "entropy int8 -> quant": [
+     3.0482482165826044,
+     3.3952279778052104
+    ]
+   },
+   "K1 x pi/2": {
+    "slope (temperature bias)": -0.11641498445813893,
+    "Var_p8 delta (shift removed)": 0.7433572362547991,
+    "share of it explained by the slope": 0.18994542306875928,
+    "share of Var from top-4 key channels": 0.23375879828156126,
+    "KL": 0.4068081718748398,
+    "KL predicted 1/2 Var": 0.37167861812739955,
+    "TV": 0.3247317556976074,
+    "TV share pos 0": 0.009899980612619588,
+    "TV share int8 top-1": 0.17380484270700206,
+    "TV share recent 32": 0.579635976680138,
+    "Spearman key error size vs weight gain": -0.26210328063285837,
+    "entropy int8 -> quant": [
+     3.0482482165826044,
+     3.095282065166402
+    ]
+   },
+   "K1": {
+    "slope (temperature bias)": -0.43607285452414535,
+    "Var_p8 delta (shift removed)": 0.6408360330965874,
+    "share of it explained by the slope": 0.6191752407610347,
+    "share of Var from top-4 key channels": 0.28703006986450286,
+    "KL": 0.4313926847093808,
+    "KL predicted 1/2 Var": 0.3204180165482937,
+    "TV": 0.3502254419895694,
+    "TV share pos 0": 0.010413647059875943,
+    "TV share int8 top-1": 0.21285021011239674,
+    "TV share recent 32": 0.5381515989935051,
+    "Spearman key error size vs weight gain": -0.4715495287902403,
+    "entropy int8 -> quant": [
+     3.0482482165826044,
+     3.8457517995423913
+    ]
+   }
+  },
+  {
+   "D1": {
+    "K pre-RoPE": {
+     "max/median RMS": [
+      4.0210944546110605,
+      6.699845314868051,
+      3.100839240037277,
+      6.329922168221943,
+      8.712154994881612,
+      5.430141918352297
+     ],
+     "top4 same": [
+      1.0,
+      0.75,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "K post-RoPE": {
+     "max/median RMS": [
+      3.0983264491525024,
+      4.681338595212158,
+      2.5246873433271744,
+      4.428783095159802,
+      6.46316302547533,
+      3.8400760496346407
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      0.75,
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "Q post-RoPE": {
+     "max/median RMS": [
+      2.165536379247487,
+      2.8277614036783945,
+      1.9834631294522524,
+      2.589537130242678,
+      3.379285581891047,
+      2.6732050908184415
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      0.5,
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "V": {
+     "max/median RMS": [
+      1.1622352173692039,
+      1.3009564211979319,
+      1.1852381687972648,
+      1.1781677017267553,
+      1.4115008207503612,
+      1.2533299990770144
+     ],
+     "top4 same": [
+      0.75,
+      0.5,
+      0.25,
+      0.75,
+      0.75,
+      0.75
+     ]
+    }
+   },
+   "K4": {
+    "slope (temperature bias)": -0.00047098016835143443,
+    "Var_p8 delta (shift removed)": 0.04303262442927206,
+    "share of it explained by the slope": 0.14921359679890944,
+    "share of Var from top-4 key channels": 0.2501111306522566,
+    "KL": 0.021500319082290505,
+    "KL predicted 1/2 Var": 0.02151631221463603,
+    "TV": 0.0731089359868122,
+    "TV share pos 0": 0.009259474998803838,
+    "TV share int8 top-1": 0.22181909652687595,
+    "TV share recent 32": 0.7701590300230438,
+    "Spearman key error size vs weight gain": -0.054782638241440466,
+    "entropy int8 -> quant": [
+     2.811861117933728,
+     2.7984860921557573
+    ]
+   },
+   "K3": {
+    "slope (temperature bias)": -0.0061786603063437445,
+    "Var_p8 delta (shift removed)": 0.2276600225205501,
+    "share of it explained by the slope": 0.15465246920800213,
+    "share of Var from top-4 key channels": 0.24393817721415886,
+    "KL": 0.11320462008630863,
+    "KL predicted 1/2 Var": 0.11383001126027505,
+    "TV": 0.16706926045824827,
+    "TV share pos 0": 0.009477975654550238,
+    "TV share int8 top-1": 0.21989036016132898,
+    "TV share recent 32": 0.7676771566322277,
+    "Spearman key error size vs weight gain": -0.1409893568247745,
+    "entropy int8 -> quant": [
+     2.811861117933728,
+     2.759657520056706
+    ]
+   },
+   "K3 channel": {
+    "slope (temperature bias)": 0.004677233846417788,
+    "Var_p8 delta (shift removed)": 0.08321701141618522,
+    "share of it explained by the slope": 0.13070044945143577,
+    "share of Var from top-4 key channels": 0.542616391603473,
+    "KL": 0.04145043671257356,
+    "KL predicted 1/2 Var": 0.04160850570809261,
+    "TV": 0.10393514437809795,
+    "TV share pos 0": 0.010457723750748516,
+    "TV share int8 top-1": 0.20600179560863008,
+    "TV share recent 32": 0.7439922396173354,
+    "Spearman key error size vs weight gain": -0.04344487106996996,
+    "entropy int8 -> quant": [
+     2.811861117933728,
+     2.7894720300766096
+    ]
+   },
+   "K3 pre": {
+    "slope (temperature bias)": 0.004465065795347527,
+    "Var_p8 delta (shift removed)": 0.05037837501199399,
+    "share of it explained by the slope": 0.11399148968000072,
+    "share of Var from top-4 key channels": 0.28428101580712634,
+    "KL": 0.025160795621527527,
+    "KL predicted 1/2 Var": 0.025189187505996996,
+    "TV": 0.08241643268952803,
+    "TV share pos 0": 0.01253684265160199,
+    "TV share int8 top-1": 0.19556282832943897,
+    "TV share recent 32": 0.7046192460964877,
+    "Spearman key error size vs weight gain": -0.01902227712565493,
+    "entropy int8 -> quant": [
+     2.811861117933728,
+     2.795440891757716
+    ]
+   },
+   "K3 rot": {
+    "slope (temperature bias)": 0.0023342687160737437,
+    "Var_p8 delta (shift removed)": 0.1063384401278299,
+    "share of it explained by the slope": 0.15423820456972115,
+    "share of Var from top-4 key channels": 0.2594461182392007,
+    "KL": 0.053184106247626345,
+    "KL predicted 1/2 Var": 0.05316922006391495,
+    "TV": 0.11774578907951923,
+    "TV share pos 0": 0.009473946253463867,
+    "TV share int8 top-1": 0.22429451096854347,
+    "TV share recent 32": 0.7501545878896442,
+    "Spearman key error size vs weight gain": -0.03516018187060238,
+    "entropy int8 -> quant": [
+     2.811861117933728,
+     2.779188897251135
+    ]
+   },
+   "K2": {
+    "slope (temperature bias)": -0.32313229141202127,
+    "Var_p8 delta (shift removed)": 0.3807501394002085,
+    "share of it explained by the slope": 0.6400058900121681,
+    "share of Var from top-4 key channels": 0.5266264278906818,
+    "KL": 0.2799239239055865,
+    "KL predicted 1/2 Var": 0.19037506970010426,
+    "TV": 0.27834266568887667,
+    "TV share pos 0": 0.00883686874008845,
+    "TV share int8 top-1": 0.23773980891487698,
+    "TV share recent 32": 0.5839483813836848,
+    "Spearman key error size vs weight gain": -0.29486334887585447,
+    "entropy int8 -> quant": [
+     2.811861117933728,
+     3.5815627115881616
+    ]
+   },
+   "K2 channel": {
+    "slope (temperature bias)": -0.1869666748492142,
+    "Var_p8 delta (shift removed)": 0.40053442929187233,
+    "share of it explained by the slope": 0.34929078877374353,
+    "share of Var from top-4 key channels": 0.5073121523343213,
+    "KL": 0.22129035903822242,
+    "KL predicted 1/2 Var": 0.20026721464593616,
+    "TV": 0.23987534589434004,
+    "TV share pos 0": 0.008993306809560715,
+    "TV share int8 top-1": 0.25847590852391444,
+    "TV share recent 32": 0.7401800582282397,
+    "Spearman key error size vs weight gain": -0.33392286490609646,
+    "entropy int8 -> quant": [
+     2.811861117933728,
+     3.1083729113868976
+    ]
+   },
+   "K2 pre": {
+    "slope (temperature bias)": -0.18266243489632938,
+    "Var_p8 delta (shift removed)": 0.2580256919669558,
+    "share of it explained by the slope": 0.437762335791516,
+    "share of Var from top-4 key channels": 0.26136706244928776,
+    "KL": 0.14208897876540047,
+    "KL predicted 1/2 Var": 0.1290128459834779,
+    "TV": 0.19458767202200616,
+    "TV share pos 0": 0.010545269504649561,
+    "TV share int8 top-1": 0.2612651673772934,
+    "TV share recent 32": 0.6904118023965095,
+    "Spearman key error size vs weight gain": -0.3109847372283379,
+    "entropy int8 -> quant": [
+     2.811861117933728,
+     3.1422031377611104
+    ]
+   },
+   "K2 rot": {
+    "slope (temperature bias)": -0.21171902476989174,
+    "Var_p8 delta (shift removed)": 0.22917832272200747,
+    "share of it explained by the slope": 0.4762523701099115,
+    "share of Var from top-4 key channels": 0.2138547876921359,
+    "KL": 0.12891520543271795,
+    "KL predicted 1/2 Var": 0.11458916136100374,
+    "TV": 0.19083657476952465,
+    "TV share pos 0": 0.010798099775539334,
+    "TV share int8 top-1": 0.24980006862213278,
+    "TV share recent 32": 0.7091671485951933,
+    "Spearman key error size vs weight gain": -0.2983590186982512,
+    "entropy int8 -> quant": [
+     2.811861117933728,
+     3.1995749774656557
+    ]
+   },
+   "K1 x pi/2": {
+    "slope (temperature bias)": -0.13055335554390107,
+    "Var_p8 delta (shift removed)": 0.8464796648147935,
+    "share of it explained by the slope": 0.21120058615933357,
+    "share of Var from top-4 key channels": 0.28936270586412993,
+    "KL": 0.4867145380265834,
+    "KL predicted 1/2 Var": 0.42323983240739677,
+    "TV": 0.35136601836659126,
+    "TV share pos 0": 0.009683068654821133,
+    "TV share int8 top-1": 0.2014484929716625,
+    "TV share recent 32": 0.6278947783774411,
+    "Spearman key error size vs weight gain": -0.2551294001248414,
+    "entropy int8 -> quant": [
+     2.811861117933728,
+     2.9920933082983714
+    ]
+   },
+   "K1": {
+    "slope (temperature bias)": -0.4450736211064117,
+    "Var_p8 delta (shift removed)": 0.7209626805564231,
+    "share of it explained by the slope": 0.6246550563307551,
+    "share of Var from top-4 key channels": 0.3676280039535737,
+    "KL": 0.5439485822060088,
+    "KL predicted 1/2 Var": 0.36048134027821155,
+    "TV": 0.3914272477056189,
+    "TV share pos 0": 0.009657630292763123,
+    "TV share int8 top-1": 0.2362851486235916,
+    "TV share recent 32": 0.5793197330745411,
+    "Spearman key error size vs weight gain": -0.38840179890787246,
+    "entropy int8 -> quant": [
+     2.811861117933728,
+     3.807516626748998
+    ]
+   }
+  },
+  {
+   "D1": {
+    "K pre-RoPE": {
+     "max/median RMS": [
+      8.408777930060365,
+      5.913260751778039,
+      8.636054606593225,
+      9.781729584954972,
+      12.578431867573647,
+      13.89324211012058
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "K post-RoPE": {
+     "max/median RMS": [
+      6.215810137059294,
+      4.285753689679133,
+      6.508272555995803,
+      6.871850821437287,
+      7.864725358573402,
+      9.29854708434134
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "Q post-RoPE": {
+     "max/median RMS": [
+      3.0463705482930346,
+      2.365301379271793,
+      2.668263513161109,
+      3.703733901697761,
+      4.954766273716045,
+      5.159136544750633
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      0.75,
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "V": {
+     "max/median RMS": [
+      1.149844174248762,
+      1.3057315894305925,
+      1.176539322863175,
+      1.1609139763177272,
+      1.2147071908089968,
+      1.2824680058932403
+     ],
+     "top4 same": [
+      0.75,
+      0.75,
+      0.75,
+      0.5,
+      1.0,
+      0.75
+     ]
+    }
+   },
+   "K4": {
+    "slope (temperature bias)": -0.0026600121629485438,
+    "Var_p8 delta (shift removed)": 0.1006700266760769,
+    "share of it explained by the slope": 0.19584016051697317,
+    "share of Var from top-4 key channels": 0.2685383072238133,
+    "KL": 0.05070751702821959,
+    "KL predicted 1/2 Var": 0.05033501333803845,
+    "TV": 0.10652853179967717,
+    "TV share pos 0": 0.007650893849938169,
+    "TV share int8 top-1": 0.2871049576348489,
+    "TV share recent 32": 0.9144283670238845,
+    "Spearman key error size vs weight gain": -0.06798378132725312,
+    "entropy int8 -> quant": [
+     1.9837562718443158,
+     1.974859955265804
+    ]
+   },
+   "K3": {
+    "slope (temperature bias)": -0.020009946205839457,
+    "Var_p8 delta (shift removed)": 0.5123769876613496,
+    "share of it explained by the slope": 0.21203660803149305,
+    "share of Var from top-4 key channels": 0.24193311827614852,
+    "KL": 0.26768839623467083,
+    "KL predicted 1/2 Var": 0.2561884938306748,
+    "TV": 0.24242167035255105,
+    "TV share pos 0": 0.008309370363003955,
+    "TV share int8 top-1": 0.28571011934068985,
+    "TV share recent 32": 0.9103256187824684,
+    "Spearman key error size vs weight gain": -0.14667803812939717,
+    "entropy int8 -> quant": [
+     1.9837562718443158,
+     1.9587168771083245
+    ]
+   },
+   "K3 channel": {
+    "slope (temperature bias)": 0.0014249913603529432,
+    "Var_p8 delta (shift removed)": 0.15546529743547777,
+    "share of it explained by the slope": 0.18048863610167165,
+    "share of Var from top-4 key channels": 0.7417172700295195,
+    "KL": 0.07781830889245503,
+    "KL predicted 1/2 Var": 0.07773264871773888,
+    "TV": 0.12909084106752694,
+    "TV share pos 0": 0.00589900696776088,
+    "TV share int8 top-1": 0.2767095506983297,
+    "TV share recent 32": 0.8988852865814926,
+    "Spearman key error size vs weight gain": -0.04479814015520617,
+    "entropy int8 -> quant": [
+     1.9837562718443158,
+     1.9684369584649337
+    ]
+   },
+   "K3 pre": {
+    "slope (temperature bias)": 0.0024935722330529436,
+    "Var_p8 delta (shift removed)": 0.05056446204337612,
+    "share of it explained by the slope": 0.14722039264339204,
+    "share of Var from top-4 key channels": 0.34671053486876036,
+    "KL": 0.025431072236299885,
+    "KL predicted 1/2 Var": 0.02528223102168806,
+    "TV": 0.07691092237199798,
+    "TV share pos 0": 0.0086484202554589,
+    "TV share int8 top-1": 0.2566132384883648,
+    "TV share recent 32": 0.8576196945474607,
+    "Spearman key error size vs weight gain": -0.005932628915040069,
+    "entropy int8 -> quant": [
+     1.9837562718443158,
+     1.9814982388364648
+    ]
+   },
+   "K3 rot": {
+    "slope (temperature bias)": 0.005353033260707737,
+    "Var_p8 delta (shift removed)": 0.1496529536527273,
+    "share of it explained by the slope": 0.19409805376475253,
+    "share of Var from top-4 key channels": 0.2997193096320795,
+    "KL": 0.07479660818489484,
+    "KL predicted 1/2 Var": 0.07482647682636365,
+    "TV": 0.13313495390034424,
+    "TV share pos 0": 0.006699795079849827,
+    "TV share int8 top-1": 0.2872985115456079,
+    "TV share recent 32": 0.9096863522534865,
+    "Spearman key error size vs weight gain": -0.02133579920866511,
+    "entropy int8 -> quant": [
+     1.9837562718443158,
+     1.9576750563617726
+    ]
+   },
+   "K2": {
+    "slope (temperature bias)": -0.3410843756503366,
+    "Var_p8 delta (shift removed)": 0.48073522626928417,
+    "share of it explained by the slope": 0.6619559484063061,
+    "share of Var from top-4 key channels": 0.5953620654862727,
+    "KL": 0.4969931328298534,
+    "KL predicted 1/2 Var": 0.24036761313464208,
+    "TV": 0.36840283727895606,
+    "TV share pos 0": 0.007049868090691695,
+    "TV share int8 top-1": 0.28687324925996105,
+    "TV share recent 32": 0.6191874182267677,
+    "Spearman key error size vs weight gain": -0.3784068973026331,
+    "entropy int8 -> quant": [
+     1.9837562718443158,
+     3.1707713640381003
+    ]
+   },
+   "K2 channel": {
+    "slope (temperature bias)": -0.14551250773117513,
+    "Var_p8 delta (shift removed)": 0.8364153985114327,
+    "share of it explained by the slope": 0.2420554553398262,
+    "share of Var from top-4 key channels": 0.8014997466048425,
+    "KL": 0.45423361107671983,
+    "KL predicted 1/2 Var": 0.4182076992557163,
+    "TV": 0.30562913151334503,
+    "TV share pos 0": 0.0051249548863815325,
+    "TV share int8 top-1": 0.3020501848119408,
+    "TV share recent 32": 0.8786048299736385,
+    "Spearman key error size vs weight gain": -0.22949112610007788,
+    "entropy int8 -> quant": [
+     1.9837562718443158,
+     2.257189345343089
+    ]
+   },
+   "K2 pre": {
+    "slope (temperature bias)": -0.1616148053183249,
+    "Var_p8 delta (shift removed)": 0.30991243381037475,
+    "share of it explained by the slope": 0.3626949996941593,
+    "share of Var from top-4 key channels": 0.3735204852644586,
+    "KL": 0.18071457926150686,
+    "KL predicted 1/2 Var": 0.15495621690518738,
+    "TV": 0.21122877298650203,
+    "TV share pos 0": 0.008175287470920424,
+    "TV share int8 top-1": 0.3070987191614715,
+    "TV share recent 32": 0.8005472094522282,
+    "Spearman key error size vs weight gain": -0.40647126628855457,
+    "entropy int8 -> quant": [
+     1.9837562718443158,
+     2.3943697453901063
+    ]
+   },
+   "K2 rot": {
+    "slope (temperature bias)": -0.2090979094011965,
+    "Var_p8 delta (shift removed)": 0.2795132626317763,
+    "share of it explained by the slope": 0.445784694648114,
+    "share of Var from top-4 key channels": 0.2552061581034061,
+    "KL": 0.16981631809087433,
+    "KL predicted 1/2 Var": 0.13975663131588814,
+    "TV": 0.21499756784432456,
+    "TV share pos 0": 0.007517025295617321,
+    "TV share int8 top-1": 0.30770962733996127,
+    "TV share recent 32": 0.8595244312999667,
+    "Spearman key error size vs weight gain": -0.26938596819313254,
+    "entropy int8 -> quant": [
+     1.9837562718443158,
+     2.4397895693066403
+    ]
+   },
+   "K1 x pi/2": {
+    "slope (temperature bias)": -0.1574620469977943,
+    "Var_p8 delta (shift removed)": 1.086410102274293,
+    "share of it explained by the slope": 0.26497472842380065,
+    "share of Var from top-4 key channels": 0.3117993277052651,
+    "KL": 0.8023389510024335,
+    "KL predicted 1/2 Var": 0.5432050511371465,
+    "TV": 0.43031448033205155,
+    "TV share pos 0": 0.00803915963696141,
+    "TV share int8 top-1": 0.25963869912475535,
+    "TV share recent 32": 0.6760213546610049,
+    "Spearman key error size vs weight gain": -0.3347240879736828,
+    "entropy int8 -> quant": [
+     1.9837562718443158,
+     2.5111982214926827
+    ]
+   },
+   "K1": {
+    "slope (temperature bias)": -0.46220422613449863,
+    "Var_p8 delta (shift removed)": 0.8816810473724834,
+    "share of it explained by the slope": 0.6329334523204675,
+    "share of Var from top-4 key channels": 0.404461389316297,
+    "KL": 0.8993213953994552,
+    "KL predicted 1/2 Var": 0.4408405236862417,
+    "TV": 0.5038058074409182,
+    "TV share pos 0": 0.007873058559270391,
+    "TV share int8 top-1": 0.29081324955714394,
+    "TV share recent 32": 0.6243835514904011,
+    "Spearman key error size vs weight gain": -0.44419934390826205,
+    "entropy int8 -> quant": [
+     1.9837562718443158,
+     3.4872275060707816
+    ]
+   }
+  },
+  {
+   "D1": {
+    "K pre-RoPE": {
+     "max/median RMS": [
+      8.523087781096136,
+      6.733945975806006,
+      5.532624088363632,
+      7.272863186681868,
+      3.358562098874072,
+      10.100437169642557
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "K post-RoPE": {
+     "max/median RMS": [
+      5.978751274455203,
+      4.6361632582488745,
+      4.313340817386519,
+      5.260892740739637,
+      2.648328592513046,
+      7.060174918172951
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.75,
+      1.0
+     ]
+    },
+    "Q post-RoPE": {
+     "max/median RMS": [
+      2.9824736768894575,
+      2.4603160790371184,
+      2.2769744067917697,
+      2.5091330354584676,
+      1.6266929140830688,
+      3.733635804516412
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      0.75,
+      0.5,
+      1.0
+     ]
+    },
+    "V": {
+     "max/median RMS": [
+      1.251131154684802,
+      1.2107575193838223,
+      1.1475376450125814,
+      1.131380208007511,
+      1.2163594187133635,
+      1.137080964722902
+     ],
+     "top4 same": [
+      0.75,
+      0.5,
+      1.0,
+      0.5,
+      0.5,
+      0.5
+     ]
+    }
+   },
+   "K4": {
+    "slope (temperature bias)": 0.00019459758510182923,
+    "Var_p8 delta (shift removed)": 0.07381722445537628,
+    "share of it explained by the slope": 0.17081469425754114,
+    "share of Var from top-4 key channels": 0.21727447042623838,
+    "KL": 0.03677943966156019,
+    "KL predicted 1/2 Var": 0.03690861222768814,
+    "TV": 0.09376401524154344,
+    "TV share pos 0": 0.009228035821614453,
+    "TV share int8 top-1": 0.27429967813732176,
+    "TV share recent 32": 0.8473551308957987,
+    "Spearman key error size vs weight gain": -0.0543887923321236,
+    "entropy int8 -> quant": [
+     2.1740122917189373,
+     2.1598997220410845
+    ]
+   },
+   "K3": {
+    "slope (temperature bias)": -0.019504221660245707,
+    "Var_p8 delta (shift removed)": 0.3806564857339336,
+    "share of it explained by the slope": 0.180193892238943,
+    "share of Var from top-4 key channels": 0.20084235468492528,
+    "KL": 0.19146472485642635,
+    "KL predicted 1/2 Var": 0.1903282428669668,
+    "TV": 0.21263584698417862,
+    "TV share pos 0": 0.008941239358171442,
+    "TV share int8 top-1": 0.270393642316959,
+    "TV share recent 32": 0.8426491525381602,
+    "Spearman key error size vs weight gain": -0.15175253752978157,
+    "entropy int8 -> quant": [
+     2.1740122917189373,
+     2.1290915086722006
+    ]
+   },
+   "K3 channel": {
+    "slope (temperature bias)": 0.0037887874930462033,
+    "Var_p8 delta (shift removed)": 0.10996976924936464,
+    "share of it explained by the slope": 0.15104620842359684,
+    "share of Var from top-4 key channels": 0.5331298216736027,
+    "KL": 0.05466754845187841,
+    "KL predicted 1/2 Var": 0.05498488462468232,
+    "TV": 0.11602132485209771,
+    "TV share pos 0": 0.009113999729868795,
+    "TV share int8 top-1": 0.25747632166782625,
+    "TV share recent 32": 0.8209005676275519,
+    "Spearman key error size vs weight gain": -0.013460992929861196,
+    "entropy int8 -> quant": [
+     2.1740122917189373,
+     2.149830356912841
+    ]
+   },
+   "K3 pre": {
+    "slope (temperature bias)": 0.0033999750867855006,
+    "Var_p8 delta (shift removed)": 0.06213386280350307,
+    "share of it explained by the slope": 0.13528531676288835,
+    "share of Var from top-4 key channels": 0.27600962041976473,
+    "KL": 0.030999975910537467,
+    "KL predicted 1/2 Var": 0.031066931401751534,
+    "TV": 0.08853756812339977,
+    "TV share pos 0": 0.01049335322926219,
+    "TV share int8 top-1": 0.24665484870509857,
+    "TV share recent 32": 0.7826119368497593,
+    "Spearman key error size vs weight gain": 0.007199163257356179,
+    "entropy int8 -> quant": [
+     2.1740122917189373,
+     2.1603623740315685
+    ]
+   },
+   "K3 rot": {
+    "slope (temperature bias)": 0.0010748396167395181,
+    "Var_p8 delta (shift removed)": 0.15112294774162285,
+    "share of it explained by the slope": 0.1809861446679083,
+    "share of Var from top-4 key channels": 0.22476465593926565,
+    "KL": 0.07536927350447264,
+    "KL predicted 1/2 Var": 0.07556147387081143,
+    "TV": 0.13740222411666497,
+    "TV share pos 0": 0.008094579573817599,
+    "TV share int8 top-1": 0.2758414255934138,
+    "TV share recent 32": 0.8274944615833936,
+    "Spearman key error size vs weight gain": -0.026824303807782123,
+    "entropy int8 -> quant": [
+     2.1740122917189373,
+     2.141671583246981
+    ]
+   },
+   "K2": {
+    "slope (temperature bias)": -0.30859614347393505,
+    "Var_p8 delta (shift removed)": 0.44643143731648466,
+    "share of it explained by the slope": 0.6055358867623677,
+    "share of Var from top-4 key channels": 0.515012661048376,
+    "KL": 0.3594016383255052,
+    "KL predicted 1/2 Var": 0.22321571865824233,
+    "TV": 0.3146123022611662,
+    "TV share pos 0": 0.007941594347370688,
+    "TV share int8 top-1": 0.27463844330547615,
+    "TV share recent 32": 0.6244766781052579,
+    "Spearman key error size vs weight gain": -0.36167764758732734,
+    "entropy int8 -> quant": [
+     2.1740122917189373,
+     3.115547504965524
+    ]
+   },
+   "K2 channel": {
+    "slope (temperature bias)": -0.19617488973982458,
+    "Var_p8 delta (shift removed)": 0.5269175534737232,
+    "share of it explained by the slope": 0.32558306416959026,
+    "share of Var from top-4 key channels": 0.5451891168081172,
+    "KL": 0.291087041129099,
+    "KL predicted 1/2 Var": 0.2634587767368616,
+    "TV": 0.2738575318683689,
+    "TV share pos 0": 0.007090534303187249,
+    "TV share int8 top-1": 0.2990806521816513,
+    "TV share recent 32": 0.8098454779387352,
+    "Spearman key error size vs weight gain": -0.34085597548277147,
+    "entropy int8 -> quant": [
+     2.1740122917189373,
+     2.5306490498326704
+    ]
+   },
+   "K2 pre": {
+    "slope (temperature bias)": -0.19309791132316328,
+    "Var_p8 delta (shift removed)": 0.32590293981093427,
+    "share of it explained by the slope": 0.4136009307951597,
+    "share of Var from top-4 key channels": 0.2799572848851884,
+    "KL": 0.18469983398221274,
+    "KL predicted 1/2 Var": 0.16295146990546713,
+    "TV": 0.2221709039189011,
+    "TV share pos 0": 0.008415453765873576,
+    "TV share int8 top-1": 0.30487779521209374,
+    "TV share recent 32": 0.7643132478695569,
+    "Spearman key error size vs weight gain": -0.4170496641343596,
+    "entropy int8 -> quant": [
+     2.1740122917189373,
+     2.582169662262871
+    ]
+   },
+   "K2 rot": {
+    "slope (temperature bias)": -0.2113495818479854,
+    "Var_p8 delta (shift removed)": 0.2910113739684894,
+    "share of it explained by the slope": 0.4468561984819832,
+    "share of Var from top-4 key channels": 0.1961998129475345,
+    "KL": 0.16982675489194338,
+    "KL predicted 1/2 Var": 0.1455056869842447,
+    "TV": 0.21813340094123018,
+    "TV share pos 0": 0.008914777040998523,
+    "TV share int8 top-1": 0.29481998455023517,
+    "TV share recent 32": 0.784038810855556,
+    "Spearman key error size vs weight gain": -0.33284008185559816,
+    "entropy int8 -> quant": [
+     2.1740122917189373,
+     2.6315222404030743
+    ]
+   },
+   "K1 x pi/2": {
+    "slope (temperature bias)": -0.08481336563205638,
+    "Var_p8 delta (shift removed)": 1.1183735553969143,
+    "share of it explained by the slope": 0.21589565921428622,
+    "share of Var from top-4 key channels": 0.25624951664053225,
+    "KL": 0.6488270954049362,
+    "KL predicted 1/2 Var": 0.5591867776984571,
+    "TV": 0.388378538358618,
+    "TV share pos 0": 0.008488133952626997,
+    "TV share int8 top-1": 0.24005818673308757,
+    "TV share recent 32": 0.6793467040823006,
+    "Spearman key error size vs weight gain": -0.1952271624408291,
+    "entropy int8 -> quant": [
+     2.1740122917189373,
+     2.387120953878703
+    ]
+   },
+   "K1": {
+    "slope (temperature bias)": -0.41595463914063757,
+    "Var_p8 delta (shift removed)": 0.84418209203024,
+    "share of it explained by the slope": 0.5789973220261777,
+    "share of Var from top-4 key channels": 0.3524277764995392,
+    "KL": 0.6924067707984036,
+    "KL predicted 1/2 Var": 0.42209104601512,
+    "TV": 0.44196751164856424,
+    "TV share pos 0": 0.008320479422685672,
+    "TV share int8 top-1": 0.2737597933789445,
+    "TV share recent 32": 0.6202277265086368,
+    "Spearman key error size vs weight gain": -0.4164864921561505,
+    "entropy int8 -> quant": [
+     2.1740122917189373,
+     3.3967560131984316
+    ]
+   }
+  },
+  {
+   "D1": {
+    "K pre-RoPE": {
+     "max/median RMS": [
+      9.534449367179219,
+      7.422818787248979,
+      2.834887512922402,
+      9.696309359211504,
+      6.617009314096801,
+      6.846913883140729
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      0.75,
+      1.0,
+      1.0
+     ]
+    },
+    "K post-RoPE": {
+     "max/median RMS": [
+      6.800432181283725,
+      5.555780684042319,
+      2.3699512612422255,
+      7.207352491279081,
+      5.014922457316251,
+      4.872182190562818
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.75,
+      1.0
+     ]
+    },
+    "Q post-RoPE": {
+     "max/median RMS": [
+      3.1884475666410035,
+      3.0811966933852273,
+      1.3956420070329374,
+      3.3219533723520898,
+      2.5402282032711825,
+      2.4464788539118
+     ],
+     "top4 same": [
+      1.0,
+      0.75,
+      1.0,
+      1.0,
+      0.75,
+      1.0
+     ]
+    },
+    "V": {
+     "max/median RMS": [
+      1.2712450973141938,
+      1.203997474940741,
+      1.1582018107199274,
+      1.1871794423644095,
+      1.1609200866601894,
+      1.1795290888946854
+     ],
+     "top4 same": [
+      0.25,
+      0.75,
+      0.25,
+      0.5,
+      0.5,
+      0.5
+     ]
+    }
+   },
+   "K4": {
+    "slope (temperature bias)": 0.019433844877289892,
+    "Var_p8 delta (shift removed)": 0.08279477769955662,
+    "share of it explained by the slope": 0.1721601813234328,
+    "share of Var from top-4 key channels": 0.2155106895260717,
+    "KL": 0.04143677960811341,
+    "KL predicted 1/2 Var": 0.04139738884977831,
+    "TV": 0.10007038363618992,
+    "TV share pos 0": 0.00995968045176822,
+    "TV share int8 top-1": 0.2696033780177856,
+    "TV share recent 32": 0.8355391542097784,
+    "Spearman key error size vs weight gain": -0.052656220184435346,
+    "entropy int8 -> quant": [
+     2.194453704995131,
+     2.1796102854261337
+    ]
+   },
+   "K3": {
+    "slope (temperature bias)": -0.05293143380472591,
+    "Var_p8 delta (shift removed)": 0.43367069314990925,
+    "share of it explained by the slope": 0.18317004415428373,
+    "share of Var from top-4 key channels": 0.2071341992560082,
+    "KL": 0.21526370907678608,
+    "KL predicted 1/2 Var": 0.21683534657495462,
+    "TV": 0.22497964466045206,
+    "TV share pos 0": 0.009476832665917239,
+    "TV share int8 top-1": 0.26575419706917935,
+    "TV share recent 32": 0.8308762293965485,
+    "Spearman key error size vs weight gain": -0.1580620873684511,
+    "entropy int8 -> quant": [
+     2.194453704995131,
+     2.143988495462219
+    ]
+   },
+   "K3 channel": {
+    "slope (temperature bias)": 0.007821136991722249,
+    "Var_p8 delta (shift removed)": 0.12662423144794793,
+    "share of it explained by the slope": 0.14901441745852628,
+    "share of Var from top-4 key channels": 0.5423212485024321,
+    "KL": 0.06284565926222627,
+    "KL predicted 1/2 Var": 0.06331211572397397,
+    "TV": 0.12481210775962207,
+    "TV share pos 0": 0.010842236002762719,
+    "TV share int8 top-1": 0.2515965960118654,
+    "TV share recent 32": 0.7958528185296719,
+    "Spearman key error size vs weight gain": -0.0049251356808451465,
+    "entropy int8 -> quant": [
+     2.194453704995131,
+     2.1663192200274315
+    ]
+   },
+   "K3 pre": {
+    "slope (temperature bias)": 0.005789248086124514,
+    "Var_p8 delta (shift removed)": 0.07229461784347731,
+    "share of it explained by the slope": 0.13270803584651292,
+    "share of Var from top-4 key channels": 0.2739728017811884,
+    "KL": 0.03606663705097896,
+    "KL predicted 1/2 Var": 0.036147308921738654,
+    "TV": 0.0946134287512409,
+    "TV share pos 0": 0.013676121157141409,
+    "TV share int8 top-1": 0.2415505803978035,
+    "TV share recent 32": 0.7482370590042081,
+    "Spearman key error size vs weight gain": -0.011838393602727393,
+    "entropy int8 -> quant": [
+     2.194453704995131,
+     2.1769271187407044
+    ]
+   },
+   "K3 rot": {
+    "slope (temperature bias)": 0.005532592659634202,
+    "Var_p8 delta (shift removed)": 0.15476219770779828,
+    "share of it explained by the slope": 0.17685076847462544,
+    "share of Var from top-4 key channels": 0.22627241362921774,
+    "KL": 0.07677934939016569,
+    "KL predicted 1/2 Var": 0.07738109885389914,
+    "TV": 0.13913693315556647,
+    "TV share pos 0": 0.010652038322999489,
+    "TV share int8 top-1": 0.27194315287733106,
+    "TV share recent 32": 0.8130669810359943,
+    "Spearman key error size vs weight gain": -0.012225009299282103,
+    "entropy int8 -> quant": [
+     2.194453704995131,
+     2.1570673600007813
+    ]
+   },
+   "K2": {
+    "slope (temperature bias)": -0.3139101350284761,
+    "Var_p8 delta (shift removed)": 0.45791441982565045,
+    "share of it explained by the slope": 0.5963296328123806,
+    "share of Var from top-4 key channels": 0.4952241516079975,
+    "KL": 0.35189701662418615,
+    "KL predicted 1/2 Var": 0.22895720991282523,
+    "TV": 0.3130988261826566,
+    "TV share pos 0": 0.009043119916692256,
+    "TV share int8 top-1": 0.2774209384196644,
+    "TV share recent 32": 0.6231964367467802,
+    "Spearman key error size vs weight gain": -0.23219719111371273,
+    "entropy int8 -> quant": [
+     2.194453704995131,
+     3.107738078595533
+    ]
+   },
+   "K2 channel": {
+    "slope (temperature bias)": -0.2090021722101089,
+    "Var_p8 delta (shift removed)": 0.5578450491693074,
+    "share of it explained by the slope": 0.32452462495861,
+    "share of Var from top-4 key channels": 0.5466585232101592,
+    "KL": 0.3148977673783134,
+    "KL predicted 1/2 Var": 0.2789225245846537,
+    "TV": 0.2877186744776772,
+    "TV share pos 0": 0.00857859776567018,
+    "TV share int8 top-1": 0.29997980478774233,
+    "TV share recent 32": 0.797984909414212,
+    "Spearman key error size vs weight gain": -0.3068387443738186,
+    "entropy int8 -> quant": [
+     2.194453704995131,
+     2.57035600634543
+    ]
+   },
+   "K2 pre": {
+    "slope (temperature bias)": -0.20031543185006284,
+    "Var_p8 delta (shift removed)": 0.3385446158525485,
+    "share of it explained by the slope": 0.4239961099534463,
+    "share of Var from top-4 key channels": 0.27374889640148226,
+    "KL": 0.19501738953086037,
+    "KL predicted 1/2 Var": 0.16927230792627426,
+    "TV": 0.2340023195708837,
+    "TV share pos 0": 0.010466375477124657,
+    "TV share int8 top-1": 0.31394942806467707,
+    "TV share recent 32": 0.7542795866003699,
+    "Spearman key error size vs weight gain": -0.34666573170417525,
+    "entropy int8 -> quant": [
+     2.194453704995131,
+     2.6513013968493206
+    ]
+   },
+   "K2 rot": {
+    "slope (temperature bias)": -0.20827596592511055,
+    "Var_p8 delta (shift removed)": 0.3003430015133718,
+    "share of it explained by the slope": 0.42419473852919665,
+    "share of Var from top-4 key channels": 0.19008583328713166,
+    "KL": 0.17310611682007027,
+    "KL predicted 1/2 Var": 0.1501715007566859,
+    "TV": 0.2204670453458676,
+    "TV share pos 0": 0.010473973847703547,
+    "TV share int8 top-1": 0.29279329711188395,
+    "TV share recent 32": 0.7782794184349636,
+    "Spearman key error size vs weight gain": -0.31131854594596614,
+    "entropy int8 -> quant": [
+     2.194453704995131,
+     2.624890293365244
+    ]
+   },
+   "K1 x pi/2": {
+    "slope (temperature bias)": -0.048909269099996266,
+    "Var_p8 delta (shift removed)": 1.168270537075698,
+    "share of it explained by the slope": 0.20903870466765428,
+    "share of Var from top-4 key channels": 0.2475649120028622,
+    "KL": 0.6572671054235567,
+    "KL predicted 1/2 Var": 0.584135268537849,
+    "TV": 0.3943890201571537,
+    "TV share pos 0": 0.010135634874682184,
+    "TV share int8 top-1": 0.23960090199601913,
+    "TV share recent 32": 0.6791933671499423,
+    "Spearman key error size vs weight gain": -0.06090318070017417,
+    "entropy int8 -> quant": [
+     2.194453704995131,
+     2.370658599706969
+    ]
+   },
+   "K1": {
+    "slope (temperature bias)": -0.3930973813793339,
+    "Var_p8 delta (shift removed)": 0.8699249912053185,
+    "share of it explained by the slope": 0.5694960950624363,
+    "share of Var from top-4 key channels": 0.340505104896938,
+    "KL": 0.6858155249345128,
+    "KL predicted 1/2 Var": 0.43496249560265926,
+    "TV": 0.44340340570273434,
+    "TV share pos 0": 0.009630805939061021,
+    "TV share int8 top-1": 0.27650311180429626,
+    "TV share recent 32": 0.6197109139681408,
+    "Spearman key error size vs weight gain": -0.28353648161862466,
+    "entropy int8 -> quant": [
+     2.194453704995131,
+     3.3886229053539445
+    ]
+   }
+  },
+  {
+   "D1": {
+    "K pre-RoPE": {
+     "max/median RMS": [
+      5.252657298729678,
+      8.275741023208894,
+      5.550603031027224,
+      3.5907580498419027,
+      7.172268519220601,
+      3.0239680493823227
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      0.75,
+      1.0,
+      0.75,
+      1.0
+     ]
+    },
+    "K post-RoPE": {
+     "max/median RMS": [
+      3.97730688136238,
+      5.775838310919583,
+      3.992163294078032,
+      2.830438949214693,
+      5.220663583175787,
+      2.470409000039822
+     ],
+     "top4 same": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "Q post-RoPE": {
+     "max/median RMS": [
+      2.602985224642053,
+      3.5485145961765427,
+      2.641024227557565,
+      1.845579562519535,
+      3.2362973256717344,
+      1.542377486370591
+     ],
+     "top4 same": [
+      1.0,
+      0.75,
+      1.0,
+      1.0,
+      1.0,
+      0.75
+     ]
+    },
+    "V": {
+     "max/median RMS": [
+      1.1253786805757604,
+      1.249665137264612,
+      1.1729033376620912,
+      1.101330040719252,
+      1.1131692310821444,
+      1.0988828892703155
+     ],
+     "top4 same": [
+      0.75,
+      1.0,
+      0.75,
+      0.5,
+      0.5,
+      0.5
+     ]
+    }
+   },
+   "K4": {
+    "slope (temperature bias)": 0.06651932934127014,
+    "Var_p8 delta (shift removed)": 0.06367903160456456,
+    "share of it explained by the slope": 0.19658398703099078,
+    "share of Var from top-4 key channels": 0.20837854227267036,
+    "KL": 0.03186696371060675,
+    "KL predicted 1/2 Var": 0.03183951580228228,
+    "TV": 0.0857592251726138,
+    "TV share pos 0": 0.008865963022029615,
+    "TV share int8 top-1": 0.29302701642910883,
+    "TV share recent 32": 0.8049104674904225,
+    "Spearman key error size vs weight gain": -0.021499526661506833,
+    "entropy int8 -> quant": [
+     2.005527942191069,
+     1.99527948252867
+    ]
+   },
+   "K3": {
+    "slope (temperature bias)": -0.0192781539156501,
+    "Var_p8 delta (shift removed)": 0.3415690852731335,
+    "share of it explained by the slope": 0.20353288125500124,
+    "share of Var from top-4 key channels": 0.200730958298254,
+    "KL": 0.1725598901977893,
+    "KL predicted 1/2 Var": 0.17078454263656676,
+    "TV": 0.19773444185334568,
+    "TV share pos 0": 0.008964646470085363,
+    "TV share int8 top-1": 0.2881705594252595,
+    "TV share recent 32": 0.8020968615527063,
+    "Spearman key error size vs weight gain": -0.0772347905954983,
+    "entropy int8 -> quant": [
+     2.005527942191069,
+     1.9691392576598226
+    ]
+   },
+   "K3 channel": {
+    "slope (temperature bias)": -0.0016652366647266995,
+    "Var_p8 delta (shift removed)": 0.12411082516038886,
+    "share of it explained by the slope": 0.16302526252212923,
+    "share of Var from top-4 key channels": 0.5056552339922379,
+    "KL": 0.06184962030472321,
+    "KL predicted 1/2 Var": 0.06205541258019443,
+    "TV": 0.12084604944929973,
+    "TV share pos 0": 0.010109765715425692,
+    "TV share int8 top-1": 0.26991390293253503,
+    "TV share recent 32": 0.772593690263717,
+    "Spearman key error size vs weight gain": -0.011921315573881625,
+    "entropy int8 -> quant": [
+     2.005527942191069,
+     1.9867188269509342
+    ]
+   },
+   "K3 pre": {
+    "slope (temperature bias)": 0.04614381060828908,
+    "Var_p8 delta (shift removed)": 0.07719110296315554,
+    "share of it explained by the slope": 0.14618127592657026,
+    "share of Var from top-4 key channels": 0.26224616727705397,
+    "KL": 0.038543278434774904,
+    "KL predicted 1/2 Var": 0.03859555148157777,
+    "TV": 0.09586084226998749,
+    "TV share pos 0": 0.011434051706650973,
+    "TV share int8 top-1": 0.2583411173616005,
+    "TV share recent 32": 0.7314876426746637,
+    "Spearman key error size vs weight gain": 0.009633279780292357,
+    "entropy int8 -> quant": [
+     2.005527942191069,
+     1.9927627732321267
+    ]
+   },
+   "K3 rot": {
+    "slope (temperature bias)": 0.05817597767595215,
+    "Var_p8 delta (shift removed)": 0.16271354298490115,
+    "share of it explained by the slope": 0.1892178466485206,
+    "share of Var from top-4 key channels": 0.22091361175518673,
+    "KL": 0.08126073817424428,
+    "KL predicted 1/2 Var": 0.08135677149245057,
+    "TV": 0.13934653274906644,
+    "TV share pos 0": 0.008464185913822687,
+    "TV share int8 top-1": 0.2867975000066074,
+    "TV share recent 32": 0.7829976623072115,
+    "Spearman key error size vs weight gain": -0.001203390594120829,
+    "entropy int8 -> quant": [
+     2.005527942191069,
+     1.9779635531091118
+    ]
+   },
+   "K2": {
+    "slope (temperature bias)": -0.23214867059080252,
+    "Var_p8 delta (shift removed)": 0.4197823918280156,
+    "share of it explained by the slope": 0.5515340172497508,
+    "share of Var from top-4 key channels": 0.4979292647888896,
+    "KL": 0.30963572846694853,
+    "KL predicted 1/2 Var": 0.2098911959140078,
+    "TV": 0.28906856845289053,
+    "TV share pos 0": 0.008893800600036004,
+    "TV share int8 top-1": 0.2953864157353977,
+    "TV share recent 32": 0.6206120887177157,
+    "Spearman key error size vs weight gain": -0.24860537993039816,
+    "entropy int8 -> quant": [
+     2.005527942191069,
+     2.8280630917571514
+    ]
+   },
+   "K2 channel": {
+    "slope (temperature bias)": -0.21837265896053262,
+    "Var_p8 delta (shift removed)": 0.4970052837029071,
+    "share of it explained by the slope": 0.3426778630827302,
+    "share of Var from top-4 key channels": 0.4933723205358068,
+    "KL": 0.28539065592083035,
+    "KL predicted 1/2 Var": 0.24850264185145354,
+    "TV": 0.2696101614378923,
+    "TV share pos 0": 0.008142747123197205,
+    "TV share int8 top-1": 0.31300442328662875,
+    "TV share recent 32": 0.7758254771217481,
+    "Spearman key error size vs weight gain": -0.3498381601261257,
+    "entropy int8 -> quant": [
+     2.005527942191069,
+     2.394362619673159
+    ]
+   },
+   "K2 pre": {
+    "slope (temperature bias)": -0.15037180220345886,
+    "Var_p8 delta (shift removed)": 0.32976577061020795,
+    "share of it explained by the slope": 0.39604783560459056,
+    "share of Var from top-4 key channels": 0.2684625260112533,
+    "KL": 0.1871550568513151,
+    "KL predicted 1/2 Var": 0.16488288530510398,
+    "TV": 0.21969252980667342,
+    "TV share pos 0": 0.009709586424527496,
+    "TV share int8 top-1": 0.3085579009770164,
+    "TV share recent 32": 0.7287681709075154,
+    "Spearman key error size vs weight gain": -0.38029701341087635,
+    "entropy int8 -> quant": [
+     2.005527942191069,
+     2.4038520943197774
+    ]
+   },
+   "K2 rot": {
+    "slope (temperature bias)": -0.21647820330035183,
+    "Var_p8 delta (shift removed)": 0.3174108510529289,
+    "share of it explained by the slope": 0.45481077012891324,
+    "share of Var from top-4 key channels": 0.19497432632187506,
+    "KL": 0.18922674278585352,
+    "KL predicted 1/2 Var": 0.15870542552646444,
+    "TV": 0.22775747560921072,
+    "TV share pos 0": 0.009831944573890956,
+    "TV share int8 top-1": 0.310839454014882,
+    "TV share recent 32": 0.7484384039993963,
+    "Spearman key error size vs weight gain": -0.33630890738282493,
+    "entropy int8 -> quant": [
+     2.005527942191069,
+     2.5053134654347877
+    ]
+   },
+   "K1 x pi/2": {
+    "slope (temperature bias)": -0.2586831056141887,
+    "Var_p8 delta (shift removed)": 1.1803901151230836,
+    "share of it explained by the slope": 0.20160729853122483,
+    "share of Var from top-4 key channels": 0.22731380731590972,
+    "KL": 0.651077054286286,
+    "KL predicted 1/2 Var": 0.5901950575615418,
+    "TV": 0.3816675484208304,
+    "TV share pos 0": 0.009385024064330588,
+    "TV share int8 top-1": 0.254850549069826,
+    "TV share recent 32": 0.6632892426409573,
+    "Spearman key error size vs weight gain": 0.002248980979777502,
+    "entropy int8 -> quant": [
+     2.005527942191069,
+     2.1065539253446293
+    ]
+   },
+   "K1": {
+    "slope (temperature bias)": -0.5266435534296733,
+    "Var_p8 delta (shift removed)": 0.8340298135738303,
+    "share of it explained by the slope": 0.5420471219911432,
+    "share of Var from top-4 key channels": 0.3398294239477958,
+    "KL": 0.6604768125378329,
+    "KL predicted 1/2 Var": 0.41701490678691516,
+    "TV": 0.43229793250239235,
+    "TV share pos 0": 0.009253215912237146,
+    "TV share int8 top-1": 0.2955846822951827,
+    "TV share recent 32": 0.6143207317893745,
+    "Spearman key error size vs weight gain": -0.2970335461050782,
+    "entropy int8 -> quant": [
+     2.005527942191069,
+     3.1723897822770297
+    ]
+   }
+  }
+ ],
+ "mean over layers": {
+  "K4": {
+   "slope (temperature bias)": 0.010814987915446519,
+   "Var_p8 delta (shift removed)": 0.054208150641273004,
+   "share of it explained by the slope": 0.16235826866427727,
+   "share of Var from top-4 key channels": 0.2239640217029299,
+   "KL": 0.027137069544963165,
+   "KL predicted 1/2 Var": 0.027104075320636502,
+   "TV": 0.07621674831909253,
+   "TV share pos 0": 0.009065805081311851,
+   "TV share int8 top-1": 0.24179626000587034,
+   "TV share recent 32": 0.785192279370412,
+   "Spearman key error size vs weight gain": -0.04851536050278091,
+   "entropy int8 -> quant": [
+    2.6004872137858985,
+    2.589927877599508
+   ]
+  },
+  "K3": {
+   "slope (temperature bias)": -0.01590838035213501,
+   "Var_p8 delta (shift removed)": 0.2833763885787878,
+   "share of it explained by the slope": 0.171055993713557,
+   "share of Var from top-4 key channels": 0.21491041617102868,
+   "KL": 0.14329236526766131,
+   "KL predicted 1/2 Var": 0.1416881942893939,
+   "TV": 0.1740498181099095,
+   "TV share pos 0": 0.009051255754288254,
+   "TV share int8 top-1": 0.23942931166926848,
+   "TV share recent 32": 0.7819882397735652,
+   "Spearman key error size vs weight gain": -0.11995029766922685,
+   "entropy int8 -> quant": [
+    2.6004872137858985,
+    2.562209937407201
+   ]
+  },
+  "K3 channel": {
+   "slope (temperature bias)": 0.003340986754922803,
+   "Var_p8 delta (shift removed)": 0.09745676876500652,
+   "share of it explained by the slope": 0.13871597474776057,
+   "share of Var from top-4 key channels": 0.5107647173284247,
+   "KL": 0.04853962386583483,
+   "KL predicted 1/2 Var": 0.04872838438250326,
+   "TV": 0.10639116373521285,
+   "TV share pos 0": 0.009331214463077208,
+   "TV share int8 top-1": 0.223432381074007,
+   "TV share recent 32": 0.7575403308321067,
+   "Spearman key error size vs weight gain": -0.03218515366818391,
+   "entropy int8 -> quant": [
+    2.6004872137858985,
+    2.5781999864309153
+   ]
+  },
+  "K3 pre": {
+   "slope (temperature bias)": 0.008708818100621617,
+   "Var_p8 delta (shift removed)": 0.054203500391067846,
+   "share of it explained by the slope": 0.12223169153476793,
+   "share of Var from top-4 key channels": 0.2778365499003745,
+   "KL": 0.027077018670600833,
+   "KL predicted 1/2 Var": 0.027101750195533923,
+   "TV": 0.08173003475957989,
+   "TV share pos 0": 0.01087031906823814,
+   "TV share int8 top-1": 0.2124302376024827,
+   "TV share recent 32": 0.7177710779386026,
+   "Spearman key error size vs weight gain": -0.010637402863438566,
+   "entropy int8 -> quant": [
+    2.6004872137858985,
+    2.586143315872292
+   ]
+  },
+  "K3 rot": {
+   "slope (temperature bias)": 0.010071201298750217,
+   "Var_p8 delta (shift removed)": 0.11605328076205479,
+   "share of it explained by the slope": 0.1655773807151546,
+   "share of Var from top-4 key channels": 0.23072457287251585,
+   "KL": 0.057893038288872364,
+   "KL predicted 1/2 Var": 0.058026640381027395,
+   "TV": 0.11774745438391561,
+   "TV share pos 0": 0.008798101411846065,
+   "TV share int8 top-1": 0.2427755610804279,
+   "TV share recent 32": 0.7675787117068553,
+   "Spearman key error size vs weight gain": -0.024658404429525722,
+   "entropy int8 -> quant": [
+    2.6004872137858985,
+    2.5712046086594835
+   ]
+  },
+  "K2": {
+   "slope (temperature bias)": -0.29788123079299644,
+   "Var_p8 delta (shift removed)": 0.37512056172553215,
+   "share of it explained by the slope": 0.628806282922994,
+   "share of Var from top-4 key channels": 0.46932050722855745,
+   "KL": 0.2910717664237737,
+   "KL predicted 1/2 Var": 0.18756028086276608,
+   "TV": 0.2756800215479311,
+   "TV share pos 0": 0.008771894034482577,
+   "TV share int8 top-1": 0.2550136323528837,
+   "TV share recent 32": 0.6011539165003775,
+   "Spearman key error size vs weight gain": -0.3497730860155818,
+   "entropy int8 -> quant": [
+    2.6004872137858985,
+    3.381610372168118
+   ]
+  },
+  "K2 channel": {
+   "slope (temperature bias)": -0.1903433790840372,
+   "Var_p8 delta (shift removed)": 0.4629826849046255,
+   "share of it explained by the slope": 0.3662593609544772,
+   "share of Var from top-4 key channels": 0.48244856782774614,
+   "KL": 0.2564236152455987,
+   "KL predicted 1/2 Var": 0.23149134245231276,
+   "TV": 0.24562757684759615,
+   "TV share pos 0": 0.007823088644305573,
+   "TV share int8 top-1": 0.2798980450594788,
+   "TV share recent 32": 0.7605854342834543,
+   "Spearman key error size vs weight gain": -0.35569153493273176,
+   "entropy int8 -> quant": [
+    2.6004872137858985,
+    2.9270594827857344
+   ]
+  },
+  "K2 pre": {
+   "slope (temperature bias)": -0.1771203380541274,
+   "Var_p8 delta (shift removed)": 0.27777164063097265,
+   "share of it explained by the slope": 0.4408616173981469,
+   "share of Var from top-4 key channels": 0.25137326287677386,
+   "KL": 0.15632479405275224,
+   "KL predicted 1/2 Var": 0.13888582031548632,
+   "TV": 0.1992320763043891,
+   "TV share pos 0": 0.009322630744361229,
+   "TV share int8 top-1": 0.28261282854804276,
+   "TV share recent 32": 0.7139218479374415,
+   "Spearman key error size vs weight gain": -0.3977665911138755,
+   "entropy int8 -> quant": [
+    2.6004872137858985,
+    2.966552830763419
+   ]
+  },
+  "K2 rot": {
+   "slope (temperature bias)": -0.20894474737823843,
+   "Var_p8 delta (shift removed)": 0.24317622115617862,
+   "share of it explained by the slope": 0.4882186108163131,
+   "share of Var from top-4 key channels": 0.1884074154303846,
+   "KL": 0.13990953983676177,
+   "KL predicted 1/2 Var": 0.12158811057808931,
+   "TV": 0.19469942106616214,
+   "TV share pos 0": 0.009461449470939305,
+   "TV share int8 top-1": 0.27167267759393426,
+   "TV share recent 32": 0.7293548315130212,
+   "Spearman key error size vs weight gain": -0.33149423695455826,
+   "entropy int8 -> quant": [
+    2.6004872137858985,
+    3.009958164415907
+   ]
+  },
+  "K1 x pi/2": {
+   "slope (temperature bias)": -0.12705590440758954,
+   "Var_p8 delta (shift removed)": 0.8913468414546256,
+   "share of it explained by the slope": 0.21148343359809207,
+   "share of Var from top-4 key channels": 0.25532916821742435,
+   "KL": 0.5243138412499369,
+   "KL predicted 1/2 Var": 0.4456734207273128,
+   "TV": 0.3471335301519617,
+   "TV share pos 0": 0.00951060436855874,
+   "TV share int8 top-1": 0.21514522297935068,
+   "TV share recent 32": 0.6441387960469571,
+   "Spearman key error size vs weight gain": -0.2065622882181847,
+   "entropy int8 -> quant": [
+    2.6004872137858985,
+    2.78027308799477
+   ]
+  },
+  "K1": {
+   "slope (temperature bias)": -0.44284707456014627,
+   "Var_p8 delta (shift removed)": 0.7289564435286542,
+   "share of it explained by the slope": 0.6239698194973704,
+   "share of Var from top-4 key channels": 0.3238347677928551,
+   "KL": 0.5754410944657019,
+   "KL predicted 1/2 Var": 0.3644782217643271,
+   "TV": 0.39617135140024395,
+   "TV share pos 0": 0.00945242815546275,
+   "TV share int8 top-1": 0.25614904481109496,
+   "TV share recent 32": 0.596338480288657,
+   "Spearman key error size vs weight gain": -0.4050302172175865,
+   "entropy int8 -> quant": [
+    2.6004872137858985,
+    3.6479696665341734
+   ]
+  }
+ }
+}

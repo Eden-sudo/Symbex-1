@@ -454,3 +454,23 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   in the README result.
 - Meaning: 1-bit keys lose information, not only scale; QAT does not bring them back. Usable now: KV4 without
   training (+0.0098, 0.79 MB). Not measured: K4 V2 (ESTIMATE ~+0.07 if additive), K2 V2 or rotated-key QAT.
+
+## Nov 18 2026 -- why keys break: diagnosis before more tests (questions written before measuring)
+
+- Edén's lead: "softmax amplifies any key error exponentially". Papers read (search snippets + abstracts, full PDFs
+  not yet): KIVI 2402.02750 (keys have fixed outlier CHANNELS, values do not; per-token keys ~5x the score error of
+  per-channel), KVQuant 2401.18079 (outlier channels clearer BEFORE RoPE: quantize keys pre-RoPE per channel), HeadQ
+  2605.03562 (measure key error as score error modulo a per-query shift: softmax ignores shifts), 2605.26266 (Jensen
+  bias: zero-mean score noise sigma inflates a key's expected weight by e^(sigma^2 / 2), so noisy keys "steal"
+  attention), AnTKV 2506.19505 (a few anchor tokens carry most of the damage).
+- kv_diag.py (measurement only, no new model, validation windows): per layer and head
+  D1 outlier channels in K (pre / post RoPE), Q and V: max channel RMS / median channel RMS, same top channels
+     across windows?
+  D2 score error delta = s_quant - s_int8 (logit units) per config: slope vs s_int8 (temperature bias), per-query
+     shift (harmless), residual noise sigma; share of delta from the top-4 channels.
+  D3 softmax damage KL(p8 || pq) vs the small-noise prediction 1/2 Var_p8(delta - shift). KL ~ prediction = error
+     enters quadratically (not "exponentially"); KL >> prediction = large-error regime / Jensen.
+  D4 Jensen: correlation of a key's noise variance with its weight gain log(pq / p8); damage share of position 0
+     (sink), the top-1 key, the recent 32.
+- Questions: (1) are there outlier key channels here? (2) is the K3 / K2 damage bias, shift or noise? (3) does the
+  exponential matter (KL vs prediction)? (4) where does it land? Then tests chosen from the answers (rule first).

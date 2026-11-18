@@ -383,6 +383,43 @@ KV4 0.88 MB. A recent window of N tokens is counted as N int8 tokens + 256 - N l
 same config at factor 1 (or pi / 2 for K1) by more than 2x the larger sd. Next step (C, exact, S3) for the usable
 config with the fewest bytes; none -> KV4 goes to C.
 
+### Why keys break: a diagnosis, then keys per channel before RoPE (rule Nov 18 2026, before measuring the loss)
+
+**Question:** is the low-bit key damage the softmax "amplifying any error exponentially", or something we can fix?
+
+**What:** `kv_diag.py` (measurement only: the int8 model's q, k, v on 32 validation windows, every layer and head; the
+low-bit keys from `kv_store`; floats only to measure; results/kv_diag_binary_d384l8_s4*.json), 3 seeds.
+
+**Result (diagnosis, 3 seeds, mean over layers; s42 / s43 / s44 agree within ~5 %):**
+
+| keys | KL(p8 ‖ pq) | ½ Var δ | slope (temperature) | entropy int8 → quant |
+|---|---|---|---|---|
+| K4 per token | 0.027 | 0.027 | +0.01 | 2.60 → 2.59 |
+| K3 per token | 0.143 | 0.142 | -0.02 | 2.60 → 2.56 |
+| K3 per channel (after RoPE) | 0.049 | 0.049 | 0.00 | 2.60 → 2.58 |
+| K3 per channel **before** RoPE | 0.027 | 0.027 | +0.01 | 2.60 → 2.59 |
+| K2 per token | 0.291 | 0.188 | -0.30 | 2.60 → 3.38 |
+| K2 before RoPE | 0.156 | 0.139 | -0.18 | 2.60 → 2.97 |
+| K1 per token | 0.575 | 0.365 | -0.44 | 2.60 → 3.65 |
+
+(seed 42 shown; δ = score error in logits with the per-query shift removed, weighted by the int8 attention.)
+- Keys have outlier channels, values do not: max / median channel RMS 3-10 for K before RoPE, 2-7 after, V 1.1-1.6;
+  the top-4 key channels are the same in both halves of the windows 92-100 % (KIVI and KVQuant see the same).
+- At 3-4 bits KL = ½ Var δ to 1 %: the error enters the softmax **quadratically**, not exponentially. At 1-2 bits KL is
+  1.3-1.6x that: the large-error regime, mostly a **temperature bias** (scores shrink, slope -0.3 / -0.44, entropy up).
+- No "Jensen bias": keys with a larger error lose weight (Spearman -0.1 to -0.4), they do not steal it. The sink
+  (position 0) takes 1 % of the moved attention; the recent 32 keys 60-80 %.
+- Per channel before RoPE gives K3 the same softmax damage as K4 per token.
+Smoke check (64 windows, seed 42, NOT a result): K3 per token +0.050, K3 before RoPE +0.005.
+
+**Test (fixed now, before measuring):** `intsim.py --k-mode pre` = the channel mode (one int32 scale per channel and
+group of 32 tokens, KIVI's grouping; its scale sees the later tokens of its group: a slight leak, as `channel`) on the
+keys before RoPE, rotated after, then int8 for the attention. 1024 validation windows, seeds 42-44: K4 pre V8, K3 pre
+V8, K2 pre V8, K3 pre V3, K3 pre V4, K4 pre V3; K2 pre at the best K2 factor of (c) (chosen on seed 42).
+**Bytes** (computed as above; per-channel scales: 64 x 4 B per 32 tokens = 8 B per token and head, 98 KB per side):
+K3 pre V3 0.74 MB, K3 pre V4 0.84, K4 pre V3 0.84, K2 pre V8 1.13, K3 pre V8 1.23 (KV4 0.88). Same rule: usable d < 0.03, beats KV4
+if usable with fewer bytes than 0.88 MB. Cost on the chip (not measured): RoPE on every key read (KVQuant fuses it).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

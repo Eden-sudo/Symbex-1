@@ -204,7 +204,7 @@ def quant_kv(x, bits):
     return torch.where(x >= 0, 1, -1), 127 * m
 
 
-KV_MODE_TAG = {"token": "t", "channel": "c", "qjl": "q", "hadqjl": "h", "rot": "r", "res": "x"}
+KV_MODE_TAG = {"token": "t", "channel": "c", "qjl": "q", "hadqjl": "h", "rot": "r", "res": "x", "pre": "p"}
 KV_GROUP = 32    # tokens per group of the per-channel modes (KIVI's group size)
 
 
@@ -277,11 +277,19 @@ def rope(x, C, S):
 def attention(q, k, v, heads, C, S, exp_t, kv=None):
     b, t, d = q.shape
     q, k, v = (z.view(b, t, heads, -1).transpose(1, 2) for z in (q, k, v))       # b, h, t, hd
+    kv = kv or {}
+    kpre = k
     q, k = rope(q, C[:t], S[:t]), rope(k, C[:t], S[:t])
     qq, qm = quant8(q)
-    kv = kv or {}
-    kq, km = kv_store(k, kv.get("k_bits", 8), kv.get("k_mode", "token"), kv.get("qjl_m", 128), kv.get("keep_first"),
-                      kv.get("qjl_seed", 0))
+    if kv.get("k_mode") == "pre" and kv.get("k_bits", 8) != 8:   # experiment (KVQuant): per channel BEFORE RoPE
+        kq, km = kv_store(kpre, kv["k_bits"], "channel")
+        kq, km = quant8(rope(rdiv(kq * km[..., None], torch.full_like(kq, 127)), C[:t], S[:t]))
+        if kv.get("keep_first"):
+            q0, m0 = quant8(k[:, :, :1])
+            kq, km = torch.cat((q0, kq[:, :, 1:]), 2), torch.cat((m0, km[:, :, 1:]), 2)
+    else:
+        kq, km = kv_store(k, kv.get("k_bits", 8), kv.get("k_mode", "token"), kv.get("qjl_m", 128),
+                          kv.get("keep_first"), kv.get("qjl_seed", 0))
     if kv.get("k_scale", 1.0) != 1.0:                                           # experiment: key scale times a factor
         km = (km.double() * kv["k_scale"]).round().long()
     vq, vm = kv_store(v, kv.get("v_bits", 8), kv.get("v_mode", "token"), kv.get("qjl_m", 128), kv.get("keep_first"))
@@ -470,7 +478,8 @@ def main():
                     help="bits of the KV cache (experiment, PC only: see quant_kv); result in intsim_kv<b>.json")
     ap.add_argument("--k-bits", type=int, choices=[8, 4, 3, 2, 1], help="keys only (overrides --kv-bits; see kv_store)")
     ap.add_argument("--v-bits", type=int, choices=[8, 4, 3, 2, 1], help="values only (overrides --kv-bits)")
-    ap.add_argument("--k-mode", choices=["token", "channel", "qjl", "hadqjl", "rot", "res"], default="token")
+    ap.add_argument("--k-mode", choices=["token", "channel", "qjl", "hadqjl", "rot", "res", "pre"], default="token",
+                    help="pre = channel mode on the keys BEFORE RoPE, rotated after (KVQuant 2401.18079)")
     ap.add_argument("--v-mode", choices=["token", "channel"], default="token")
     ap.add_argument("--qjl-m", type=int, default=128, help="--k-mode qjl: bits per key and head")
     ap.add_argument("--qjl-seed", type=int, default=0, help="seed of S (qjl / hadqjl / rot / res)")
