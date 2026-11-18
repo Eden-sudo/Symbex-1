@@ -942,3 +942,39 @@ T1: 1.5187 < 1.5196: **passes** (by 0.0009). T2: 1.5187 < 1.5173 - 0.0028: **fai
 - The gain is small (+48 KB for 0.004 of the 0.22 binary-fp32 gap): not worth 2 bits on any matrix.
 - The damage_probe LLM line closes here: one-shot sensitivity is real and explained (weak residual at block 0), and
   training makes it irrelevant. Spending bytes unevenly does not beat spending them evenly in this model.
+
+# Part 8 -- the same-bytes control on ResNet-8: does the one-shot order tell where extra bytes help after training?
+
+## Question
+
+In tiny_llm, after training, giving more bits to the "sensitive" units did not beat giving the same bytes to other
+units (parts 4 int8 units, 7). The CDT's `estimate` raises the bits of the layer with the lowest one-shot fidelity
+first. Does the one-shot order tell where extra bytes help after training on a vision network, or is it "bytes, not
+where" there too?
+
+## What
+
+- `same_bytes.py`: the binary ResNet-8 of parts 2-4, each configuration = a set of PROTECTED layers (real weights +
+  hardtanh, as part 3's real layers), every other layer binary; trained from the twin with part 3's recipe
+  (`config_table.measure_seed`: 30 epochs, Adam 5e-4 + cosine, crop + flip, BatchNorm recalibrated), 3 seeds
+  (42, 43, 44), validation only. Reference: no layer protected.
+- One-shot order = part 2's drop table (`wa`, mean of the 3 seeds; the cheap measure that found the dominant layer).
+  Pairs fixed before training, same weight count (the protected layers are at the same precision on both sides):
+
+| pair | predicted (larger drop) | control | weights | drop sum predicted / control |
+|---|---|---|---|---|
+| P1 | b0 | b1 | 2304 / 2304 | 20.4 / 14.0 |
+| P2 | stem | b2 | 3456 / 4608 (control +33 %) | 37.2 / 13.2 |
+| P3 | b0 + b1 | b2 | 4608 / 4608 | 34.4 / 13.2 |
+| P4 | b0 + b1 + b2 + b3 | b4 | 18432 / 18432 | 58.5 / 13.2 |
+
+- Real weights stand in for "more bits": an upper bound of what k bits would give, not the CDT's k-bit kernel.
+
+**Rule (written before training, Nov 18 2026):** for each pair, d = mean(predicted) - mean(control), s = the larger
+of the two sds.
+- d > s: WHERE (the one-shot order was right); d < -s: OPPOSITE; otherwise TIE. P2's control has more bytes: a TIE or
+  OPPOSITE there does not count against the order (it counts as "not WHERE", undecided).
+- Reading: WHERE in >= 3 of 4 pairs -> in ResNet-8 the one-shot order tells where extra bytes help after training:
+  the CDT's `estimate` premise holds for vision, tiny_llm is the exception; keep it. WHERE in <= 1 -> "bytes, not
+  where" holds on vision too: the per-layer raise of `estimate` is not supported (write it in the CDT docs; Edén
+  decides any change). 2 -> mixed: nothing changes.

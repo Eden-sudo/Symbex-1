@@ -333,3 +333,8 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   (residual 1.9). -> weak residual explains the one-shot excess, training absorbs it.
 - Part 7: A (0.w2 two bases) 1.5187 +- 0.0028, B (4.w2) 1.5173 +- 0.0017: T1 passes, T2 fails -> bytes, not where.
 - First 3-parallel launch hit CUDA OOM (6.5 GB per run on 12 GB): relaunched one at a time.
+
+### 2026-11-18: part 8 rule (README first)
+- Same-bytes control on ResNet-8 (the "Limits" item): protected (real) layer sets, pairs by part 2's drop table
+  fixed before training: b0 vs b1, stem vs b2, b0+b1 vs b2, b0..b3 vs b4; part 3's recipe, 3 seeds, validation.
+  ESTIMATE ~31 min GPU (9 configurations x 3 seeds x ~78 s, part 3's time).
