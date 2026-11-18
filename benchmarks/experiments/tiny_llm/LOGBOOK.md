@@ -2,6 +2,8 @@
 
 Every step of the experiment in order: what was tried, what came out, what was decided. Numbers come from the files
 in `results/` (named on each line); the README holds the summary. Validation split only; the test split is not read.
+Each entry is dated and records the state at that time ("running" means it was running then). Paths without
+`results/` are the training script's output folders, not part of the repository.
 
 ## Nov 12, 2026
 
@@ -33,7 +35,7 @@ in `results/` (named on each line); the README holds the summary. Validation spl
   step 138.0 -> 128.5 ms.
 - Seeds 43 and 44 on the chip, `--linear symbex` (`results/chip_s3_binary_d384l8_s4{3,4}_symbex.json`): exact
   (512 / 512, story 120 / 120), 8.48 tokens/s each, step 128.47 / 128.50 ms (seed 42: 128.49). 3 seeds: 8.48 ± 0.00.
-- Review fixes (MendCode): no signed left shift in the values (01e9d49); the 4-vector scratch check only with the
+- Review fixes (code review): no signed left shift in the values (01e9d49); the 4-vector scratch check only with the
   PIE values path, and psram_bw_bench exits nonzero on a mismatch (6e84cf0).
 
 ### Layer sensitivity (3ddaa6f, `results/layer_sensitivity.json`)
@@ -46,7 +48,7 @@ in `results/` (named on each line); the README holds the summary. Validation spl
 - Damages do not add up: all blocks together 4.63 ± 0.24 vs 1.44 summed.
 - Open: does the ranking hold after training? -> next entry.
 
-### Training check of the most sensitive layers (running; `runs/ablation.log`)
+### Training check of the most sensitive layers
 - Same recipe as the binary base (10,000 steps, seeds 42, 43, 44), two variants (`train.py --head binary`,
   `--int8-blocks 0 7`). Not supported by intsim.py / the C yet.
 - Binary base (`results/train_binary_d384l8_s*.json`): 1.5252 / 1.5219 / 1.5200.
@@ -68,23 +70,23 @@ in `results/` (named on each line); the README holds the summary. Validation spl
   -0.0039 = -0.007 ± 0.005. Same sign on the 3 seeds but small: ~93 % of the gain is the extra bytes.
 - Decision: no 1-bit head; mixed int8 blocks not worth it (ternary everywhere gives the same loss with fewer bytes).
   The damage ranking is right in sign, too weak to choose blocks; the CDT scan stays as it is.
-- Queued after the control (session symbex1-1b, Edén's request): W1A1 probe, `train.py --acts 1` (1-bit inputs to
-  every block's linear layer; output layer, norms and attention unchanged), same recipe, `runs/w1a1.log`.
+- Queued after the control: W1A1 probe, `train.py --acts 1` (1-bit inputs to
+  every block's linear layer; output layer, norms and attention unchanged), same recipe.
 
 ### 2026-11-12: ideas from slvDev/esp32-ai (reviewed, not started)
 - esp32-ai: TinyStories on the ESP32-S3, 0.56 M dense core in group-wise int4 (float math), 25 M per-layer embedding
   table in flash, 32768 x 96 int8 head staged in PSRAM, both cores, scalar dot products, 9.88 tokens/s; checked
   against PyTorch to 1e-5 (not bit-exact). Their head is PSRAM-bound (57.6 ms) like ours (28 ms).
-- Worth testing later (Edén: "por el momento no"): `--head int4` / `int2` in train.py (3 seeds; to the chip only if
+- Worth testing later (not now): `--head int4` / `int2` in train.py (3 seeds; to the chip only if
   the loss rises < ~0.02). ESTIMATE int4 head 28 -> ~14 ms per token.
 - Probably not worth it: per-layer embeddings (+0.025 nats at vocabulary 4096 in their ablation), skipping padded
   vocabulary rows (we have none), LZ4-compressed weights (1-bit weights barely compress), dual core (our rule).
 - Small checks: `noinline` on the linear kernel; RoPE cos/sin once per token.
 
 ### 2026-11-12: W1A1 result and the plan to make it train (plan only, nothing run)
-- W1A1 (`--acts 1`, same recipe, `runs/binary_d384l8_a1_s*/train.json`): best validation loss 3.8965 (step 2500) /
+- W1A1 (`--acts 1`, same recipe, `binary_d384l8_a1_s*/train.json`): best validation loss 3.8965 (step 2500) /
   4.1432 (step 9500) / 3.4058 (step 10000) = 3.82 ± 0.37, vs W1A8 1.5224 ± 0.0026. Unstable across seeds; the
-  stories repeat themselves. JSONs not copied to results/ (the W1A1 probe belongs to another session).
+  stories repeat themselves. JSONs not copied to results/ (a probe).
 - Known weak points of the current `quant_act1`: identity straight-through gradient (never clipped), the sign
   threshold fixed at 0 (SwiGLU's output is not centered), training from scratch, labels only.
 - Plan:
@@ -98,7 +100,6 @@ in `results/` (named on each line); the README holds the summary. Validation spl
 - Literature check before any claim: is there any fully W1A1 generative language model that works? (BitNet keeps
   8-bit activations; BiT / BiBERT are BERT classifiers: my reading, to verify). If nothing gets close to W1A8,
   that is a "limits" result for the paper.
-- Before running: reboot the PC (NVML "Driver/library version mismatch" after a driver update, Nov 12).
 
 ### 2026-11-12: W1A1 diagnosis (step 1, `w1a1_diag.py`, results/w1a1_diag.json)
 - Saved models, 3 seeds each, 16 validation windows; W1A8 measured for reference. Mean over blocks and seeds,
@@ -126,7 +127,7 @@ in `results/` (named on each line); the README holds the summary. Validation spl
   (4) learned threshold; (5) distillation.
 
 ### 2026-11-12: W1A1 screening (step 2; seed 42, 3000 steps, warmup 500, best validation loss; a RANKING)
-- `train.py --acts 1` plus one option each (runs/binary_a1s_*_s42, log runs/w1a1_screen.log, ~7 min per run):
+- `train.py --acts 1` plus one option each (binary_a1s_*_s42, ~7 min per run):
 
 | option | best val loss | vs base |
 |---|---|---|
@@ -139,8 +140,8 @@ in `results/` (named on each line); the README holds the summary. Validation spl
 
 - The two causes of the diagnosis are confirmed: the gradient (clip relative to the scale) and w2's input. Two-step
   helps less than expected (with the identity straight-through the gradient still explodes from a good start).
-- Running (runs/w1a1_combo.log): clip2 + w2a8, clip2 + two-step, and a W1A8 reference at the same 3000 steps.
-- Combinations (seed 42, 3000 steps; runs/w1a1_combo.log):
+- Running: clip2 + w2a8, clip2 + two-step, and a W1A8 reference at the same 3000 steps.
+- Combinations (seed 42, 3000 steps):
 
 | run | best val loss |
 |---|---|
@@ -150,8 +151,8 @@ in `results/` (named on each line); the README holds the summary. Validation spl
 
 - At the same budget the gap to W1A8 falls from 3.07 (base) to 0.32 (clip2 + w2a8); the story is coherent again.
   Two-step adds nothing on top of the clipped straight-through. Next (step 3): 3 seeds x 10,000 steps of clip2 +
-  w2a8, then clip2 alone (fully W1A1) for the paper (runs/w1a1_full.log).
-- 3 seeds x 10,000 steps, clip2 + w2a8 (runs/binary_d384l8_a1_clip2_w2a8_s*): 1.9010 / 1.8983 / 1.8925 =
+  w2a8, then clip2 alone (fully W1A1) for the paper.
+- 3 seeds x 10,000 steps, clip2 + w2a8 (binary_d384l8_a1_clip2_w2a8_s*): 1.9010 / 1.8983 / 1.8925 =
   **1.897 ± 0.004** (W1A8 1.5224 ± 0.0026: +0.375; W1A1 base 3.82 ± 0.37). Stable across seeds now.
 - Pure W1A1 clip2, seed 42 (10,000 steps): 2.1661 (perplexity 8.72); seeds 43 / 44 running. w2's input at 8 bits is
   worth ~0.27 (a ranking until 3 seeds).
@@ -161,10 +162,10 @@ in `results/` (named on each line); the README holds the summary. Validation spl
   per token. For tiny_llm W1A8 stays the choice; W1A1 is a "limits" result.
 - New option: `train.py --distill <teacher.pt> [--distill-alpha 0.5] [--distill-t 1]` (KL to the teacher's
   next-token distribution; the logged train loss is then the mixed loss, the validation loss stays cross-entropy).
-- Night queue (/tmp/w1a1_night.py, log runs/w1a1_night.log, summary results/w1a1_night.json): screening 2 (seed 42,
+- Overnight runs (summary results/w1a1_night.json): screening 2 (seed 42,
   3000 steps, fully W1A1): k 1, k 3, clip2 + learned threshold, clip2 + distillation from fp32 / from W1A8; choice on
   validation (an add-on only if > 0.02 better); then 3 seeds x 10,000 of the chosen recipe, alone and with w2a8.
-- 3 seeds x 10,000 steps, fully W1A1 clip2 (runs/binary_d384l8_a1_clip2_s*): 2.1661 / 2.1776 / 2.1796 =
+- 3 seeds x 10,000 steps, fully W1A1 clip2 (binary_d384l8_a1_clip2_s*): 2.1661 / 2.1776 / 2.1796 =
   **2.174 ± 0.007** (perplexity 8.80; W1A8 1.522: +0.652; clip2 + w2a8 1.897: w2's input at 8 bits is worth 0.277).
 - Screening 2 (seed 42, 3000 steps, fully W1A1): `--ste-k 1` **2.034** (k 2: 2.233, -0.20).
 - `--ste-k 3` 2.767 (+0.53 vs k 2): the narrower the gradient window, the better so far (k 1 < 2 < 3).
@@ -173,10 +174,10 @@ in `results/` (named on each line); the README holds the summary. Validation spl
 - clip2 + distillation from W1A8 2.182 (-0.05; fp32 teacher slightly better). Next by the queue's rule: k 1 +
   fp32 distillation screened, then the best of {k1, k2 + distill, k1 + distill} gets 3 seeds x 10,000.
 
-### 2026-11-12 (night, auto-written by the queue; reviewed in the morning): W1A1 screening 2
+### 2026-11-12 (overnight, written by the run script, reviewed afterwards): W1A1 screening 2
 - Fully W1A1 clip2, 3 seeds x 10,000: [2.1661, 2.1776, 2.1796]
 - Screening (seed 42, 3000 steps, best val loss; clip2 baseline 2.2326): clip2 2.2326, k1 2.0337, k3 2.7671, clip2_thr 2.2135, clip2_dfp32 2.1742, clip2_dw1a8 2.1815, k1_dfp32 2.007
-- Chosen on validation: k1_dfp32 (--ste clip --ste-k 1 --distill runs/fp32_d384l8_s{seed}/model.pt)
+- Chosen on validation: k1_dfp32 (--ste clip --ste-k 1 --distill fp32_d384l8_s{seed}/model.pt)
 - k 1 + fp32 distillation **2.007** (k 1 alone 2.034: -0.03; gains roughly additive with k but small). Chosen on
   validation: k 1 + fp32 distillation -> 3 seeds x 10,000, fully W1A1, then with w2a8.
 - Final k 1 + fp32 distillation, seed 42: best 2.0839 at step **3000** (k 2 alone: 2.1661 at step 10,000). Its
@@ -186,12 +187,12 @@ in `results/` (named on each line); the README holds the summary. Validation spl
   (which of the two causes the plateau), and an intermediate k (1.5).
 - Seed 43: best 2.0699 at step 4000 (plateau again).
 - Seed 44: 2.0866 (step 9000). 3 seeds x 10,000, fully W1A1, k 1 + fp32 distillation
-  (runs/binary_d384l8_a1_k1_dfp32_s*): **2.080 ± 0.009** (perplexity 8.01; k 2 alone 2.174 ± 0.007: -0.094;
+  (binary_d384l8_a1_k1_dfp32_s*): **2.080 ± 0.009** (perplexity 8.01; k 2 alone 2.174 ± 0.007: -0.094;
   W1A8 1.522: gap +0.558). Running: the same recipe with w2a8 (3 seeds).
 - k 1 + fp32 distillation + w2a8, seed 42: 1.8167 at step 9500 (clip2 + w2a8 seed 42: 1.9010).
 - Seed 43: 1.7971 (step 9500).
 - Finals (3 seeds x 10,000, best val loss): k1_dfp32 [2.0839, 2.0699, 2.0866], k1_dfp32_w2a8 [1.8167, 1.7971, 1.8133]
-- Seed 44: 1.8133. 3 seeds x 10,000, k 1 + fp32 distillation + w2a8 (runs/binary_d384l8_a1_k1_dfp32_w2a8_s*):
+- Seed 44: 1.8133. 3 seeds x 10,000, k 1 + fp32 distillation + w2a8 (binary_d384l8_a1_k1_dfp32_w2a8_s*):
   **1.809 ± 0.011** (perplexity 6.10; clip2 + w2a8 1.897 ± 0.004: -0.088; W1A8 1.522: gap +0.287).
 
 Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.json):
@@ -206,7 +207,7 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
 - k 1 + distillation gains ~0.09 in both columns; w2a8 gains ~0.27-0.28 in both rows (the two are additive).
 - The fully W1A1 run with k 1 + distillation plateaus at step 3000-4000 (seed 44 best at 9000 but flat).
 - Next (started after the night queue, seed 42, 10,000 steps, rankings): k 1 alone, k 2 + fp32 distillation,
-  k 1.5 + fp32 distillation: which of the two causes the plateau (runs/w1a1_plateau.log).
+  k 1.5 + fp32 distillation: which of the two causes the plateau.
 - Plateau check, seed 42 (ranking): k 1 alone, 10,000 steps: **2.0433** (step 9000), better than k 1 + fp32
   distillation (2.0839, same seed). Its curve keeps falling slowly to the end (2.088 at 3500 -> 2.053 at 8500).
   So the distillation causes the plateau: it helps early (screening at 3000 steps) and hurts later. The queue's
@@ -215,14 +216,13 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
 - k 2 + fp32 distillation, 10,000 steps, seed 42: 2.1776 (k 2 alone 2.1661): no gain at the final length either.
   Distillation (alpha 0.5, T 1) is dropped. The k 1.5 + distillation run was stopped (no longer informative); queue
   replaced by: k 1 alone seeds 43 / 44 (3 seeds), then k 0.5 seed 42 (k 1 is the edge of the range so far)
-  (runs/w1a1_k1.log).
 - k 1 alone, seed 43: 2.0575 (step 9500).
-- Seed 44: 2.0491. 3 seeds x 10,000, fully W1A1, clip k 1 alone (runs/binary_a1p_k1_s*): **2.050 ± 0.007**
+- Seed 44: 2.0491. 3 seeds x 10,000, fully W1A1, clip k 1 alone (binary_a1p_k1_s*): **2.050 ± 0.007**
   (perplexity 7.77): the best fully W1A1 recipe (k 2 2.174 ± 0.007, k 1 + distillation 2.080 ± 0.009; W1A8 1.522:
   gap +0.528). Running: k 0.5, seed 42.
 - k 0.5, seed 42: best 2.396 at step 1500, then the training loss climbs back (2.33 -> 2.55) and settles at ~2.46:
   too little gradient passes, unstable. k 1 is the best of {0.5, 1, 2, 3}.
-- Running: clip k 1 + w2a8, 3 seeds x 10,000 (completes the w2a8 column; runs/w1a1_k1w2.log).
+- Running: clip k 1 + w2a8, 3 seeds x 10,000 (completes the w2a8 column).
 - clip k 1 + w2a8, seed 42: 1.8158 (k 1 alone 2.0433: w2a8 worth 0.228; k 1 + distill + w2a8 1.8167).
 - k 1 + w2a8 seeds 43 / 44 stopped (they only add the sd of a known result), moved to the end of the next queue.
 
@@ -231,12 +231,12 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   estimator alone moves W1A1 3.82 -> 2.05 at the same capacity; w2's input (SwiGLU output, cos_sign 0.46, upper
   bound with a threshold 0.58) is ~half the gap (0.23-0.28 of ~0.53). Unexplained: the other ~0.26-0.30.
 - New train.py options: `--w2-acts t|2` (w2's input ternary or 2 bits), `--ffn-act relu` (relu gate).
-- Queue (runs/w1a1_where.log), baselines k 1 = 2.0433, k 1 + w2a8 = 1.8158:
+- Queue, baselines k 1 = 2.0433, k 1 + w2a8 = 1.8158:
   (1) one input at 8 bits at a time: q k v / o / w1 w3; (2) w2's input ternary, 2 bits, relu gate;
   (3) capacity: FFN 1024 -> 1536 for W1A1 and for W1A8 (does widening close the gap or help both alike?);
   then k 1 + w2a8 seeds 43 / 44.
 
-### 2026-11-13: Gemini's suggestions, checked (abstracts / full text on arXiv)
+### 2026-11-13: an AI assistant's suggestions, checked (abstracts / full text on arXiv)
 - BitNet v2 (Wang, Ma, Wei, arXiv 2504.18415): H-BitLinear = online Hadamard before activation quantization, for
   the outliers of attention and FFN intermediate states. Correct, but its target is 4-bit activations (8-bit
   matches BitNet b1.58), NOT 1 bit.
@@ -255,27 +255,26 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
 | W1A8 (seed 42) | 0.807 -> 0.798 | 0.736 -> 0.768 | 0.804 -> 0.798 | **0.451 -> 0.805** |
 
   After the rotation every input sits at ~0.798 = sqrt(2 / pi), the value for a Gaussian: the Hadamard turns the
-  heavy-tailed SwiGLU output into a Gaussian-like one. Prediction checked (Gemini said ~0.78-0.80).
+  heavy-tailed SwiGLU output into a Gaussian-like one. Prediction checked (the assistant said ~0.78-0.80).
   Note: the W1A1 model had already adapted its w2 input (0.615 vs 0.451 in W1A8).
-- New option `train.py --hadamard <layers>`. Queue reordered (runs/w1a1_where2.log): Hadamard on w2, on w2 + o,
+- New option `train.py --hadamard <layers>`. Queue reordered: Hadamard on w2, on w2 + o,
   on every input first, then the rest. On the chip a 1024-point fast Hadamard is ~10 k additions per block and
   token on the 8-bit values before the sign (ESTIMATE, small next to the matrix products), weights rotated offline.
-- Gemini's follow-up, checked: "cos 0.82 -> the noise has more than half the energy" is wrong (sqrt(1 - 0.82^2) =
+- The assistant's follow-up, checked: "cos 0.82 -> the noise has more than half the energy" is wrong (sqrt(1 - 0.82^2) =
   0.57 is the amplitude; the energy is 0.33). Right: the cosine does not measure how sensitive the next operation
   is; a 1-bit Gaussian has a ceiling of sqrt(2 / pi) with one scale per token; rotating only x (as train.py does)
   needs no weight rotation at export (correction of the note above). Hypotheses, NOT measured: q / k noise is
   amplified by QK^T and the softmax; "attention has a precision ceiling, the FFN has spikes". Falsifiable checks:
   Hadamard on every input should NOT recover the q k v at 8 bits gain; q k at 8 bits should give most of it, v
-  at 8 bits little (both added after the queue: runs/w1a1_where3.log). Also compare with w1 w3 at 8 bits (more
+  at 8 bits little (both added after the queue). Also compare with w1 w3 at 8 bits (more
   weights than q k v: 786 k vs 442 k).
 - Result (1) q k v at 8 bits, seed 42: **1.8905** (k 1 alone 2.0433: -0.153; w2a8 -0.228).
 - Hadamard on w2, seed 42: **1.9887** (k 1 alone 2.0433: -0.055; w2 at 8 bits: -0.228). The rotation raises the
   w2 cosine to 0.80 but recovers only a quarter of what 8 bits give: the cosine is not the whole story here either.
-- Gemini on the Hadamard result, checked: "-0.055 is 8 sd, 100 % real" overstates it (0.007 is the 3-seed sd; two
+- The assistant on the Hadamard result, checked: "-0.055 is 8 sd, 100 % real" overstates it (0.007 is the 3-seed sd; two
   single-seed runs differ with sd ~0.010: ~5.5 sd, very likely real, still a ranking). 1 - 0.798^2 = 0.363 of the
   energy lost: right. "Loss is not linear in the cosine": matches q k v and Hadamard w2. Its contrast "Gaussian
-  shape (Hadamard) vs a zero (ternary)" is good; added the missing cell, Hadamard + ternary w2
-  (runs/w1a1_where4.log, after the queue).
+  shape (Hadamard) vs a zero (ternary)" is good; added the missing cell, Hadamard + ternary w2 (after the queue).
 - Hadamard on w2 + o, seed 42: **1.9375** (k 1 alone 2.0433: -0.106; Hadamard w2 alone -0.055, so o adds -0.051
   although its cosine only moved 0.730 -> 0.776). Still fully 1-bit inputs. Next: Hadamard on every input.
 - o at 8 bits, seed 42: **1.8753** (k 1 alone 2.0433: -0.168; q k v at 8 bits -0.153, w2 at 8 bits -0.228). One
@@ -293,12 +292,12 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   (+0.62 vs q k v +1.42). It does not predict what training recovers, except the top one.
 - Trained effects do not add either: w2 + o + q k v = -0.549 > the whole W1A1 - W1A8 gap (2.043 - 1.522 = 0.521).
   No single bottleneck: w2 is the largest, block 0 dominates, the rest overlap.
-- Gemini's follow-up ideas, checked against our data: (1) only block 0 at 8 bits: supported by the damage map,
+- The assistant's follow-up ideas, checked against our data: (1) only block 0 at 8 bits: supported by the damage map,
   added `--a8-blocks` to train.py, queued; (2) two 1-bit planes on w2 ~ the 2-bit w2 run, kept; (3) learned
   threshold already screened (-0.019 < 0.02 rule); (4) SubLN before w2 / o: a positive-gain norm does not change
   sign(x), so it can only matter together with Hadamard; (5) QuEST MSE scale: for sign() the MSE-optimal scale is
   mean|x|, what we use; clip s 1.30 lies between our k 1 and k 2 (fine-tuning at most).
-- Queue trimmed (Eden agreed): runs/w1a1_where5.log = Hadamard everywhere, + block 0 all inputs at 8 bits,
+- Queue trimmed: Hadamard everywhere, + block 0 all inputs at 8 bits,
   + block 0 w2 / o at 8 bits, w2 at 2 bits, seeds 43 44 of w2a8. Dropped: width 1536, w2 ternary, relu, q k / v,
   Hadamard + ternary.
 - w1 w3 at 8 bits, seed 42: **1.8497** (k 1 alone 2.0433: -0.194). Per input group at 8 bits (one seed, a
@@ -342,13 +341,13 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   rope / cache 10.1, scores 7.8, swiglu 8.3, embedding / norms 5.4. Load 3,551,648 bytes, internal RAM free 236 KB.
   The 1-bit linears (46.8 ms) are no longer the bottleneck: head + attention (~59 ms) are, as in W1A8. One seed.
 
-### 2026-11-13: output layer at int4 / int2 (queued first, runs/w1a1_where7.log; W1A1 seeds 43 44 moved after it)
+### 2026-11-13: output layer at int4 / int2 (queued first; W1A1 seeds 43 44 moved after it)
 - The output layer is the slowest single part on the S3 (28.0 ms of ~113 per token, PSRAM-bound) and half of
   model.bin (1.57 MB int8). train.py --head int4 (absmax per row, 15 levels) / int2 (four levels {-1.5, -0.5, 0.5,
   1.5} x mean|w| per row), W1A8 blocks, 3 seeds x 10,000, same recipe as d384l8_head1. Unlike --head binary, the
   embedding lookup uses the quantized table too (one table on the chip). Compare: int8 head (post-training) 1.522 ±
   0.003, 1-bit head 1.6071 ± 0.0030. Size ESTIMATE: head 0.79 MB (int4) / 0.39 MB (int2) + scales.
-- Decision (Eden, Nov 13): tiny_llm keeps 8-bit activations (W1A8). W1A1 gives no real gain here: +5 % speed on the S3
+- Decision (Nov 13): tiny_llm keeps 8-bit activations (W1A8). W1A1 gives no real gain here: +5 % speed on the S3
   (8.88 vs 8.48 tokens/s, one seed), no flash saved (+896 bytes), +8.9 KB internal RAM (int64 Hadamard buffer;
   one token's activations are <= 1 KB), +0.26 loss. Valid for token-by-token LLMs, not for conv nets (whole maps).
 - int4 output layer, seed 42: **1.5373** (same seed: float head 1.5252, +0.012; 1-bit head 1.6038). Ranking (one seed).
@@ -372,12 +371,12 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   120 / 120 each. **3 seeds: 9.52 ± 0.00 tokens/s, head 14.68 ms, model.bin 2,765,216 bytes, exact on every seed.**
 - int2 output layer, seed 42: **1.5756** (same seed: float head 1.5252, +0.050; int4 1.5373, 1-bit 1.6038). Ranking (one seed).
 - int2 output layer, seed 43: **1.5670** (float head 1.5219, +0.045).
-- Queue (Eden, Nov 13): W1A1 seeds 43 / 44 of the best recipe dropped (tiny_llm stays W1A8); hadall_b0a8 stays one seed (a ranking).
+- Queue (Nov 13): W1A1 seeds 43 / 44 of the best recipe dropped (tiny_llm stays W1A8); hadall_b0a8 stays one seed (a ranking).
 - int2 output layer, seed 44: 1.5700. **3 seeds: 1.5709 ± 0.0044; paired vs the float head +0.049 ± 0.003**
   (int4 +0.015 ± 0.003, 1-bit +0.085 ± 0.005). Head bytes ESTIMATE 0.39 MB vs int4 0.79 MB: int2 triples the cost
   for 0.4 MB more. Decision candidate: int4 head (measured on the S3, 3 seeds, exact). int2 not taken to the chip.
 
-### 2026-11-13: int2 output layer in intsim, C and on the ESP32-S3 (3 seeds; Eden: "measure it anyway")
+### 2026-11-13: int2 output layer in intsim, C and on the ESP32-S3 (3 seeds)
 - intsim.py: --head int2 runs (train.py's levels: e ~ (2c + 1) x mean|w| / 2, emb_q = 2c + 1 odd -3..3, emb_m =
   mean|w| / 2 x 2^20). Float = integer: 1.5831 / 1.5833, 1.5779 / 1.5780, 1.5777 / 1.5776 (1024 windows); next-token
   agreement 98.6-98.7 %. model.bin version 4 = version 2 + the int2 table packed (per 64 columns, byte j = c of
