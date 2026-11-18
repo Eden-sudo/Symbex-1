@@ -1,0 +1,122 @@
+{
+ "board": "esp32",
+ "date": "2026-11-14",
+ "meter": "USB power meter feeding the board's USB-UART port (display: V, A, mAh, Wh; read by eye)",
+ "method": "each phase 600 s; energy = meter mAh x volts x 3.6 J; per inference = energy / runs; above idle = (mAh - idle mAh) x volts x 3.6 / runs; the meter counts whole mAh (+-1 mAh per reading); one run per phase",
+ "tools": "tools/energy_loop.py (firmware: 0xE5 loop on the last input, 'L:count,elapsed_us,class')",
+ "notes": [
+  "the TFLite firmware was rebuilt with the energy loop: 706.3 ms per run in the loop and 706.4 ms median on a 20-image check, vs 717.8 ms in results/tflite/tflite_esp32.json (older build)",
+  "SYMBEX loop 47.99 ms vs 48.64 ms per image in the 1,000-image chip run (PR #48)"
+ ],
+ "phases": {
+  "tflite": {
+   "label": "TFLite Micro INT8 (MLPerf ResNet-8, ESP-NN), flash",
+   "runs": 850,
+   "seconds": 600.359,
+   "mah": 13.6,
+   "meter_wh": 0.07,
+   "amps_seen": "0.07-0.08 A, peaks 0.09 A",
+   "volts": 5.14,
+   "joules": 251.7,
+   "mW": 419.2,
+   "ms_per_run": 706.305,
+   "mJ_per_run": 296.06,
+   "mJ_per_run_above_idle": 121.8,
+   "meter_raw": {
+    "mah": 14,
+    "timer": "~10:30",
+    "note": "meter zeroed ~30 s before the loop and read ~30 s after it; 30 s x idle rate (0.4 mAh) subtracted"
+   }
+  },
+  "symbex": {
+   "label": "SYMBEX int8stem_pool2 seed 42, vertical compact engine (PR #48), lut16, flash",
+   "runs": 12504,
+   "seconds": 600.006,
+   "mah": 15,
+   "meter_wh": 0.07,
+   "amps_seen": "0.09 A",
+   "volts": 5.14,
+   "joules": 277.6,
+   "mW": 462.6,
+   "ms_per_run": 47.985,
+   "mJ_per_run": 22.2,
+   "mJ_per_run_above_idle": 10.36,
+   "meter_raw": {
+    "mah_start": 8,
+    "mah_end": 23,
+    "wh_start": 0.04,
+    "wh_end": 0.11,
+    "note": "meter not zeroed between idle and SYMBEX: difference of readings"
+   }
+  },
+  "idle": {
+   "label": "idle: SYMBEX firmware waiting on the serial port",
+   "runs": 0,
+   "seconds": 600.0,
+   "mah": 8,
+   "meter_wh": 0.04,
+   "amps_seen": "0.05 A",
+   "volts": 5.14,
+   "joules": 148.0,
+   "mW": 246.7
+  }
+ },
+ "ratio_total": {
+  "value": 13.34,
+  "range_pm1mah": [
+   10.9,
+   16.52
+  ],
+  "range_note": "worst case over the three readings: TFLite 13.6 (+-1), SYMBEX end 23 (+-1) and the shared start / idle reading 8 (+-1); SYMBEX = end - start"
+ },
+ "ratio_above_idle": {
+  "value": 11.76,
+  "range_pm1mah": [
+   8.24,
+   20.59
+  ],
+  "range_note": "above idle: TFLite 13.6 - 8, SYMBEX (23 - 8) - 8; the idle reading is the same 8 in both, its +-1 moves them together"
+ },
+ "speed_ratio": 14.72,
+ "weights_ram_vs_flash": {
+  "question": "do weights in RAM use less energy per image than weights in flash? standard engine (the compact one does not fit with RAM weights: DRAM over by 256 bytes)",
+  "ram": {
+   "label": "SYMBEX standard engine, lut16, weights in RAM",
+   "runs": 10312,
+   "seconds": 600.1,
+   "mah": 13,
+   "meter_wh": 0.07,
+   "amps_seen": "0.08 A, peaks 0.09 A",
+   "volts": 5.14,
+   "joules": 240.6,
+   "mW": 400.9,
+   "ms_per_run": 58.193,
+   "mJ_per_run": 23.33,
+   "mJ_per_run_above_idle": 8.97,
+   "meter_raw": {
+    "mah": 13,
+    "timer": "10:00"
+   }
+  },
+  "flash": {
+   "label": "SYMBEX standard engine, lut16, weights in flash",
+   "runs": 9792,
+   "seconds": 600.4,
+   "mah": 13,
+   "meter_wh": 0.07,
+   "amps_seen": "0.08-0.09 A",
+   "volts": 5.14,
+   "joules": 240.6,
+   "mW": 400.7,
+   "ms_per_run": 61.314,
+   "mJ_per_run": 24.57,
+   "mJ_per_run_above_idle": 9.44,
+   "meter_raw": {
+    "mah": 13,
+    "timer": "10:13",
+    "note": "13 s of idle on the meter (~0.2 mAh), not subtracted"
+   }
+  },
+  "answer": "same mAh (13) in both: the meter cannot see a power difference; RAM is 5 % less energy per image only because it runs 5 % faster"
+ }
+}

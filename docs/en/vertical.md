@@ -1,4 +1,4 @@
-# The vertical engine: ResNet-8 in 6.4 ms on the ESP32-S3
+# The vertical engine: ResNet-8 in 6.0 ms on the ESP32-S3
 
 *[Leer en español](../es/vertical.md)*
 
@@ -10,6 +10,11 @@ fully binary ResNet-8 runs **3.8× faster than the standard engine and 1.43× fa
 with the weights in flash. Two optional modes build the engine's plane lists and thresholds once into RAM at start:
 **prepared** (6.44 ms, 1.52× faster than ESP-DL with its weights in RAM, 238 KB of RAM) and **compact** (7.70 ms,
 1.27× faster than ESP-DL in RAM with about the same RAM: 151 KB against 147 KB). Whoever deploys the network chooses.
+
+Since November 5 it also runs the most accurate ResNet-8 recipe (an int8 stem and a pooled int8 classifier, every
+other layer binary; 76.7 ± 0.3 % on the test set), and that is its fastest case: 9.70 ms by default, 7.07 ms compact
+(138 KB of RAM, less than ESP-DL's 147 KB) and **6.02 ms** prepared, all with the weights in flash
+([below](#the-int8-stem-and-the-pooled-int8-classifier-nov-5)).
 
 ## Results
 
@@ -39,8 +44,9 @@ validation images, every image **100 % equal to the integer simulation**. SYMBEX
 - The ESP-DL numbers come from one quick check (scripts outside the repository, post-training quantization,
   100 test inputs), not from a full benchmark.
 
-Time per step on the chip (seed 42, weights in flash, `swar`; measured before the tuning below, which took the totals
-from 11.09 to 10.36 ms and from 7.36 to 6.44 ms):
+Time per step on the chip (seed 42, weights in flash, `swar`, 1000 images; measured before the tuning below, which took
+the totals from 11.09 to 10.36 ms and from 7.36 to 6.44 ms; the tuning table measures 300 images, so its "before" reads
+11.02 ms):
 
 | Step | Standard | Vertical | Speed-up | Vertical, prepared |
 |---|---|---|---|---|
@@ -200,19 +206,20 @@ block instead of 179 KB, 7.70 ms instead of 6.44 ms. In C: `symbex_bool_vertical
 `symbex_bool_vertical_prepare_compact`, same rules as the prepared ones.
 
 **Code in RAM (optional).** `-DSYMBEX_CODE_IN_RAM` (or `--code ram` in chip_test.py) puts the engine's inner loops in
-RAM: `.time_critical` on the RP2350, IRAM on the ESP32 chips (4.9 KB of IRAM on the S3 with ResNet-8; chip_test.py adds it to the RAM total as `ram.code_in_ram`). It does not change the S3's
-times; on the Pico 2 it removes the dependence on the 16 KB flash cache (see [Other chips](#other-chips-pico-2)).
+RAM: `.time_critical` on the RP2350, IRAM on the ESP32 chips (4.9 KB of IRAM on the S3 with ResNet-8; chip_test.py adds it to the RAM total as `ram.code_in_ram`). On the S3 it changes the times
+by about 3 % (int8 stem recipe: 9.73 → 9.43 ms by default, 6.03 → 5.91 ms prepared, table below); on the Pico 2 it removes the dependence on the 16 KB flash cache (see [Other chips](#other-chips-pico-2-and-the-classic-esp32)).
 
 Shapes it runs (`symbex_bool_vertical_check` says which part of a network is not): kernels 1×1 and 3×3; stride 1, or
 stride 2 with a 3×3 kernel and an input twice the output; map widths that divide 32 and `h·w` a multiple of 32;
 output maps up to 32768 pixels (256 tiles of 128);
 `k·k·C_in` a multiple of 8 and below 2048; a thermometer of at most 32 bits per pixel. ResNet-8 on CIFAR-10 fits all of
-them. Other chips run the same steps in portable C (correct and exact; the large speed-up comes from the S3's 128-bit
+them. FOMO's maps (48, 24 and 12 wide) and the 1D networks are outside these shapes, so they run on the
+standard engine. Other chips run the same steps in portable C (correct and exact; the large speed-up comes from the S3's 128-bit
 registers, the Pico 2 is below). Separate instances share nothing (each call keeps its counting state on its own stack
 and work block), so two networks can run at the same time on two cores, or in two tasks (on the S3, two tasks on one
 core also need the RTOS to save the PIE registers on a task switch).
 
-## Other chips: Pico 2
+## Other chips: Pico 2 and the classic ESP32
 
 The same portable C on the Raspberry Pi Pico 2 (RP2350, 150 MHz, 32-bit words instead of 128-bit planes), ResNet-8,
 seed 42, 1000 images, every one 100 % equal to the simulation (one seed: a ranking, not a 3-seed result):
@@ -232,6 +239,10 @@ seed 42, 1000 images, every one 100 % equal to the simulation (one seed: a ranki
 - The most accurate recipe (int8 stem + pooled int8 classifier, the CDT's `int8stem_pool2`; 3 seeds, weights in
   flash, exact) keeps the same order. Cortex-M33: standard 67.77, vertical 66.91, compact 60.95, prepared **59.12 ms**.
   Hazard3: standard **57.93**, vertical 71.92, compact 64.11, prepared 62.66 ms.
+- **The classic ESP32** (no 128-bit registers; the most accurate recipe, lut16, weights in flash, 3 seeds, exact):
+  standard 62.52 ms (79 KB of RAM), vertical 54.68 ± 0.09 ms (1.14×, 116 KB), compact **48.57 ± 0.10 ms** (1.29×,
+  200 KB): 14.8× faster than TFLite Micro and 14.7× faster than ESP-DL there. The prepared mode does not fit its data
+  RAM.
 
 ## Cost
 
@@ -242,13 +253,25 @@ seed 42, 1000 images, every one 100 % equal to the simulation (one seed: a ranki
   plane lists), 238 KB in total. **Compact mode:** a 90 KB block, 151 KB in total. Both fit the ESP32-S3's internal
   RAM; boards with less RAM keep the default mode.
 - **Flash:** the same 24 KB of model data, plus the engine's code.
+- **Energy** (USB power meter, one 10-minute run per case, seed 42, weights in flash; [Results](results.md#energy-per-inference)).
+  The most accurate recipe, per image:
+
+| Board | Engine | SYMBEX | TFLite Micro INT8 | Less energy |
+|---|---|---|---|---|
+| ESP32-S3 | vertical, default | 7.2 mJ | 47.7 mJ | 6.6× |
+| ESP32-S3 | vertical, prepared | 4.5 mJ | 47.7 mJ | 10.5× |
+| ESP32 | vertical, compact | 22.2 mJ | 296 mJ | 13.3× |
+
+The prepared mode uses 1.51× less energy per image than the default one for 1.6× the speed: reading its precomputed
+tables costs far less than the work they save. ESP-DL's energy was not measured.
 
 ## The int8 stem and the pooled int8 classifier (Nov 5)
 
 The vertical engine also runs networks with an int8 stem (`stem_i8`: the standard engine's kernel, its output turned
 into channel planes with `transpose32`) and with the pooled int8 classifier (`pool_head`: run on the final map in
 HWC, its count planes after it). Same results bit by bit (run_tests.py, and the chip). ResNet-8 x1 with Bop, S3,
-weights in flash, 3 seeds (details: benchmarks/experiments/training_gap):
+weights in flash, 3 seeds; these are the models of the training-gap study (details:
+benchmarks/experiments/training_gap), not the benchmark's run of the same recipe through the CDT:
 
 | Network | validation | default | compact | prepared |
 |---|---|---|---|---|
@@ -269,23 +292,26 @@ seeds × 1000 images, exact on every image:
 | PIE planes, code in flash | **9.73 ms** (54 KB) | **7.09 ms** (138 KB) | **6.03 ms** (217 KB) |
 | PIE planes, code in RAM (`--code ram`) | 9.43 ms (65 KB) | 6.96 ms (149 KB) | 5.91 ms (228 KB) |
 
-The stem step is now 0.72 ms (code in RAM). The most accurate x1 network (77.48 % validation, 77.26 % test) is also the fastest: 1.52×
-faster than ESP-DL in flash, and the compact mode 1.38× faster than ESP-DL in RAM with less RAM (138 vs 147 KB).
+The stem step is now 0.72 ms (code in RAM). The most accurate x1 network is also the fastest. In the training-gap
+study (77.48 % validation, 77.26 % test) it is 1.52× faster than ESP-DL in flash, and its compact mode 1.38× faster
+than ESP-DL in RAM. The benchmark's run of the same recipe through the CDT (`--variant int8stem_pool2`, other
+trainings: 76.7 ± 0.3 % test) measures 9.70 / 7.07 / 6.02 ms: 1.53× faster than ESP-DL in flash, and compact 1.39×
+faster than ESP-DL in RAM with less RAM (138 vs 147 KB). The other pages use the benchmark's numbers.
 `chip_test.py --flash-config fast` (quad flash, largest caches) was measured too: within 0.1 % of the default, so
 comparisons keep ESP-IDF's default.
 
 ## Future work
 
-- **Weights in RAM with less RAM than ESP-DL:** the default engine is 1.06× slower than ESP-DL there (10.4 ms vs
-  9.8 ms, 63 KB vs 147 KB of RAM); the compact mode wins with about the same RAM. A block only for the small maps
-  would sit between the two.
+- **Weights in RAM with less RAM than ESP-DL, for the fully binary recipe:** the most accurate recipe already does it
+  (compact 7.07 ms with 138 KB against ESP-DL's 9.8 ms with 147 KB). The fully binary one still does not: its default
+  engine is 1.06× slower than ESP-DL there (10.4 ms vs 9.8 ms, 63 KB vs 147 KB of RAM) and its compact mode wins with
+  about the same RAM (151 KB). A block only for the small maps would sit between the two.
 - **The thermometer stem** (about 2 ms): the thermometer and the transpose into planes (the int8 stem is done, above).
-- **The classifier** (0.17 ms vs 0.06 ms): reading the final planes directly instead of converting them back.
+- **The classifier** (0.110 ms after change C1, against 0.06 ms in the standard engine): reading the final planes
+  directly instead of converting them back.
 - **Small maps** (blocks 4 and 5, 8×8 and 16×16): a 128-pixel register is half used or less, and every plane list is
   used once; packing several output channels per register would fill it.
-- **The classic ESP32** (no 128-bit registers), measured Nov 13 (ResNet-8 int8 stem + Bop + pool2, lut16, weights in
-  flash, 3 seeds, exact): standard 62.52 ms, vertical 54.68 ms (1.14×), compact 48.57 ms (1.29×, 200 KB of RAM);
-  prepared does not fit its data RAM. Still to do: a mode between compact and prepared that fits.
+- **The classic ESP32:** a mode between compact and prepared that fits its data RAM.
 
 The layer-by-layer study that led to this engine (precomputed vs run-time lists and thresholds, cold and warm cache)
 is `benchmarks/conv2d/cnn_cifar_resnet8/s3_vertical_layers.py`, with its results in `results/symbex/s3_vertical_layers*.json`.

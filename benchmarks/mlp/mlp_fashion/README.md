@@ -401,7 +401,7 @@ touching any result). Measured in October 2026 on an ESP32-S3 (QFN56, rev v0.2),
   seeds.
 - The integer models run their requantization with a float multiplier in the simulation (`earlier/fashion_int4.py`); on the
   chip, INT4 / INT2 are checked against their own integer simulation (100 %).
-- One board for the current results (ESP32-S3). Energy has not been measured; latency and memory have.
+- One board for the current results (ESP32-S3). Energy measured on the classic ESP32 ([ENERGY.md](ENERGY.md): 0.91 vs 10.3 mJ per image, 11×).
 
 ## Future work
 
@@ -409,4 +409,4 @@ touching any result). Measured in October 2026 on an ESP32-S3 (QFN56, rev v0.2),
 - **The classic ESP32 and the 1-bit input** again, with the current library and the fixed validation split.
 - **The ternary kernel**: one count per word with HAL row functions (today 12-15 ms).
 - **Learned input thresholds** for the fully binary network (86.3 % in `experiments`).
-- **Energy**, with a current meter: the metric no benchmark has yet.
+- **Energy** on the S3 and the Pico 2 (the classic ESP32 is done: [ENERGY.md](ENERGY.md)).

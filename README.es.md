@@ -13,17 +13,65 @@
   <a href="README.md"><img src="https://img.shields.io/badge/read-in%20English-334155" alt="read"></a>
 </p>
 
-**SYMBEX-1 es un framework de extremo a extremo para redes neuronales binarias, un bit por peso y por activación:
-se entrenan, se pliegan a enteros, se compilan a C y se miden en hardware real.** Su primer objetivo es el hardware
-más pequeño que existe, microcontroladores con unos cientos de KB de RAM y sin punto flotante, donde cada bit cuenta;
-la misma cadena sirve donde las operaciones de bits sean más baratas que las multiplicaciones.
+**SYMBEX-1 convierte una red neuronal en una binaria (un bit por peso y por activación) y la ejecuta en C puro en un
+microcontrolador.** Le das un modelo de PyTorch (uno denso, o una red hecha con las capas binarias de SYMBEX), tus datos y los
+límites de tu chip; entrena la red binaria, la
+convierte a C solo con enteros y comprueba en tu placa que el C da exactamente las respuestas de su simulación. Está
+hecho para chips con unos cientos de KB de RAM y sin punto flotante, donde un modelo INT8 es demasiado grande o lento.
+
+## Cómo se usa
+
+1. **Describe el trabajo** en un `symbex.toml`: la red, los datos y los límites del chip
+   ([`tools/configs/example.toml`](tools/configs/example.toml) tiene todas las opciones, comentadas).
+2. **Ejecuta el CDT**, el compilador de SYMBEX ([docs/es/cdt.md](docs/es/cdt.md)), desde `tools/`: `python cdt.py symbex.toml`.
+   Entrena la red binaria, pliega la escala y la BatchNorm en un umbral entero por salida, escribe un header de C y
+   comprueba el C contra la simulación entera del modelo en la PC y, con una placa conectada, en el chip.
+3. **Agrégalo a tu firmware**: copia [`lib_symbex`](Symbex1_PIO/lib/lib_symbex/) y el header generado a tu proyecto
+   (PlatformIO o cualquier compilador de C) y llama a la función de inferencia. Todo modelo exportado, denso o
+   convolucional, tiene la misma llamada única, `symbex_mlp_infer` (el nombre es histórico: los primeros modelos eran
+   MLP); [`Symbex1_PIO/src/main.cpp`](Symbex1_PIO/src/main.cpp) es un ejemplo completo:
+
+   ```c
+   #include "model_symbex.h"   // escrito por el CDT: pesos, umbrales, buffers; incluye lib_symbex
+
+   int cls = symbex_mlp_infer(input);   // input: SYMBEX_MLP_N_INPUTS valores uint8_t (píxeles o muestras)
+   ```
+
+**Soportado:** capas densas, convoluciones 1D y 2D, atajos residuales, max pooling; como opción, una primera capa int8
+y un clasificador int8 con pooling. El CDT binariza por sí solo un modelo denso de PyTorch; las redes convolucionales se
+escriben con las capas binarias de SYMBEX (ver los [benchmarks](benchmarks/)). **Todavía no:** convoluciones depthwise,
+capas recurrentes. **Chips:** ESP32, ESP32-S3 (con un segundo motor para su unidad SIMD), Raspberry Pi Pico 2 / RP2350
+(núcleos Cortex-M33 y Hazard3 RISC-V), AVR (Arduino Uno) y cualquier compilador de C en una PC.
+
+## Cómo empezar
+
+Para probarlo en cinco minutos (cada bloque empieza en la raíz del repositorio):
+
+```
+# la librería en tu placa (PlatformIO): el ejemplo tiene que imprimir "8/8 equal to the PC simulation"
+(cd Symbex1_PIO && pio run -t upload && pio device monitor -b 115200)
+
+# las pruebas de la librería (gcc)
+python Symbex1_PIO/lib/lib_symbex/tests/run_tests.py
+
+# un modelo con el CDT, y después en una placa (los dos desde tools/)
+cd tools
+python cdt.py symbex.toml
+python chip_test.py <carpeta de salida> --board esp32 --port /dev/ttyUSB0
+```
+
+Requisitos: Python con PyTorch; gcc; PlatformIO y pyserial para el chip; TensorFlow para las referencias INT8.
+
+## Qué tiene de distinto
 
 Las redes binarias no son nuevas: han corrido en FPGA (FINN), en teléfonos (daBNN, Larq) y en microcontroladores (eBNN,
-McDanel et al. 2017; ultracompactBNN, Daghero et al. 2021; CBin-NN, Sakr et al. 2024). Lo que SYMBEX-1 añade es la
-prueba de que la cadena llega hasta el final: cada modelo compilado da la misma respuesta que su simulación entera en el
-100 % de las entradas, y cada resultado es la misma red medida en el mismo chip comercial, en tres arquitecturas
-(Xtensa, Cortex-M33, RISC-V), contra la herramienta oficial de INT8, TensorFlow Lite Micro, con tres semillas y el
-conjunto de test usado una sola vez.
+McDanel et al. 2017; ultracompactBNN, Daghero et al. 2021; CBin-NN, Sakr et al. 2024). Lo que SYMBEX-1 añade:
+
+- **Comprobado, no supuesto.** Cada modelo exportado se compara bit a bit con su simulación entera, en la PC y en el
+  chip, y tiene que coincidir en el 100 % de las entradas verificadas.
+- **Medido contra lo que la gente despliega.** Cada número de abajo es la misma red medida contra TensorFlow Lite Micro
+  INT8 en el mismo chip: cuatro núcleos de tres arquitecturas (Xtensa, Arm Cortex-M33, RISC-V), tres semillas, el
+  conjunto de prueba usado una sola vez. El AVR del Arduino Uno, donde TFLite Micro no corre, se muestra aparte.
 
 ## ¿Por qué binario?
 
@@ -74,14 +122,17 @@ otro supera en los dos ejes a la vez; "vertical" es el motor de SYMBEX para la u
 
 - **INT8 es la más precisa:** el modelo oficial de MLPerf Tiny llega a 87.0 % en CIFAR-10. La ResNet-8 completamente
   binaria llega a 71.3 %, y a 76.7 % con la primera capa y el clasificador en 8 bits: de 10 a 16 puntos menos.
-- **La binaria es mucho más rápida:** en el ESP32-S3, 9.70 ms contra 52.0 ms (5.4×) con el [motor vertical](docs/es/vertical.md);
-  en el ESP32 clásico, 62.5 ms contra 717.8 ms (11.5×); en la Raspberry Pi Pico 2 (Cortex-M33), 67.8 ms contra 453 ms
+- **La binaria es mucho más rápida:** en el ESP32-S3, 9.70 ms contra 52.0 ms (5.4×) con el [motor vertical](docs/es/vertical.md), y 6.02 ms (8.6×) en su
+  modo preparado (217 KB de RAM);
+  en el ESP32 clásico, 48.6 ms contra 717.8 ms (14.8×) con el modo compacto del motor vertical (200 KB de RAM; el motor
+  estándar 62.5 ms, 79 KB); en la Raspberry Pi Pico 2 (Cortex-M33), 67.8 ms contra 453 ms
   con CMSIS-NN (6.7×).
 - **Y mucho más pequeña:** 24-29 KB de flash contra 96 KB.
 
 TFLite Micro es la ruta INT8 que usa casi todo el mundo, no el INT8 más rápido posible: ESP-DL de Espressif ejecuta
 ResNet-8 en 14.8 ms en el ESP32-S3 (una prueba rápida, no está en la gráfica). El motor vertical sigue siendo más
-rápido ahí con los pesos en flash; [Resultados](docs/es/results.md#qué-tan-rápido-podría-ser-int8) tiene la comparación y
+rápido ahí: 1.53× con los pesos en flash, y contra ESP-DL con sus pesos en RAM (9.8 ms, 147 KB) 1.39× en el modo compacto
+(7.07 ms, 138 KB de RAM de trabajo, pesos en flash) y 1.63× en el modo preparado (6.02 ms, 217 KB); [Resultados](docs/es/results.md#qué-tan-rápido-podría-ser-int8) tiene la comparación y
 lo que falta medir.
 
 ### El MLP: un bit contra INT8, INT4 e INT2
@@ -93,9 +144,11 @@ La misma receta para todos los métodos (split de validación, 3 semillas), Fash
   <img alt="MLP en Fashion-MNIST, precisión contra latencia en el ESP32-S3: SYMBEX contra INT8 / INT4 / INT2" src="docs/assets/pareto_mlp.svg">
 </picture>
 
-Los enteros de pocos bits son 1-2 puntos más precisos; un bit se queda con la esquina más rápida. Con los pesos en
-flash, donde leerlos es el costo, lo binario es 24-37× más rápido (0.42 ms contra 10.3-15.6 ms); con los pesos en RAM
-la diferencia baja a 1.4× (0.41 contra 0.56 ms).
+Los enteros de pocos bits son 1-2 puntos más precisos; un bit se queda con la esquina más rápida. La gráfica mezcla
+formas: los puntos INT8, INT4 e INT2 son la red oficial 784-256-128-10, los de SYMBEX son redes dimensionadas para
+binario. Con la misma forma (784-128-512-10, ESP32-S3), lo binario es 28× más rápido que INT8 con los pesos en flash
+(0.42 contra 11.7 ms) y 2.1× con los pesos en RAM (0.41 contra 0.89 ms). Con la forma oficial, contra nuestros propios
+kernels de pocos bits: 8-11× en flash (1.24 contra 10.3-13.4 ms), casi igual en RAM (0.525 contra 0.556 ms).
 
 ### Todos los benchmarks, lado a lado
 
@@ -113,11 +166,11 @@ La misma red en el mismo chip, binaria contra INT8 de TFLite Micro:
 
 | Benchmark | Precisión, SYMBEX / INT8 | Velocidad | Memoria |
 |---|---|---|---|
-| [ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/), imágenes CIFAR-10 | 76.7 / 87.0 % | de 5.4× (ESP32-S3) a 11.5× (ESP32) más rápida | 29 / 96 KB de flash |
-| [FOMO](benchmarks/conv2d/fomo_voc_person/), detección de personas | **F1 31.2 / 30.1 %** | 2.0× más rápido (ESP32-S3); solo SYMBEX cabe en el ESP32 | 41 / 236 KB de flash |
-| [MLP](benchmarks/mlp/mlp_fashion/), Fashion-MNIST | 87.5 / 89.8 % | 28× (flash) y 2.1× (RAM) en el ESP32-S3, 8.8× en el ESP32 | 27 / 187 KB de flash |
-| [Convoluciones 1D](benchmarks/conv1d/har_ultracompact/), reconocimiento de actividad | INT8 unos 9 puntos mejor | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 6.5-10× menos flash |
-| [ECG](benchmarks/conv1d/ecg_mitbih/), latidos arrítmicos (entre pacientes) | balanceada 67-75 / 71-72 %, empate dentro de la dispersión | 6.0-13.4× (ESP32), 2.0-3.0× (Pico 2 M33), 1.04-1.59× (ESP32-S3) | 6.6-8.4× menos flash |
+| [ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/), imágenes CIFAR-10 | 76.7 / 87.0 % | de 5.0-8.6× (ESP32-S3, según la RAM usada) a 14.8× (ESP32) más rápida | 29 / 96 KB de flash |
+| [FOMO](benchmarks/conv2d/fomo_voc_person/), detección de personas | **F1 31.2 / 30.1 % (INT8 entrenado con menos presupuesto)** | 2.0× más rápido (ESP32-S3); solo SYMBEX cabe en el ESP32 | 41 / 236 KB de flash |
+| [MLP](benchmarks/mlp/mlp_fashion/), Fashion-MNIST | 87.5 / 89.8 % | 28× (flash) y 2.1× (RAM) en el ESP32-S3, 8.8× en el ESP32 (a medir de nuevo: 13.4× con la librería actual, corrida de energía) | 27 / 187 KB de flash |
+| [Convoluciones 1D](benchmarks/conv1d/har_ultracompact/), reconocimiento de actividad | INT8 9-23 puntos mejor (peor en la red más pequeña) | 5.3-10.4× (ESP32), 1.47-1.90× (ESP32-S3) | 7-10× menos flash |
+| [ECG](benchmarks/conv1d/ecg_mitbih/), latidos arrítmicos (entre pacientes) | balanceada 67-75 / 71-72 %, empate dentro de la dispersión | 6.0-13.4× (ESP32), 2.0-12.6× (Pico 2 M33, flash; 3.0× para l con ambos en RAM), 1.04-1.59× (ESP32-S3) | 6.6-8.6× menos flash |
 | [Dígitos](benchmarks/mlp/mlp_digits/), en un Arduino Uno | 94.5 % (FP32 con la misma entrada 94.4 %) | 5.3 ms en un AVR de 16 MHz | 3.4 KB de flash, 0.21 KB de RAM |
 
 Contra otra librería binaria, ultracompactBNN (Daghero et al. 2021), en su propio procesador RISC-V simulado, SYMBEX
@@ -127,50 +180,43 @@ necesita 1.07-1.37× menos instrucciones en sus cuatro redes. Todas las tablas, 
 ## Lo que aprendimos
 
 1. **Lo binario rinde más donde el chip no tiene SIMD.** En el ESP32 clásico, contar bits es un orden de magnitud más
-   barato que multiplicar bytes (5.3-11.5× en redes completas). En el ESP32-S3, cuya unidad SIMD acelera INT8, el
-   motor estándar gana por 1.3-2×, y superar a la propia librería INT8 de Espressif necesitó un motor dedicado (vertical).
+   barato que multiplicar bytes (5.3-14.8× en redes completas). En el ESP32-S3, cuya unidad SIMD acelera INT8, el
+   motor estándar gana por 1.0-2.0× en redes convolucionales, y superar a la propia librería INT8 de Espressif necesitó
+   un motor dedicado (vertical: 5.0-8.6× más rápido que TFLite Micro en ResNet-8, según su RAM).
 2. **Lo binario no reemplaza a INT8 en clasificación fina.** En CIFAR-10 incluso la mejor receta binaria queda 10
    puntos atrás. Un [estudio](benchmarks/experiments/training_gap/) encontró que la causa es sobre todo la capacidad, no
    el entrenamiento: la ResNet-8 binaria ajusta el 72 % de sus imágenes de entrenamiento, su gemela de precisión completa
    el 92 %.
 3. **La detección y las tareas de sí o no se binarizan bien.** El detector de personas binario es tan preciso como el
-   INT8, 2× más rápido en el ESP32-S3, 6× más pequeño y el único que cabe en el ESP32 clásico. En latidos de ECG
+   INT8 (entrenado con menos presupuesto), 2× más rápido en el ESP32-S3, 6× más pequeño y el único que cabe en el ESP32 clásico. En latidos de ECG
    (cuatro clases AAMI, pacientes de prueba nunca vistos en el entrenamiento) binaria e INT8 empatan dentro de una
    desviación estándar, con errores distintos.
 4. **Dimensiona la red para binario.** Su mejor forma no es la de INT8: una primera capa angosta y capas binarias
    anchas (MLP 784-128-512-10), etapas iniciales más delgadas y una última más ancha (ResNet-8 16-32-128: +1.8 puntos a
    la misma velocidad).
-5. **Una entrada de 8 bits merece una primera capa de 8 bits.** Para la cámara (ResNet-8) y el acelerómetro (1D), una
+5. **Una entrada de 8 bits merece una primera capa de 8 bits.** Para los píxeles (ResNet-8) y el acelerómetro (1D), una
    primera capa int8 es más precisa, y más rápida donde el chip tiene SIMD.
 6. **Por byte, los enteros de pocos bits son más precisos.** INT2 e INT4 superan a un bit con el mismo tamaño de
    modelo; un bit gana en velocidad y en los chips más pequeños.
 7. **Exacto, o no cuenta.** Cada modelo se verifica bit a bit: el C en la PC y en el chip tiene que ser igual a la
-   simulación entera, imagen por imagen.
+   simulación entera, entrada por entrada.
 
 ## Cómo funciona
-
-SYMBEX-1 tiene tres partes:
-
-- **`lib_symbex`**: un motor de inferencia portable en C para redes binarias: conteo de bits en vez de multiplicación,
-  umbrales enteros, sin punto flotante. Una capa de hardware por familia de chips (genérica, ESP32, ESP32-S3, AVR,
-  RP2350).
-- **El CDT** (`tools/cdt.py`): toma un modelo, tus datos y los límites de tu hardware, entrena la red binaria, la
-  pliega en enteros, escribe su header de C y lo verifica bit a bit, en la PC y en el chip.
-- **`benchmarks/`**: comparaciones reproducibles contra INT8 de TensorFlow Lite Micro en los mismos chips.
 
 El motor, paso a paso:
 
 1. **Todas las capas son binarias.** Pesos y activaciones son de un bit. Una convolución es un conteo de bits (AND o
    XOR seguido de popcount); un atajo residual es un OR de bits; el pooling es un OR.
 2. **La entrada también se convierte en bits.** Cada píxel entra como un termómetro (8 niveles por color), así que la
-   primera capa es binaria como las demás. Como opción, la primera capa y el clasificador quedan en int8 (más precisos,
+   primera capa es binaria como las demás. Las redes densas leen la entrada uint8 directamente (8 bits × pesos de 1
+   bit). Como opción, la primera capa y el clasificador quedan en int8 (más precisos,
    ver arriba).
 3. **Todo lo demás se pliega en enteros.** La escala, la BatchNorm y la activación se reducen a un umbral entero por
    salida: `bit = (conteo >= T)`. Nada de punto flotante en la inferencia.
 4. **El método de conteo se elige por chip.** Una instrucción nativa de popcount donde la hay, una tabla de 64 KB o
    SWAR en el ESP32, el multiplicador SIMD en el ESP32-S3. `count_bench.py` los mide; la librería elige el más rápido.
 5. **Exacto bit a bit, siempre.** El C compilado, en la PC y en el chip, tiene que reproducir la simulación entera del
-   modelo al 100 %: cada modelo exportado se verifica, siempre.
+   modelo al 100 % en cada entrada verificada (el conjunto de validación): cada modelo exportado se verifica, siempre.
 
 [docs/es/how-it-works.md](docs/es/how-it-works.md) lo explica con diagramas.
 
@@ -184,7 +230,8 @@ El estándar completo, las referencias y cómo repetir un benchmark: [docs/es/me
   entorno aparte que no importa nada de SYMBEX.
 - **Medido en el chip:** medianas de 1000 inferencias, un núcleo, a la frecuencia de fábrica (240 MHz en los chips
   ESP32, 150 MHz en la Pico 2); la RAM medida en el chip.
-- **Varias semillas** para SYMBEX: la precisión como media ± desviación estándar de 3 semillas.
+- **Tres semillas para ambos métodos** (42, 43, 44; salvo el modelo publicado de MLPerf Tiny, uno solo): la precisión
+  como media ± desviación estándar.
 - **Split de validación:** cada decisión (checkpoint, umbral, variante, forma) se toma en un split de validación sacado
   de los datos de entrenamiento; el conjunto de prueba se evalúa una sola vez. Una revisión encontró lugares donde el
   conjunto de prueba se había usado para elegir; se corrigieron y las cifras afectadas se volvieron a medir (octubre de
@@ -192,11 +239,22 @@ El estándar completo, las referencias y cómo repetir un benchmark: [docs/es/me
 
 ## Estado actual y próximos pasos
 
-Hecho: convoluciones 2D y 1D completamente binarias, redes densas, cinco chips (ESP32, ESP32-S3, los dos núcleos de la
-Raspberry Pi Pico 2, AVR), el motor vertical para el ESP32-S3, y la primera capa y el clasificador int8 como opciones
-(noviembre de 2026). Lo siguiente:
+Hecho: convoluciones 2D y 1D completamente binarias, redes densas, cuatro chips y cinco núcleos (ESP32, ESP32-S3, los dos
+núcleos de la Raspberry Pi Pico 2, el AVR del Arduino Uno), el motor vertical para el ESP32-S3, y la primera capa y el clasificador int8 como opciones
+(noviembre de 2026).
 
-- **La energía** por inferencia, con un medidor de corriente: la latencia y la memoria están medidas, la energía todavía no.
+- **Energía (14-15 nov. 2026):** medida con un medidor USB, una corrida de 10 minutos por caso ([ResNet-8](benchmarks/conv2d/cnn_cifar_resnet8/ENERGY.md)):
+  una imagen cuesta 6.6× menos energía que con TFLite Micro INT8 en el ESP32-S3 (7.2 frente a 47.7 mJ) y 13× menos en
+  el ESP32 clásico (22 frente a 296 mJ). En el ESP32 clásico también los demás benchmarks: MLP 11×, HAR 8.7×, ECG 8.0×
+  menos energía por inferencia; FOMO 96 mJ por imagen, donde TFLite Micro no cabe.
+  En el S3 todos los benchmarks gastan menos energía también: MLP 25×, FOMO 2.0×, HAR 1.8×, ECG 1.4×, ResNet-8 con el
+  motor preparado 10.5× (4.5 mJ) ([docs/es/results.md](docs/es/results.md#energía-por-inferencia)).
+
+Lo siguiente:
+
+- **Una sola versión de la librería:** medir de nuevo cada resultado con la lib_symbex actual (algunas tablas vienen
+  de versiones anteriores, por ejemplo la MLP en el ESP32 clásico).
+- **Energía en la Pico 2.**
 - **ESP-DL** como referencia INT8 completa (3 semillas, todo el conjunto de prueba, todos los benchmarks).
 - **FOMO reentrenado** con el nuevo split de validación fijo.
 
@@ -216,24 +274,9 @@ tools/
                            count_bench.py (aritmética pura de cada chip), train_bench.py
 benchmarks/                comparaciones reproducibles contra TensorFlow Lite Micro: mlp/, conv1d/, conv2d/, experiments/
 tests/                     pruebas de Python (pytest -q desde la raíz)
-docs/                      documentación: en/ (inglés), es/ (español), assets/ (gráficas), preprint/
+docs/                      documentación: en/ (inglés: how-it-works, cdt, library, results, ...), es/ (español),
+                           assets/ (gráficas), preprint/
 ```
-
-## Cómo empezar
-
-```
-# la librería en tu placa (PlatformIO): el ejemplo tiene que imprimir "8/8 equal to the PC simulation"
-cd Symbex1_PIO && pio run -t upload && pio device monitor -b 115200
-
-# las pruebas de la librería (gcc)
-python Symbex1_PIO/lib/lib_symbex/tests/run_tests.py
-
-# un modelo con el CDT (desde tools/), y después en una placa
-python cdt.py mi_modelo.toml
-python chip_test.py <carpeta de salida> --board esp32 --port /dev/ttyUSB0
-```
-
-Requisitos: Python con PyTorch; gcc; PlatformIO y pyserial para el chip; TensorFlow para las referencias INT8.
 
 ## Versiones anteriores
 
@@ -249,7 +292,7 @@ Hay un preprint de SYMBEX-1 en preparación; la referencia se agregará aquí.
 ## Colaboradores
 
 Carlos Duarte (Edén) -- Panamá -- GitHub: [Eden-sudo](https://github.com/Eden-sudo)
-Obed -- GitHub: [Obed0101](https://github.com/Obed0101) -- suite de pruebas, referencias de bajo número de bits, revisión del split de validación
-Abrahan -- GitHub: [abrahandejesusaparicio-code](https://github.com/abrahandejesusaparicio-code) -- detección de personas con FOMO en el ESP32 clásico
+Obed Gonzales -- GitHub: [Obed0101](https://github.com/Obed0101) -- suite de pruebas, referencias de bajo número de bits, revisión del split de validación
+Abrahan Aparicio -- GitHub: [abrahandejesusaparicio-code](https://github.com/abrahandejesusaparicio-code) -- detección de personas con FOMO en el ESP32 clásico
 
 Versión en inglés: [README.md](README.md) -- Licencia: ver [LICENSE](LICENSE).

@@ -67,7 +67,8 @@ SOURCES = {
 RESNET_PARETO = {
     "s3": [("binary", "swar_w1"), ("binary, vertical", "swar_w1_vertical"),
            ("16-32-128", "swar_c16-32-128_b1-1-2"), ("int8 stem", "swar_w1_int8stem_pool2"),
-           ("int8 stem, vertical", "swar_w1_int8stem_pool2_vertical")],
+           ("int8 stem, vertical", "swar_w1_int8stem_pool2_vertical"),
+           ("int8 stem, prepared", "swar_w1_int8stem_pool2_vertical_prepared")],
     "esp32": [("binary", "lut16_w1"), ("16-32-128", "lut16_c16-32-128_b1-1-2"),
               ("int8 stem", "lut16_w1_int8stem_pool2"),
               ("int8 stem, vertical compact", "lut16_w1_int8stem_pool2_vertical_compact")],

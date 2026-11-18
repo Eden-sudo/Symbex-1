@@ -239,7 +239,7 @@ one training patient. The single network stays.
 - N / S / V without F, which is one training patient against one test patient.
 - The INT8 side with augmentation (its best recipe on s and l in the cross-validation), shown next to this one.
 - The vertical engine (`symbex_bool_vertical`) for 1D, and a PIE first-layer kernel for 4-channel inputs on the S3.
-- Energy per beat with the current meter: the metric a wearable cares about most.
+- Energy per beat on the other boards (classic ESP32 done: [ENERGY.md](ENERGY.md), 5.0 vs 40.1 mJ, 8.0×).
 
 ## How to reproduce
 

@@ -4,8 +4,8 @@
 
 lib_symbex runs the networks the [CDT](cdt.md) exports. It is plain C with no dependencies, the model's memory is
 static, and every model it runs has been checked bit by bit against the CDT's integer simulation. It lives in
-`Symbex1_PIO/lib/lib_symbex/`, and the same sources build for the PC, the ESP32, the ESP32-S3 and the Raspberry Pi Pico 2
-(both cores), as well as for PULP in the 1D benchmark.
+`Symbex1_PIO/lib/lib_symbex/`, and the same sources build for the PC, the ESP32, the ESP32-S3, the Raspberry Pi Pico 2
+(both cores) and the Arduino Uno (AVR, dense networks), as well as for PULP in the 1D benchmark.
 
 ## Using it in a project
 
@@ -18,10 +18,14 @@ model offers the same call:
 int cls = symbex_mlp_infer(input);   // uint8 input -> class index
 ```
 
-For the convolutional models, `input` is an RGB image (uint8, HWC order); for the dense ones, it is the input vector.
+For the 2D convolutional models, `input` is an RGB image (uint8, HWC order); for the 1D ones, the samples time-major
+(all channels of step 0, then step 1, ...; uint8 = int8 sample + 128); for the dense ones, the input vector.
 `SYMBEX_MLP_N_INPUTS` and `SYMBEX_MLP_N_CLASSES` give the sizes. The weights and the buffers are static arrays, and
 there is no setup call. The only allocation is the HAL's 64 KB counting table (16-bit table, on the ESP32 and the M33),
-made once on the first count; without the RAM for it, the HAL falls back to SWAR.
+made once on the first count; without the RAM for it, the HAL falls back to SWAR. The vertical engine needs no call
+either: build with `-DSYMBEX_BOOL_VERTICAL` (and `-DSYMBEX_BOOL_VERTICAL_PREPARED` or
+`-DSYMBEX_BOOL_VERTICAL_PREPARED_COMPACT` for its optional modes), and the first `symbex_mlp_infer` builds its lists
+and thresholds into static buffers the header already declares ([The vertical engine](vertical.md)).
 
 `Symbex1_PIO/` is the minimal PlatformIO project. `src/main.cpp` runs a small demo network and checks every image
 against the class the PC simulation gave ("8/8 equal"). To run a real model, copy its `model_symbex.h` over

@@ -34,7 +34,7 @@ El método en `[model]` decide el camino.
 |---|---|---|
 | El modelo | una red FP32 (un MLP) que el CDT binariza | una red que ya es binaria por definición (sus capas viven en el `model.py` del benchmark) |
 | estimate | cuánto sufre cada capa a 1, 2, 4 y 8 bits | se salta: no hay nada que elegir |
-| train | busca el ancho y los bits por capa dentro del presupuesto, y luego entrena la red elegida | entrena la red tal como está definida, solo con etiquetas |
+| train | busca el ancho y los bits por capa (1, 2, 4 u 8) dentro del presupuesto de memoria, y luego entrena la red elegida; hoy solo se exportan los planes con todas las capas a 1 bit (abajo) | entrena la red tal como está definida, solo con etiquetas |
 | export | `export/dense.py`, `export/ternary.py` | `export/boolean.py` |
 
 ## 1 inspect
@@ -71,15 +71,17 @@ todas las capas son de 1 bit (`--options bin` limita la búsqueda a ellos).
 
 **Las redes booleanas** se entrenan tal como están definidas, solo con las etiquetas. Con `data_on_gpu = true` y
 `compile = "reduce-overhead"`, el conjunto de entrenamiento va a la GPU una sola vez y el paso de entrenamiento se repite
-como un CUDA graph: la ResNet-8 binaria se entrena en 3.0 minutos en vez de 8.6, con la misma precisión y la misma
+como un CUDA graph: la ResNet-8 binaria se entrena en 3.0 minutos en vez de 8.6 en una GPU NVIDIA RTX 4000 Ada de portátil, con la misma precisión y la misma
 exactitud.
 
 **La primera capa de una red booleana** es, por defecto, un termómetro y una convolución binaria. Un modelo puede elegir
 en su lugar un stem int8 (`stem_kind = "int8"`, una convolución de 8 bits sobre los píxeles centrados cuyo
 `int8_weights()` da sus enteros: `Int8Conv` en `benchmarks/conv2d/cnn_cifar_resnet8/model.py`). La exportación pliega su
 BatchNorm y su signo en un umbral por canal sobre el producto punto entero, lo escribe como `symbex_bool_stem_i8` de
-lib_symbex y lo comprueba como cualquier otra capa (el C igual a la simulación entera en cada imagen). Úsalo en chips
-que multiplican bytes con SIMD (ESP32-S3, Cortex-M33); en los demás el termómetro es más rápido. Los dos motores lo
+lib_symbex y lo comprueba como cualquier otra capa (el C igual a la simulación entera en cada imagen). Solo, es más lento que el
+termómetro en chips sin SIMD de bytes, pero con sus kernels actuales la ResNet-8 completa es casi igual de rápida ahí
+(0.98-1.04× en Hazard3 y el ESP32) y más rápida donde hay SIMD (1.12-1.22× en el M33 y el S3;
+[Cómo funciona](how-it-works.md#3-la-entrada-y-la-salida)). Los dos motores lo
 ejecutan (el vertical convierte su salida en planos de canal).
 
 **El clasificador de una red booleana** es binario por defecto. El exportador también acepta un clasificador int8 con
@@ -116,12 +118,12 @@ flowchart LR
 3. **Escribir y comprobar.** Se escribe el header, se compila con lib_symbex en la PC y se ejecuta sobre las imágenes
    de validación.
 
-Salen dos números:
+Salen dos números (una diferencia se reporta, pero no detiene la exportación: lee las líneas con `[X]`):
 
 | | Compara | Esperado |
 |---|---|---|
 | **Fidelidad** | PyTorch contra la simulación entera | cerca de 100 % (el redondeo de los umbrales puede cambiar una muestra en el límite) |
-| **Exactitud** | el C compilado contra la simulación entera | **100 %, siempre**; cualquier otra cosa se reporta como `[X]` |
+| **Exactitud** | el C compilado contra la simulación entera | **100 %, siempre**; cualquier otra cosa se marca con `[X]` |
 
 Para las redes densas la exportación también elige la aritmética (`[output] arithmetic = "auto"`): AND o XNOR, la que el
 perfil del chip en `tools/chip_profiles/` predice más rápida para la forma de este modelo. Las dos dan las mismas
@@ -141,6 +143,10 @@ firmware alrededor del header, lo flashea y envía las imágenes de validación 
 `--compare-arithmetic` (redes densas), el mismo modelo se mide también con la otra aritmética, para confirmar en el chip
 lo que predijo el perfil.
 
+`engine` elige cómo corre una red booleana: `auto` (por defecto: el motor vertical en el ESP32-S3, el estándar en los
+demás), `standard`, `vertical`, `vertical_compact` o `vertical_prepared`. Un mismo header los ejecuta todos cuando
+la exportación escribe el motor vertical (redes 2D que puede ejecutar; [El motor vertical](vertical.md)).
+
 `tools/chip_test.py` ejecuta solo esta etapa sobre cualquier carpeta de exportación.
 
 ## Cómo ejecutarlo
@@ -150,6 +156,10 @@ cd benchmarks/conv2d/cnn_cifar_resnet8
 python ../../../tools/cdt.py symbex.toml                                   # entrenar, exportar, comprobar en la PC
 python ../../../tools/cdt.py symbex.toml --from chip --board s3 --port /dev/ttyACM0
 ```
+
+Las rutas dentro de un `symbex.toml` (modelo, datos, `lib_path`) son relativas a la carpeta desde donde se ejecuta:
+ejecuta el CDT de un benchmark desde su carpeta, como aquí. La forma `cd tools` del README principal es para un
+`symbex.toml` escrito desde `tools/`.
 
 `--show-config` imprime la configuración que se ejecutaría y de dónde salió cada valor (por defecto, archivo o flag).
 Ejemplos que funcionan: `benchmarks/conv2d/cnn_cifar_resnet8/symbex.toml` (boolean), `benchmarks/mlp/mlp_fashion/symbex.toml`

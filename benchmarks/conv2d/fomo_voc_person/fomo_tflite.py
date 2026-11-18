@@ -87,6 +87,7 @@ def main():
     ap.add_argument("--images", type=int, default=100)
     ap.add_argument("--arena-kb", type=int, default=230, help="TFLite Micro arena (default 230 KB)")
     ap.add_argument("--no-upload", action="store_true")
+    ap.add_argument("--usb", action="store_true", help="the ESP32-S3's native USB port (/dev/ttyACM0)")
     ap.add_argument("--model", help="measure this .tflite as it is (no training; e.g. reference/fomo_int8_c32-32-128.tflite)")
     args = ap.parse_args()
     cwd = os.getcwd()                                                   # --model is relative to where it is run
@@ -174,7 +175,7 @@ def main():
     n = min(args.images, len(xte))
     project = os.path.join("runs", "tflite", f"tflm_{args.board}_{name}")
     if not args.no_upload:
-        tflm_project(project, tflite, args.board, args.port, args.baud, args.arena_kb, 96 * 96 * 3, 2 * 12 * 12, False)
+        tflm_project(project, tflite, args.board, args.port, args.baud, args.arena_kb, 96 * 96 * 3, 2 * 12 * 12, False, args.usb)
         main_cc = os.path.join(project, "src", "main.cc")
         src = open(main_cc).read()
         src = src.replace("MicroMutableOpResolver<6>", "MicroMutableOpResolver<12>")
@@ -186,7 +187,7 @@ def main():
         if ops not in src:
             sys.exit("[X] the TFLite Micro firmware of mlp_fashion changed: update the replacements in this script")
         open(main_cc, "w").write(src)
-    chip_pred, times, arena = measure_chip(project, args.board, args.port, args.baud, xte[:n].reshape(n, -1), not args.no_upload)
+    chip_pred, times, arena = measure_chip(project, args.board, args.port, args.baud, xte[:n].reshape(n, -1), not args.no_upload, args.usb)
     equal = 100 * (chip_pred == flat[:n]).mean()
     print(f"\n    FOMO INT8, TensorFlow Lite Micro on {BOARDS[args.board]} ({n} images)")
     print(f"    same output as the PC interpreter : {equal:.2f}%")

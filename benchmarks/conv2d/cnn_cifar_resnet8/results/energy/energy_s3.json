@@ -1,0 +1,134 @@
+{
+ "board": "s3",
+ "date": "2026-11-14",
+ "meter": "USB power meter on the board's native USB port (display: V, A, mAh, Wh; read by eye)",
+ "method": "each phase 600 s; energy = meter mAh x volts x 3.6 J; per inference = energy / runs; above idle = (mAh - idle mAh) x volts x 3.6 / runs; the meter counts whole mAh (+-1 mAh per reading); one run per phase; the board was slightly warm",
+ "tools": "tools/energy_loop.py (firmware: 0xE5 loop on the last input, 'L:count,elapsed_us,class')",
+ "phases": {
+  "tflite": {
+   "label": "TFLite Micro INT8 (MLPerf ResNet-8, ESP-NN), flash",
+   "runs": 11626,
+   "seconds": 600.0,
+   "mah": 30,
+   "meter_wh": 0.15,
+   "amps_seen": "0.17-0.18 A, peaks 0.19-0.20 A",
+   "volts": 5.13,
+   "joules": 554.0,
+   "mW": 923.4,
+   "ms_per_run": 51.608,
+   "mJ_per_run": 47.66,
+   "mJ_per_run_above_idle": 17.47
+  },
+  "symbex": {
+   "label": "SYMBEX int8stem_pool2 seed 42, vertical engine (default), swar, flash",
+   "runs": 63736,
+   "seconds": 600.0,
+   "mah": 25,
+   "meter_wh": 0.13,
+   "amps_seen": "0.14-0.15 A, low 0.13 A",
+   "volts": 5.13,
+   "joules": 461.7,
+   "mW": 769.5,
+   "ms_per_run": 9.414,
+   "mJ_per_run": 7.24,
+   "mJ_per_run_above_idle": 1.74
+  },
+  "idle": {
+   "label": "idle: SYMBEX firmware waiting on the serial port",
+   "runs": 0,
+   "seconds": 600.0,
+   "mah": 19,
+   "meter_wh": 0.09,
+   "amps_seen": "0.11 A",
+   "volts": 5.13,
+   "joules": 350.9,
+   "mW": 584.8
+  }
+ },
+ "ratio_total": {
+  "value": 6.58,
+  "range_pm1mah": [
+   6.11,
+   7.08
+  ]
+ },
+ "ratio_above_idle": {
+  "value": 10.05,
+  "range_pm1mah": [
+   6.17,
+   17.82
+  ]
+ },
+ "seeds_calculated": {
+  "note": "NOT measured: SYMBEX power of the seed-42 run x each seed's chip latency (same engine, same shape, same code)",
+  "source": "results/symbex/symbex_seeds_s3_swar_w1_int8stem_pool2_vertical.json",
+  "mJ_per_run": {
+   "42": 7.48,
+   "43": 7.46,
+   "44": 7.46
+  }
+ },
+ "prepared_vs_default": {
+  "date": "2026-11-15",
+  "meter_port": "USB-A (as Nov 14)",
+  "question": "does spending RAM on prepared lists save energy, or only time? (reading more RAM could raise the power)",
+  "default": {
+   "label": "SYMBEX int8stem_pool2 seed 42, vertical engine (default), lut16, flash, 54 KB RAM; exact 100 %",
+   "runs": 63736,
+   "seconds": 600.019,
+   "ms_per_run": 9.4141,
+   "mah": 23.68,
+   "meter_wh": 0.12,
+   "amps_seen": "not noted",
+   "volts": 5.13,
+   "joules": 437.4,
+   "mW": 728.9,
+   "mJ_per_run": 6.8624,
+   "mJ_per_run_above_idle": 1.3569,
+   "meter_raw": {
+    "mah": 24,
+    "wh": 0.12,
+    "timer_s": 610
+   }
+  },
+  "prepared": {
+   "label": "SYMBEX int8stem_pool2 seed 42, vertical engine, prepared (lists and thresholds prepared in RAM), lut16, flash, 217 KB RAM; exact 100 %",
+   "runs": 101664,
+   "seconds": 600.026,
+   "ms_per_run": 5.902,
+   "mah": 25.0,
+   "meter_wh": 0.12,
+   "amps_seen": "not noted",
+   "volts": 5.13,
+   "joules": 461.7,
+   "mW": 769.5,
+   "mJ_per_run": 4.5414,
+   "mJ_per_run_above_idle": 1.0898,
+   "meter_raw": {
+    "mah": 25,
+    "wh": 0.12,
+    "timer_s": 600
+   }
+  },
+  "ratio_default_vs_prepared": {
+   "value": 1.51,
+   "range_pm1mah": [
+    1.39,
+    1.64
+   ]
+  },
+  "ratio_tflite_vs_prepared": {
+   "value": 10.49,
+   "range_pm1mah": [
+    9.75,
+    11.3
+   ]
+  },
+  "speed_ratio": 1.6,
+  "notes": [
+   "A first default run was not read in time: discarded and repeated.",
+   "The Nov 15 default run (24 mAh, 6.86 mJ) agrees with the Nov 14 one (25 mAh, 7.24 mJ, swar) within +-1 mAh."
+  ],
+  "answer": "it saves energy: 1.51x less per image (range 1.39-1.64) for 1.60x the speed; the prepared engine drew about 5 % more power (0.77 against 0.73 W), 1 mAh, at the meter's limit"
+ }
+}

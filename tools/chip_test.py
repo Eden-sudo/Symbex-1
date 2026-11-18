@@ -22,6 +22,7 @@ Run from tools/:
     python chip_test.py runs/resnet8 --board s3 --engine vertical_prepared          # ... lists prepared in RAM (faster)
     python chip_test.py runs/resnet8 --board s3 --engine vertical_compact           # ... lists prepared, thresholds compact
     python chip_test.py runs/resnet8 --board pico2_riscv --engine vertical --code ram # ... its inner loops in RAM
+    python chip_test.py runs/resnet8 --board s3 --usb --port ttyACM0 --energy 120   # + energy with a USB meter
     python chip_test.py --kernels --board s3                                        # kernel benchmark only (no model)
     python chip_test.py --kernels --board s3 --weights ram                          # ... with the weights in RAM
 --kernels measures which arithmetic (XNOR + popcount or AND + count) is faster on the chip, with the library's own
@@ -35,12 +36,17 @@ fastest on the ESP32-S3; same data, same results. --engine vertical_prepared: th
 and thresholds built once into RAM at start (optional: more RAM, faster); --engine vertical_compact: the lists
 prepared, the thresholds compact (about half that RAM, a little slower). --code ram runs the engine's inner loops
 from RAM instead of flash (Pico 2, ESP32 boards): the time no longer depends on where they land in the flash cache.
+--energy S (ESP32 boards, a USB meter with an mAh counter between the PC and the board): after the images, phases
+of S seconds: the board idle, SYMBEX running the last image in a loop, and the INT8 reference (when exported);
+type the meter's voltage once and its mAh before and after each phase. Reports the energy per inference, in total and above idle (the
+board's own draw removed), in the JSON's "energy" (the file name gets "_energy").
 Writes <folder>/chip_<board>_<popcount>_<weights>_<first-layer>.json (+ "_vertical" / "_vertical_prepared" / "_vertical_compact",
 + "_coderam").
 Requires: PlatformIO (pio), pyserial, a connected board.
 """
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -86,7 +92,11 @@ def main():
     ap.add_argument("--usb", action="store_true",
                     help="through the board's native USB-Serial-JTAG port (ESP32-S3, /dev/ttyACM0) instead of its UART: "
                          "flashing needs no BOOT button, same firmware and results")
+    ap.add_argument("--energy", type=float, default=0, metavar="S",
+                    help="ESP32 boards: idle / SYMBEX / INT8 phases of S seconds each, read on a USB meter (mAh)")
     args = ap.parse_args()
+    if args.energy and not (math.isfinite(args.energy) and 0.001 <= args.energy and 1000 * args.energy < 2 ** 32):
+        ap.error("--energy must be 0 (off) or between 0.001 and 4294967 seconds (the firmware gets milliseconds in 32 bits)")
     if args.port and not args.port.startswith("/") and not args.port.upper().startswith("COM"):
         args.port = "/dev/" + args.port                  # "ttyUSB0" -> "/dev/ttyUSB0"
     if args.kernels:
@@ -132,7 +142,8 @@ def main():
         res = measure_on_chip(header, x, y, sim, os.path.join(args.folder, f"chip_{args.board}"), args.lib_path,
                               args.board, args.port, args.baud, args.samples, not args.no_upload, args.popcount, flash,
                               weights=args.weights, first_layer=args.first_layer, int8=int8, usb=args.usb,
-                              engine=args.engine, code=args.code, flash_config=args.flash_config)
+                              engine=args.engine, code=args.code, flash_config=args.flash_config,
+                              energy=args.energy)
         res["code"] = args.code
         res["flash_config"] = args.flash_config
         args.engine = res.get("engine", args.engine)      # "auto" resolved: the file name says which engine ran
@@ -141,7 +152,8 @@ def main():
     path = os.path.join(args.folder, f"chip_{args.board}_{args.popcount}_{args.weights}_{args.first_layer}"
                                      + ("" if args.engine == "standard" else "_" + args.engine)
                                      + ("_coderam" if args.code == "ram" else "")
-                                     + ("_fastflash" if args.flash_config == "fast" else "") + ".json")
+                                     + ("_fastflash" if args.flash_config == "fast" else "")
+                                     + ("_energy" if args.energy else "") + ".json")
     with open(path, "w") as f:
         json.dump(res, f, indent=1)
     print(f"\n[*] -> {path}")

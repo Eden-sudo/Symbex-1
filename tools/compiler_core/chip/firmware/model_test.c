@@ -6,6 +6,8 @@
  *
  * Protocol: the board prints "SYMBEX ready | <hal> | ...", STEP / RAM (/ INT8) lines, then for every
  * 0xA5 + image it answers "R:class,total_us,us_layer0,..." (and "Q:..." for INT8); 0x5A asks for "STACK:bytes".
+ * Energy loop (chip/measure.py energy): 0xE5 (SYMBEX) or 0xE6 (INT8) + 4 bytes of milliseconds (little-endian) runs
+ * the last image received again and again for that long, without printing, then answers "L:count,elapsed_us,class".
  *
  * With SYMBEX_USB_SERIAL_JTAG (optional, ESP32-S3 / C3 native USB port), the same protocol runs over the chip's
  * USB-Serial-JTAG instead of UART0: the console must be USB-Serial-JTAG (sdkconfig), and the board waits for the
@@ -106,6 +108,29 @@ void app_main(void) {
         }
         if (mark == 0x5A) {                            /* memory request: free stack (bytes) of this task */
             printf("STACK:%u\n", (unsigned)uxTaskGetStackHighWaterMark(NULL));
+            fflush(stdout);
+            continue;
+        }
+        if (mark == 0xE5 || mark == 0xE6) {            /* energy loop: the meter reads the board while it runs */
+            uint8_t t[4];
+            read_exact(t, 4);
+            const int64_t ms = (int64_t)t[0] | (int64_t)t[1] << 8 | (int64_t)t[2] << 16 | (int64_t)t[3] << 24;
+            const int64_t start = esp_timer_get_time(), end = start + 1000 * ms;
+            int64_t now = start;
+            unsigned count = 0;
+            int c = -1;
+            while (now < end) {
+                for (int k = 0; k < 8; k++) {         /* the clock read every 8 runs: its cost stays negligible */
+#ifdef SYMBEX_WITH_INT8
+                    c = mark == 0xE6 ? symbex_int8_infer(x) : symbex_mlp_infer(x);
+#else
+                    c = mark == 0xE6 ? -1 : symbex_mlp_infer(x);
+#endif
+                    count++;
+                }
+                now = esp_timer_get_time();
+            }
+            printf("L:%u,%lld,%d\n", count, (long long)(now - start), c);
             fflush(stdout);
             continue;
         }

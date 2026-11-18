@@ -1,0 +1,69 @@
+{
+ "board": "esp32",
+ "date": "2026-11-15",
+ "network": "MLP 784-128-512-10 (Fashion-MNIST, sized for binary)",
+ "meter": "USB power meter feeding the board's USB-UART port (display: V, A, mAh, Wh; read by eye)",
+ "method": "each phase 600 s; energy = meter mAh x volts x 3.6 J, after subtracting the idle rate (8 mAh / 600 s) for the seconds the meter timer ran past 600 s; per inference = energy / runs; above idle = (mAh - 8) x volts x 3.6 / runs; the meter counts whole mAh (+-1 mAh per reading); one run per phase (no seeds, no repeats)",
+ "tools": "tools/energy_loop.py (firmware: 0xE5 / TFLite loop on the first input, 'L:count,elapsed_us,class')",
+ "phases": {
+  "symbex": {
+   "label": "SYMBEX runs/sizing/h128_512_s42, swar popcount, flash; exact against its simulation on the chip, 100 %",
+   "runs": 258056,
+   "seconds": 600.003,
+   "ms_per_run": 2.3251,
+   "mah": 12.73,
+   "meter_wh": 0.07,
+   "amps_seen": "0.05-0.07 A, peaks 0.08 A",
+   "volts": 5.14,
+   "joules": 235.6,
+   "mW": 392.7,
+   "mJ_per_run": 0.913,
+   "mJ_per_run_above_idle": 0.339,
+   "meter_raw": {
+    "mah": 13,
+    "wh": 0.07,
+    "timer_s": 620
+   }
+  },
+  "idle": {
+   "label": "idle, measured Nov 14 on the same board (ResNet-8 ENERGY.md)",
+   "mah": 8,
+   "seconds": 600.0,
+   "volts": 5.14,
+   "mW": 246.7
+  },
+  "tflite": {
+   "label": "TFLite Micro INT8, runs/tflite/fashion_int8_h128_512.tflite (same shape, INT8 QAT), ESP-NN, flash",
+   "runs": 19289,
+   "seconds": 600.026,
+   "ms_per_run": 31.1071,
+   "mah": 10.73,
+   "meter_wh": 0.05,
+   "amps_seen": "0.06 A, stable",
+   "volts": 5.14,
+   "joules": 198.6,
+   "mW": 331.0,
+   "mJ_per_run": 10.297,
+   "mJ_per_run_above_idle": 2.622,
+   "meter_raw": {
+    "mah": 11,
+    "wh": 0.05,
+    "timer_s": 620
+   }
+  }
+ },
+ "notes": [
+  "Accuracy differs: binary 87.5 % against INT8 QAT 89.8 % (same shape, labels only, 3 seeds; README)."
+ ],
+ "ratio_total": {
+  "value": 11.28,
+  "range_pm1mah": [
+   9.48,
+   13.38
+  ]
+ },
+ "ratio_above_idle": {
+  "value": 7.73
+ },
+ "speed_ratio": 13.38
+}
