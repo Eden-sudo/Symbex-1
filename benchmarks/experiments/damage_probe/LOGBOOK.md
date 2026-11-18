@@ -262,3 +262,8 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   interactions positive 42-43 of 45 (accuracy ~half). Loss all binary ~7 nats (chance 2.30): no saturation.
 - Reading: the floor explained most of part 4's sub-additivity; ResNet-8 in loss ~ additive, tiny_llm 2.2-2.5x: not
   the same story, but much closer. Interaction models still do not beat the sum in ranking.
+- Hypothesis for later (Edén, Nov 17, NOT measured): in the LLM everything goes through a residual that adds the
+  errors of its 32 units, which accumulate; ResNet-8's shortcuts are OR, which can mask errors. Would explain
+  super-additive (LLM) vs ~additive (ResNet-8).
+- Edén on 4b's caveats: the ratio has no units, comparable across models (only task and architecture differ); the
+  extreme-image caveat is worth checking -> loss_tails.py (median, clipped at 10), rule in README first.

@@ -443,3 +443,17 @@ pair adds damage (42-43 of 45 pair interactions positive; in accuracy about half
 come out close to the plain sum. It is not tiny_llm's 2.2-2.5x. In loss, ResNet-8 is close to additive and the LLM is
 clearly super-additive. The two networks do not tell the same story, but the difference is much smaller than accuracy
 suggested. The interaction models still do not rank the trained configurations better than the sum.
+
+## Check: do a few extreme images drive the ratio?
+
+With a mean loss of ~7, a few confidently wrong images could dominate. `loss_tails.py` recomputes the 57 subsets the
+ratio and the pair count need (none, the 10 singles, the 45 pairs, all 10), keeping every image's loss, and gives
+the ratio with three statistics: the mean (must equal part 4b), the median, and the mean of the loss clipped at 10
+per image.
+
+**Rule (written before measuring, Nov 17 2026):** the 4b reading (close to additive, not super-additive) is solid if
+the median and clipped ratios stay in 0.85-1.05 on every seed. If either goes > 1.05 on any seed, the mean hid a
+super-additive bulk; if < 0.85, the mean hid a sub-additive one.
+
+Note on 4b's comparison with tiny_llm (Edén): the ratio has no units, so it compares across models; what differs is
+the task and the architecture.
