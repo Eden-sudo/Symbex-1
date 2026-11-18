@@ -498,3 +498,37 @@ are separate:
 - **Order** (does the sum rank the configurations?): holds. Same-count Spearman with the trained accuracy 0.72-0.83
   (accuracy table) and 0.68-0.83 (loss table), and no interaction model beats it. Choosing the better configuration
   is what the CDT needs, not the exact number.
+
+# Part 5 -- does a layer's damage follow its fan-in and its distance to the output?
+
+## Question
+
+Two hypotheses (Edén, Nov 17) for where the one-shot damage comes from, both checked on tables already measured (part
+2 for ResNet-8, llm_layers for tiny_llm), no training:
+
+- **A, count resolution:** a binary neuron with K inputs gives only K + 1 count values; a small fan-in loses more.
+  Prediction: the drop falls as the fan-in grows.
+- **B, distance to the output:** an early error travels through every later layer. Prediction: the drop grows with
+  the number of layers left.
+
+## What
+
+- `fanin_depth.py`. Drops: ResNet-8 part 2 `drop[wa]` (accuracy points; `w` and `a` also reported), tiny_llm
+  llm_layers `before.units[*].dloss` (validation loss increase of the fp32 model with only that unit 1-bit).
+- Fan-in (read from the checkpoints): ResNet-8 stem 216 (24 thermometer channels x 3x3, not 54: this net has no
+  BPR), b0 / b1 / b2 144, ds2 16, b3 / b4 288, ds4 32, b5 576, fc 4096; tiny_llm qkv / o / w13 384, w2 1024.
+- Layers left: ResNet-8 weight layers after it on the main path (stem 7, b0 6, b1 5, b2 / ds2 4, b3 3, b4 / ds4 2,
+  b5 1, fc 0); tiny_llm blocks after it (7 - block).
+- Known confound: in ResNet-8 the fan-in grows with depth (channels double per stage), so A and B overlap there;
+  the cleanest tests are in tiny_llm (same block = same distance, different fan-in; same group = same fan-in,
+  different distance). w13 is two matrices, so its size works against A; o (one 384 x 384 matrix, fewer weights than
+  w2, smaller fan-in) separates fan-in from size.
+
+**Rule (written before measuring, Nov 17 2026), each on every seed:**
+- A supported if Spearman(drop, fan-in) <= -0.5 in each model, and in tiny_llm w2 drops less than o in >= 6 of 8
+  blocks. Against A if the sign is positive in either model.
+- B supported if Spearman(drop, layers left) >= 0.5 in each model (tiny_llm: also >= 0.5 inside each of the 4
+  groups, mean over groups).
+- The model drop = a + b log(fan-in) + c (layers left), least squares per model and seed, is useful if its
+  leave-one-out R^2 > 0.5.
+With 10 (ResNet-8) or 32 (tiny_llm) points, a Spearman of 0.5 is a modest bar; the per-seed repetition is the check.
