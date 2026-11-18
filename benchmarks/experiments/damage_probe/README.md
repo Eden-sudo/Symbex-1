@@ -12,20 +12,24 @@ validation only, every rule written in this README before measuring. Each part's
 | 3 | Do cheap measures rank whole mixed configurations like training? (ResNet-8) | Yes at the same number of binary layers: drop table sum, accuracy without training and logit cosine tie; FIT on weights fails at 1 bit | 0.67-0.84 vs seed ceiling 0.86-0.92 |
 | 4 | Do layer interactions rank better than the plain sum? | No: Shapley ties the sum, pairs is worse | ResNet-8, 40 configurations per seed |
 | 4b | Is the sub-additivity real or the accuracy floor? | Mostly the floor: additivity depends on the statistic. The CDT uses the sum for order (holds), not magnitude | all / sum: accuracy 0.45, mean loss 0.92-0.98, median 2.1-3.1; tiny_llm mean loss 2.2-2.5 |
-| 5 | Does a layer's damage follow its fan-in or its distance to the output? | Fan-in no; distance only in ResNet-8 (confounded with stage / stem) | tiny_llm: group order = matrices binarized (qkv 3 > w13 2 > w2, o 1) |
+| 5 | Does a layer's damage follow its fan-in or its distance to the output? | Distance: weak, ResNet-8 only (fails without the stem on s42) and confounded with stage / stem. Fan-in: no in ResNet-8 once the layer type is fixed (5d); not separated in tiny_llm (w2 vs w1 / w3 differ in fan-in AND input; block 0 alone is about half of w2's excess, 5e / 5f) | without the stem 0.36 / 0.72 / 0.70; tiny_llm group order = matrices binarized (qkv 3 > w13 2 > w2, o 1) |
 | 5c | Does the weight distribution (cos(w, sign w)) explain it? | No: it barely varies between layers | ±2 % across layers |
 | 5d | tiny_llm w2 hurts more than w1 / w3 of the same size: weights, input or layer type? | The 1-bit weights (int8 input ~0). ResNet-8's fan-in effect was the layer type | w2 / w1w3 1.29-1.30; ResNet-8 partial 0.56 / -0.52 / 0.03 |
 | 5e | Giant input channels times atypical weights? | No: input weighting explains part, weights on giant channels are typical | P1 / P2 fail; \|w\| / alpha 0.93 |
 | 5f | Block 0's w2 (4x a middle w2): large output, weak residual, super weight? | Weak residual (the embedding, 15x smaller than any later); no super weight in block 0's w2; keeping 64 weights fixes 4-5 % | residual RMS 1.3 vs >= 20; b0 w2 output 18-19 (ordinary) |
-| 6 | Does a strong residual from the start (embedding x sqrt(d), or no decay) help after training? | It removes the one-shot cause (block 0 becomes ordinary) but the trained model does not improve; decay is not the cause | binary 1.5203 vs 1.5224 (both, inside spread); x sqrt(d): b0 / middle w2 3.9 -> 0.9-1.0x |
-| 7 | Two binary bases: better in block 0's w2 than in a middle w2 (same bytes)? | No: bytes, not where | 0.w2 1.5187 +- 0.0028, 4.w2 1.5173 +- 0.0017 |
+| 6 | Does a strong residual from the start (embedding x sqrt(d), or no decay) help after training? | It removes the one-shot cause (block 0 becomes ordinary) but the trained model does not improve, and fp32 gets worse with x sqrt(d); decay is not the cause | 3 seeds each: binary base 1.5224 +- 0.0026, x sqrt(d) 1.5203 +- 0.0037, no decay 1.5203 +- 0.0006 (gain 0.0021 < base sd); fp32 x sqrt(d) 1.3061 +- 0.0018 vs 1.3000 +- 0.0022; x sqrt(d): b0 / middle w2 3.9 -> 0.9-1.0x |
+| 7 | Two binary bases: better in block 0's w2 than in a middle w2 (same bytes)? | No: bytes, not where | 3 seeds each: 0.w2 1.5187 +- 0.0028, 4.w2 1.5173 +- 0.0017 (+49 KB each) |
 
 **What it means for SYMBEX:**
 - One-shot sensitivity is real and can be explained, but after training it does not tell where extra bytes help (parts
   1, 6, 7 and tiny_llm's int8 units test: blocks 0+7 -0.102 vs 3+4 -0.095).
-- To rank configurations, the sum of single-layer drops is enough for the order; its magnitude depends on the
-  statistic.
-- For tiny_llm, more information everywhere (ternary: 1.425 vs binary 1.522) beats protecting one layer.
+- In ResNet-8, the sum of single-layer drops ranks configurations with the same number of binary layers (part 3);
+  its magnitude depends on the statistic (4b). In tiny_llm, the one-shot order did not predict what training does
+  (parts 1, 6, 7).
+- In tiny_llm, raising the bits of the whole model gains as much as concentrating them in two blocks, with fewer
+  bytes (block weights only, 1-bit = 1.77 MB): ternary everywhere 2.80 MB at 1.58 bits (3.54 MB packed at 2 bits),
+  gain 0.097; int8 in blocks 0+7 or 3+4, 4.87 MB, gain 0.102 / 0.095 (3 seeds each; the three gains are within the seed spread, part 1). Two bases on one w2: +49 KB,
+  gain 0.004-0.005.
 
 **Limits:** two small networks; one LLM size, 10000 steps; the same-bytes control after training was run only on
 tiny_llm (not on ResNet-8); part 7's control is one block. Future work: the same-bytes control on a vision network,
