@@ -402,3 +402,8 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   HashAttention: 32-bit signatures + XOR/popcount only pick top-k tokens (speed, not memory). No MCU low-bit KV found.
   Cheap next checks (PC, no training): K vs V split; K per channel at 2 bits; QJL-style 1-bit K; first token at 8 bits.
 - kv_store modes (channel / qjl / keep_first) added; unit check on Gaussian ints + 1 outlier channel: score corr K1 token 0.81, K2 token 0.95, K2 channel 0.94, QJL m 64/128/256 0.65/0.77/0.84 (random data only). Rule (phase 1 + 2) in README.
+- Phase 1 done (d vs kv8 1.5307): K1 +0.697, V1 +0.193, K2 +0.200, V2 +0.057; K2 chan +0.233, K1 chan +0.657, K2c V2
+  +0.403; QJL m64 / 128 / 256 +0.410 / +0.163 / +0.069; first token int8: nothing (K1 +0.699, K1 V1 +1.218).
+  QJL bits per key and head: m / 64 per dim -> m 256 = 4 bits per dim: compare by bytes. Phase 2 as fixed + one
+  control ADDED NOW (after phase 1, not in the rule): K4 V8 per token (same bytes as QJL 256).
+- Phase 2: QJL256 V1 +0.295, V2 +0.138, first token nothing; control K4 V8 +0.008. Verdicts in README; results/kv_modes.json. Next (Edén decides): QAT with the KV quantized.

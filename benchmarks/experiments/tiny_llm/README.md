@@ -245,6 +245,28 @@ Phase 2: the 1-bit K with the lowest d, with V at 1 and 2 bits, with and without
 training, larger: needs training with the KV quantized. A mode "helps" if its d is below the per-token d of the same
 bits by more than 2x the larger d sd.
 
+**Result (val loss, 3 seeds, `results/kv_modes.json`; bits per dimension; reference 8 bits 1.5307):**
+
+| Keys | Values | d vs 8 bits | Rule |
+|---|---|---|---|
+| 1 bit per token | 8 | +0.698 ± 0.039 | needs training |
+| 1 bit per channel | 8 | +0.657 ± 0.011 | does not help (0.041 < 0.078) |
+| 1 bit QJL, 64 bits per key (1 per dim) | 8 | +0.409 ± 0.009 | **helps** (-0.289) |
+| 2 bits per token | 8 | +0.200 ± 0.014 | needs training |
+| 2 bits per channel | 8 | +0.233 ± 0.010 | worse |
+| 1 bit QJL, 128 bits per key (2 per dim) | 8 | +0.164 ± 0.004 | helps, barely (-0.036 vs 0.028) |
+| 4 bits per token (control, added after phase 1) | 8 | +0.008 ± 0.001 | usable |
+| 1 bit QJL, 256 bits per key (4 per dim) | 8 | +0.069 ± 0.002 | worse than 4 bits per token |
+| 8 | 1 bit | +0.193 ± 0.001 | needs training |
+| 8 | 2 bits | +0.058 ± 0.001 | needs training |
+| QJL 256 | 1 / 2 bits | +0.295 / +0.138 | needs training |
+| first token kept int8 (K1 V8, K1 V1, QJL 256 V1 / V2) | | changes < 0.002 | does not help |
+
+**Answer:** keys hurt about 3.5x more than values at 1 bit, as the literature says. Per-channel keys and an int8
+first token do nothing here. At the same bytes, QJL is the only mode that helps (1 bit per dimension: +0.41 instead
+of +0.70), but at 4 bits per dimension plain int4 wins. Without training, nothing below 4 bits is usable: a 1- or
+2-bit KV needs training with the KV quantized.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
