@@ -672,3 +672,33 @@ wa: 1.19-1.40).
 - The 8-bit input explains the excess if r(w only) <= 1.05 and w2's input-only drop is larger than mean(w1, w3)'s
   in >= 6 of 8 blocks. The weights explain it if r(w only) >= 1.2. Otherwise both share it.
 - ResNet-8: the fan-in effect survives stage and type if the partial Spearman >= 0.5 and b3 > b2 and b5 > b4 (drop w).
+
+## Result (Nov 17 2026, 3 seeds, validation)
+
+tiny_llm, mean one-shot dloss per matrix (`results/llm_matrices_w.json`, `llm_matrices_a.json`; wa = part 5):
+
+| part | q | k | v | o | w1 | w3 | w2 | r = w2 / mean(w1, w3) | w2 > mean(w1, w3) |
+|---|---|---|---|---|---|---|---|---|---|
+| wa (part 5) | 0.020 | 0.028 | 0.022 | 0.022 | 0.029 | 0.025 | 0.035 | 1.29 / 1.29 / 1.30 | 8 / 8 / 8 of 8 |
+| w (1-bit weights only) | 0.020 | 0.028 | 0.022 | 0.022 | 0.029 | 0.025 | 0.034 | 1.29 / 1.29 / 1.30 | 8 / 8 / 8 of 8 |
+| a (int8 input only) | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0001 | (noise) | 8 / 5 / 6 of 8 |
+
+ResNet-8, block convs + shortcuts, fan-in with stage and type held fixed (`results/fanin_depth.json`, `given_stage_type`):
+
+| seed | partial Spearman (drop w) | b3 / b2 (w) | b5 / b4 (w) | partial (drop wa) |
+|---|---|---|---|---|
+| 42 | 0.56 | 1.41 | 1.19 | -0.38 |
+| 43 | -0.52 | 0.85 | 1.00 | -0.69 |
+| 44 | 0.03 | 0.94 | 1.36 | -0.51 |
+
+## Answer
+
+- **tiny_llm: the weights.** r(w only) = 1.29-1.30 >= 1.2 on every seed: the w2 excess is all in its 1-bit weights.
+  The int8 input costs nothing on its own (<= 0.0002 per matrix, below the 4-decimal resolution), so the "massive
+  activations" candidate is out, and alpha per row is already there, so the sqrt(n) inflation is out too. What is
+  left (not measured): w2 is the only matrix that writes straight into the residual after a product of two
+  matrices (silu(w1 x) * w3 x), and its larger fan-in. This test cannot separate those two.
+- **ResNet-8: the fan-in effect does not survive stage and type** (partial 0.56 / -0.52 / 0.03, b3 > b2 only on s42).
+  Part 5's +0.6 to +0.7 came from the layer types (small-fan-in shortcuts damage little; stem and fc are apart),
+  not from the fan-in inside a type. With binary activations too (wa) the sign turns negative.
+- Caveat: inside the 8 layers only two pairs vary the fan-in at fixed stage and type, and b2 is the stride-2 conv.

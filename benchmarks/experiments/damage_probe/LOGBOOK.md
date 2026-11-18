@@ -298,3 +298,13 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   signal. C1 (cos falls with fan-in) and C2 (cos predicts drop better than fan-in) FAIL on both models.
 - Code review: partial_rho tie bug fixed (rankdata); check values +0.01..0.02, verdicts same. PR #102: sanitizer now
   also on the vertical prepared / compact engines (trained models clean, pytest green).
+
+## Nov 17 2026 (night) -- part 5d
+
+- Code read: tiny_llm `quant_weight("binary")` = sign(w) x mean|w| per row (alpha exists): Edén's sqrt(n) scale
+  hypothesis is ruled out by the code. `kind = "binary"` also puts the input through int8 (`quant_act8`).
+- Rule committed first (bb2b91c). llm_matrices.py `--part w | a` (6 processes in parallel, ~1 min GPU).
+- w only: r 1.29 / 1.29 / 1.30 (= wa); a only: <= 0.0002 per matrix -> the weights, not the int8 input.
+- fanin_depth.py given stage + type: partial 0.56 / -0.52 / 0.03 -> fails; part 5's fan-in correlation was the
+  layer types. Papers read for this round: XNOR-Net (1603.05279), binarized NMT (2302.04907), LAB (1611.01600),
+  DuQuant (2406.01721), Super Weight (2411.07191).

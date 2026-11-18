@@ -65,7 +65,7 @@ def analyze(res, layers):
         out[s] = {"base_equals_llm_layers": r["loss"] == layers["seeds"][s]["before"]["loss"],
                   "mean_by_matrix": {k: round(v, 4) for k, v in mean.items()},
                   "w2_below_w1w3_blocks": f"{sum(m[f'b{i}.w2'] < (m[f'b{i}.w1'] + m[f'b{i}.w3']) / 2 for i in range(nb))}/{nb}",
-                  "w2_over_w1w3": round(mean["w2"] / ((mean["w1"] + mean["w3"]) / 2), 3),
+                  "w2_over_w1w3": round(mean["w2"] / ((mean["w1"] + mean["w3"]) / 2), 3) if mean["w1"] + mean["w3"] else None,
                   "w2_above_w1w3_blocks": f"{sum(m[f'b{i}.w2'] > (m[f'b{i}.w1'] + m[f'b{i}.w3']) / 2 for i in range(nb))}/{nb}",
                   "qkv_mean_over_o": round(float(np.mean([mean['q'], mean['k'], mean['v']]) / mean["o"]), 3),
                   "unit_vs_sum_of_matrices": round(float(spearmanr(summed, [units[u]["dloss"] for u in units]).statistic), 3),
