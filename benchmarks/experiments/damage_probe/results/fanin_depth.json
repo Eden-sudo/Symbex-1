@@ -9,7 +9,9 @@
      -12.4592,
      2.702,
      3.9392
-    ]
+    ],
+    "left_without_stem": 0.361,
+    "left_given_fanin": 0.688
    },
    "w": {
     "fanin": 0.628,
@@ -29,7 +31,9 @@
      -10.4394,
      2.4141,
      3.6241
-    ]
+    ],
+    "left_without_stem": 0.723,
+    "left_given_fanin": 0.877
    },
    "w": {
     "fanin": 0.702,
@@ -49,7 +53,9 @@
      -7.9877,
      2.0859,
      3.4412
-    ]
+    ],
+    "left_without_stem": 0.698,
+    "left_given_fanin": 0.811
    },
    "w": {
     "fanin": 0.603,

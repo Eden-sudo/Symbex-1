@@ -576,3 +576,25 @@ w13 is two matrices. Inside each group across the 8 blocks, the Spearman with bl
    - Matrix count: the post hoc order (qkv > w13 > w2, o) is explained by the number of matrices if q, k, v alone
      each drop like o (mean of q, k, v within 0.5x-2x of o's mean on every seed); the role matters if not.
    - Also reported: Spearman of each unit's dloss with the sum of its matrices' single drops (32 units).
+
+### Results of the checks
+
+1. **ResNet-8 B:** without the stem 0.36 / 0.72 / 0.70; at equal fan-in (partial) 0.69 / 0.88 / 0.81. The rule (both
+   >= 0.5 on every seed) **fails** on seed 42 without the stem. Distance survives the fan-in, but on one seed in
+   three most of it is the stem.
+2. **tiny_llm, one matrix at a time** (base loss equal to llm_layers' on every seed):
+
+| seed | q | k | v | o | w1 | w3 | w2 | w2 < mean(w1, w3) | mean(q, k, v) / o | unit vs sum of its matrices: Spearman, ratio |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 42 | 0.020 | 0.029 | 0.024 | 0.022 | 0.029 | 0.025 | 0.035 | 0 / 8 | 1.09 | 0.97, 1.34 |
+| 43 | 0.018 | 0.024 | 0.020 | 0.022 | 0.029 | 0.025 | 0.035 | 0 / 8 | 0.95 | 0.97, 1.38 |
+| 44 | 0.021 | 0.032 | 0.024 | 0.024 | 0.028 | 0.025 | 0.034 | 0 / 8 | 1.08 | 0.98, 1.31 |
+
+(mean loss increase over the 8 blocks)
+
+- **A at equal size: rejected, the other way.** w2 (fan-in 1024) drops MORE than w1 / w3 (fan-in 384, same weights)
+  in 8 of 8 blocks, every seed. Same direction as ResNet-8's weights-only drop (+0.6 to +0.7 with fan-in). Binarizing
+  the weights of a large fan-in layer costs more, not less. Not tested why.
+- **Matrix count: holds.** A 384 x 384 matrix costs about the same whatever its role (q, k, v vs o: 0.95-1.09). The
+  qkv unit is the most damaging because it binarizes three matrices at once.
+- A unit costs 1.31-1.38x the sum of its matrices alone: the super-additivity is already there inside one block.

@@ -286,3 +286,9 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - B passes on ResNet-8 only (wa 0.54 / 0.80 / 0.78, from the activations; confounded with stage / stem); tiny_llm 0.03.
 - Model LOO R^2 -0.20 / 0.13 / 0.59 (ResNet-8), ~-0.1 (tiny_llm): not useful.
 - Post hoc, untested: tiny_llm groups ordered by number of matrices binarized (qkv 3 > w13 2 > w2 / o 1), then size.
+
+### 2026-11-17: part 5 checks (rules in README first)
+- ResNet-8 B: without the stem 0.36 / 0.72 / 0.70 (FAILS on s42), given fan-in 0.69 / 0.88 / 0.81.
+- llm_matrices.py (56 single matrices x 3 seeds, ~1 min GPU, base = llm_layers'): w2 > mean(w1, w3) in 8 / 8 blocks
+  every seed -> A rejected the other way (as ResNet-8 weights-only). q / k / v vs o 0.95-1.09: matrix count
+  explains the group order, not the role. Unit = 1.31-1.38x the sum of its matrices (super-additive inside a block).

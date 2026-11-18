@@ -22,6 +22,13 @@ def rho(a, b):
     return round(float(spearmanr(a, b).statistic), 3)
 
 
+def partial_rho(a, b, z):
+    """Spearman of a and b with z held fixed: Pearson of the residuals of rank(a), rank(b) on rank(z)"""
+    ra, rb, rz = (np.argsort(np.argsort(v)).astype(float) for v in (a, b, z))
+    res = [r - np.polyval(np.polyfit(rz, r, 1), rz) for r in (ra, rb)]
+    return round(float(np.corrcoef(*res)[0, 1]), 3)
+
+
 def loo_r2(drop, fanin, left):
     """leave-one-out R^2 of drop = a + b log(fan-in) + c left"""
     X = np.column_stack([np.ones(len(drop)), np.log(fanin), left]).astype(float)
@@ -49,6 +56,8 @@ def resnet(table):
             o[part] = {"fanin": rho(d, [RESNET[k][0] for k in ks]), "left": rho(d, [RESNET[k][1] for k in ks])}
         d = [drop[k]["wa"] for k in names]
         o["wa"]["loo_r2"], o["wa"]["coef"] = loo_r2(d, fanin, left)
+        o["wa"]["left_without_stem"] = rho(d[1:], left[1:])                   # names[0] is the stem
+        o["wa"]["left_given_fanin"] = partial_rho(d, left, fanin)
         out[s] = o
     return out
 
@@ -82,7 +91,8 @@ def main():
     print("ResNet-8 (drop wa / w / a): Spearman with fan-in | with layers left | LOO R^2 (wa)")
     for s, o in res["resnet8"].items():
         print(f"  s{s}: fan-in {o['wa']['fanin']} / {o['w']['fanin']} / {o['a']['fanin']} | left {o['wa']['left']} / "
-              f"{o['w']['left']} / {o['a']['left']} | LOO R^2 {o['wa']['loo_r2']} coef {o['wa']['coef']}")
+              f"{o['w']['left']} / {o['a']['left']} | LOO R^2 {o['wa']['loo_r2']} coef {o['wa']['coef']} | left without "
+              f"stem {o['wa']['left_without_stem']}, left given fan-in {o['wa']['left_given_fanin']}")
     print("tiny_llm (dloss): Spearman with fan-in | with blocks left (all, inside groups) | w2 < o, w2 < w13 | LOO R^2")
     for s, o in res["tiny_llm"].items():
         print(f"  s{s}: fan-in {o['fanin']} | left {o['left']}, groups {o['left_inside_groups']} mean "
