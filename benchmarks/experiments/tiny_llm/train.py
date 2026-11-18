@@ -178,9 +178,10 @@ class Block(nn.Module):
 class TinyLM(nn.Module):
     def __init__(self, vocab, dim, layers, heads, hidden, seq, kind, head="fp32", int8_blocks=(), acts=8,
                  act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=(),
-                 int8_units=()):
+                 int8_units=(), emb_scale=1.0):
         super().__init__()
         self.head_kind = head
+        self.emb_scale = emb_scale  # constant on the embedding lookup only (the tied output layer is unchanged)
         self.emb = nn.Embedding(vocab, dim)
         self.blocks = nn.ModuleList(Block(dim, heads, hidden, "int8" if i in int8_blocks else kind, acts, act_opts,
                                           a8_inputs if not a8_blocks or i in a8_blocks else (), w2_acts, ffn_act,
@@ -206,6 +207,8 @@ class TinyLM(nn.Module):
         t = idx.shape[1]
         x = F.embedding(idx, quant_weight(self.emb.weight, self.head_kind)) \
             if self.head_kind in ("int4", "int2") else self.emb(idx)
+        if self.emb_scale != 1.0:
+            x = x * self.emb_scale
         for blk in self.blocks:
             x = blk(x, self.cos[:t], self.sin[:t])
         if self.head_kind in ("binary", "int4", "int2"):
@@ -276,7 +279,7 @@ def run(args, seed):
                    args.weights, args.head, tuple(args.int8_blocks), args.acts,
                    {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
                    tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
-                   tuple(args.a8_blocks), tuple(args.int8_units)).to(device)
+                   tuple(args.a8_blocks), tuple(args.int8_units), args.emb_scale).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)
@@ -297,8 +300,9 @@ def run(args, seed):
         print(f"distilling from {tpath} (alpha {args.distill_alpha}, temperature {args.distill_t})")
     n_lin = sum(m.weight.numel() for m in model.modules() if isinstance(m, QLinear))
     n_all = sum(p.numel() for p in model.parameters())
-    decay = [p for p in model.parameters() if p.dim() >= 2]
-    rest = [p for p in model.parameters() if p.dim() < 2]
+    no_decay = {id(model.emb.weight)} if args.emb_no_decay else set()
+    decay = [p for p in model.parameters() if p.dim() >= 2 and id(p) not in no_decay]
+    rest = [p for p in model.parameters() if p.dim() < 2 or id(p) in no_decay]
     opt = torch.optim.AdamW([{"params": decay, "weight_decay": args.wd}, {"params": rest, "weight_decay": 0.0}],
                             lr=args.lr, betas=(0.9, 0.95), fused=True)
     step_fn = torch.compile(model) if args.compile else model
@@ -393,6 +397,10 @@ def main():
     ap.add_argument("--distill", default="", help="teacher checkpoint ({seed} is replaced): distillation")
     ap.add_argument("--distill-alpha", type=float, default=0.5, help="weight of the KL term (see above)")
     ap.add_argument("--distill-t", type=float, default=1.0, help="distillation temperature")
+    ap.add_argument("--emb-scale", type=float, default=1.0,
+                    help="multiply the embedding lookup by this constant (sqrt(dim) = 19.6 as the original Transformer "
+                         "and Gemma; damage_probe part 6); the tied output layer is unchanged")
+    ap.add_argument("--emb-no-decay", action="store_true", help="no weight decay on the (tied) embedding (part 6)")
     ap.add_argument("--name", default="d384l8", help="run name (folder: runs/<weights>_<name>_s<seed>)")
     ap.add_argument("--dim", type=int, default=384)
     ap.add_argument("--layers", type=int, default=8)

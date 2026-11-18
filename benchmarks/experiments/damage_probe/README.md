@@ -809,3 +809,26 @@ R1 weak residual: passes on every seed. R1' large output: fails. R2 super weight
   remedy is more information in block 0's w2 as a whole, while staying 1-bit: e.g. two binary bases
   (W ~ a1 s1 + a2 s2, 1-bit arithmetic, +48 KB, 0.4 % of the model) or OneBit-style row x column scales, trained.
   Part 4's "bytes, not which units" was measured at unit level; this one matrix is a candidate to test it again.
+
+# Part 6 -- a stronger residual from the start: does it help after training?
+
+## Question
+
+Part 5f: block 0's w2 writes onto a weak residual (the embedding, RMS 1.3 vs >= 20 later), so its 1-bit error weighs
+most. All of parts 5-5f are one-shot (no training), and part 3's training test showed that one-shot damage can vanish
+with training. Two free fixes (no bytes, no chip operations, weights stay 1-bit): scale the embedding lookup by
+sqrt(d) = 19.6 (the original Transformer, Gemma; the tied output layer unchanged), or take the weight decay off the
+embedding (it is in the decay group today, which keeps it small). It also answers part 5f's open question: if block
+0 stops being special with a strong residual, the cause was the weak residual, not "entering first".
+
+## What
+
+tiny_llm `train.py --emb-scale 19.6` (name d384l8_es) and `--emb-no-decay` (d384l8_nd), fp32 and binary, seeds 42 / 43 /
+44, the recipe of the base runs otherwise (10,000 steps, validation only). Base (`runs/*_d384l8_s*`): binary 1.5224 ±
+0.0026, fp32 1.3000 ± 0.0022 (n - 1). Mechanism on each variant's fp32 models, one-shot as parts 5d / 5f.
+
+**Rule (written before training, Nov 17 2026), per variant:**
+- R1 helps: binary mean val loss < 1.5224 - max(sd base, sd variant), and fp32 mean <= 1.3000 + max(sd base, sd variant).
+- R2 mechanism (every seed): block 0's residual RMS >= 0.5x the smallest of blocks 1-7, and block 0's w2 weights-only
+  dloss <= 2x the mean of the w2 of blocks 1-6 (base: ~4x). Both -> the weak residual was the cause. Residual strong
+  but block 0's w2 still > 2x -> "entering first". Residual still weak -> training compensated: inconclusive.
