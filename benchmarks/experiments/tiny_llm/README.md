@@ -227,6 +227,24 @@ follow-up, only if Edén wants it), not "the KV cannot be binary".
 agrees with the float model 49 % of the time). By the rule this does not say a binary KV is impossible, only that it
 needs training with the KV quantized.
 
+## KV cache: keys vs values, per channel, QJL, first token (rule Nov 18 2026, before measuring)
+
+**Question:** the 1- and 2-bit KV above were per token for both sides. The literature (KIVI, AsymKV, QJL, BitNet
+a4.8; LOGBOOK Nov 18) says keys hurt more than values, keys want per-channel scales, a 1-bit key can be
+sign(S k) + ||k|| with the query unquantized (QJL), and the first token is worth more bits. Which of these lets a
+1-bit (or 2-bit) KV work without retraining?
+
+**What:** `intsim.py --k-bits / --v-bits / --k-mode token|channel|qjl / --qjl-m / --keep-first` (kv_store: the
+non-token modes rebuild an integer vector and pass it through int8, one extra rounding; QJL uses float inside:
+experiment only, no C). Same models, windows and seeds as above. Phase 1, fixed now:
+(a) K1 V8, K8 V1, K2 V8, K8 V2 (per token); (b) K2 per channel (groups of 32 tokens) V8, K1 per channel V8,
+K2 per channel V2; (c) K1 QJL with 64 / 128 / 256 bits per key, V8; (d) K1 V8 and K1 V1 with the first token int8.
+Phase 2: the 1-bit K with the lowest d, with V at 1 and 2 bits, with and without the first token int8.
+
+**Rule:** d as above (mean over seeds vs `--kv-bits 8`); same thresholds: < 0.003 free, < 0.03 usable without
+training, larger: needs training with the KV quantized. A mode "helps" if its d is below the per-token d of the same
+bits by more than 2x the larger d sd.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
