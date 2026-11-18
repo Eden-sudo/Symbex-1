@@ -598,3 +598,26 @@ w13 is two matrices. Inside each group across the 8 blocks, the Spearman with bl
 - **Matrix count: holds.** A 384 x 384 matrix costs about the same whatever its role (q, k, v vs o: 0.95-1.09). The
   qkv unit is the most damaging because it binarizes three matrices at once.
 - A unit costs 1.31-1.38x the sum of its matrices alone: the super-additivity is already there inside one block.
+
+# Part 5c -- does the weight distribution (cos(w, sign w)) explain the fan-in effect?
+
+## Question
+
+Hypothesis C (Edén, Nov 17): sign() gives every weight the same magnitude, even the ones near zero. If a trained
+layer's signal sits in a few large weights, binarizing turns many small weights into +-1 noise, and a layer with
+more inputs has more of them. Measure per output row: cos(w, sign w) = ||w||_1 / (sqrt(n) ||w||_2) (1 = all weights
+of equal magnitude; lower = signal concentrated in few weights; the per-layer quantity RBNN plots).
+
+## What
+
+- `weight_cosine.py`, no GPU: the saved fp32 / twin weights (ResNet-8 twin_s<seed>.pth; tiny_llm
+  fp32_d384l8_s<seed>), cosine of every output row (conv: the C_in x k x k weights of one output channel; linear:
+  one row, length = fan-in), mean over the rows of a layer. Invariant to any per-row scale, so it does not depend on
+  how the binary layer is scaled.
+- Drops: ResNet-8 part 2 `drop[w]` (weights only, primary: the cosine is about weights; `wa` also reported);
+  tiny_llm part 5's single matrices (`llm_matrices.json`, 56 per seed).
+
+**Rule (written before measuring, Nov 17 2026), each on every seed:**
+- C1: Spearman(cosine, fan-in) <= -0.5 in each model.
+- C2: Spearman(cosine, drop) <= -0.5 (lower cosine, larger drop) and |Spearman(cosine, drop)| beats |Spearman(fan-in,
+  drop)| by > 0.1, in each model.
