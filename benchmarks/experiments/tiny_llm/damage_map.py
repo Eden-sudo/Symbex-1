@@ -23,7 +23,7 @@ GROUPS = {"qkv": ("q", "k", "v"), "o": ("o",), "w13": ("w1", "w3"), "w2": ("w2",
 def load(run, dev):
     ck = torch.load(os.path.join(HERE, "runs", run, "model.pt"), map_location=dev, weights_only=False)
     a = ck["args"]
-    assert a.get("emb_scale", 1.0) == 1.0 and not a.get("int8_units") and not a.get("bin2_units"), "--emb-scale / --int8-units / --bin2-units runs: load them with damage_probe.load"
+    assert a.get("emb_scale", 1.0) == 1.0 and not a.get("bin2_units"), "--emb-scale / --bin2-units runs: load them with damage_probe.load"
     m = TinyLM(4096, a["dim"], a["layers"], a["heads"], a["hidden"], a["seq"], a["weights"], a.get("head", "fp32"),
                tuple(a.get("int8_blocks", [])), a.get("acts", 8),
                {"ste_mode": a.get("ste", "identity"), "ste_k": a.get("ste_k", 2.0),
