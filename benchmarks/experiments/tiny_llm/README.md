@@ -313,6 +313,19 @@ Fixed now: K1 per token x pi / 2; rot 1 bit x pi / 2; V8, same models, windows a
 K1 per token x pi / 2 "helps" if its d is below +0.698 by more than 2x the larger sd, and is compared with hadqjl 64
 (same bits; hadqjl needs S q per query, the plain one does not).
 
+**Result (val loss, 3 seeds, V8, `results/kv_modes2.json`):**
+
+| Keys (1 bit per dim) | d vs 8 bits | Rule |
+|---|---|---|
+| 1 bit per token (before) | +0.698 ± 0.039 | |
+| **1 bit per token x pi / 2** | **+0.244 ± 0.008** | **helps (-0.454)**; hadqjl 64 still lower by 0.046 (> 2x 0.008) |
+| rot 1 bit x pi / 2 | +0.203 ± 0.005 | = hadqjl 64 (+0.198, difference 0.005 < 0.010): the explanation holds |
+
+**Answer:** yes. About two thirds of the 1-bit key's damage was a scale bias, not lost information: the shrunk
+key flattens the softmax. One integer multiply on the key scale takes plain 1 bit per token from +0.70 to +0.24,
+with no rotation and no new kernel. The rotation adds the rest (+0.20). Still not usable without training (> 0.03).
+pi / 2 is the Gaussian value, not a tuned one.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

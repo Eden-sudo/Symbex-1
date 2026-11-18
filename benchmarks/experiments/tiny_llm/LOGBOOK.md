@@ -433,3 +433,7 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   vs mean|y| least squares). So most of the gap may be a temperature bias: a shrunk key flattens the softmax.
   Gaussian S rows are not orthogonal at m = d (extra noise): that is the other half of hadqjl's gain over QJL.
   Next check (rule in README first): --k-scale pi / 2 on rot 1 bit and on plain K1 per token.
+- k-scale result: K1 per token x pi / 2 +0.244 ± 0.008 (was +0.698); rot 1 bit x pi / 2 +0.203 = hadqjl 64 +0.198:
+  the pi / 2 explanation holds. ~2/3 of the 1-bit key damage is a temperature (scale) bias, fixed by one integer
+  multiply. Remaining: rotation -0.046. Ideas (not measured): tune the factor on val (also for K2 / V1 / V2 / rot 2),
+  or learn it in QAT (it is a free parameter there anyway: the QAT should start from it).

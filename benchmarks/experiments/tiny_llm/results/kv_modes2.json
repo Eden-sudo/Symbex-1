@@ -1,5 +1,5 @@
 {
- "what": "intsim kv_store K modes hadqjl / rot / res + QJL S seeds, binary_d384l8 s42-44, validation 1024 windows, no retraining, V8; d = loss - loss(kv8)",
+ "what": "intsim kv_store K modes hadqjl / rot / res + QJL S seeds, binary_d384l8 s42-44, validation 1024 windows, no retraining, V8; d = loss - loss(kv8); k_scale = factor on the stored key scale",
  "ref_kv8": {
   "42": 1.5318,
   "43": 1.5311,
@@ -89,6 +89,32 @@
    "d_sd": 0.013,
    "key_bits_per_dim": 1,
    "value_bits_per_dim": 8
+  },
+  "k1tg1.5708_v8t": {
+   "per_seed": {
+    "42": 1.7735,
+    "43": 1.7836,
+    "44": 1.7657
+   },
+   "loss_mean": 1.7743,
+   "d_mean": 0.2436,
+   "d_sd": 0.0082,
+   "key_bits_per_dim": 1,
+   "value_bits_per_dim": 8,
+   "k_scale": 1.5708
+  },
+  "k1rg1.5708_v8t": {
+   "per_seed": {
+    "42": 1.7393,
+    "43": 1.729,
+    "44": 1.7328
+   },
+   "loss_mean": 1.7337,
+   "d_mean": 0.203,
+   "d_sd": 0.0048,
+   "key_bits_per_dim": 1,
+   "value_bits_per_dim": 8,
+   "k_scale": 1.5708
   }
  }
 }
