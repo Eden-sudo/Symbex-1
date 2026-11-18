@@ -417,3 +417,29 @@ ResNet-8 damage still sub-additive?
   and part 4's ranking table with the loss models.
 
 Expectation written beforehand (not a result): no expectation either way; the stem's pair interactions are the place to look.
+
+## Result
+
+The accuracies recorded in the same pass are identical to part 4's (max difference 0.0). Validation loss with no layer
+binary: 0.56 / 0.59 / 0.54. With all 10 binary: 7.01 / 7.05 / 6.61, far above chance (ln 10 = 2.30): the network
+is confidently wrong, so the loss does not saturate the way accuracy does.
+
+| seed | sum of the 10 single increases | all 10 binary | ratio | positive pair interactions |
+|---|---|---|---|---|
+| 42 | 6.98 | 6.45 | 0.92 | 43 / 45 |
+| 43 | 6.66 | 6.46 | 0.97 | 42 / 45 |
+| 44 | 6.20 | 6.07 | 0.98 | 43 / 45 |
+| (accuracy, part 4) | 151 / 146 / 147 points | 68 / 68 / 69 | 0.45 / 0.47 / 0.47 | 24 / 23 / 24 of 45 |
+
+Ranking with the loss models (same count, s42 / s43 / s44): additive 0.83 / 0.80 / 0.68, pairs 0.87 / 0.79 / 0.68,
+shapley 0.84 / 0.80 / 0.68, popcount 0.79 / 0.76 / 0.76, acc0 0.87 / 0.77 / 0.67. None beats additive by > 0.05 on
+every seed.
+
+## Answer
+
+By the rule written beforehand: **sub-additive** (ratio < 1 on all 3 seeds). But only barely: 0.92-0.98, almost
+exactly additive. In accuracy the ratio was 0.45. Most of part 4's sub-additivity was the floor. In loss, almost every
+pair adds damage (42-43 of 45 pair interactions positive; in accuracy about half). Taken all together the 10 layers
+come out close to the plain sum. It is not tiny_llm's 2.2-2.5x. In loss, ResNet-8 is close to additive and the LLM is
+clearly super-additive. The two networks do not tell the same story, but the difference is much smaller than accuracy
+suggested. The interaction models still do not rank the trained configurations better than the sum.

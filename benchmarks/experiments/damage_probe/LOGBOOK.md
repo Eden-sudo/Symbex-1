@@ -253,3 +253,12 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
   None passes.
 - ResNet-8 is sub-additive (sum of singles ~148 vs all binary ~68: floor at chance), unlike tiny_llm's 2.2-2.5x.
   Largest interactions: stem with b0 (-8 to -10). popcount group spread 2.08 / 2.08 / 2.96 vs seed spread 2.32.
+
+### 2026-11-17: part 4b, the same interaction table in validation loss (3 seeds)
+- Question (Edén): was part 4's sub-additivity only the 10 % accuracy floor? interactions.py --metric loss records the
+  cross-entropy in the same pass (accuracies identical to part 4). 3 runs in parallel, ~11 min.
+- Rule (README, written first): ratio = all-10 increase / sum of singles; > 1 on every seed = super-additive.
+  Result: 0.92 / 0.97 / 0.98 -> sub-additive by the rule, but almost exactly additive (accuracy: 0.45-0.47). Pair
+  interactions positive 42-43 of 45 (accuracy ~half). Loss all binary ~7 nats (chance 2.30): no saturation.
+- Reading: the floor explained most of part 4's sub-additivity; ResNet-8 in loss ~ additive, tiny_llm 2.2-2.5x: not
+  the same story, but much closer. Interaction models still do not beat the sum in ranking.
