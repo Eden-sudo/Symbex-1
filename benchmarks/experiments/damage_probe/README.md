@@ -1,5 +1,36 @@
 # damage_probe -- which cheap measure predicts the damage that training leaves?
 
+## Summary (Nov 18 2026): the questions, the answers, the data
+
+Two networks: the binary ResNet-8 (CIFAR-10) and tiny_llm (15.7 M, W1A8, TinyStories). 3 seeds (42, 43, 44),
+validation only, every rule written in this README before measuring. Each part's details are below.
+
+| Part | Question | Answer | Key data |
+|---|---|---|---|
+| 1 | Which cheap measure, on a trained model, ranks quantization changes the way full training does? (tiny_llm) | None passes the rule. Cosine / loss0 get coarse choices right, fail fine ones; a short fine-tune ranks right but costs too much | fine-tune Spearman 0.82 / 0.99 / 0.98 at 11-17 % of a run (limit 10 %); CDT cosine 0.24 |
+| 2 | How much does each layer of the binary ResNet-8 cost? | The drop direction (real net, one layer binary) finds the dominant layer (the stem), not the order of the rest; the recovery direction fails | recovery Spearman -0.04 / 0.16 / 0.24; drop table 12 s |
+| 3 | Do cheap measures rank whole mixed configurations like training? (ResNet-8) | Yes at the same number of binary layers: drop table sum, accuracy without training and logit cosine tie; FIT on weights fails at 1 bit | 0.67-0.84 vs seed ceiling 0.86-0.92 |
+| 4 | Do layer interactions rank better than the plain sum? | No: Shapley ties the sum, pairs is worse | ResNet-8, 40 configurations per seed |
+| 4b | Is the sub-additivity real or the accuracy floor? | Mostly the floor: additivity depends on the statistic. The CDT uses the sum for order (holds), not magnitude | all / sum: accuracy 0.45, mean loss 0.92-0.98, median 2.1-3.1; tiny_llm mean loss 2.2-2.5 |
+| 5 | Does a layer's damage follow its fan-in or its distance to the output? | Fan-in no; distance only in ResNet-8 (confounded with stage / stem) | tiny_llm: group order = matrices binarized (qkv 3 > w13 2 > w2, o 1) |
+| 5c | Does the weight distribution (cos(w, sign w)) explain it? | No: it barely varies between layers | ±2 % across layers |
+| 5d | tiny_llm w2 hurts more than w1 / w3 of the same size: weights, input or layer type? | The 1-bit weights (int8 input ~0). ResNet-8's fan-in effect was the layer type | w2 / w1w3 1.29-1.30; ResNet-8 partial 0.56 / -0.52 / 0.03 |
+| 5e | Giant input channels times atypical weights? | No: input weighting explains part, weights on giant channels are typical | P1 / P2 fail; \|w\| / alpha 0.93 |
+| 5f | Block 0's w2 (4x a middle w2): large output, weak residual, super weight? | Weak residual (the embedding, 15x smaller than any later); no super weight in block 0's w2; keeping 64 weights fixes 4-5 % | residual RMS 1.3 vs >= 20; b0 w2 output 18-19 (ordinary) |
+| 6 | Does a strong residual from the start (embedding x sqrt(d), or no decay) help after training? | It removes the one-shot cause (block 0 becomes ordinary) but the trained model does not improve; decay is not the cause | binary 1.5203 vs 1.5224 (both, inside spread); x sqrt(d): b0 / middle w2 3.9 -> 0.9-1.0x |
+| 7 | Two binary bases: better in block 0's w2 than in a middle w2 (same bytes)? | No: bytes, not where | 0.w2 1.5187 +- 0.0028, 4.w2 1.5173 +- 0.0017 |
+
+**What it means for SYMBEX:**
+- One-shot sensitivity is real and can be explained, but after training it does not tell where extra bytes help (parts
+  1, 6, 7 and tiny_llm's int8 units test: blocks 0+7 -0.102 vs 3+4 -0.095).
+- To rank configurations, the sum of single-layer drops is enough for the order; its magnitude depends on the
+  statistic.
+- For tiny_llm, more information everywhere (ternary: 1.425 vs binary 1.522) beats protecting one layer.
+
+**Limits:** two small networks; one LLM size, 10000 steps; the same-bytes control after training was run only on
+tiny_llm (not on ResNet-8); part 7's control is one block. Future work: the same-bytes control on a vision network,
+the 260K LLM for the ESP32 / Pico 2, a ternary base.
+
 ## Question
 
 When one part of a network goes to fewer bits (the output layer, two blocks, the inputs of w2...), how much worse is
