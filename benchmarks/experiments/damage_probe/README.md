@@ -698,7 +698,34 @@ ResNet-8, block convs + shortcuts, fan-in with stage and type held fixed (`resul
   activations" candidate is out, and alpha per row is already there, so the sqrt(n) inflation is out too. What is
   left (not measured): w2 is the only matrix that writes straight into the residual after a product of two
   matrices (silu(w1 x) * w3 x), and its larger fan-in. This test cannot separate those two.
-- **ResNet-8: the fan-in effect does not survive stage and type** (partial 0.56 / -0.52 / 0.03, b3 > b2 only on s42).
+- **ResNet-8: no evidence of a fan-in effect once the layer type is held fixed** (partial 0.56 / -0.52 / 0.03, b3 > b2 only on s42).
   Part 5's +0.6 to +0.7 came from the layer types (small-fan-in shortcuts damage little; stem and fc are apart),
   not from the fan-in inside a type. With binary activations too (wa) the sign turns negative.
 - Caveat: inside the 8 layers only two pairs vary the fan-in at fixed stage and type, and b2 is the stride-2 conv.
+
+# Part 5e -- does w2 multiply giant input channels with atypical weights?
+
+## Question
+
+Part 5d: w2's excess is in its 1-bit weights, and `o` (also writing to the residual) costs as much as q / k / v, so
+writing to the residual is not the cause. Candidate (Edén's other chat, Nov 17): w2's input has giant channels (Super
+Weight, DuQuant), and the error of sign() on the weights that multiply them dominates the output error. Theory: with
+the row scale alpha, the relative output error is tr(E C E^T) / tr(W C W^T), with E = W - alpha sign(W) and C = E[x x^T]
+the input covariance. With C = I it is 1 - cos^2 (~0.36 for Gaussian weights, the same in every layer, part 5c); giant
+channels alone do not change it unless the weights on those columns are atypical (|w| far from alpha).
+
+## What
+
+`llm_columns.py`: fp32 model, inputs of the 56 matrices captured on 20 x 32 windows of the TRAINING split (the
+predictor never sees the validation windows the dloss is scored on); per matrix:
+- `rel_c` = tr(E C E^T) / tr(W C W^T) (input-weighted), `rel_i` = ||E||^2 / ||W||^2 (no input),
+- `top8_w_over_alpha` = mean |w| / alpha on the 8 columns with the largest input energy (1 = typical),
+- `top8_share` = share of the input energy in those 8 channels,
+- for o and w2: `err_over_residual` = E||E x||^2 / E||residual||^2 (the residual the output is added to).
+Truth: part 5d's weights-only dloss (`results/llm_matrices_w.json`).
+
+**Rule (written before measuring, Nov 17 2026), each on every seed:**
+- P1: rel_c(w2) > mean(rel_c(w1), rel_c(w3)) in >= 7 of 8 blocks.
+- P2: over the 56 matrices, Spearman(rel_c, dloss) >= Spearman(fan-in, dloss) + 0.1.
+- The giant-channel explanation holds if P1 and P2 pass AND rel_i(w2) / mean(rel_i(w1), rel_i(w3)) <= 1.05 (the
+  input is needed). If rel_i already separates w2 (>= 1.1), the cause is the weights alone, not the input.
