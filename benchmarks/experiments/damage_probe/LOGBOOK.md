@@ -292,3 +292,9 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - llm_matrices.py (56 single matrices x 3 seeds, ~1 min GPU, base = llm_layers'): w2 > mean(w1, w3) in 8 / 8 blocks
   every seed -> A rejected the other way (as ResNet-8 weights-only). q / k / v vs o 0.95-1.09: matrix count
   explains the group order, not the role. Unit = 1.31-1.38x the sum of its matrices (super-additive inside a block).
+
+### 2026-11-17: part 5c, cos(w, sign w) (hypothesis C, Edén; no GPU)
+- weight_cosine.py: every layer / matrix 0.77-0.81, about sqrt(2/pi) = 0.798 (Gaussian): no layer concentrates its
+  signal. C1 (cos falls with fan-in) and C2 (cos predicts drop better than fan-in) FAIL on both models.
+- Code review: partial_rho tie bug fixed (rankdata); check values +0.01..0.02, verdicts same. PR #102: sanitizer now
+  also on the vertical prepared / compact engines (trained models clean, pytest green).

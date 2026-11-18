@@ -9,7 +9,7 @@ import json
 import os
 
 import numpy as np
-from scipy.stats import spearmanr
+from scipy.stats import rankdata, spearmanr
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RESNET = {"stem": (216, 7), "b0": (144, 6), "b1": (144, 5), "b2": (144, 4), "ds2": (16, 4), "b3": (288, 3),
@@ -24,7 +24,7 @@ def rho(a, b):
 
 def partial_rho(a, b, z):
     """Spearman of a and b with z held fixed: Pearson of the residuals of rank(a), rank(b) on rank(z)"""
-    ra, rb, rz = (np.argsort(np.argsort(v)).astype(float) for v in (a, b, z))
+    ra, rb, rz = (rankdata(v) for v in (a, b, z))                       # average ranks: fan-ins and depths tie
     res = [r - np.polyval(np.polyfit(rz, r, 1), rz) for r in (ra, rb)]
     return round(float(np.corrcoef(*res)[0, 1]), 3)
 

@@ -621,3 +621,26 @@ of equal magnitude; lower = signal concentrated in few weights; the per-layer qu
 - C1: Spearman(cosine, fan-in) <= -0.5 in each model.
 - C2: Spearman(cosine, drop) <= -0.5 (lower cosine, larger drop) and |Spearman(cosine, drop)| beats |Spearman(fan-in,
   drop)| by > 0.1, in each model.
+
+## Result
+
+| seed | ResNet-8 cos vs fan-in | ResNet-8 drop w: cos / fan-in | ResNet-8 drop wa: cos / fan-in | tiny_llm cos vs fan-in | tiny_llm drop: cos / fan-in |
+|---|---|---|---|---|---|
+| 42 | 0.17 | -0.12 / 0.63 | 0.37 / 0.11 | -0.06 | -0.24 / 0.15 |
+| 43 | -0.61 | -0.38 / 0.70 | -0.15 / -0.10 | -0.01 | -0.09 / 0.25 |
+| 44 | -0.23 | -0.46 / 0.60 | -0.62 / -0.17 | -0.04 | -0.19 / 0.12 |
+
+Every layer and matrix has a cosine of 0.77-0.81 (ResNet-8) and 0.79-0.80 (tiny_llm). A Gaussian gives sqrt(2/pi) =
+0.798. The trained weights are close to Gaussian everywhere: the signal is not concentrated in a few weights in any
+layer.
+
+## Answer
+
+**C fails.** C1: the cosine does not fall with the fan-in (only ResNet-8 seed 43 passes). C2: the cosine does not
+predict the drop better than the fan-in. In ResNet-8 weights-only, the fan-in (+0.6 to +0.7) beats the cosine (-0.1
+to -0.5). The cosine barely varies between layers (±2 %), so it cannot explain differences in damage. The fan-in
+effect (larger fan-in, larger weight-binarization drop) stays unexplained.
+
+Code review (Nov 17): `fanin_depth.partial_rho` broke ties (equal fan-ins / depths) by order instead of average
+ranks; fixed with rankdata. The check values change slightly (given fan-in 0.69 / 0.88 / 0.81 -> 0.71 / 0.89 /
+0.83), and the verdicts do not change.
