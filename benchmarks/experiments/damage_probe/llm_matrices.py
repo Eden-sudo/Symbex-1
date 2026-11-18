@@ -60,16 +60,18 @@ def analyze(res, layers):
         m = r["matrices"]
         nb = len({k.split(".")[0] for k in m})
         mean = {n: float(np.mean([m[f"b{i}.{n}"] for i in range(nb)])) for n in MATRICES}
-        units = layers["seeds"][s]["before"]["units"]
-        summed = [sum(m[f"{u.split('.')[0]}.{n}"] for n in GROUPS[u.split(".")[1]]) for u in units]
-        out[s] = {"base_equals_llm_layers": r["loss"] == layers["seeds"][s]["before"]["loss"],
-                  "mean_by_matrix": {k: round(v, 4) for k, v in mean.items()},
+        out[s] = {"mean_by_matrix": {k: round(v, 4) for k, v in mean.items()},
                   "w2_below_w1w3_blocks": f"{sum(m[f'b{i}.w2'] < (m[f'b{i}.w1'] + m[f'b{i}.w3']) / 2 for i in range(nb))}/{nb}",
                   "w2_over_w1w3": round(mean["w2"] / ((mean["w1"] + mean["w3"]) / 2), 3) if mean["w1"] + mean["w3"] else None,
                   "w2_above_w1w3_blocks": f"{sum(m[f'b{i}.w2'] > (m[f'b{i}.w1'] + m[f'b{i}.w3']) / 2 for i in range(nb))}/{nb}",
-                  "qkv_mean_over_o": round(float(np.mean([mean['q'], mean['k'], mean['v']]) / mean["o"]), 3),
-                  "unit_vs_sum_of_matrices": round(float(spearmanr(summed, [units[u]["dloss"] for u in units]).statistic), 3),
-                  "unit_over_sum_of_matrices": round(float(sum(units[u]["dloss"] for u in units) / sum(summed)), 3)}
+                  "qkv_mean_over_o": round(float(np.mean([mean['q'], mean['k'], mean['v']]) / mean["o"]), 3)}
+        if layers is not None:
+            units = layers["seeds"][s]["before"]["units"]
+            summed = [sum(m[f"{u.split('.')[0]}.{n}"] for n in GROUPS[u.split(".")[1]]) for u in units]
+            out[s].update({
+                "base_equals_llm_layers": r["loss"] == layers["seeds"][s]["before"]["loss"],
+                "unit_vs_sum_of_matrices": round(float(spearmanr(summed, [units[u]["dloss"] for u in units]).statistic), 3),
+                "unit_over_sum_of_matrices": round(float(sum(units[u]["dloss"] for u in units) / sum(summed)), 3)})
     return out
 
 
@@ -85,10 +87,12 @@ def main():
     ap.add_argument("--part", choices=("wa", "w", "a"), default="wa",
                     help="1-bit weights x alpha and int8 input (wa, part 5), only the weights (w) or only the input (a)")
     args = ap.parse_args()
-    res = json.load(open(args.out)) if os.path.exists(args.out) else {"args": {"batches": args.batches, "part": args.part},
+    res = json.load(open(args.out)) if os.path.exists(args.out) else {"args": {"name": args.name, "batches": args.batches, "part": args.part},
                                                                       "seeds": {}}
     if res["args"].get("part", "wa") != args.part:
         raise SystemExit(f"{args.out} holds part {res['args'].get('part', 'wa')}: use another --out")
+    if res["args"].get("name", "d384l8") != args.name:
+        raise SystemExit(f"{args.out} holds run {res['args'].get('name', 'd384l8')}: use another --out")
     if not args.analyze:
         args.runs, T.DATA = os.path.expanduser(args.runs), os.path.expanduser(args.data)
         for s in args.seeds:
@@ -96,7 +100,10 @@ def main():
             res["seeds"][str(s)] = measure_seed(s, args, "cuda")
             json.dump(res, open(args.out, "w"), indent=1)
     layers = json.load(open(os.path.join(HERE, "results", "llm_layers.json")))
-    res["analysis"] = analyze({"seeds": {s: r for s, r in res["seeds"].items() if s in layers["seeds"]}}, layers)
+    # llm_layers.json: units 1-bit weights AND int8 inputs, model fp32_d384l8; other parts / runs skip the comparison
+    same = args.part == "wa" and res["args"].get("name", "d384l8") == "d384l8"
+    res["analysis"] = analyze({"seeds": {s: r for s, r in res["seeds"].items() if not same or s in layers["seeds"]}},
+                              layers if same else None)
     json.dump(res, open(args.out, "w"), indent=1)
     for s, o in res["analysis"].items():
         print(f"s{s}: {o}")

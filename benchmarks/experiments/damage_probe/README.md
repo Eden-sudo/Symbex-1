@@ -754,8 +754,9 @@ Also measured (`results/llm_columns.json`):
   predicts the dloss across matrices weakly (Spearman 0.14-0.30).
 - **The weights on the giant channels are not atypical** (|w| / alpha 0.93): the "few giant x_i times atypical w_i"
   mechanism is not what drives w2.
-- **What stands out instead (not pre-registered, a lead):** block 0's w2 writes an output ~50x larger than the residual it
-  joins, so even an ordinary relative error becomes a large absolute error. The damage follows how big a matrix's
+- **What stands out instead (not pre-registered, a lead):** block 0's w2 binarization error energy is ~50x the energy of
+  the residual it joins (review, Nov 18: error energy, not output size; part 5f measures the sizes), so even an
+  ordinary relative error becomes a large absolute error. The damage follows how big a matrix's
   output is next to the residual, more than its relative error. Next check (a rule first): per matrix, absolute
   error / residual as the predictor; and for the fix, keep 1-bit (a per-column or per-block output scale) before any
   int8 protection.
@@ -801,10 +802,11 @@ R1 weak residual: passes on every seed. R1' large output: fails. R2 super weight
   it joins is the embedding plus block 0's attention, RMS 1.3, 15x smaller than any later one. So block 0's w2 output
   becomes most of the residual every later block reads, and its 1-bit error (RMS 9, half the output) enters the
   stream before anything else and lives through all 8 blocks.
-- **No super weight in this model.** The largest |w| / alpha of block 0's w2 is 7-9 (Gaussian reference ~5.7: a
-  little heavy-tailed), and other w2 have larger ones (10-13). Keeping its 64 largest weights in floating point
+- **No super weight in block 0's w2** (the hypothesis tested; the rest of the model was not searched for one). The
+  largest |w| / alpha of block 0's w2 is 7-9 (Gaussian reference ~5.7: a little heavy-tailed), and other w2 have
+  larger ones (10-13), whose effect was not tested. Keeping its 64 largest weights in floating point
   removes 4-5 % of its damage: protecting a few elements does not help here. (The paper's super weights are in much
-  larger trained LLMs; this 15.7 M model does not show one.)
+  larger trained LLMs; none shows up where it would matter here, in block 0's w2.)
 - What this suggests for the fix (ESTIMATE, not measured): the error is spread over the whole matrix, so the
   remedy is more information in block 0's w2 as a whole, while staying 1-bit: e.g. two binary bases
   (W ~ a1 s1 + a2 s2, 1-bit arithmetic, +48 KB, 0.4 % of the model) or OneBit-style row x column scales, trained.

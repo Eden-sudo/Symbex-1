@@ -121,7 +121,9 @@ def main():
     ap.add_argument("--out", default=os.path.join(HERE, "results", "llm_superweight.json"))
     ap.add_argument("--analyze", action="store_true", help="only the analysis of --out")
     args = ap.parse_args()
-    res = json.load(open(args.out)) if os.path.exists(args.out) else {"args": {"batches": args.batches}, "seeds": {}}
+    res = json.load(open(args.out)) if os.path.exists(args.out) else {"args": {"name": args.name, "batches": args.batches}, "seeds": {}}
+    if res["args"].get("name", "d384l8") != args.name:
+        raise SystemExit(f"{args.out} holds run {res['args'].get('name', 'd384l8')}: use another --out")
     if not args.analyze:
         args.runs, T.DATA = os.path.expanduser(args.runs), os.path.expanduser(args.data)
         dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")

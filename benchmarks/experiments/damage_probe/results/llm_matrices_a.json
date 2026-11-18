@@ -190,7 +190,6 @@
  },
  "analysis": {
   "42": {
-   "base_equals_llm_layers": true,
    "mean_by_matrix": {
     "q": 0.0,
     "k": 0.0,
@@ -203,12 +202,9 @@
    "w2_below_w1w3_blocks": "0/8",
    "w2_over_w1w3": 22.0,
    "w2_above_w1w3_blocks": "8/8",
-   "qkv_mean_over_o": 1.0,
-   "unit_vs_sum_of_matrices": -0.09,
-   "unit_over_sum_of_matrices": 973.55
+   "qkv_mean_over_o": 1.0
   },
   "43": {
-   "base_equals_llm_layers": true,
    "mean_by_matrix": {
     "q": 0.0,
     "k": 0.0,
@@ -221,12 +217,9 @@
    "w2_below_w1w3_blocks": "1/8",
    "w2_over_w1w3": 7.0,
    "w2_above_w1w3_blocks": "5/8",
-   "qkv_mean_over_o": 1.333,
-   "unit_vs_sum_of_matrices": 0.155,
-   "unit_over_sum_of_matrices": 1355.214
+   "qkv_mean_over_o": 1.333
   },
   "44": {
-   "base_equals_llm_layers": true,
    "mean_by_matrix": {
     "q": 0.0,
     "k": -0.0,
@@ -239,9 +232,7 @@
    "w2_below_w1w3_blocks": "0/8",
    "w2_over_w1w3": null,
    "w2_above_w1w3_blocks": "6/8",
-   "qkv_mean_over_o": -0.333,
-   "unit_vs_sum_of_matrices": -0.161,
-   "unit_over_sum_of_matrices": 3253.5
+   "qkv_mean_over_o": -0.333
   }
  }
 }

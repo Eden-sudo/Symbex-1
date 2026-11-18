@@ -303,7 +303,9 @@ def run(args, seed):
                          {"ste_mode": ta.get("ste", "identity"), "ste_k": ta.get("ste_k", 2.0),
                           "learn_thr": ta.get("learn_thr", False)}, tuple(ta.get("a8_inputs", [])),
                          W2_ACTS[ta.get("w2_acts", "same")], ta.get("ffn_act", "silu"),
-                         tuple(ta.get("hadamard", [])), tuple(ta.get("a8_blocks", []))).to(device)
+                         tuple(ta.get("hadamard", [])), tuple(ta.get("a8_blocks", [])),
+                         tuple(ta.get("int8_units", [])), ta.get("emb_scale", 1.0),
+                         tuple(ta.get("bin2_units", []))).to(device)
         teacher.load_state_dict(tck["model"])
         teacher.eval().requires_grad_(False)
         print(f"distilling from {tpath} (alpha {args.distill_alpha}, temperature {args.distill_t})")
