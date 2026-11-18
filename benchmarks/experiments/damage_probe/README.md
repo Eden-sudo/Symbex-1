@@ -729,3 +729,33 @@ Truth: part 5d's weights-only dloss (`results/llm_matrices_w.json`).
 - P2: over the 56 matrices, Spearman(rel_c, dloss) >= Spearman(fan-in, dloss) + 0.1.
 - The giant-channel explanation holds if P1 and P2 pass AND rel_i(w2) / mean(rel_i(w1), rel_i(w3)) <= 1.05 (the
   input is needed). If rel_i already separates w2 (>= 1.1), the cause is the weights alone, not the input.
+
+## Result (Nov 17 2026, 3 seeds, C on training windows, truth = part 5d weights-only dloss)
+
+| seed | P1: rel_c w2 > w1/w3 | Spearman rel_c / rel_i / fan-in vs dloss | P2 | rel_c w2 / w1w3 | rel_i w2 / w1w3 |
+|---|---|---|---|---|---|
+| 42 | 7/8 | 0.30 / 0.29 / 0.15 | yes | 1.13 | 1.01 |
+| 43 | 7/8 | 0.14 / 0.09 / 0.25 | no | 1.16 | 1.01 |
+| 44 | 5/8 | 0.29 / 0.18 / 0.12 | yes | 1.14 | 1.01 |
+
+Also measured (`results/llm_columns.json`):
+- Weights on the 8 largest input channels: mean |w| / alpha of w2 0.93 (typical); v 0.56-0.59 (small weights on the
+  giant channels: v has the highest rel_c, 0.34-0.36, and an ordinary dloss).
+- The giant channel block (w2's 8 largest channels carry 58 / 83 / 72 % of its input energy: s42 b2, s43 b1, s44 b3)
+  has w2's highest rel_c (0.39 / 0.47 / 0.49), but its dloss is only a little above w1 / w3 there.
+- **Block 0's w2:** its error energy is ~50x the residual it is added to (48 / 48 / 54; o of block 0 0.15-0.17,
+  every other w2 0.03-0.8), with an ordinary rel_c (0.24-0.25). Its weights-only dloss 0.086-0.088 vs w1 / w3 0.052-0.056
+  is about half of w2's whole excess over w1 / w3 summed over the 8 blocks (block 7 another ~0.01).
+
+## Answer
+
+- **The rule fails** (P1 5/8 on s44, P2 fails on s43). The input-weighted error does point the right way (w2 1.13-1.16x
+  w1 / w3 while the plain error is flat, 1.01), so the input matters, but it explains only part of the 1.29 and
+  predicts the dloss across matrices weakly (Spearman 0.14-0.30).
+- **The weights on the giant channels are not atypical** (|w| / alpha 0.93): the "few giant x_i times atypical w_i"
+  mechanism is not what drives w2.
+- **What stands out instead (not pre-registered, a lead):** block 0's w2 writes an output ~50x larger than the residual it
+  joins, so even an ordinary relative error becomes a large absolute error. The damage follows how big a matrix's
+  output is next to the residual, more than its relative error. Next check (a rule first): per matrix, absolute
+  error / residual as the predictor; and for the fix, keep 1-bit (a per-column or per-block output scale) before any
+  int8 protection.

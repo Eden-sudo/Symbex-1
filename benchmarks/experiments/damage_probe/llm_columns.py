@@ -34,7 +34,8 @@ def measure_seed(seed, args, dev):
     def grab(key):
         def hook(mod, inp):
             x = inp[0].float().reshape(-1, inp[0].shape[-1])
-            cov[key] = cov.get(key, 0) + x.T @ x
+            with torch.autocast("cuda", enabled=False):                          # C in fp32, not bf16
+                cov[key] = cov.get(key, 0) + x.T @ x
             tokens[key] = tokens.get(key, 0) + len(x)
         return hook
 

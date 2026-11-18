@@ -308,3 +308,10 @@ Every entry: date, question, what was run, numbers, errors, decision. Newest las
 - fanin_depth.py given stage + type: partial 0.56 / -0.52 / 0.03 -> fails; part 5's fan-in correlation was the
   layer types. Papers read for this round: XNOR-Net (1603.05279), binarized NMT (2302.04907), LAB (1611.01600),
   DuQuant (2406.01721), Super Weight (2411.07191).
+
+## Nov 17 2026 (night) -- part 5e
+
+- Rule committed first (db2a3c8; also ResNet-8 5d worded "no evidence once the type is fixed"). llm_columns.py, 3
+  seeds in parallel, seconds of GPU (laptop on battery). First run: C in bf16 under autocast -> fixed to fp32.
+- Fails: P1 7 / 7 / 5 of 8, P2 yes / no / yes. rel_c w2 / w1w3 1.13-1.16, rel_i 1.01. Top-8 channel weights typical
+  (0.93). Lead: block 0's w2 error ~50x its residual and half of the w2 excess -> output size vs residual.
