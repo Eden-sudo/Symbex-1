@@ -393,3 +393,11 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
 - Edén: we never tried a KV below int8. intsim.py --kv-bits (quant_kv, kept in quant8's code x m / 127 form).
   Unit check on random ints: rel. squared error 4b 0.005, 2b 0.068, 1b 0.276. Order asked: 1 bit, then 2.
 - Result: d vs kv8 = 4b +0.0098, 2b +0.386, 1b +1.214 (3 seeds, ~1 min per run). 4 bits usable, 2 / 1 need training.
+- Reading (Nov 18, PDFs read: QJL 2406.03482, KIVI 2402.02750, AsymKV 2410.13212, BitNet a4.8 2411.04965,
+  HashAttention 2412.14468, H1B-KV 2510.05529; abstract only: Hamming Attention Distillation 2502.01770):
+  keys hurt more than values (AsymKV, KIVI); KIVI 2 bits = K per channel + V per token + recent tokens full;
+  QJL = K as sign(S k) + ||k||, query NOT quantized, unbiased, no training (int8 q x 1-bit k = our u8 x 1-bit kernel);
+  BitNet a4.8 (1.58-bit model) KV 3 bits absmax, bos token at 4 bits, ~no loss; H1B-KV 1-bit key sketch + XNOR/
+  popcount + 4-bit V, needs fine-tuning, sketch 256 bits for d 128 (= 2 bits/dim), single-author 5 pages: weak;
+  HashAttention: 32-bit signatures + XOR/popcount only pick top-k tokens (speed, not memory). No MCU low-bit KV found.
+  Cheap next checks (PC, no training): K vs V split; K per channel at 2 bits; QJL-style 1-bit K; first token at 8 bits.
