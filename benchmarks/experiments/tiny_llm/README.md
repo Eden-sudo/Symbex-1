@@ -267,6 +267,21 @@ first token do nothing here. At the same bytes, QJL is the only mode that helps 
 of +0.70), but at 4 bits per dimension plain int4 wins. Without training, nothing below 4 bits is usable: a 1- or
 2-bit KV needs training with the KV quantized.
 
+## KV cache: changing the 1-bit key (rule Nov 18 2026, before measuring)
+
+**Question:** QJL was the only mode that helped, but its Gaussian S needs float multiplies and was tried with one
+S only. Does a +-1 S (signed Hadamard: S q with additions only), a rotation before plain 1- or 2-bit quantization, or
+a residual (1 bit per token plus QJL of what it missed, as TurboQuant) beat the best key of the same bytes?
+
+**What:** `intsim.py --k-mode hadqjl | rot | res --qjl-seed s` (kv_store; LOGBOOK Nov 18). All with V8, same models,
+windows and seeds. Fixed now: (a) hadqjl 64 and 128 bits per key; (b) rot at 1 and 2 bits; (c) res with 64 bits
+(1 bit per token + 64 = 2 bits per dimension); (d) Gaussian QJL 64 with S seeds 1 and 2 (is S seed 0 typical?).
+
+**Rule:** d vs `--kv-bits 8` (1.5307). Compared by bits per dimension with the best mode so far: 1 bit -> QJL 64
++0.409 ± 0.009; 2 bits -> QJL 128 +0.164 ± 0.004. A change "helps" if its d is below that by more than 2x the larger
+sd. (d): if seeds 1 / 2 move d by more than 2x the sd from seed 0's +0.409, the single-S result is fragile and the
+comparison uses the mean of the 3 S. Same thresholds for "usable" (< 0.03) as above.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

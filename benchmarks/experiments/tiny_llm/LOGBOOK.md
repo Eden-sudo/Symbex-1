@@ -407,3 +407,23 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   QJL bits per key and head: m / 64 per dim -> m 256 = 4 bits per dim: compare by bytes. Phase 2 as fixed + one
   control ADDED NOW (after phase 1, not in the rule): K4 V8 per token (same bytes as QJL 256).
 - Phase 2: QJL256 V1 +0.295, V2 +0.138, first token nothing; control K4 V8 +0.008. Verdicts in README; results/kv_modes.json. Next (Edén decides): QAT with the KV quantized.
+
+## Nov 18 2026 -- the 1-bit key: how QJL works and what we change (analysis, rule in README first)
+
+- QJL in short: store y = sign(S k) (m bits) and ||k||; the query stays unquantized and the score is
+  sqrt(pi/2) / m ||k|| <S q, y>. Unbiased; noise ~ 1 / sqrt(m) (more bits per key = less noise, no other knob).
+  Why it beat plain 1 bit: sign(k) per channel throws away the magnitudes inside k; sign(S k) spreads every channel
+  over all m bits, so an outlier channel cannot dominate. Why int4 still wins at 4 bits / dim: QJL's error falls as
+  1 / sqrt(m), int4's falls ~ 4x per extra bit.
+- Who already changed it (reading): TurboQuant (2504.19874) = random rotation + scalar quantization per coordinate
+  + 1-bit QJL of the residual (3.5 bits neutral on Llama-3.1-8B, their figure); PolarQuant (2502.02617) = rotation +
+  polar coordinates; H1B-KV = 1-bit sketch + XNOR / popcount but fine-tuned; HashAttention = learned bits, top-k only.
+  Nobody found with a +-1 (Hadamard) S on a microcontroller.
+- Our changes: (1) hadqjl = S from signed Hadamard blocks (+-1): S q is additions only, integer, and S q (int8) x
+  sign bits = lib_symbex's u8 x 1-bit row (ESTIMATE: no new kernel); m = 64 is a pure rotation's signs (orthogonal
+  rows), m = 128 two independent rotations. (2) rot = orthonormal signed Hadamard, then plain per-token 1 / 2 bits,
+  rotate back (TurboQuant's first stage). (3) res = 1 bit per token + hadqjl 64 of the residual (TurboQuant's full
+  idea, 2 bits / dim). Plus an S check: Gaussian QJL 64 with S seeds 1 and 2.
+- Unit check (random ints, 1 outlier channel; score correlation, NOT the metric): Gaussian QJL 64 0.65, hadqjl 64
+  0.71, 128 0.80; rot 1 bit 0.71, 2 bits 0.89 (plain 2 bits 0.95: on Gaussian data rotation cannot help); res 64 0.87.
+  Signed Hadamard / 8 orthonormal (checked).

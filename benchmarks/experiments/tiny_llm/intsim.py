@@ -202,16 +202,40 @@ def quant_kv(x, bits):
     return torch.where(x >= 0, 1, -1), 127 * m
 
 
+KV_MODE_TAG = {"token": "t", "channel": "c", "qjl": "q", "hadqjl": "h", "rot": "r", "res": "x"}
 KV_GROUP = 32    # tokens per group of the per-channel modes (KIVI's group size)
 
 
-def kv_store(x, bits, mode="token", qjl_m=128, keep_first=False):
+def signed_hadamard(d, blocks, seed, dev):
+    """blocks stacked Sylvester Hadamard matrices (d x d, +-1), each times its own random column signs: (blocks d) x d"""
+    gen = torch.Generator().manual_seed(seed)
+    H = T.hadamard(d).double().sign()
+    D = torch.where(torch.rand(blocks, d, generator=gen, dtype=torch.float64) < 0.5, -1.0, 1.0)
+    return torch.cat([H * D[i] for i in range(blocks)]).to(dev)
+
+
+def qjl_rebuild(x, m, had, seed):
+    """QJL (2406.03482): store sign(S x) (m bits) and ||x||; the query side sees x_hat = sqrt(pi / 2) / m ||x||
+    S^T sign(S x). S Gaussian (had False) or +-1 signed Hadamard blocks (had True: S q with additions only)."""
+    d = x.shape[-1]
+    if had:
+        assert m % d == 0, "--k-mode hadqjl / res: --qjl-m must be a multiple of the head width"
+        S = signed_hadamard(d, m // d, seed, x.device)
+    else:
+        S = torch.randn(m, d, generator=torch.Generator().manual_seed(seed), dtype=torch.float64).to(x.device)
+    y = torch.where(x @ S.T >= 0, 1.0, -1.0).double()
+    return (math.sqrt(math.pi / 2) / m) * x.norm(dim=-1, keepdim=True) * (y @ S)
+
+
+def kv_store(x, bits, mode="token", qjl_m=128, keep_first=False, qjl_seed=0):
     """one side of the KV cache (b, h, t, hd) as the attention reads it (quant8's form). "token": quant_kv, exact
     integers. The other modes are experiments that rebuild an integer x_hat and pass it through quant8 (one extra
     int8 rounding): "channel" = quant_kv's levels with one scale per channel and group of KV_GROUP tokens (KIVI; the
     scale of a group sees its later tokens: a slight leak, KIVI keeps the incomplete group in full precision instead);
     "qjl" = 1 bit as QJL: sign(S x) with a fixed Gaussian S (qjl_m x hd) plus ||x||, x_hat = sqrt(pi / 2) / m ||x||
-    S^T sign(S x) (float inside: experiment only). keep_first: position 0 stays int8 (the bos / sink token)."""
+    S^T sign(S x) (float inside: experiment only); "hadqjl" = the same with +-1 signed Hadamard blocks as S; "rot" =
+    rotate by an orthonormal signed Hadamard, quant_kv at `bits`, rotate back; "res" = 1 bit per token plus hadqjl
+    (qjl_m bits) of what it missed (TurboQuant's residual idea, 2504.19874). keep_first: position 0 stays int8 (the bos / sink token)."""
     if mode == "token" or bits == 8:
         q, m = quant_kv(x, bits)
     elif mode == "channel":
@@ -222,13 +246,17 @@ def kv_store(x, bits, mode="token", qjl_m=128, keep_first=False):
         c, sc = quant_kv(g, bits)
         xh = rdiv(c * sc[..., None], torch.full_like(c, 127)).transpose(-1, -2).reshape(b, h, -1, d)[:, :, :t]
         q, m = quant8(xh)
-    elif mode == "qjl":
-        gen = torch.Generator().manual_seed(0)
-        S = torch.randn(qjl_m, x.shape[-1], generator=gen, dtype=torch.float64).to(x.device)
-        xf = x.double()
-        y = torch.where(xf @ S.T >= 0, 1.0, -1.0).double()
-        xh = (math.sqrt(math.pi / 2) / qjl_m) * xf.norm(dim=-1, keepdim=True) * (y @ S)
-        q, m = quant8(xh.round().long())
+    elif mode in ("qjl", "hadqjl"):
+        q, m = quant8(qjl_rebuild(x.double(), qjl_m, mode == "hadqjl", qjl_seed).round().long())
+    elif mode == "rot":
+        R = signed_hadamard(x.shape[-1], 1, qjl_seed, x.device) / math.sqrt(x.shape[-1])  # orthonormal
+        y = (x.double() @ R.T).round().long()
+        c, sc = quant_kv(y, bits)
+        q, m = quant8(((c * sc[..., None]).double() / 127 @ R).round().long())
+    elif mode == "res":
+        c, sc = quant_kv(x, 1)
+        x1 = rdiv(c * sc[..., None], torch.full_like(c, 127))
+        q, m = quant8((x1.double() + qjl_rebuild((x - x1).double(), qjl_m, True, qjl_seed)).round().long())
     else:
         raise ValueError(mode)
     if keep_first:
@@ -250,7 +278,8 @@ def attention(q, k, v, heads, C, S, exp_t, kv=None):
     q, k = rope(q, C[:t], S[:t]), rope(k, C[:t], S[:t])
     qq, qm = quant8(q)
     kv = kv or {}
-    kq, km = kv_store(k, kv.get("k_bits", 8), kv.get("k_mode", "token"), kv.get("qjl_m", 128), kv.get("keep_first"))
+    kq, km = kv_store(k, kv.get("k_bits", 8), kv.get("k_mode", "token"), kv.get("qjl_m", 128), kv.get("keep_first"),
+                      kv.get("qjl_seed", 0))
     vq, vm = kv_store(v, kv.get("v_bits", 8), kv.get("v_mode", "token"), kv.get("qjl_m", 128), kv.get("keep_first"))
     u = check(mm(qq, kq.transpose(-1, -2)) * km[..., None, :], 61, "scores")       # b, h, t(query), t(key)
     causal = torch.ones(t, t, dtype=torch.bool, device=q.device).tril()
@@ -425,9 +454,10 @@ def main():
                     help="bits of the KV cache (experiment, PC only: see quant_kv); result in intsim_kv<b>.json")
     ap.add_argument("--k-bits", type=int, choices=[8, 4, 2, 1], help="keys only (overrides --kv-bits; see kv_store)")
     ap.add_argument("--v-bits", type=int, choices=[8, 4, 2, 1], help="values only (overrides --kv-bits)")
-    ap.add_argument("--k-mode", choices=["token", "channel", "qjl"], default="token")
+    ap.add_argument("--k-mode", choices=["token", "channel", "qjl", "hadqjl", "rot", "res"], default="token")
     ap.add_argument("--v-mode", choices=["token", "channel"], default="token")
     ap.add_argument("--qjl-m", type=int, default=128, help="--k-mode qjl: bits per key and head")
+    ap.add_argument("--qjl-seed", type=int, default=0, help="seed of S (qjl / hadqjl / rot / res)")
     ap.add_argument("--keep-first", action="store_true", help="position 0 of the KV cache stays int8")
     ap.add_argument("--check-windows", type=int, default=4, help="validation windows in check.bin")
     args = ap.parse_args()
@@ -446,11 +476,11 @@ def main():
     kb = args.kv_bits if args.k_bits is None else args.k_bits
     vb = args.kv_bits if args.v_bits is None else args.v_bits
     P["kv"] = {"k_bits": kb, "v_bits": vb, "k_mode": args.k_mode, "v_mode": args.v_mode, "qjl_m": args.qjl_m,
-               "keep_first": args.keep_first}
+               "keep_first": args.keep_first, "qjl_seed": args.qjl_seed}
     simple = args.k_bits is None and args.v_bits is None and args.k_mode == args.v_mode == "token" \
         and not args.keep_first
-    tag = (f"kv{args.kv_bits}" if simple else f"k{kb}{args.k_mode[0]}" + (str(args.qjl_m) if args.k_mode == "qjl"
-           else "") + f"_v{vb}{args.v_mode[0]}" + ("_f" if args.keep_first else ""))
+    tag = (f"kv{args.kv_bits}" if simple else f"k{kb}{KV_MODE_TAG[args.k_mode]}" + (str(args.qjl_m) if args.k_mode in ("qjl", "hadqjl", "res")
+           else "") + (f"s{args.qjl_seed}" if args.qjl_seed else "")  + f"_v{vb}{args.v_mode[0]}" + ("_f" if args.keep_first else ""))
     if args.export and (kb, vb) != (8, 8):
         ap.error("--export: the C keeps an int8 KV cache (--kv-bits 8)")
     val = T.load_split("val", dev)
