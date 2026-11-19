@@ -476,8 +476,14 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
     for (int l = 0; l < m->layers; l++) {
         const TinyBlock *B = TINYLM_BLOCK(m, l);
         const long lk = m->kv_recent ? 0 : (long)l;    /* the int8 cache is NULL with the low-bit one */
+#ifdef TINYLM_KV_SPLIT
+        (void)kvd;
+        int8_t *kq = s->kql[lk], *vq = s->vql[lk];
+        int32_t *km = s->kml[lk], *vm = s->vml[lk];
+#else
         int8_t *kq = s->kq + lk * m->seq * kvd, *vq = s->vq + lk * m->seq * kvd;
         int32_t *km = s->km + lk * m->seq * m->kv_heads, *vm = s->vm + lk * m->seq * m->kv_heads;
+#endif
         int64_t hm = in_quant(&B->q, s, s->t1, dim, norm_h(x, B->n1, dim, s->t1));   /* q, k, v: one input */
         TINYLM_PROF(0);
         if (B->q.acts == 8) prepare(s, s->iq, dim);
@@ -898,9 +904,18 @@ int tinylm_state_init(TinyState *s, const TinyModel *m) {
             return -1;
         if (big / 8 < hd / 8) return -1;    /* s->lut holds the subset sums of the query */
     } else {
+#ifdef TINYLM_KV_SPLIT
+    if (m->layers > TINYLM_KV_SPLIT_MAX) return -1;
+    for (int l = 0; l < m->layers; l++) {
+        s->kql[l] = TINYLM_MALLOC_BIG(kv / m->layers); s->vql[l] = TINYLM_MALLOC_BIG(kv / m->layers + 16);
+        s->kml[l] = TINYLM_MALLOC_WORDS(4 * kvm / m->layers); s->vml[l] = TINYLM_MALLOC_WORDS(4 * kvm / m->layers);
+        if (!s->kql[l] || !s->vql[l] || !s->kml[l] || !s->vml[l]) return -1;
+    }
+#else
     s->kq = TINYLM_MALLOC_BIG(kv); s->vq = TINYLM_MALLOC_BIG(kv + 16);  /* +16: the row kernel reads whole blocks */
-    s->km = TINYLM_MALLOC_BIG(4 * kvm); s->vm = TINYLM_MALLOC_BIG(4 * kvm);
+    s->km = TINYLM_MALLOC_WORDS(4 * kvm); s->vm = TINYLM_MALLOC_WORDS(4 * kvm);
     if (!s->kq || !s->vq || !s->km || !s->vm) return -1;
+#endif
     }
     s->x = TINYLM_MALLOC_FAST(4L * m->dim);
     s->t1 = TINYLM_MALLOC_FAST(4L * scr); s->t2 = TINYLM_MALLOC_FAST(4L * scr); s->t3 = TINYLM_MALLOC_FAST(4L * scr);
@@ -917,5 +932,8 @@ void tinylm_state_free(TinyState *s) {
     void *all[] = {s->kq, s->vq, s->km, s->vm, s->x, s->t1, s->t2, s->t3, s->q, s->k, s->v, s->a, s->iq, s->p, s->lut,
                    s->r, s->xb, s->kb, s->vb, s->km1, s->vm2, s->k8, s->v8, s->km8, s->vm8, s->vdec, s->vmj};
     for (unsigned i = 0; i < sizeof(all) / sizeof(all[0]); i++) free(all[i]);
+#ifdef TINYLM_KV_SPLIT
+    for (int l = 0; l < TINYLM_KV_SPLIT_MAX; l++) { free(s->kql[l]); free(s->vql[l]); free(s->kml[l]); free(s->vml[l]); }
+#endif
     memset(s, 0, sizeof(*s));
 }

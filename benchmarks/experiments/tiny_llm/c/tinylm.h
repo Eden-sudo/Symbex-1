@@ -16,6 +16,14 @@
 #ifndef TINYLM_MALLOC_BIG
 #define TINYLM_MALLOC_BIG(n) malloc(n)
 #endif
+/* WORDS: int32 buffers of the cache only (its scales), read and written as whole words: the classic ESP32 puts them
+   in its 32-bit-only IRAM heap. TINYLM_KV_SPLIT: the int8 cache allocated per layer (blocks of seq x kv_heads x head
+   size bytes) instead of one block per array, for heaps split in regions (classic ESP32: 279 KB of byte memory, the
+   largest block 115 KB). Same integers either way. */
+#ifndef TINYLM_MALLOC_WORDS
+#define TINYLM_MALLOC_WORDS(n) TINYLM_MALLOC_BIG(n)
+#endif
+#define TINYLM_KV_SPLIT_MAX 32
 #define TINYLM_EXP_N 2048
 #define TINYLM_SIG_N 1024
 
@@ -61,6 +69,10 @@ typedef struct {
     int8_t *kq, *vq;         /* layers x kv_heads x seq x head size (vq with TINYLM_DOT_ROWS_U8: ... x head size x
                                 seq, value + 128) */
     int32_t *km, *vm;        /* layers x kv_heads x seq (NULL, as kq / vq, with the low-bit cache) */
+#ifdef TINYLM_KV_SPLIT
+    int8_t *kql[TINYLM_KV_SPLIT_MAX], *vql[TINYLM_KV_SPLIT_MAX];   /* the same per layer (kq, vq, km, vm NULL) */
+    int32_t *kml[TINYLM_KV_SPLIT_MAX], *vml[TINYLM_KV_SPLIT_MAX];
+#endif
     /* the low-bit cache (kv_recent > 0), per layer and head: key signs seq x head size / 8 bytes (bit k of byte g =
        key 8g + k >= 0), values transposed head size x seq / 4 bytes (position j of row i in bits 2 (j % 4) of byte
        j / 4: c + 2), their scales seq; the int8 window kv_recent x head size (+ scales), position j in slot

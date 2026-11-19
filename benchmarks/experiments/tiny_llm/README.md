@@ -830,6 +830,39 @@ low-bit cache) are still exact with the new C, and the S3 firmware builds.
 scales 80 KB (5 layers x 512 x 4 heads x 4 bytes x 2) = 244 KB, plus roughly 30 KB of scratch (estimate): it should fit the classic
 ESP32 (346 KB heap) and the Pico 2 (520 KB), to be measured. Next (step 3): firmware for both, weights from flash.
 
+### Step 3: the 260K model on the classic ESP32 and the Pico 2 (Nov 19 2026)
+
+**Question.** Does the 260K binary model run exact on chips without PSRAM, weights read from flash, and how fast?
+
+**What.** `chip_mcu/` (PlatformIO, Arduino): model.bin is a 16-byte aligned const array in the firmware
+(`src/model_data.h`, written by `chip_run.py`): the ESP32 reads it through its flash cache, the RP2350 through XIP
+(16 KB cache). The int8 KV cache and the buffers sit in internal RAM. Plain C everywhere (lut8 linear layers, no
+SIMD). The classic ESP32 needed two changes: its byte heap is 279 KB in regions (largest block 115 KB), so
+`-DTINYLM_KV_SPLIT` allocates the cache per layer (16 KB blocks), and `TINYLM_MALLOC_WORDS` puts the int32 scales
+in the 32-bit-only IRAM heap (~72 KB). Both are opt-in: the PC and the S3 builds are unchanged, and the C is exact with or
+without them (PC, ASan + UBSan). `python chip_run.py runs/<run> --board esp32|pico2_arm|pico2_riscv --port ...`:
+2 validation windows of 512 tokens (a hash of every output equal to intsim.py's) + the 120-token greedy story.
+ESP32 at 240 MHz, Pico 2 at 150 MHz (Arduino-Pico default). Seeds 42, 43, 44.
+
+**Result** (results/chip_{esp32,pico2_arm,pico2_riscv}_binary_v512d64l5kv4_s*.json):
+
+| chip | exact (3 seeds) | story tokens/s | ms per token, windows mean | at position 0 / 511 |
+|---|---|---|---|---|
+| ESP32 (classic, 240 MHz) | 3072 / 3072, story 360 / 360 | 40.15 ± 0.06 | 35.38 ± 0.03 | 19.9 / 49.1 |
+| Pico 2 Cortex-M33 (150 MHz) | 3072 / 3072, story 360 / 360 | 31.84 ± 0.06 | 41.36 ± 0.05 | 27.0 / 54.1 |
+| Pico 2 Hazard3 (150 MHz) | 3072 / 3072, story 360 / 360 | 35.38 ± 0.88 | 39.52 ± 0.75 | 23.3 / 53.6 |
+
+Flash: the firmware is 0.39 MB on the ESP32 (model 0.09 MB). Free RAM after loading: ESP32 72 KB (most of it IRAM),
+Pico 2 228-235 KB. The time per token grows with the position (the attention reads the whole cache): ~2.5x from
+the first to the last token. The story runs 125 positions, so its speed is above the window mean. The Hazard3 spread
+(seed 42 34.8, 43 36.4, 44 34.9 tokens/s, same code) is code layout under the XIP cache, as seen before with
+SYMBEX on this core.
+
+**Answer.** Yes: a binary W1A8 language model runs exact (100 %, 3 seeds, 3 cores) on a classic ESP32 and on a
+Pico 2, weights in flash, at 32-40 tokens/s. Its stories are weak (val loss 2.14 vs fp32 1.35, above): this is a
+memory and exactness result, not a quality one. Not measured yet: an fp32 or int8 baseline on the same chips, and
+the S3's PIE kernels on this model.
+
 
 ## Future work
 

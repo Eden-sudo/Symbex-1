@@ -608,3 +608,13 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
 - 3 seeds: integer +0.0005 nats; C exact 2048 / 2048 + story, lut / symbex / symbex + DOT_ROWS_C, ASan + UBSan. Old
   runs (d384l8, head4, head2, a1x, k1v2_tau_r32) exact with the new C; S3 firmware builds; pytest 865 passed.
 - KV RAM computed: 164 KB int8 + 80 KB scales = 244 KB (the 164 KB figure forgot the scales). Next: step 3 firmware.
+
+## Nov 19 2026 — 260K step 3: classic ESP32 + Pico 2 (Edén: "sigue con eso")
+- chip_mcu/ (esp32, pico2_arm, pico2_riscv envs), model.bin as a const array (flash, read in place), KV in RAM.
+  chip_run.py --board (s3 default, unchanged); BOARD line checked; results/chip_<board>_<run>.json.
+- First ESP32 run: "state: not enough RAM". heap_caps_print_heap_info: byte heap 279 KB free, largest block 115 KB
+  (+ 110 KB, rest small); the other 72 KB is 32-bit-only IRAM. Fix (opt-in, tinylm.h / tinylm.c):
+  TINYLM_KV_SPLIT (cache per layer) + TINYLM_MALLOC_WORDS (int32 scales -> MALLOC_CAP_32BIT | MALLOC_CAP_EXEC).
+  PC exact with and without (ASan + UBSan, 260K + d384l8); S3 build OK; pytest 865 passed.
+- 3 seeds x 3 cores, all exact (1024 / 1024 + story 120 / 120 each). Story tokens/s: ESP32 40.15 ± 0.06,
+  M33 31.84 ± 0.06, Hazard3 35.38 ± 0.88 (150 MHz). Position 0 -> 511: ESP32 19.9 -> 49.1 ms.

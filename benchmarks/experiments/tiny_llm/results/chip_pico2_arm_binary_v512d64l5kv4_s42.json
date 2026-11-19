@@ -1,0 +1,32 @@
+{
+  "run": "binary_v512d64l5kv4_s42",
+  "board": "rp2350 Cortex-M33",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": "int8",
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 150,
+  "ready": "TINYLM ready | cpu 150 MHz | ram 513944 bytes free",
+  "loaded": "LOADED 93120 bytes in 12 ms | ram free 235144",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 41.416,
+  "ms_per_token_at_position": {
+    "0": 27.012,
+    "63": 31.424,
+    "127": 35.008,
+    "255": 41.577,
+    "511": 54.099
+  },
+  "ms_per_token_story_mean": 31.412,
+  "tokens_per_second_story": 31.835,
+  "ms_per_token_by_part": {},
+  "story": "Once upon a time, there was a little girl named Amy. She lived in a big box. She wanted to play with his friends and play with the park. She loved to play with the park. She loved to play with the ball and play with the ball. She loved to play with the ball. She loved to play with the ball. She loved to play with the ball. She loved to play with the ball"
+}
