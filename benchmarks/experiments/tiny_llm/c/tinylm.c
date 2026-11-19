@@ -74,6 +74,16 @@ static void tinylm_dot_rows2_c(const int8_t *x, int n, const uint8_t *w, int n_r
 #define QF 12
 #define MSH 30
 
+/* TINYLM_P_CUT: attention weights at exp-table index >= TINYLM_P_CUT are 0 (p < p_max e^(-P_CUT / 128); intsim.py
+   kv["p_cut"] = P_CUT / 128 nats, attn_cut.py). Default: the table's end (no cut). With the low-bit cache the values
+   of the positions left at 0 are not decoded (low_bit_values). */
+#ifndef TINYLM_P_CUT
+#define TINYLM_P_CUT TINYLM_EXP_N
+#endif
+#if TINYLM_P_CUT < 1 || TINYLM_P_CUT > TINYLM_EXP_N
+#error "TINYLM_P_CUT must be in 1..TINYLM_EXP_N"
+#endif
+
 /* TINYLM_DOT_ROWS4(x, n, w, n_rows, out): out[r] = sum_i x[i] * w4[r][i] over int4 rows of n / 2 bytes (the board's
    kernel for the int4 output head); plain C (emb4) otherwise. TINYLM_DOT_ROWS2: the same over int2 rows of n / 4
    bytes (values 2c + 1, emb2). */
@@ -372,16 +382,19 @@ static void low_bit_scores(const TinyModel *m, TinyState *s, int l, int h, int t
     *umax = mx;
 }
 
-/* one head's values as the value kernels read them (s->vdec, scales s->vmj): 2c + 1 before the window, int8 in it */
-static void low_bit_values(const TinyModel *m, TinyState *s, int l, int h, int t) {
+/* one head's values as the value kernels read them (s->vdec, scales s->vmj): 2c + 1 before the window, int8 in it.
+   Only the positions with p != 0 (the cut, TINYLM_P_CUT): s->p, s->vmj and s->vdec are packed to the n positions
+   kept (returned), the others add 0 to the sums, so the result is the same integers. Transposed (U8): by groups of
+   4 positions (one byte of the 2-bit cache) with some p != 0; plain: position by position. */
+static int low_bit_values(const TinyModel *m, TinyState *s, int l, int h, int t) {
     const int hd = m->dim / m->heads, N = m->kv_recent;
     const long lh = (long)l * m->heads + h;
     const uint8_t *vb = s->vb + lh * hd * (m->seq / 4);
     const int32_t *vm2 = s->vm2 + lh * m->seq, *vm8 = s->vm8 + lh * N;
     const int8_t *v8 = s->v8 + lh * N * hd;
     const int j0 = t - N + 1 > 0 ? t - N + 1 : 0;  /* first position of the window */
-    for (int j = 0; j < j0; j++) s->vmj[j] = vm2[j];
-    for (int j = j0; j <= t; j++) s->vmj[j] = vm8[j % N];
+    uint16_t *p = s->p;
+    int n = 0;
 #ifdef TINYLM_DOT_ROWS_U8
     /* transposed, value + 128: a byte of 4 codes u = c + 2 -> 4 bytes 2u - 3 + 128 (s->vdec rows of seq bytes) */
     static uint32_t dec4[256];
@@ -391,22 +404,44 @@ static void low_bit_values(const TinyModel *m, TinyState *s, int l, int h, int t
             for (int k = 0; k < 4; k++) w |= (uint32_t)(2 * ((b >> (2 * k)) & 3) + 125) << (8 * k);
             dec4[b] = w;
         }
-    const int nw4 = (j0 + 3) / 4, s0 = j0 % N, n1 = t - j0 + 1 < N - s0 ? t - j0 + 1 : N - s0;
+    /* groups g < gf hold 4 positions before the window: kept if one has p != 0 (kg); then the tail 4 gf..t as
+       before (the partial group, then the window) */
+    const int gf = j0 / 4, s0 = j0 % N, n1 = t - j0 + 1 < N - s0 ? t - j0 + 1 : N - s0;
+    uint8_t kg[(258 + 3) / 4];                      /* seq <= 258: tinylm_load */
+    int ng = 0;
+    for (int g = 0; g < gf; g++) {
+        const uint16_t *pg = p + 4 * g;
+        if (pg[0] | pg[1] | pg[2] | pg[3]) {         /* packed in place: n <= 4 g */
+            kg[ng++] = (uint8_t)g;
+            for (int r = 0; r < 4; r++, n++) { p[n] = pg[r]; s->vmj[n] = vm2[4 * g + r]; }
+        }
+    }
+    for (int j = 4 * gf; j <= t; j++, n++) { p[n] = p[j]; s->vmj[n] = j < j0 ? vm2[j] : vm8[j % N]; }
+    const int part = j0 > 4 * gf;                   /* positions 4 gf..j0 - 1: one more word */
     for (int i = 0; i < hd; i++) {
         uint32_t *row = (uint32_t *)(s->vdec + (long)i * m->seq);
         const uint8_t *src = vb + (long)i * (m->seq / 4), *w8 = (const uint8_t *)v8 + (long)i * N;
-        for (int w = 0; w < nw4; w++) row[w] = dec4[src[w]];
+        for (int w = 0; w < ng; w++) row[w] = dec4[src[kg[w]]];
+        if (part) row[ng] = dec4[src[gf]];
         /* window positions j0..t sit in slots s0.. (then 0..): at most two runs */
-        memcpy(s->vdec + (long)i * m->seq + j0, w8 + s0, n1);
-        memcpy(s->vdec + (long)i * m->seq + j0 + n1, w8, t - j0 + 1 - n1);
+        uint8_t *dst = s->vdec + (long)i * m->seq + 4 * ng + (j0 - 4 * gf);
+        memcpy(dst, w8 + s0, n1);
+        memcpy(dst + n1, w8, t - j0 + 1 - n1);
     }
 #else
     int8_t *vd = (int8_t *)s->vdec;
-    for (int j = 0; j < j0; j++)
+    for (int j = 0; j < j0; j++) {
+        if (!p[j]) continue;
         for (int i = 0; i < hd; i++)
-            vd[(long)j * hd + i] = (int8_t)(2 * ((vb[(long)i * (m->seq / 4) + j / 4] >> (2 * (j % 4))) & 3) - 3);
-    for (int j = j0; j <= t; j++) memcpy(vd + (long)j * hd, v8 + (long)(j % N) * hd, hd);
+            vd[(long)n * hd + i] = (int8_t)(2 * ((vb[(long)i * (m->seq / 4) + j / 4] >> (2 * (j % 4))) & 3) - 3);
+        p[n] = p[j]; s->vmj[n++] = vm2[j];
+    }
+    for (int j = j0; j <= t; j++, n++) {
+        memcpy(vd + (long)n * hd, v8 + (long)(j % N) * hd, hd);
+        p[n] = p[j]; s->vmj[n] = vm8[j % N];
+    }
 #endif
+    return n;
 }
 
 int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t *hmax_out) {
@@ -494,7 +529,7 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
                         const uint64_t x0 = ((uint64_t)q1 << 16) + lo / 16129u;
                         xi = (uint32_t)((x0 * tq) >> 26);
                     }
-                    s->p[j] = xi < TINYLM_EXP_N ? m->exp_t[xi] : 0;
+                    s->p[j] = xi < TINYLM_P_CUT ? m->exp_t[xi] : 0;
                     P += s->p[j];
                 }
             } else {
@@ -503,12 +538,13 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             for (int j = 0; j <= t; j++) {
                 const uint64_t n20 = (uint64_t)((umax - u[j]) * qm) >> 20;
                 const uint32_t xi = n20 < (uint64_t)TINYLM_EXP_N * 16129 ? (uint32_t)n20 / 16129u : TINYLM_EXP_N;
-                s->p[j] = xi < TINYLM_EXP_N ? m->exp_t[xi] : 0;
+                s->p[j] = xi < TINYLM_P_CUT ? m->exp_t[xi] : 0;
                 P += s->p[j];
             }
             }
             TINYLM_PROF(10);
-            if (m->kv_recent) low_bit_values(m, s, l, h, t);   /* counted with the values */
+            /* the positions the values read: 0..t, or (low-bit cache) the n kept by low_bit_values, packed */
+            const int nv = m->kv_recent ? low_bit_values(m, s, l, h, t) : t + 1;   /* counted with the values */
             int64_t acc[256];
 #ifdef TINYLM_DOT_ROWS_U8
             /* acc_i = sum_j pv_j vq_ji, pv_j = p_j vm_j < 2^32, as row products of the transposed V cache (row i =
@@ -521,7 +557,7 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
                 uint32_t pvmax = 0;
                 int64_t pvsum = 0;
                 int wide = 0;
-                for (int j = 0; j <= t; j++) {
+                for (int j = 0; j < nv; j++) {
                     const int64_t w = (int64_t)s->p[j] * vmh[j];
                     if (w >> 32) wide = 1;
                     pv[j] = (uint32_t)w; pvsum += w;
@@ -531,16 +567,16 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
                 while (nb < 4 && (pvmax >> (8 * nb))) nb++;
                 for (int i = 0; i < hd; i++) acc[i] = -128 * pvsum;
                 uint8_t *b = (uint8_t *)s->iq;                 /* iq: free here; nb chunk vectors of t + 1 bytes */
-                for (int j = 0; j <= t; j++)
+                for (int j = 0; j < nv; j++)
                     for (int c = 0; c < nb; c++) b[(long)c * m->seq + j] = (uint8_t)(pv[j] >> (8 * c));
                 int32_t dot[256];
                 for (int c = 0; c < nb && !wide; c++) {
-                    TINYLM_DOT_ROWS_U8(b + (long)c * m->seq, t + 1, (const uint8_t *)vqh, m->seq, hd, dot);
+                    TINYLM_DOT_ROWS_U8(b + (long)c * m->seq, nv, (const uint8_t *)vqh, m->seq, hd, dot);
                     for (int i = 0; i < hd; i++) acc[i] += (int64_t)dot[i] << (8 * c);
                 }
                 if (wide) {                                    /* a weight past 32 bits: the plain sums */
                     for (int i = 0; i < hd; i++) acc[i] = 0;
-                    for (int j = 0; j <= t; j++) {
+                    for (int j = 0; j < nv; j++) {
                         const int64_t w = (int64_t)s->p[j] * vmh[j];
                         const uint8_t *vj = (const uint8_t *)vqh + j;
                         for (int i = 0; i < hd; i++) acc[i] += w * ((int32_t)vj[(long)i * m->seq] - 128);
@@ -553,7 +589,7 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
                (tinylm_load), so no overflow; a larger weight sends the head to the int64 sums. The same integers. */
             int wide = 0;
             int32_t *pl = s->t3, *ph = s->t3 + m->seq;  /* t3: hidden >= 2 * seq (tinylm_state_init) */
-            for (int j = 0; j <= t; j++) {
+            for (int j = 0; j < nv; j++) {
                 const int64_t pv = (int64_t)s->p[j] * vmh[j];
                 if (pv >> 32) wide = 1;
                 pl[j] = (int32_t)(pv & 0xFFFF); ph[j] = (int32_t)(pv >> 16);
@@ -563,7 +599,7 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             for (int i = 0; i < hd && !wide; i += 4) {
                 int32_t l0 = 0, l1 = 0, l2 = 0, l3 = 0, h0 = 0, h1 = 0, h2 = 0, h3 = 0;
                 const int8_t *v = vqh + i;
-                for (int j = 0; j <= t; j++, v += hd) {
+                for (int j = 0; j < nv; j++, v += hd) {
                     const int32_t a = pl[j], b = ph[j];
                     const int32_t v0 = v[0], v1 = v[1], v2 = v[2], v3 = v[3];
                     l0 += a * v0; l1 += a * v1; l2 += a * v2; l3 += a * v3;
@@ -575,7 +611,7 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             }
             if (wide) {
                 for (int i = 0; i < hd; i++) acc[i] = 0;
-                for (int j = 0; j <= t; j++) {
+                for (int j = 0; j < nv; j++) {
                     const int64_t pv = (int64_t)s->p[j] * vmh[j];
                     const int8_t *vj = vqh + (long)j * hd;
                     for (int i = 0; i < hd; i++) acc[i] += pv * vj[i];

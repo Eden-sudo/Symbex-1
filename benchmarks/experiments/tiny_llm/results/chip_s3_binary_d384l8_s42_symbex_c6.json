@@ -1,0 +1,43 @@
+{
+  "run": "binary_d384l8_s42",
+  "board": "esp32s3 N16R8",
+  "kernel": "lib_symbex u8 x 1-bit (PIE) linear, PIE s8 dot (output, scores)",
+  "model_in": "psram",
+  "kv_cache": {
+    "p_cut": 6.0
+  },
+  "p_cut_nats": 6.0,
+  "kv_cache_in": "psram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | psram 8386295 bytes free",
+  "loaded": "LOADED 3550752 bytes in 605 ms | internal free 232944 | psram free 3036407",
+  "check_tokens": 512,
+  "check_equal": 512,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 127.973,
+  "ms_per_token_at_position": {
+    "0": 108.851,
+    "63": 116.9,
+    "127": 127.052,
+    "255": 147.157
+  },
+  "ms_per_token_story_mean": 117.885,
+  "tokens_per_second_story": 8.483,
+  "ms_per_token_by_part": {
+    "embedding_norms": 4.658,
+    "qkv": 14.304,
+    "attention_values": 13.055,
+    "o": 5.168,
+    "w1_w3": 24.817,
+    "swiglu": 5.928,
+    "w2": 11.49,
+    "output_head": 27.986,
+    "attention_rope_cache": 9.725,
+    "attention_scores": 7.786,
+    "attention_softmax": 1.441,
+    "attention_division": 1.613
+  },
+  "story": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and have fun. One day, Lily found a big, red ball in her room. She was very happy and wanted to show it to her friends.\nLily went to her friend Tom and said, \"Look at my big, red ball! Let's play with it!\" Tom was excited and said, \"Yes, let's play!\" They took the big, red ball and started to play. They were having a lot of fun.\nBut then, something unexpected happened. The big, red ball started to"
+}

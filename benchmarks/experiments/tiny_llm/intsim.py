@@ -538,6 +538,8 @@ def main():
     ap.add_argument("--kv-recent", type=int, default=0,
                     help="the last N keys and values of every query stay int8 (KIVI's residual window), the rest at --k/v-bits")
     ap.add_argument("--keep-first", action="store_true", help="position 0 of the KV cache stays int8")
+    ap.add_argument("--p-cut", type=float, help="attention weights p < p_max e^-n are 0 (attn_cut.py); --export then "
+                    "writes check_c<n>.bin for the C built with -DTINYLM_P_CUT=round(128 n)")
     ap.add_argument("--check-windows", type=int, default=4, help="validation windows in check.bin")
     args = ap.parse_args()
     if args.windows < 32 or args.windows % 32:
@@ -556,13 +558,15 @@ def main():
     vb = args.kv_bits if args.v_bits is None else args.v_bits
     P["kv"] = {"k_bits": kb, "v_bits": vb, "k_mode": args.k_mode, "v_mode": args.v_mode, "qjl_m": args.qjl_m,
                "keep_first": args.keep_first, "qjl_seed": args.qjl_seed, "k_scale": args.k_scale,
-               "v_scale": args.v_scale, "recent": args.kv_recent}
+               "v_scale": args.v_scale, "recent": args.kv_recent, "p_cut": args.p_cut}
     simple = args.k_bits is None and args.v_bits is None and args.k_mode == args.v_mode == "token" \
         and not args.keep_first and args.k_scale == 1.0 and args.v_scale == 1.0 and not args.kv_recent
     tag = (f"kv{args.kv_bits}" if simple else f"k{kb}{KV_MODE_TAG[args.k_mode]}" + (str(args.qjl_m) if args.k_mode in ("qjl", "hadqjl", "res")
            else "") + (f"s{args.qjl_seed}" if args.qjl_seed else "")
            + (f"g{args.k_scale:g}" if args.k_scale != 1.0 else "")  + f"_v{vb}{args.v_mode[0]}" + (f"g{args.v_scale:g}" if args.v_scale != 1.0 else "")
            + ("_f" if args.keep_first else "") + (f"_r{args.kv_recent}" if args.kv_recent else ""))
+    if args.p_cut is not None:
+        tag += f"_c{args.p_cut:g}"
     # the C: an int8 KV cache, or (a model trained with --attn-temp) 1-bit keys + 2-bit values + an int8 window
     low_bit_c = (kb, vb) == (1, 2) and args.k_mode == args.v_mode == "token" and args.v_scale == 1.0 \
         and not args.keep_first and args.kv_recent > 0
@@ -592,7 +596,8 @@ def main():
         w = val[torch.arange(args.check_windows, device=dev)[:, None] * a["seq"]
                 + torch.arange(a["seq"], device=dev)].long()
         z, hm = forward(P, w)
-        with open(os.path.join(args.run, "check.bin"), "wb") as f:
+        check = "check.bin" if args.p_cut is None else f"check_c{args.p_cut:g}.bin"
+        with open(os.path.join(args.run, check), "wb") as f:
             f.write(struct.pack("<2i", *w.shape))
             f.write(w.cpu().numpy().astype("<i4").tobytes())
             f.write(z.cpu().numpy().astype("<i8").tobytes())
@@ -600,7 +605,7 @@ def main():
             f.write(struct.pack("<2i", len(ids), 1 + len(sp.encode("Once upon a time"))))
             f.write(np.array(ids, dtype="<i4").tobytes())
         print(f"wrote {args.run}/model.bin ({os.path.getsize(os.path.join(args.run, 'model.bin')) / 1e6:.2f} MB)"
-              f" and check.bin")
+              f" and {check}")
 
 
 if __name__ == "__main__":

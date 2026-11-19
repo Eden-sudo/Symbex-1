@@ -55,7 +55,7 @@ def model_sum(data):
     return s
 
 
-def write_check_data(run, windows, path):
+def write_check_data(run, windows, path, p_cut=None):
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
     dev = "cuda"
@@ -66,6 +66,8 @@ def write_check_data(run, windows, path):
     if kv is not None:      # the low-bit KV cache the C runs (intsim.py --export wrote it): the same in the reference
         assert all((B["tq"].cpu().numpy() == t).all() for B, t in zip(P["blocks"], kv["tq"])), "model.bin is stale"
         P["kv"] = {k: kv[k] for k in ("k_bits", "v_bits", "k_scale", "recent")}
+    if p_cut is not None:   # the attention cut: the firmware is built with -DTINYLM_P_CUT (the ID proves the pair)
+        P["kv"] = dict(P.get("kv") or {}, p_cut=p_cut)
     val = T.load_split("val", dev)
     w = val[torch.arange(windows, device=dev)[:, None] * a["seq"] + torch.arange(a["seq"], device=dev)].long()
     z, hm = I.forward(P, w)
@@ -100,17 +102,22 @@ def main():
     ap.add_argument("--no-upload", dest="upload", action="store_false")
     ap.add_argument("--linear", choices=("lut8", "symbex"), default="lut8",
                     help="1-bit linear layers: lut8 (tinylm.c's table) or symbex (lib_symbex's 8-bit x 1-bit kernel)")
+    ap.add_argument("--p-cut", type=float, help="attention weights p < p_max e^-n are 0 (README 'Reading the cache'): "
+                    "reference and firmware (-DTINYLM_P_CUT=round(128 n)) both")
     ap.add_argument("--repeat-probe", choices=("psram", "copy"),
                     help="timing only: run layers in pairs on one block's weights (see the docstring)")
     args = ap.parse_args()
     run = os.path.normpath(args.run)
     proj = os.path.join(HERE, "chip")
-    ids, n_prompt, sp, check_id, seq, kv = write_check_data(run, args.windows, os.path.join(proj, "src", "check_data.h"))
+    ids, n_prompt, sp, check_id, seq, kv = write_check_data(run, args.windows, os.path.join(proj, "src", "check_data.h"),
+                                                          args.p_cut)
     if args.upload:
         print("building and uploading the firmware...")
         flags = ["-DTINYLM_SYMBEX_LINEAR"] if args.linear == "symbex" else []
         if args.repeat_probe:
             flags.append(f"-DTINYLM_REPEAT_PROBE={1 if args.repeat_probe == 'psram' else 2}")
+        if args.p_cut is not None:
+            flags.append(f"-DTINYLM_P_CUT={min(2048, round(args.p_cut * 128))}")
         env = dict(os.environ, PLATFORMIO_BUILD_FLAGS=" ".join(flags))
         subprocess.run(["pio", "run", "-d", proj, "-t", "upload", "--upload-port", args.port], check=True,
                        capture_output=True, env=env)
@@ -195,7 +202,7 @@ def main():
                2: " linear, PIE int2 dot (output), PIE s8 dot (scores)"}.get(I.head_bits_of(run),
                                                                               " linear, PIE s8 dot (output, scores)")),
            "model_in": "psram",
-           "kv_cache": kv or "int8", "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
+           "kv_cache": kv or "int8", "p_cut_nats": args.p_cut, "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
            "check_tokens": len(hashes), "check_equal": int(sum(h[2] for h in hashes)),
            "equal_percent": round(100 * sum(h[2] for h in hashes) / max(1, len(hashes)), 3),
            "story_tokens": len(gen), "story_equal": int(sum(g[1] for g in gen)),
@@ -213,7 +220,8 @@ def main():
                                "copy_ms_per_token": round(info.get("repeat_copy_us", 0) / max(1, len(hashes)) / 1000, 3)}
     os.makedirs(os.path.join(HERE, "results"), exist_ok=True)
     suffix = ("" if args.linear == "lut8" else "_" + args.linear) + (f"_repeat_{args.repeat_probe}"
-                                                                      if args.repeat_probe else "")
+                                                                      if args.repeat_probe else "") \
+        + (f"_c{args.p_cut:g}" if args.p_cut is not None else "")
     out = os.path.join(HERE, "results", f"chip_s3_{os.path.basename(run)}{suffix}.json")
     with open(out, "w") as f:
         json.dump(res, f, indent=2)

@@ -543,3 +543,8 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   built its reference with the int8 KV (fixed: it reads the trailer). 7.56 vs 8.47 tokens/s (base re-run, same
   firmware), PSRAM -1.07 MB (KV 1.67 -> 0.60 MB), internal -17 KB. Values decode +12 ms; PSRAM -> internal copy
   first: no gain (reverted). Saves memory, not time, on a SIMD chip.
+- Reading the cache (README "Reading the cache"): p-cut rule written first; attn_cut.py 3 seeds -> n = 6 (base and
+  T2 +0.0002, 41-43 % of far keys read). quest_probe.py: Quest page bound useless on 1-bit keys (0-6.5 % skipped vs
+  32-46 % oracle). C: -DTINYLM_P_CUT + group-of-4 skipping in low_bit_values (format unchanged), exact PC (8 builds,
+  ASan/UBSan) and S3 (512 / 512 + story). S3 seed 42: T2 values 25.1 -> 20.4 ms, position 255 178.1 -> 164.4 ms,
+  story 7.56 -> 7.64 tok/s; base 8.47 -> 8.48 (its int8 cache is untouched). Small gain; grows with context.

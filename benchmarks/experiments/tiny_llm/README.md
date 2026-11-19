@@ -649,7 +649,28 @@ the far keys still read.
 | 1 | +0.1607 ± 0.0128 | 1.9 % | +0.1485 ± 0.0063 | 2.2 % |
 
 **Answer:** by the rule, **n = 6 for both**: the loss does not move (+0.0002) and less than half of the far
-positions need their values. Next: the C (values per position, the cut) and the time on the S3.
+positions need their values. Then the C and the S3 (below).
+
+**On the S3 (Nov 19, seed 42, `chip_run.py --linear symbex --p-cut 6`, `results/chip_s3_*_symbex_c6.json`):**
+tinylm.c drops the weights past the cut (`-DTINYLM_P_CUT=768`) and, with the low-bit cache, decodes only the groups
+of 4 positions (one byte of the 2-bit cache) with some p != 0: the cache format stays (storing values per position
+would need 4x the stores per decoded position, an estimate). **Exact: 512 / 512 tokens and the story equal to
+intsim.py with the cut** (PC: every build, ASan / UBSan clean; the cut firmware against the no-cut reference does
+differ, so the check sees it).
+
+| | T2 | T2, cut 6 | base | base, cut 6 |
+|---|---|---|---|---|
+| attention values (ms per token, mean of 2 x 256) | 25.1 | **20.4** | 13.3 | 13.1 |
+| ms per token at position 255 | 178.1 | **164.4** | 148.7 | 147.2 |
+| ms per token, mean of positions 0-255 | 145.4 | 140.3 (-3.5 %) | 128.7 | 128.0 |
+| tokens / s (story, positions 5-125) | 7.56 | 7.64 (+1 %) | 8.47 | 8.48 |
+
+The same firmware without the cut (only exact-zero groups skipped) runs 7.54 tokens/s
+(`..._symbex_skip0.json`): no gain, as the exact zeros predicted. **Answer: the cut works and is free in loss, but
+the gain is small** (-4.7 ms of values per token, -14 ms at position 255; the base keeps its int8 cache untouched,
+so only its softmax gets faster). It grows with the context (the far positions): at 256 tokens it is 8 %. The value
+time left is the decoding of the kept groups, the window copy and the PIE products per channel row. Next ideas: a
+value kernel on the packed 2-bit codes (no decoding), or a longer context where the cut pays more.
 
 ## Future work
 
