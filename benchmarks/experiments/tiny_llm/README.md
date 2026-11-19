@@ -415,7 +415,9 @@ Smoke check (64 windows, seed 42, NOT a result): K3 per token +0.050, K3 before 
 **Test (fixed now, before measuring):** `intsim.py --k-mode pre` = the channel mode (one int32 scale per channel and
 group of 32 tokens, KIVI's grouping; its scale sees the later tokens of its group: a slight leak, as `channel`) on the
 keys before RoPE, rotated after, then int8 for the attention. 1024 validation windows, seeds 42-44: K4 pre V8, K3 pre
-V8, K2 pre V8, K3 pre V3, K3 pre V4, K4 pre V3; K2 pre at the best K2 factor of (c) (chosen on seed 42).
+V8, K2 pre V8, K3 pre V3, K3 pre V4, K4 pre V3; K2 pre at the best K2 factor of (c) (chosen on seed 42). Added the same day,
+before any of them ran (Edén): pre with the recent int8 window, K3 pre V3 N = 16 / 32, K2 pre V2 N = 32 (K2 at the
+factor of (c), V2 x 1.2 = (c)'s choice on seed 42).
 **Bytes** (computed as above; per-channel scales: 64 x 4 B per 32 tokens = 8 B per token and head, 98 KB per side):
 K3 pre V3 0.74 MB, K3 pre V4 0.84, K4 pre V3 0.84, K2 pre V8 1.13, K3 pre V8 1.23 (KV4 0.88). Same rule: usable d < 0.03, beats KV4
 if usable with fewer bytes than 0.88 MB. Cost on the chip (not measured): RoPE on every key read (KVQuant fuses it).
