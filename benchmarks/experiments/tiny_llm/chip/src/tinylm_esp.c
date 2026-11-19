@@ -145,6 +145,37 @@ static void tinylm_dot_rows2(const int8_t *x, int n, const uint8_t *w, int n_row
     }
 }
 #define TINYLM_DOT_ROWS2(x, n, w, n_rows, out) tinylm_dot_rows2((x), (n), (w), (n_rows), (out))
+/* Repeated-blocks timing probe (README "Blocks run twice"): layers 2i and 2i + 1 run on the same weights, the
+   schedule of a --repeat 2 model, timed on the real d384l8 network (its outputs then differ from intsim.py: timing
+   only). TINYLM_REPEAT_PROBE=1: layer 2i + 1 reads block 2i again from PSRAM. =2: before layer 2i the bit rows of
+   block 2i are copied (memcpy) to internal RAM and both layers run on the copy; the small per-row arrays (m, ones)
+   stay in PSRAM (235 KB internal free, the bit rows of a block take 221 KB). tinylm_repeat_copy_cycles: the copies. */
+#ifdef TINYLM_REPEAT_PROBE
+uint64_t tinylm_repeat_copy_cycles;
+int tinylm_repeat_failed;          /* 1: no internal RAM for the copy (main.cpp reports it) */
+static TinyBlock tinylm_repeat_fast;
+static const TinyBlock *tinylm_repeat_block(const TinyModel *m, int l) {
+    if (TINYLM_REPEAT_PROBE != 2) return &m->blocks[l & ~1];
+    if (l & 1) return &tinylm_repeat_fast;
+    static uint32_t *buf[7];
+    const TinyBlock *src = &m->blocks[l];
+    const TinyLinear *from[7] = {&src->q, &src->k, &src->v, &src->o, &src->w1, &src->w3, &src->w2};
+    TinyBlock *f = &tinylm_repeat_fast;
+    TinyLinear *to[7] = {&f->q, &f->k, &f->v, &f->o, &f->w1, &f->w3, &f->w2};
+    const uint32_t c0 = xthal_get_ccount();
+    *f = *src;
+    for (int i = 0; i < 7; i++) {
+        const size_t bytes = (size_t)from[i]->n_out * from[i]->words_in * 4;
+        if (!buf[i]) buf[i] = (uint32_t *)heap_caps_aligned_alloc(16, bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (!buf[i]) { tinylm_repeat_failed = 1; continue; }   /* that layer stays in PSRAM */
+        memcpy(buf[i], from[i]->w, bytes);
+        to[i]->w = buf[i];
+    }
+    tinylm_repeat_copy_cycles += xthal_get_ccount() - c0;
+    return f;
+}
+#define TINYLM_BLOCK(m, l) tinylm_repeat_block((m), (l))
+#endif
 #ifdef TINYLM_SYMBEX_LINEAR
 #include "../../c/tinylm_symbex.h"   /* linear layers on lib_symbex's 8-bit x 1-bit PIE kernel */
 #endif

@@ -488,6 +488,33 @@ the larger sd. (3) `d384l16r2` beats the base (depth for no extra bytes) if it w
 Speed on the chip is not part of this test. ESTIMATE: `d384l8r2` gives ~10.5-11 tokens/s on the S3, `d384l16r2` is
 slower (twice the computation).
 
+**Result** (validation loss, mean ± sd of 3 seeds, `results/repeat_blocks.json`):
+
+| run | 42 / 43 / 44 | mean ± sd | d vs base |
+|---|---|---|---|
+| base `d384l8` | 1.5252 / 1.5219 / 1.5200 | 1.5224 ± 0.0026 | |
+| `d384l8r2` | 1.6406 / 1.6459 / 1.6454 | 1.6440 ± 0.0029 | +0.1216 |
+| `d384l4` | 1.6573 / 1.6620 / 1.6637 | 1.6610 ± 0.0033 | +0.1386 |
+| `d384l16r2` | 1.5108 / 1.5156 / 1.5124 | 1.5129 ± 0.0024 | -0.0095 |
+
+Speed, measured afterwards on the S3 (`chip_run.py --repeat-probe`, seed 42 model with the int4 head run in the
+`--repeat 2` schedule: timing only, the outputs then differ from intsim.py):
+
+| schedule | 1-bit linear layers | block copies | ms per token (windows) | tokens/s (story) |
+|---|---|---|---|---|
+| base (8 blocks from PSRAM, exact 100 %) | 55.9 ms | | 115.5 | 9.53 |
+| pairs, the second pass reads PSRAM again | 55.9 ms | | 115.4 | 9.54 |
+| pairs, block copied to internal RAM, both passes there | 37.0 ms | 15.1 ms | 112.2 | 9.84 |
+
+**Answer:** (1) fails: `d384l8r2` is 0.12 worse, four times the limit. (2) passes: the repeat beats the control with
+the same bytes by 0.017 (2x sd = 0.0066; every seed, -0.016 to -0.018). (3) passes: `d384l16r2` is 0.0095 better
+than the base (2x sd = 0.0053) for the same bytes and twice the computation. On the chip the repeat does not pay:
+reading a block twice from PSRAM costs the same as two blocks (the 64 KB cache cannot hold 221 KB), and copying it
+to internal RAM first costs 15 ms per token (884 KB at ~59 MB/s, the PSRAM's speed), which eats most of the 19 ms
+the second pass saves: +3 % tokens/s for +0.12 loss. Overlapping the copy with the computation (DMA, two block
+buffers = 442 KB) does not fit the ~250 KB of internal RAM. Not pursued; the ESTIMATE above (10.5-11 tokens/s) was
+wrong. The memory that limits the ESP32 and the Pico 2 is the KV cache, which repeating blocks does not shrink.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

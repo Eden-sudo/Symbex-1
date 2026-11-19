@@ -13,6 +13,12 @@
 #define TINYLM_PROF(k)
 #endif
 
+/* TINYLM_BLOCK(m, l): the weights layer l runs on (default: its own block). A board can point it elsewhere, e.g. the
+   repeated-blocks timing probe of chip/src/tinylm_esp.c (TINYLM_REPEAT_PROBE). */
+#ifndef TINYLM_BLOCK
+#define TINYLM_BLOCK(m, l) (&(m)->blocks[l])
+#endif
+
 /* TINYLM_DOT_ROWS(x, n, w, stride, n_rows, out): int8 row products out[r] = sum_i x[i] * w[r * stride + i] (the
    board's PIE kernel): the output head and the attention scores run on it. TINYLM_DOT_ROWS_U8: the same with
    unsigned bytes: the attention values run on it and the V cache is kept transposed (see tinylm_step).
@@ -280,7 +286,7 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
     const int16_t *C = m->cos + (long)t * (hd / 2), *S = m->sin + (long)t * (hd / 2);
 
     for (int l = 0; l < m->layers; l++) {
-        const TinyBlock *B = &m->blocks[l];
+        const TinyBlock *B = TINYLM_BLOCK(m, l);
         int8_t *kq = s->kq + (long)l * m->seq * dim, *vq = s->vq + (long)l * m->seq * dim;
         int32_t *km = s->km + (long)l * m->seq * m->heads, *vm = s->vm + (long)l * m->seq * m->heads;
         int64_t hm = in_quant(&B->q, s, s->t1, dim, norm_h(x, B->n1, dim, s->t1));   /* q, k, v: one input */

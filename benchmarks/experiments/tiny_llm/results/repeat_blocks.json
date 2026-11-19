@@ -1,0 +1,75 @@
+{
+  "question": "train.py --repeat 2 (MobileLLM block-wise sharing), binary W1A8, 3 seeds, validation loss (train.py float model)",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "val_loss": {
+    "d384l8": {
+      "per_seed": [
+        1.5252,
+        1.5219,
+        1.52
+      ],
+      "mean": 1.5224,
+      "sd": 0.0026
+    },
+    "d384l8r2": {
+      "per_seed": [
+        1.6406,
+        1.6459,
+        1.6454
+      ],
+      "mean": 1.644,
+      "sd": 0.0029
+    },
+    "d384l4": {
+      "per_seed": [
+        1.6573,
+        1.662,
+        1.6637
+      ],
+      "mean": 1.661,
+      "sd": 0.0033
+    },
+    "d384l16r2": {
+      "per_seed": [
+        1.5108,
+        1.5156,
+        1.5124
+      ],
+      "mean": 1.5129,
+      "sd": 0.0024
+    }
+  },
+  "s3_timing_probe": {
+    "note": "d384l8 head4 seed 42 run in the --repeat 2 schedule (layers 2i, 2i+1 on block 2i): timing only, outputs differ; copy = memcpy of the block's bit rows to internal RAM before layer 2i, outputs buffer in PSRAM in that probe",
+    "runs": {
+      "none": {
+        "json": "chip_s3_binary_d384l8_head4_s42_symbex.json",
+        "ms_per_token_check": 115.508,
+        "tokens_per_second_story": 9.531,
+        "linear_ms": 55.93,
+        "copy_ms": 0.0,
+        "output_head_ms": 14.667
+      },
+      "psram": {
+        "json": "chip_s3_binary_d384l8_head4_s42_symbex_repeat_psram.json",
+        "ms_per_token_check": 115.392,
+        "tokens_per_second_story": 9.538,
+        "linear_ms": 55.94,
+        "copy_ms": 0.0,
+        "output_head_ms": 14.666
+      },
+      "copy": {
+        "json": "chip_s3_binary_d384l8_head4_s42_symbex_repeat_copy.json",
+        "ms_per_token_check": 112.219,
+        "tokens_per_second_story": 9.844,
+        "linear_ms": 36.96,
+        "copy_ms": 15.087,
+        "output_head_ms": 15.312
+      }
+    }
+  }
+}
