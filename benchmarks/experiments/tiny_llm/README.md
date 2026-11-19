@@ -466,6 +466,28 @@ vs rot 1.5491. Run: rotq K2 x 1.3 + V2 x 1.2 + N 32, 3 seeds, 1024 windows. Rule
 d = +0.0079 ± 0.0002, the same as rot (+0.0079 ± 0.0003). **Answer:** the rule passes: the chip form gives the
 same loss; the C rotates the query once and never rebuilds a key. Chip cost: ../chip_kernels (kv_attn_bench.py).
 
+## Blocks run twice: fewer distinct weights (rule Nov 18 2026, before measuring)
+
+**Question:** MobileLLM runs every block twice in a row with the same weights. A chip then reads each block's
+weights once from the PSRAM and uses them twice. Does a binary model keep its quality with half the distinct blocks?
+
+**What:** `train.py --repeat 2` (immediate block-wise sharing; --layers = the depth that runs). Same recipe as the base
+(10,000 steps, batch 128, fp32 output layer, KV int8), seeds 42 / 43 / 44, validation loss of train.py (float
+model; the integer model and the C do not support --repeat yet):
+
+| run | distinct blocks | depth | 1-bit weights |
+|---|---|---|---|
+| base `d384l8` (done) | 8 | 8 | 1.77 MB |
+| `d384l8r2` | 4 | 8 | 0.89 MB |
+| `d384l4` (control: the same bytes, no repeat) | 4 | 4 | 0.89 MB |
+| `d384l16r2` (informative: the same bytes as the base) | 8 | 16 | 1.77 MB |
+
+Reference: base 1.5252 / 1.5219 / 1.5200 (mean 1.5224). **Rules:** d = loss - base, mean of 3 seeds.
+(1) `d384l8r2` is usable if d < 0.03 (the KV rule). (2) The repeat helps if `d384l8r2` beats `d384l4` by more than 2x
+the larger sd. (3) `d384l16r2` beats the base (depth for no extra bytes) if it wins by more than 2x the larger sd.
+Speed on the chip is not part of this test. ESTIMATE: `d384l8r2` gives ~10.5-11 tokens/s on the S3, `d384l16r2` is
+slower (twice the computation).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

@@ -29,6 +29,9 @@ is mostly near 0, w1a1_diag.py), --ffn-act relu (relu gate instead of silu), --h
 quantization: BitNet v2 / QuEST), --distill runs/fp32_d384l8_s{seed}/model.pt [--distill-alpha 0.5]
 (loss = (1 - alpha) x cross-entropy on the labels + alpha x KL(teacher || student) on the teacher's next-token
 distribution, temperature --distill-t).
+--repeat 2 (MobileLLM's immediate block-wise sharing): --layers stays the depth run, but only layers / 2 distinct
+blocks exist and each runs twice in a row (a chip reads its weights once and uses them twice); --layers 8 --repeat 2
+= 4 distinct blocks. Not in intsim.py / the C yet.
 
 Quantized runs: every linear layer of the blocks has quantized weights (scale = mean |w| of the row; ternary rounds
 w / scale to -1, 0, 1, binary takes the sign) and 8-bit inputs (absmax per token, 127 levels), both through the
@@ -192,13 +195,15 @@ class Block(nn.Module):
 class TinyLM(nn.Module):
     def __init__(self, vocab, dim, layers, heads, hidden, seq, kind, head="fp32", int8_blocks=(), acts=8,
                  act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=(),
-                 kv=(8, 8, 1.0)):
+                 kv=(8, 8, 1.0), repeat=1):
         super().__init__()
+        assert layers % repeat == 0, "--layers must be a multiple of --repeat"
         self.head_kind = head
+        self.repeat = repeat
         self.emb = nn.Embedding(vocab, dim)
         self.blocks = nn.ModuleList(Block(dim, heads, hidden, "int8" if i in int8_blocks else kind, acts, act_opts,
                                           a8_inputs if not a8_blocks or i in a8_blocks else (), w2_acts, ffn_act,
-                                          rotate, kv) for i in range(layers))
+                                          rotate, kv) for i in range(layers // repeat))
         self.norm = nn.RMSNorm(dim, eps=1e-5)
         hd = dim // heads
         freq = 1.0 / (10000 ** (torch.arange(0, hd, 2).float() / hd))
@@ -217,7 +222,8 @@ class TinyLM(nn.Module):
         x = F.embedding(idx, quant_weight(self.emb.weight, self.head_kind)) \
             if self.head_kind in ("int4", "int2") else self.emb(idx)
         for blk in self.blocks:
-            x = blk(x, self.cos[:t], self.sin[:t])
+            for _ in range(self.repeat):
+                x = blk(x, self.cos[:t], self.sin[:t])
         if self.head_kind in ("binary", "int4", "int2"):
             return F.linear(quant_act8(self.norm(x)), quant_weight(self.emb.weight, self.head_kind))
         return F.linear(self.norm(x), self.emb.weight)
@@ -286,7 +292,7 @@ def run(args, seed):
                    args.weights, args.head, tuple(args.int8_blocks), args.acts,
                    {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
                    tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
-                   tuple(args.a8_blocks), (args.k_bits, args.v_bits, args.k_scale)).to(device)
+                   tuple(args.a8_blocks), (args.k_bits, args.v_bits, args.k_scale), args.repeat).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)
@@ -407,7 +413,8 @@ def main():
     ap.add_argument("--distill-t", type=float, default=1.0, help="distillation temperature")
     ap.add_argument("--name", default="d384l8", help="run name (folder: runs/<weights>_<name>_s<seed>)")
     ap.add_argument("--dim", type=int, default=384)
-    ap.add_argument("--layers", type=int, default=8)
+    ap.add_argument("--layers", type=int, default=8, help="depth run (with --repeat: distinct blocks x repeat)")
+    ap.add_argument("--repeat", type=int, default=1, help="each distinct block runs this many times in a row (see above)")
     ap.add_argument("--heads", type=int, default=6)
     ap.add_argument("--hidden", type=int, default=1024)
     ap.add_argument("--seq", type=int, default=256)
