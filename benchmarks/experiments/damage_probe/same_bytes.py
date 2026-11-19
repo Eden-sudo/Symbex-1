@@ -10,6 +10,7 @@ Resumable per seed (same settings and inputs only).
     python same_bytes.py --seeds 42 43 44 --runs <training_gap>/runs/train_gap --data <repo>/benchmarks/data/cifar10
 """
 import argparse
+import hashlib
 import json
 import os
 import statistics
@@ -94,7 +95,12 @@ def main():
     old = res.get("args", {})
     if old and {k: old.get(k) for k in same} != same:
         sys.exit(f"{args.out} was measured with other settings ({old} vs {same}): use another --out")
-    res.update(args=same, layers=LAYERS, pairs=PAIRS, protected=protect, weight_counts=weight_counts())
+    tsha = hashlib.sha256(open(args.table, "rb").read()).hexdigest()   # the drops a resumed seed was measured with
+    if res.get("table_sha256", tsha) != tsha:
+        sys.exit(f"{args.out} was measured with another --table ({res['table_sha256'][:12]} vs {tsha[:12]}): "
+                 "use another --out")
+    res.update(args=same, layers=LAYERS, pairs=PAIRS, protected=protect, weight_counts=weight_counts(),
+               table_sha256=tsha)
     res.setdefault("seeds", {})
     for seed in args.seeds:
         if str(seed) in res["seeds"]:
