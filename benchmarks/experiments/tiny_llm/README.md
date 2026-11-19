@@ -730,13 +730,52 @@ PSRAM, against 61 MB/s for a plain sequential read and 69 MB/s for the same kern
 RAM. Overlapping the reads with the computation could bring them toward ~61 MB/s, ~-19 ms per token (estimate from
 those measured rates); the int4 head (14.7 ms, above) and the PSRAM at 120 MHz (head 58 -> 80 MB/s) add to it.
 
+## Reading the weights while computing (Nov 19 2026)
+
+**Question.** The 1-bit linears read their weights from PSRAM at 40 MB/s, the same kernels on internal RAM at 69
+MB/s (section above). Do they wait on each cache miss, and can the reads overlap the computation?
+
+**What.** `../chip_kernels/psram_prefetch_bench.py` (S3, PSRAM 80 MHz, the model's three linear shapes, 32 fresh
+copies per layer so nothing stays in the 32 KB data cache, best of 7, outputs of every variant hashed against the
+plain kernel's) tried five ways; the best one went into the firmware as `chip_run.py --autoload 3`
+(`-DTINYLM_AUTOLOAD`: the data cache's autoload, ROM `Cache_Config_DCache_Autoload`, over the model buffer, set once
+at start). Then the whole model on the chip, exact against intsim.py, seeds 42 / 43 / 44.
+
+**Result.** Kernel alone, MB/s (384 -> 384 / 384 -> 1024 / 1024 -> 384; `results/psram_prefetch_bench_s3.json`):
+
+| | MB/s |
+|---|---|
+| plain (today) | 39.7 / 39.7 / 41.9 |
+| internal RAM (ceiling) | 68.9 / 69.0 / 75.5 |
+| cache preload of the next 4 KB block | 51.8 / 57.5 / 57.8 |
+| cache autoload, size 3 | 55.8 / 55.9 / 56.7 |
+| memcpy to internal RAM, then compute | 31.8 / 31.8 / 33.1 |
+| GDMA copy of the next block (double buffer) | 22.8 / 23.4 / 23.7 |
+
+Whole model, S3, 3 seeds, every run exact 100 % (512 / 512 validation tokens + story 120 / 120):
+
+| model | ms per token | tokens/s (story) | autoload: ms per token | tokens/s |
+|---|---|---|---|---|
+| int8 head (3.55 MB) | 128.5 ± 0.0 | 8.48 ± 0.00 | 114.2 ± 0.0 | **9.62 ± 0.00** |
+| int4 head (2.77 MB) | 115.6 ± 0.1 | 9.52 ± 0.01 | 101.6 ± 0.0 | **10.96 ± 0.00** |
+
+Seed 42 by part (int8 head): linears 55.8 -> 43.7 ms, head 28.0 -> 26.2, attention 34.0 -> 34.0. T2 + cut 6 (seed
+42): 7.94 -> 8.90 tokens/s. The autoload over the KV cache too (`--autoload-kv`, region 1) moves the attention by
++-1.5 ms both ways (seed 42, three models): not kept. A first try over the whole external data range (it also maps
+the flash) rebooted the board in a loop: not saved.
+
+**Answer: yes, the linears waited on PSRAM; one call at start gives -12 to -14 ms per token, 1.14-1.15x, exact.**
+The estimate before measuring was -19 ms; measured -12 on the linears. Weak point: the ROM cache functions are marked
+"do not call in your SDK application"; they work on this Arduino core (ESP-IDF 4.4) and may change with another.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
   RAM: the output head (28 ms) and the attention scores are at the PSRAM's speed (58 MB/s), the linear layers are
   half kernel and half memory (69 MB/s internal, 40 MB/s from PSRAM), and the attention values were plain C (25 ms,
-  now 13.2 ms on the PIE, exact). The int4 / int2 output layer is done (above; 1 bit rejected). Next: the PSRAM at
-  120 MHz (+40 % bandwidth, experimental in ESP-IDF), a cheaper transposed cache write.
+  now 13.2 ms on the PIE, exact). The int4 / int2 output layer is done (above; 1 bit rejected), the cache autoload
+  too (section above: 10.96 tokens/s). Next: the PSRAM at 120 MHz with the autoload (+40 % bandwidth, experimental
+  in ESP-IDF), a cheaper transposed cache write.
 - Ideas from [slvDev/esp32-ai](https://github.com/slvDev/esp32-ai) (an int4 TinyStories model on the same chip,
   9.88 tokens/s on both cores, float; reviewed Nov 12): a 4-bit or 2-bit output head (done, above: measured 14.7 /
   8.4 ms, 9.52 / 10.13 tokens/s); per-layer embeddings (a large lookup table in

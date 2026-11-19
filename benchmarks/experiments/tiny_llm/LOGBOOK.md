@@ -576,3 +576,13 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   My estimate was -19 ms; measured -12. One seed, one run: a ranking. The ROM cache functions say "do not call in
   your SDK application": they work on this Arduino core (IDF 4.4), may change with another ESP-IDF.
   Next: --autoload-kv (region 1 = the state's PSRAM range), T2 + cut, then int4 head, then seeds 43 / 44.
+  Queue Nov 19 (runs/logs/autoload_queue.sh, seed 42, all exact 100 % + story 120 / 120), ms per token / tokens/s:
+  base 128.4 / 8.47 -> autoload 114.2 / 9.62 -> + KV region 114.5 / 9.49; T2 + cut 6 131.6 / 7.94 -> 118.0 / 8.90 ->
+  + KV 116.6 / 8.99; int4 head 115.5 / 9.53 -> **101.6 / 10.96** -> + KV 102.0 / 10.78. The KV region moves the
+  attention by +-1.5 ms both ways (noise level): the model region alone is the choice. Linears -12 ms in every model,
+  head -1.3 to -1.8. Next: seeds 43 / 44 for the int4 head and the base with --autoload 3.
+  Seeds 43 / 44 (runs/logs/autoload_seeds.sh), 3 seeds, all exact 100 % + story 120 / 120: int4 head 9.52 ± 0.01 ->
+  **10.96 ± 0.00** tokens/s (115.6 -> 101.6 ms), int8 head 8.48 ± 0.00 -> 9.62 ± 0.00 (128.5 -> 114.2 ms). README
+  section "Reading the weights while computing". Classic ESP32 question (Edén): this model does not fit (no PSRAM,
+  346 KB heap; KV 0.60-1.67 MB); the 260K model is the line there. My chat figure "~160 KB int8 KV" for 260K was
+  with GQA (4 KV heads); with 8 heads, seq 512, 5 layers, d 64: 5 x 512 x 64 x 2 = 328 KB int8 (computed).
