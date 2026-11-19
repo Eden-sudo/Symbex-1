@@ -565,6 +565,9 @@ multiply (the additions stay 256 x 64); the gain is the memory.
 
 Chips (`chip_kernels/bit_attn_bench.py`, chip_kernels README): sign scores 8.7-22x faster than int8, 2-bit values
 1.2-1.3x slower (unpacking), buckets no gain; scores + values 1.42-1.98x per head, exact on 4 cores.
+Note: these chip times are the PURE bit form (T3 / T4, which fails in training). T2 keeps an int8 query: its score
+is a masked sum of the query, sum over bit planes b of 2^b x popcount(q_b AND k) (8 planes x 2 words per key), not
+yet timed (ESTIMATE ~4x faster than int8, to be measured).
 
 **Answer:** rule 1: T1 and T2 pass, T3 / T4 fail; T2 got seeds 43 / 44. Rule 2: T2 is usable in float (d +0.013 ±
 0.0008 < 0.03): 1-bit keys, 2-bit values and a learned temperature, with the last 32 positions unquantized. Rule 3:
