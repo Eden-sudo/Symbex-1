@@ -442,19 +442,21 @@ def write_data(path, board):
         f.write(c_array("int64_t", "EXP_ACC_WIN", v["exp_acc_win"], suffix="LL"))
 
 
-def write_project(project, port, board):
+def write_project(project, port, board, firmware=None, data=None, name="kv_attn_bench"):
+    """the PlatformIO project; bit_attn_bench.py passes its own firmware, data writer and name"""
+    firmware, data = firmware or FIRMWARE, data or write_data
     src = os.path.join(project, "src")
     if os.path.isdir(src):
         shutil.rmtree(src)
     os.makedirs(src)
     w = lambda name, text: open(os.path.join(project, name), "w").write(text)
-    write_data(os.path.join(src, "bench_data.h"), board)
+    data(os.path.join(src, "bench_data.h"), board)
     if board.startswith("pico2"):                    # Arduino-Pico, as compiler_core/chip/core.py builds SYMBEX
         w("platformio.ini", f"[env:{board}]\nplatform = raspberrypi\nboard = {BOARDS[board]}\nframework = arduino\n"
                             f"board_build.core = earlephilhower\nupload_protocol = picotool\nupload_port = {port}\n"
                             + ("board_build.mcu = rp2350-riscv\n" if board == "pico2_riscv" else "")
                             + "build_flags = -O2\nbuild_unflags = -Os\n")
-        w("src/main.cpp", FIRMWARE)
+        w("src/main.cpp", firmware)
         return
     files = []
     if board == "s3":
@@ -475,10 +477,10 @@ def write_project(project, port, board):
                 "CONFIG_SPIRAM_MODE_OCT=y\nCONFIG_SPIRAM_SPEED_80M=y\nCONFIG_ESPTOOLPY_FLASHFREQ_80M=y\n")
     w("sdkconfig.defaults", cfg)
     w("CMakeLists.txt", "cmake_minimum_required(VERSION 3.16.0)\ninclude($ENV{IDF_PATH}/tools/cmake/project.cmake)\n"
-                        "project(kv_attn_bench)\n")
+                        f"project({name})\n")
     w("src/CMakeLists.txt", 'idf_component_register(SRCS "main.c" ' + " ".join(f'"{n}"' for n in files)
                             + ' INCLUDE_DIRS "." ' + ('"include"' if files else "") + ")\n")
-    w("src/main.c", FIRMWARE)
+    w("src/main.c", firmware)
 
 
 def read_results(port, board):

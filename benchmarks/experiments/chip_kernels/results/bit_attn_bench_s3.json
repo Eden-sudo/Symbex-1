@@ -1,0 +1,51 @@
+{
+ "board": "s3",
+ "head_dim": 64,
+ "positions": 256,
+ "table_tau": 0.25,
+ "reps": "best of 7",
+ "unit": "cycles",
+ "date": "2026-11-19",
+ "bytes_per_position": {
+  "int8_kv": 128,
+  "bits_k_2bit_v": 24
+ },
+ "rows": [
+  {
+   "op": "i8_scores",
+   "cycles": 198933,
+   "us": 828.89,
+   "equal_numpy": true
+  },
+  {
+   "op": "i8_values",
+   "cycles": 134034,
+   "us": 558.48,
+   "equal_numpy": true
+  },
+  {
+   "op": "bit_scores",
+   "cycles": 24346,
+   "us": 101.44,
+   "equal_numpy": true
+  },
+  {
+   "op": "bit_scores_swar",
+   "cycles": 11811,
+   "us": 49.21,
+   "equal_numpy": true
+  },
+  {
+   "op": "bit_values",
+   "cycles": 161370,
+   "us": 672.38,
+   "equal_numpy": true
+  },
+  {
+   "op": "bit_values_bkt",
+   "cycles": 158170,
+   "us": 659.04,
+   "equal_numpy": true
+  }
+ ]
+}

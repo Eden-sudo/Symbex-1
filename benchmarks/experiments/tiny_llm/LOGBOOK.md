@@ -510,3 +510,23 @@ retraining and both live in train.py / intsim / C, which must stay exact).**
 computed); sliding-window attention (KV stops growing; intsim first, then retrain); 260K shape (dim 64, 5 layers, 8
 heads, ctx 512, vocab 512: prepare.py --vocab 512 running on the CPU); PIE kernels for 2-bit values and rotq (the
 only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 us firmware shift (not understood).
+
+## Nov 19 2026 -- attention in bits (rule in README first, eaf9f9c)
+
+- Idea (Edén's whiteboard): q, k as signs -> score = 64 - 2h, h = popcount(XOR); weight = 2^(-τ(h - hmin)), a
+  65-entry table; values summed per h (buckets), 65 multiplications. KV 1.57 MB -> ~0.2 MB (computed).
+- Literature: pieces exist (BinaryAttention CVPR 2026 learnable bias vs flat softmax; HAD; BiBERT; QJL / H1B-KV 1-bit
+  K with 4-bit V; Softermax base 2; Ji 2021 few levels; 2605.01910 gather-and-add; EcoFormer). NOT found: buckets per
+  Hamming distance, a generative LLM trained so and run exact on an MCU.
+- Correction (said in the chat before): QK-norm before the sign does nothing (the sign does not see the scale).
+  Options for the lost |k|: a rotation before the sign, or store mean|k| (T1 does).
+- train.py: --attn-temp, --kv-recent N, --q-bits 1, --k-unit; attention by hand, checkpointed (did not fit 12 GB
+  without it: OOM). 400-step check: base 2.643 vs all options 2.655; ~1.8x slower per step (ESTIMATE ~40 min a run).
+- Night queue (runs/logs/attn_queue.sh, log attn_queue.log): T1-T4 seed 42, then seeds 43 / 44 for the best that
+  passes (d < 0.10). Old QAT K1/V2 to beat for τ: 1.826.
+- Chips the same night (chip_kernels/bit_attn_bench.py, one head, exact on 4 cores, chip_kernels README):
+  scores 8.7-22x faster (SWAR popcount 49-77 µs vs int8 669-965 µs), 2-bit values 1.2-1.3x SLOWER than int8
+  (unpacking), buckets no gain (one-cycle multiply). Scores + values 1.42-1.98x per head. Next kernel: values as bit
+  planes (masked adds or PIE), not started.
+- Weak points: the float loss is not the integer loss (old QAT +0.02 in integers); random data on the chip (the
+  number of used h depends on the model: with trained heads maybe fewer buckets).

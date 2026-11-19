@@ -355,3 +355,35 @@ rot × 1.3 + V2 × 1.2 + N 32, 0.64 MB) cost about the same as a plain 2-bit cac
 python kv_attn_bench.py --board s3 --port /dev/ttyACM0
 python kv_attn_bench.py --board esp32 --port /dev/ttyUSB0         # pico2_arm / pico2_riscv /dev/ttyACM1
 ```
+
+## Attention in bits: sign scores and bucketed values (`bit_attn_bench.py`, Nov 19)
+
+**Question:** ../tiny_llm "Attention in bits" trains a model with sign queries and keys: a score becomes
+h = popcount(q XOR k) and a weight one entry of a 65-entry table; the 2-bit values can be summed per h first
+(buckets). What does that cost on the chip, next to tinylm's int8 attention?
+
+**What:** one head of one decoding step, 256 positions x 64, plain C on every board (no PIE), internal RAM, random
+data, every op checked against numpy (h, weights, the 64 sums, the denominator). The int8 softmax is not timed.
+
+**Result** (µs per head, best of 7, all exact; ESP32 boards at 240 MHz, Pico 2 at 150 MHz):
+
+| op | S3 | ESP32 | M33 | Hazard3 |
+|---|---|---|---|---|
+| int8 scores | 828.9 | 965.4 | 669.4 | 785.9 |
+| bit scores, `__builtin_popcount` | 101.4 | 160.1 | 134.1 | 35.1 |
+| bit scores, SWAR popcount | **49.2** | **52.4** | **77.2** | 37.0 |
+| int8 values | 558.5 | 627.8 | 668.8 | 1004.2 |
+| 2-bit values x weight | 672.4 | 759.8 | 863.6 | 1231.5 |
+| 2-bit values by buckets | 659.0 | 754.3 | 944.8 | 1191.3 |
+
+**Answer:** the scores are 8.7-22x faster in bits (Hazard3 has a popcount instruction; on the others the SWAR
+popcount beats the compiler's). The values are not: 2-bit values cost 1.2-1.3x the int8 ones (the unpacking), and
+buckets save nothing (0.96-1.09x): the 256 x 64 additions stay, only the multiplications go, and these chips
+multiply in one cycle. Per head, scores + values: S3 1387 -> 708 µs (1.96x), ESP32 1593 -> 806 (1.98x), M33 1338 ->
+941 (1.42x), Hazard3 1790 -> 1226 (1.46x). Cache per position and head 128 -> 24 bytes (5.3x less). The values are
+the next kernel to write (bit planes, PIE).
+
+```
+python bit_attn_bench.py --board s3 --port /dev/ttyACM0
+python bit_attn_bench.py --board esp32 --port /dev/ttyUSB0        # pico2_arm / pico2_riscv /dev/ttyACM1
+```
