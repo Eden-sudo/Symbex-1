@@ -768,6 +768,38 @@ the flash) rebooted the board in a loop: not saved.
 The estimate before measuring was -19 ms; measured -12 on the linears. Weak point: the ROM cache functions are marked
 "do not call in your SDK application"; they work on this Arduino core (ESP-IDF 4.4) and may change with another.
 
+## A 260K model for chips without PSRAM (rule Nov 19 2026, before measuring)
+
+**Question.** The 15.7 M model needs PSRAM (KV cache 1.67 MB): the classic ESP32 (346 KB heap, no PSRAM) and the
+Pico 2 (520 KB RAM) cannot run it. Does llama2.c's 260K shape train as a binary W1A8 model, and how far is it from its
+fp32 twin? The goal of this line is **a model that runs exact on a chip without PSRAM** (weights from flash), not
+better stories.
+
+**What.** `train.py --vocab 512 --dim 64 --layers 5 --heads 8 --kv-heads 4 --hidden 172 --seq 512` (llama2.c's
+stories260K shape; `--kv-heads 4` = grouped-query attention, each key / value head serves 2 query heads),
+tokenizer `prepare.py --vocab 512` (ours, trained on TinyStories: llama2.c's val loss 1.297 uses its own tokenizer
+and is not comparable). The same recipe as every other run here (10000 steps, batch 128, lr 1.5e-3, warmup 500),
+fp32 and binary (1-bit weights, 8-bit inputs, fp32 output layer tied to the embedding), seeds 42, 43, 44, validation
+only. KV cache int8, computed: 5 layers x 512 positions x 4 heads x 8 dims x 2 (K, V) = 164 KB (328 KB with 8 KV heads).
+
+**Rule.** Report val loss mean ± sd of both and the gap. No accuracy threshold decides the next step: the binary
+model goes to intsim.py / the C (step 2) unless its sample stories are not sentences at all (then the recipe is
+looked at first, on validation). The test split is not read.
+
+**Result** (results/v512d64l5kv4_train.json, 0.26 M parameters, ~4.7 min per run on the RTX GPU):
+
+| weights | val loss (42 / 43 / 44) | mean ± sd |
+|---|---|---|
+| fp32 | 1.3433 / 1.3542 / 1.3417 | 1.3464 ± 0.0068 |
+| binary W1A8 | 2.1567 / 2.1279 / 2.1365 | 2.1404 ± 0.0148 |
+
+Gap +0.794 (the 15.7 M model: +0.222). The binary curve is flat from step ~4000 (2.23 -> 2.14). Its stories are
+sentences with weak sense ("She lived in a big box. She wanted to play with his friends and play with the park").
+
+**Answer.** It trains, and by the rule it goes to step 2 (intsim.py / the C). Binary costs much more at this size:
+with dim 64 every layer has few bits to spend. Better recipes for this size stay future work, chosen on validation.
+
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

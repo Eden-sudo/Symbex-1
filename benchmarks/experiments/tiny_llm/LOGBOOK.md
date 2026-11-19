@@ -586,3 +586,15 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   section "Reading the weights while computing". Classic ESP32 question (Edén): this model does not fit (no PSRAM,
   346 KB heap; KV 0.60-1.67 MB); the 260K model is the line there. My chat figure "~160 KB int8 KV" for 260K was
   with GQA (4 KV heads); with 8 heads, seq 512, 5 layers, d 64: 5 x 512 x 64 x 2 = 328 KB int8 (computed).
+
+## Nov 19 2026 — 260K shape for the classic ESP32 / Pico 2 (step 1: training)
+- Branch exp/llm-260k. train.py: `--vocab 512` (tok512.model, *_v512.bin) and `--kv-heads` (GQA: k / v project to
+  kv_heads x hd, repeat_interleave to the query heads; q, k, v, o still created in that order, so the old runs' init
+  is unchanged). README rule "A 260K model for chips without PSRAM" written before the runs.
+- Smoke (300 steps, s42): 0.26 M params (0.23 M in the quantized linears); fp32 val 2.82, binary 3.26.
+- Queue runs/logs/q260k.sh -> q260k.log: fp32 + binary x 42/43/44, 10000 steps, same recipe.
+- Step 2 blockers seen: intsim.py:554 asserts 64-wide heads (attention scale 16129 << 20 assumes sqrt(64));
+  260K heads are 8 wide -> the scale must become general in intsim.py and c/tinylm.c; tinylm.c:859 hidden >= 2 seq
+  (172 < 1024) must go; GQA in both.
+- Result (3 seeds, val): fp32 1.3464 ± 0.0068, binary 2.1404 ± 0.0148, gap +0.794 (15.7 M: +0.222). Binary flat
+  from step ~4000. Stories are sentences -> rule: step 2. ~4.7 min per run.

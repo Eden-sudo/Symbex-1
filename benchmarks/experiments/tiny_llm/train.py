@@ -171,9 +171,11 @@ def rope(x, cos, sin):
 
 class Block(nn.Module):
     def __init__(self, dim, heads, hidden, kind, acts=8, act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu",
-                 rotate=(), kv=(8, 8, 1.0), attn=None):
+                 rotate=(), kv=(8, 8, 1.0), attn=None, kv_heads=None):
         super().__init__()
         self.heads = heads
+        self.kv_heads = kv_heads or heads      # grouped-query attention: kv_heads keys / values, shared by groups
+        assert heads % self.kv_heads == 0, "--heads must be a multiple of --kv-heads"
         self.kv = kv
         self.attn = attn or {}
         self.tau = nn.Parameter(torch.zeros(heads)) if self.attn.get("temp") else None   # log temperature
@@ -182,7 +184,9 @@ class Block(nn.Module):
 
         def lin(name, n_in, n_out):
             return QLinear(n_in, n_out, kind, 8 if name in a8_inputs else acts, act_opts, name in rotate)
-        self.q, self.k, self.v, self.o = (lin(n, dim, dim) for n in ("q", "k", "v", "o"))
+        kv_dim = dim // heads * self.kv_heads
+        self.q, self.k, self.v, self.o = (lin(n, dim, o) for n, o in (("q", dim), ("k", kv_dim), ("v", kv_dim),
+                                                                       ("o", dim)))   # this order: same init as before
         self.w1, self.w3 = lin("w1", dim, hidden), lin("w3", dim, hidden)
         self.w2 = lin("w2", hidden, dim)
         if w2_acts is not None and acts != 8 and "w2" not in a8_inputs:
@@ -191,7 +195,10 @@ class Block(nn.Module):
     def forward(self, x, cos, sin):
         b, t, d = x.shape
         h = self.n1(x)
-        q, k, v = (m(h).view(b, t, self.heads, -1).transpose(1, 2) for m in (self.q, self.k, self.v))
+        q = self.q(h).view(b, t, self.heads, -1).transpose(1, 2)
+        k, v = (m(h).view(b, t, self.kv_heads, -1).transpose(1, 2) for m in (self.k, self.v))
+        if self.kv_heads != self.heads:        # each key / value head serves heads / kv_heads query heads in a row
+            k, v = (z.repeat_interleave(self.heads // self.kv_heads, dim=1) for z in (k, v))
         kb, vb, ks = self.kv
         if self.attn.get("temp") or self.attn.get("recent") or self.attn.get("q_bits", 8) == 1 \
                 or self.attn.get("k_unit"):
@@ -231,7 +238,7 @@ class Block(nn.Module):
 class TinyLM(nn.Module):
     def __init__(self, vocab, dim, layers, heads, hidden, seq, kind, head="fp32", int8_blocks=(), acts=8,
                  act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=(),
-                 kv=(8, 8, 1.0), repeat=1, attn=None):
+                 kv=(8, 8, 1.0), repeat=1, attn=None, kv_heads=None):
         super().__init__()
         assert layers % repeat == 0, "--layers must be a multiple of --repeat"
         self.head_kind = head
@@ -239,7 +246,7 @@ class TinyLM(nn.Module):
         self.emb = nn.Embedding(vocab, dim)
         self.blocks = nn.ModuleList(Block(dim, heads, hidden, "int8" if i in int8_blocks else kind, acts, act_opts,
                                           a8_inputs if not a8_blocks or i in a8_blocks else (), w2_acts, ffn_act,
-                                          rotate, kv, attn) for i in range(layers // repeat))
+                                          rotate, kv, attn, kv_heads) for i in range(layers // repeat))
         self.norm = nn.RMSNorm(dim, eps=1e-5)
         hd = dim // heads
         freq = 1.0 / (10000 ** (torch.arange(0, hd, 2).float() / hd))
@@ -267,8 +274,9 @@ class TinyLM(nn.Module):
 
 # ---- data, evaluation, sampling ------------------------------------------------------------------------------------
 
-def load_split(name, device):
-    arr = np.fromfile(os.path.join(DATA, f"{name}.bin"), dtype=np.uint16)
+def load_split(name, device, vocab=4096):
+    """a split as int16 tokens on the device; vocab 512: prepare.py --vocab 512's {name}_v512.bin"""
+    arr = np.fromfile(os.path.join(DATA, f"{name}{'' if vocab == 4096 else f'_v{vocab}'}.bin"), dtype=np.uint16)
     return torch.from_numpy(arr.astype(np.int16)).to(device)
 
 
@@ -322,15 +330,15 @@ def run(args, seed):
     device = "cuda"
     torch.manual_seed(seed)
     gen = torch.Generator(device=device).manual_seed(seed)
-    train, val = load_split("train", device), load_split("val", device)
-    sp = spm.SentencePieceProcessor(model_file=os.path.join(DATA, "tok4096.model"))
+    train, val = load_split("train", device, args.vocab), load_split("val", device, args.vocab)
+    sp = spm.SentencePieceProcessor(model_file=os.path.join(DATA, f"tok{args.vocab}.model"))
     model = TinyLM(sp.get_piece_size(), args.dim, args.layers, args.heads, args.hidden, args.seq,
                    args.weights, args.head, tuple(args.int8_blocks), args.acts,
                    {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
                    tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
                    tuple(args.a8_blocks), (args.k_bits, args.v_bits, args.k_scale), args.repeat,
                    {"temp": args.attn_temp, "recent": args.kv_recent, "q_bits": args.q_bits,
-                    "k_unit": args.k_unit}).to(device)
+                    "k_unit": args.k_unit}, args.kv_heads).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)
@@ -411,7 +419,7 @@ def run(args, seed):
            "minutes": round((time.time() - t0) / 60, 2), "history": hist,
            "sample": sample(model, sp, "Once upon a time", args.seq, 200, device)}
     if args.test:
-        tl = evaluate(model, load_split("test", device), args.seq, 10 ** 9, args.batch)
+        tl = evaluate(model, load_split("test", device, args.vocab), args.seq, 10 ** 9, args.batch)
         res.update(test_loss=round(tl, 4), test_perplexity=round(math.exp(tl), 3))
     with open(os.path.join(out, "train.json"), "w") as f:
         json.dump(res, f, indent=2)
@@ -458,6 +466,10 @@ def main():
     ap.add_argument("--layers", type=int, default=8, help="depth run (with --repeat: distinct blocks x repeat)")
     ap.add_argument("--repeat", type=int, default=1, help="each distinct block runs this many times in a row (see above)")
     ap.add_argument("--heads", type=int, default=6)
+    ap.add_argument("--kv-heads", type=int, default=None,
+                    help="key / value heads (grouped-query attention; default: --heads): the KV cache / heads x this")
+    ap.add_argument("--vocab", type=int, choices=[4096, 512], default=4096,
+                    help="512: the 260K shape's tokenizer (prepare.py --vocab 512: tok512.model, *_v512.bin)")
     ap.add_argument("--hidden", type=int, default=1024)
     ap.add_argument("--seq", type=int, default=256)
     ap.add_argument("--batch", type=int, default=128)

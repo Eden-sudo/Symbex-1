@@ -1,0 +1,56 @@
+{
+  "fp32": {
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "val_loss": [
+      1.3433,
+      1.3542,
+      1.3417
+    ],
+    "mean": 1.3464,
+    "sd": 0.0068,
+    "minutes": [
+      4.35,
+      4.64,
+      4.65
+    ],
+    "parameters": 260032,
+    "best_step": [
+      10000,
+      10000,
+      10000
+    ],
+    "sample_s42": "Once upon a time, there was a little girl named Lily. She loved to play with her toys. One day, she found a big, red ball in her yard. Lily was very happy. She wanted to play with it.\nLily went to the ball and saw a big box. She wanted to play with it. She put the ball in the box and pushed it. She pushed the ball to the ball. The ball was hard, but Lily was not happy.\nLily saw the ball and wanted to play with the ball. She said, \"Lily, you need to be careful. You can play with me.\" Lily was happy. She said, \"Thank you, Max!\" They played with the ball"
+  },
+  "binary": {
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "val_loss": [
+      2.1567,
+      2.1279,
+      2.1365
+    ],
+    "mean": 2.1404,
+    "sd": 0.0148,
+    "minutes": [
+      4.9,
+      4.9,
+      4.91
+    ],
+    "parameters": 260032,
+    "best_step": [
+      9000,
+      9500,
+      9500
+    ],
+    "sample_s42": "Once upon a time, there was a little girl named Amy. She lived in a big box. She wanted to play with his friends and play with the park. One day, she saw a big box. She said, \"Thank you, Mom! What's play with my friends. When you want to play with many friends, Max! When you can make a big box. It is a big box and special cakes. When you can make a big box. When you can make a big box. When you want to play with me?\"\nTom said, \"I will be alerers, M"
+  },
+  "gap": 0.794,
+  "note": "260K shape (dim 64, 5 layers, 8 heads, 4 KV heads, hidden 172, ctx 512, vocab 512), 10000 steps, validation only"
+}
