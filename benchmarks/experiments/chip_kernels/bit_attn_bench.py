@@ -193,7 +193,7 @@ static void bench_once(void) {
         }
         OUT("R:%s|%lu|%d\n", OP_NAME[op], (unsigned long)b, same(op));
     }
-    OUT("DONE\n");
+    OUT("DONE:%d\n", N_OPS);
 }
 
 static void setup_data(void) {
@@ -262,9 +262,9 @@ def read_results(port, board):
         elif ready and line.startswith("R:"):
             op, t, ok = line[2:].split("|")
             rows.append((op, int(t), ok == "1"))
-        elif ready and line == "DONE":
+        elif ready and line.startswith("DONE"):
             s.close()
-            return rows
+            return kv.check_rows(rows, line, lambda r: r[0])
         elif not ready and board == "s3" and time.time() - t0 > 20 and not line:
             s.write(b"\x55")
     s.close()

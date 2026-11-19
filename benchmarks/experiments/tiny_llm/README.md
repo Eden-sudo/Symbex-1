@@ -723,9 +723,12 @@ reading fewer weight bytes per token.**
 **Answer: T2 makes the model fit; speed comes from the weights.** Next (agreed Nov 19 2026): a smaller model (the
 260K shape: dim 64, 5 layers, 8 heads, vocabulary 512), weights from flash, cache in internal RAM, on the ESP32 and
 the Pico 2, where these conclusions are tested on a second model and on chips without wide SIMD. Repeated blocks
-are not a speed line (section above: on the chip a block read twice costs as two). The PSRAM reads ~59 MB/s
-(measured above): the 2.77 MB of weights per token need ~47 ms of reading against the 84 ms the weights take, so
-the linear kernels may still have room (overlapping reads and computation; estimate, not measured).
+are not a speed line (section above: on the chip a block read twice costs as two). Where the weights could still
+gain (`../chip_kernels/results/psram_bw_bench_s3_80.json`, measured Nov 12; this model has the int8 head, 3.55 MB):
+the output head (28 ms) already reads at the PSRAM's speed (58 MB/s); the 1-bit linears (56 ms) run at 40 MB/s from
+PSRAM, against 61 MB/s for a plain sequential read and 69 MB/s for the same kernels with the weights in internal
+RAM. Overlapping the reads with the computation could bring them toward ~61 MB/s, ~-19 ms per token (estimate from
+those measured rates); the int4 head (14.7 ms, above) and the PSRAM at 120 MHz (head 58 -> 80 MB/s) add to it.
 
 ## Future work
 

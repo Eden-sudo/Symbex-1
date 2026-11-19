@@ -253,6 +253,7 @@ static int same(int op, int f) {
     return 1;
 }
 
+static int n_rows;   /* rows sent: DONE carries it, the host refuses a run that lost lines */
 static void bench2(int op, int f, const uint8_t* const* srcs, const uint8_t* const* srcs8, int n, const char* where) {
     uint32_t b = 0xFFFFFFFFu;
     memset(d, 0, sizeof d); memset(acc, 0, sizeof acc);
@@ -264,11 +265,13 @@ static void bench2(int op, int f, const uint8_t* const* srcs, const uint8_t* con
         if (t < b) b = t;
     }
     OUT("R:%s|%d|%s|%lu|%d\n", OP_NAME[op], WIDTH[f], where, (unsigned long)b, same(op, f));
+    n_rows++;
 }
 static void bench(int op, int f, const uint8_t* const* srcs, int n, const char* where) { bench2(op, f, srcs, srcs, n, where); }
 
 static void bench_once(void) {
     OUT("KV ATTN BENCH ready (%s)\n", BOARD_NAME);
+    n_rows = 0;
     for (int f = 0; f < NW; f++) {
         const uint8_t* one[1] = {ram[f]};
         bench(OP_SCORES, f, one, 1, "ram");
@@ -306,7 +309,7 @@ static void bench_once(void) {
         if (psram[F3][0]) bench(OP_SCORES_PRE, F3, psram[F3], COPIES, "psram");
 #endif
     }
-    OUT("DONE\n");
+    OUT("DONE:%d\n", n_rows);
 }
 
 static void setup_data(void) {
@@ -483,6 +486,14 @@ def write_project(project, port, board, firmware=None, data=None, name="kv_attn_
     w("src/main.c", firmware)
 
 
+def check_rows(rows, done, key):
+    """the rows, refused unless DONE:<n> counts them all and none repeats (a run that lost lines is not saved)"""
+    sent = int(done[5:]) if done.startswith("DONE:") and done[5:].isdigit() else -1
+    if sent != len(rows) or len({key(r) for r in rows}) != len(rows) or not rows:
+        sys.exit(f"[X] {len(rows)} rows read, {done!r} from the board (or a row repeated): lost lines, nothing saved")
+    return rows
+
+
 def read_results(port, board):
     s = open_port(port, 115200, reset=RESET[board])
     rows, ready, t0 = [], False, time.time()
@@ -496,9 +507,9 @@ def read_results(port, board):
         elif ready and line.startswith("R:"):
             op, bits, where, t, ok = line[2:].split("|")
             rows.append((op, int(bits), where, int(t), ok == "1"))
-        elif ready and line == "DONE":
+        elif ready and line.startswith("DONE"):
             s.close()
-            return rows
+            return check_rows(rows, line, lambda r: r[:3])
         elif not ready and board == "s3" and time.time() - t0 > 20 and not line:
             s.write(b"\x55")
     s.close()

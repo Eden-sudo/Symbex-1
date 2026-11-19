@@ -93,7 +93,7 @@ def load_model(run, vocab, dev):
                      head=a.get("head", "fp32"), acts=a.get("acts", 8), act_opts={"ste_mode": a.get("ste", "identity"), "ste_k": a.get("ste_k", 2.0)},
                      a8_inputs=tuple(a.get("a8_inputs", [])), rotate=tuple(a.get("hadamard", [])),
                      a8_blocks=tuple(a.get("a8_blocks", [])),
-                     kv=(a.get("k_bits", 8), a.get("v_bits", 8), a.get("k_scale", 1.0)) if a.get("attn_temp") else (8, 8, 1.0),
+                     kv=(a.get("k_bits", 8), a.get("v_bits", 8), a.get("k_scale", 1.0)),   # as trained
                      attn={"temp": a.get("attn_temp", False), "recent": a.get("kv_recent", 0), "q_bits": 8,
                            "k_unit": False}).to(dev)
     model.load_state_dict(ck["model"])

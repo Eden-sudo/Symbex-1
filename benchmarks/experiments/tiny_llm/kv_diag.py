@@ -137,9 +137,9 @@ def main():
     w = val[torch.arange(args.windows, device=dev)[:, None] * a["seq"] + torch.arange(a["seq"], device=dev)].long()
     cap, orig = [], I.attention
 
-    def keep(q, k, v, heads, C, S, exp_t, kv=None):
+    def keep(q, k, v, heads, C, S, exp_t, kv=None, tq=None):
         cap.append((q, k, v))
-        return orig(q, k, v, heads, C, S, exp_t, kv)
+        return orig(q, k, v, heads, C, S, exp_t, kv, tq)
     I.attention = keep
     I.forward(P, w)
     I.attention = orig
