@@ -446,7 +446,8 @@ if usable with fewer bytes than 0.88 MB. Cost on the chip (not measured): RoPE o
 | K3 pre V3, N = 16 / 32 | +0.0029 / +0.0016 | 0.80 / 0.85 | beat KV4, ~free |
 | K2 pre x 1.4 + V2 x 1.2, N = 32 | +0.0181 ± 0.0003 | 0.68 | beats KV4 |
 
-Seeds 43 / 44 alone (the factors were chosen on 42) give the same within 0.0005 for every factor config.
+Seeds 43 / 44 alone (the factors were chosen on 42): within 0.0045 of seed 42 for every factor config, and seed 42
+is the same or worse in all but V2 x 1.2 (0.0242 vs 0.0256): the choice did not flatter its own seed.
 
 **Answer:** the diagnosis was right. Keys per channel before RoPE make K3 / K4 nearly free (9x / 8x less damage than per
 token); at 2 bits the temperature bias dominates and the scale factor fixes most of it, rotation the rest. The recent
