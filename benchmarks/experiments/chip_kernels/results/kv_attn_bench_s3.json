@@ -18,232 +18,232 @@
    "op": "scores",
    "bits": 8,
    "where": "ram",
-   "cycles": 200740,
-   "us": 836.42,
+   "cycles": 199741,
+   "us": 832.25,
    "equal_numpy": true
   },
   {
    "op": "scores_pie",
    "bits": 8,
    "where": "ram",
-   "cycles": 11307,
-   "us": 47.11,
+   "cycles": 11325,
+   "us": 47.19,
    "equal_numpy": true
   },
   {
    "op": "values",
    "bits": 8,
    "where": "ram",
-   "cycles": 210294,
-   "us": 876.23,
+   "cycles": 202898,
+   "us": 845.41,
    "equal_numpy": true
   },
   {
    "op": "scores",
    "bits": 8,
    "where": "psram",
-   "cycles": 242411,
-   "us": 1010.05,
+   "cycles": 241656,
+   "us": 1006.9,
    "equal_numpy": true
   },
   {
    "op": "scores_pie",
    "bits": 8,
    "where": "psram",
-   "cycles": 66449,
-   "us": 276.87,
+   "cycles": 66456,
+   "us": 276.9,
    "equal_numpy": true
   },
   {
    "op": "values",
    "bits": 8,
    "where": "psram",
-   "cycles": 258127,
-   "us": 1075.53,
+   "cycles": 251939,
+   "us": 1049.75,
    "equal_numpy": true
   },
   {
    "op": "scores",
    "bits": 4,
    "where": "ram",
-   "cycles": 245832,
-   "us": 1024.3,
+   "cycles": 244831,
+   "us": 1020.13,
    "equal_numpy": true
   },
   {
    "op": "scores_pie",
    "bits": 4,
    "where": "ram",
-   "cycles": 56403,
-   "us": 235.01,
+   "cycles": 56413,
+   "us": 235.05,
    "equal_numpy": true
   },
   {
    "op": "values",
    "bits": 4,
    "where": "ram",
-   "cycles": 255389,
-   "us": 1064.12,
+   "cycles": 247984,
+   "us": 1033.27,
    "equal_numpy": true
   },
   {
    "op": "unpack",
    "bits": 4,
    "where": "ram",
-   "cycles": 45107,
-   "us": 187.95,
+   "cycles": 45117,
+   "us": 187.99,
    "equal_numpy": true
   },
   {
    "op": "scores",
    "bits": 4,
    "where": "psram",
-   "cycles": 267946,
-   "us": 1116.44,
+   "cycles": 266940,
+   "us": 1112.25,
    "equal_numpy": true
   },
   {
    "op": "scores_pie",
    "bits": 4,
    "where": "psram",
-   "cycles": 78385,
-   "us": 326.6,
+   "cycles": 78396,
+   "us": 326.65,
    "equal_numpy": true
   },
   {
    "op": "values",
    "bits": 4,
    "where": "psram",
-   "cycles": 277497,
-   "us": 1156.24,
+   "cycles": 270083,
+   "us": 1125.35,
    "equal_numpy": true
   },
   {
    "op": "unpack",
    "bits": 4,
    "where": "psram",
-   "cycles": 67110,
-   "us": 279.62,
+   "cycles": 67106,
+   "us": 279.61,
    "equal_numpy": true
   },
   {
    "op": "scores",
    "bits": 3,
    "where": "ram",
-   "cycles": 380737,
-   "us": 1586.4,
+   "cycles": 379737,
+   "us": 1582.24,
    "equal_numpy": true
   },
   {
    "op": "scores_pie",
    "bits": 3,
    "where": "ram",
-   "cycles": 191308,
-   "us": 797.12,
+   "cycles": 191319,
+   "us": 797.16,
    "equal_numpy": true
   },
   {
    "op": "values",
    "bits": 3,
    "where": "ram",
-   "cycles": 390294,
-   "us": 1626.22,
+   "cycles": 382890,
+   "us": 1595.38,
    "equal_numpy": true
   },
   {
    "op": "unpack",
    "bits": 3,
    "where": "ram",
-   "cycles": 180012,
-   "us": 750.05,
+   "cycles": 180023,
+   "us": 750.1,
    "equal_numpy": true
   },
   {
    "op": "scores",
    "bits": 3,
    "where": "psram",
-   "cycles": 399355,
-   "us": 1663.98,
+   "cycles": 398332,
+   "us": 1659.72,
    "equal_numpy": true
   },
   {
    "op": "scores_pie",
    "bits": 3,
    "where": "psram",
-   "cycles": 209795,
-   "us": 874.15,
+   "cycles": 209785,
+   "us": 874.1,
    "equal_numpy": true
   },
   {
    "op": "values",
    "bits": 3,
    "where": "psram",
-   "cycles": 408904,
-   "us": 1703.77,
+   "cycles": 401470,
+   "us": 1672.79,
    "equal_numpy": true
   },
   {
    "op": "unpack",
    "bits": 3,
    "where": "psram",
-   "cycles": 198505,
-   "us": 827.1,
+   "cycles": 198496,
+   "us": 827.07,
    "equal_numpy": true
   },
   {
    "op": "scores",
    "bits": 2,
    "where": "ram",
-   "cycles": 225354,
-   "us": 938.98,
+   "cycles": 224353,
+   "us": 934.8,
    "equal_numpy": true
   },
   {
    "op": "scores_pie",
    "bits": 2,
    "where": "ram",
-   "cycles": 35925,
-   "us": 149.69,
+   "cycles": 35935,
+   "us": 149.73,
    "equal_numpy": true
   },
   {
    "op": "values",
    "bits": 2,
    "where": "ram",
-   "cycles": 234911,
-   "us": 978.8,
+   "cycles": 227506,
+   "us": 947.94,
    "equal_numpy": true
   },
   {
    "op": "unpack",
    "bits": 2,
    "where": "ram",
-   "cycles": 24629,
-   "us": 102.62,
+   "cycles": 24639,
+   "us": 102.66,
    "equal_numpy": true
   },
   {
    "op": "scores",
    "bits": 2,
    "where": "psram",
-   "cycles": 235997,
-   "us": 983.32,
+   "cycles": 234988,
+   "us": 979.12,
    "equal_numpy": true
   },
   {
    "op": "scores_pie",
    "bits": 2,
    "where": "psram",
-   "cycles": 46468,
-   "us": 193.62,
+   "cycles": 46441,
+   "us": 193.5,
    "equal_numpy": true
   },
   {
    "op": "values",
    "bits": 2,
    "where": "psram",
-   "cycles": 245547,
-   "us": 1023.11,
+   "cycles": 238126,
+   "us": 992.19,
    "equal_numpy": true
   },
   {
@@ -258,56 +258,56 @@
    "op": "scores",
    "bits": 1,
    "where": "ram",
-   "cycles": 225347,
-   "us": 938.95,
+   "cycles": 224346,
+   "us": 934.77,
    "equal_numpy": true
   },
   {
    "op": "scores_pie",
    "bits": 1,
    "where": "ram",
-   "cycles": 35918,
-   "us": 149.66,
+   "cycles": 35928,
+   "us": 149.7,
    "equal_numpy": true
   },
   {
    "op": "values",
    "bits": 1,
    "where": "ram",
-   "cycles": 234904,
-   "us": 978.77,
+   "cycles": 227499,
+   "us": 947.91,
    "equal_numpy": true
   },
   {
    "op": "unpack",
    "bits": 1,
    "where": "ram",
-   "cycles": 24622,
-   "us": 102.59,
+   "cycles": 24632,
+   "us": 102.63,
    "equal_numpy": true
   },
   {
    "op": "scores",
    "bits": 1,
    "where": "psram",
-   "cycles": 230782,
-   "us": 961.59,
+   "cycles": 229773,
+   "us": 957.39,
    "equal_numpy": true
   },
   {
    "op": "scores_pie",
    "bits": 1,
    "where": "psram",
-   "cycles": 41224,
-   "us": 171.77,
+   "cycles": 41226,
+   "us": 171.78,
    "equal_numpy": true
   },
   {
    "op": "values",
    "bits": 1,
    "where": "psram",
-   "cycles": 240332,
-   "us": 1001.38,
+   "cycles": 232912,
+   "us": 970.47,
    "equal_numpy": true
   },
   {
@@ -316,6 +316,94 @@
    "where": "psram",
    "cycles": 29933,
    "us": 124.72,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores_win32",
+   "bits": 2,
+   "where": "ram",
+   "cycles": 220539,
+   "us": 918.91,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores_win32_pie",
+   "bits": 2,
+   "where": "ram",
+   "cycles": 32838,
+   "us": 136.82,
+   "equal_numpy": true
+  },
+  {
+   "op": "values_win32",
+   "bits": 2,
+   "where": "ram",
+   "cycles": 226591,
+   "us": 944.13,
+   "equal_numpy": true
+  },
+  {
+   "op": "fwht_q",
+   "bits": 2,
+   "where": "ram",
+   "cycles": 3783,
+   "us": 15.76,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores_rotq",
+   "bits": 2,
+   "where": "ram",
+   "cycles": 212183,
+   "us": 884.1,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores_pre",
+   "bits": 3,
+   "where": "ram",
+   "cycles": 890519,
+   "us": 3710.5,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores_win32",
+   "bits": 2,
+   "where": "psram",
+   "cycles": 235138,
+   "us": 979.74,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores_win32_pie",
+   "bits": 2,
+   "where": "psram",
+   "cycles": 49000,
+   "us": 204.17,
+   "equal_numpy": true
+  },
+  {
+   "op": "values_win32",
+   "bits": 2,
+   "where": "psram",
+   "cycles": 242024,
+   "us": 1008.43,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores_rotq",
+   "bits": 2,
+   "where": "psram",
+   "cycles": 222853,
+   "us": 928.55,
+   "equal_numpy": true
+  },
+  {
+   "op": "scores_pre",
+   "bits": 3,
+   "where": "psram",
+   "cycles": 1156438,
+   "us": 4818.49,
    "equal_numpy": true
   }
  ]

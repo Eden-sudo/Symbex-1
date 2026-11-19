@@ -315,6 +315,42 @@ unpacking); 4 bits is slower (1.18×: its unpacking costs more than the bytes it
 - Unpack-then-int8 is the simple way. A 1-bit key could skip it (masked sums, lib_symbex's u8 × 1-bit row), and
   the 4-bit one could unpack inside the PIE loop: both not written.
 
+### The key variants of ../tiny_llm "Why keys break" on the chip (Nov 18, second run)
+
+**Question.** The PC found three ways to keep low-bit keys usable: a recent int8 window (N = 32), keys rotated by a
+Hadamard (the chip form `--k-mode rotq`: the query rotated once, keys never rebuilt) and keys per channel before RoPE
+(`pre`: RoPE on every read). What does each cost on the chip?
+
+**What.** Same bench, same head, new ops (all exact against numpy on all 4 cores): `scores_win32` / `values_win32`
+(2-bit cache, last 32 positions read from the int8 cache), `fwht_q` (H (D q), int16), `scores_rotq` (fwht_q + int16
+query × 2-bit keys, plain C), `scores_pre` (3-bit codes × int16 scale per channel and group of 32, RoPE with Q14
+cos / sin tables on every read, plain C; the int8 requantization of intsim is not timed). µs per head, RAM (S3:
+PSRAM, 48 copies), all columns from this run.
+
+| keys | ESP32 | M33 | Hazard3 | S3 PIE, PSRAM | S3 plain C, PSRAM |
+|---|---|---|---|---|---|
+| int8 | 966 | 670 | 788 | 277 | 1007 |
+| K2 | 1085 | 862 | 1007 | 194 | 979 |
+| K2 + window 32 | 1072 | 1001 | 954 | 204 | 980 |
+| K2 rotq (fwht_q included) | 1040 (fwht 18) | 937 (21) | 1012 (21) | no PIE kernel | 929 (16 in RAM) |
+| K3 | 1723 | 1687 | 1726 | 874 | 1660 |
+| K3 pre (RoPE on read) | 3612 (2.1× K3) | 10316 (6.1×) | 10528 (6.1×) | no PIE kernel | 4819 (2.9×) |
+
+Values, V2 + window 32 vs V2: ESP32 1011 vs 1016, M33 761 vs 778, Hazard3 901 vs 942, S3 plain PSRAM 1008 vs 992.
+
+**Answer.** The window costs little: -5 to +5 % vs plain K2, +16 % on the M33. rotq costs about what
+plain K2 costs: the query rotation is 16-21 µs per head, ~2 % of the scores. Together they make the PC winner (K2
+rot × 1.3 + V2 × 1.2 + N 32, 0.64 MB) cost about the same as a plain 2-bit cache. `pre` is expensive: 2.1-2.9× the
+3-bit scores on the ESP32 / S3, 6× on the Pico 2.
+
+- ESTIMATE, not measured: the Pico 2's 6× may come from its cos / sin tables (32 KB, const in flash) against the
+  16 KB XIP cache. A recurrence or tables in RAM is not tested.
+- The S3 has no PIE kernel for rotq (int16 query × int8 codes) or pre. Plain C rotq ≈ plain C K2, so a PIE rotq near
+  K2's 194 µs is an ESTIMATE.
+- The classic ESP32's plain int8 scores take 966 µs in this firmware vs 629 in the first run (table above), with the
+  same C loop. The time is the same to the cycle on a rerun, and making the loop inline did not change it, so it comes
+  from the firmware build or layout (not understood). Compare within one run only. The other boards moved ±3 %.
+
 ```
 python kv_attn_bench.py --board s3 --port /dev/ttyACM0
 python kv_attn_bench.py --board esp32 --port /dev/ttyUSB0         # pico2_arm / pico2_riscv /dev/ttyACM1
