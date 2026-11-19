@@ -462,6 +462,9 @@ basis in floats (not what a chip does). `--k-mode rotq` is the chip form, all in
 / 8. Smoke check (64 windows, s42, NOT a result): K8 rotq 1.5419 vs int8 1.5421; K2 x 1.3 V2 x 1.2 N 32: rotq 1.5489
 vs rot 1.5491. Run: rotq K2 x 1.3 + V2 x 1.2 + N 32, 3 seeds, 1024 windows. Rule: rotq replaces rot if its d is within
 2x the larger sd of rot's (+0.0079 ± 0.0003); otherwise the C has to rebuild keys (or the result does not hold).
+**Result (3 seeds, 1024 windows, results/kv_modes3.json `k2Rg1.3_v2tg1.2_r32`):** rotq 1.5399 / 1.5388 / 1.5371,
+d = +0.0079 ± 0.0002, the same as rot (+0.0079 ± 0.0003). **Answer:** the rule passes: the chip form gives the
+same loss; the C rotates the query once and never rebuilds a key. Chip cost: ../chip_kernels (kv_attn_bench.py).
 
 ## Future work
 

@@ -1,5 +1,5 @@
 {
- "what": "intsim KV cache: 3 bits, mixed K / V bits, recent int8 window (--kv-recent), key / value scale factors (chosen on seed 42), keys per channel before RoPE (--k-mode pre, KVQuant); binary_d384l8 s42-44, validation 1024 windows, no retraining; d = loss - loss(kv8), sd over seeds (n - 1)",
+ "what": "intsim KV cache: 3 bits, mixed K / V bits, recent int8 window (--kv-recent), key / value scale factors (chosen on seed 42), keys per channel before RoPE (--k-mode pre, KVQuant), the chip form of the rotation (--k-mode rotq); binary_d384l8 s42-44, validation 1024 windows, no retraining; d = loss - loss(kv8), sd over seeds (n - 1)",
  "bytes": "computed (not measured): 15M model, 256 tokens, 8 layers x 6 heads; per 64-value vector bits x 8 B + int32 scale per token and head (4 B) or per channel and group of 32 tokens (pre: 8 B); a recent window of N counted as N int8 tokens (68 B) + 256 - N low-bit ones; int8 1.67 MB, KV4 0.885 MB",
  "ref_kv8": {
   "42": 1.5318,
@@ -557,6 +557,19 @@
    "loss_mean": 1.5488,
    "d_mean": 0.0181,
    "d_sd": 0.0003,
+   "seeds": 3
+  },
+  "k2Rg1.3_v2tg1.2_r32": {
+   "args": "--k-bits 2 --k-mode rotq --k-scale 1.3 --v-bits 2 --v-scale 1.2 --kv-recent 32",
+   "per_seed": {
+    "42": 1.5399,
+    "43": 1.5388,
+    "44": 1.5371
+   },
+   "bytes_MB": 0.639,
+   "loss_mean": 1.5386,
+   "d_mean": 0.0079,
+   "d_sd": 0.0002,
    "seeds": 3
   }
  }
