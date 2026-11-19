@@ -723,7 +723,9 @@ reading fewer weight bytes per token.**
 **Answer: T2 makes the model fit; speed comes from the weights.** Next (agreed Nov 19 2026): a smaller model (the
 260K shape: dim 64, 5 layers, 8 heads, vocabulary 512), weights from flash, cache in internal RAM, on the ESP32 and
 the Pico 2, where these conclusions are tested on a second model and on chips without wide SIMD. Repeated blocks
-(fewer weight bytes) is the other line for speed.
+are not a speed line (section above: on the chip a block read twice costs as two). The PSRAM reads ~59 MB/s
+(measured above): the 2.77 MB of weights per token need ~47 ms of reading against the 84 ms the weights take, so
+the linear kernels may still have room (overlapping reads and computation; estimate, not measured).
 
 ## Future work
 
