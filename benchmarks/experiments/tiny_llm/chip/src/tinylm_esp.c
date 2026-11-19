@@ -1,7 +1,18 @@
 /* tinylm.c for the ESP32-S3: per-token buffers and the lut8 table in internal RAM, the KV cache in PSRAM. */
 #include "esp_heap_caps.h"
 #define TINYLM_MALLOC_FAST(n) heap_caps_malloc((n), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)
-#define TINYLM_MALLOC_BIG(n) heap_caps_malloc((n), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
+/* PSRAM allocations: the range they span is kept, so main.cpp can point the data cache autoload at the KV cache */
+#include <stdint.h>
+uintptr_t tinylm_big_lo = UINTPTR_MAX, tinylm_big_hi = 0;
+static void *tinylm_malloc_big(size_t n) {
+    void *p = heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (p) {
+        if ((uintptr_t)p < tinylm_big_lo) tinylm_big_lo = (uintptr_t)p;
+        if ((uintptr_t)p + n > tinylm_big_hi) tinylm_big_hi = (uintptr_t)p + n;
+    }
+    return p;
+}
+#define TINYLM_MALLOC_BIG(n) tinylm_malloc_big(n)
 /* cycles per part of a token (main.cpp prints them): see TINYLM_PROF in tinylm.c */
 #include "xtensa/hal.h"
 uint64_t tinylm_prof[19];   /* 12..18: TINYLM_FINE_PROF only */

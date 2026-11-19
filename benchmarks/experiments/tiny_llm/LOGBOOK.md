@@ -562,3 +562,17 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   11.7 ms, position 255 178.1 -> 142.9 ms, below the base's 148.1); base 8.47 / 8.48 with the cut (unchanged).
   The first firmware's files are kept as `*_wide.json`. Token profile: weights 84 of 132 ms -> the attention has
   little left; the next big gain must come from fewer weight bytes (repeated blocks, 260K), not the cache.
+- **Nov 19, PSRAM reads overlapped with the compute (branch exp/llm-autoload):** question: do the 1-bit linears
+  wait on PSRAM (40 MB/s vs 61 sequential, 69 in internal RAM, psram_bw_bench)? Quick check
+  ../chip_kernels/psram_prefetch_bench.py (S3, PSRAM 80 MHz, 32 fresh copies per layer, best of 7, outputs hashed vs
+  the plain kernel: exact in every variant): plain 39.7-41.9 MB/s; manual data cache preload of the next 4 KB block
+  (ROM Cache_Start_DCache_Preload) 51.8-57.8 (bigger blocks worse: 16 KB 34.6-48.7); cache autoload on a miss (ROM
+  Cache_Config_DCache_Autoload, size 0..3) 48.4 -> 55.8-56.7 at size 3; memcpy then compute 31.8-33.2 and GDMA double
+  buffering (esp_async_memcpy) 22-28: both worse. Autoload is one call at start, so first: chip_run.py --autoload 3
+  (-DTINYLM_AUTOLOAD, region 0 = the model buffer). A first try over the whole external data range rebooted the board
+  in a loop (it maps the flash too): not saved. Base model, seed 42, exact 100 % (512 / 512 + story 120 / 120):
+  128.4 -> 114.2 ms per token, **8.47 -> 9.63 tokens/s**; linears 55.8 -> 43.7 ms (qkv 14.3 -> 11.2, o 5.2 -> 4.2,
+  w1_w3 24.8 -> 19.3, w2 11.5 -> 9.1), head 28.0 -> 26.2, attention unchanged (the KV cache was not in the region).
+  My estimate was -19 ms; measured -12. One seed, one run: a ranking. The ROM cache functions say "do not call in
+  your SDK application": they work on this Arduino core (IDF 4.4), may change with another ESP-IDF.
+  Next: --autoload-kv (region 1 = the state's PSRAM range), T2 + cut, then int4 head, then seeds 43 / 44.

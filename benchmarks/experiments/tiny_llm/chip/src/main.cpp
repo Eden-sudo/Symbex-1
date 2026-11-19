@@ -9,6 +9,10 @@
 #include "esp_partition.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
+#ifdef TINYLM_AUTOLOAD
+#include "esp32s3/rom/cache.h"
+#include "soc/soc.h"
+#endif
 
 extern "C" {
 #include "../../c/tinylm.h"
@@ -17,6 +21,7 @@ extern "C" {
 
 extern "C" uint64_t tinylm_prof[19];       /* tinylm_esp.c: cycles per part of a token */
 extern "C" void tinylm_prof_start(void);
+extern "C" uintptr_t tinylm_big_lo, tinylm_big_hi;   /* tinylm_esp.c: the PSRAM range of the state (KV cache) */
 #ifdef TINYLM_REPEAT_PROBE
 extern "C" uint64_t tinylm_repeat_copy_cycles;   /* tinylm_esp.c: the repeated-blocks timing probe */
 extern "C" int tinylm_repeat_failed;
@@ -41,6 +46,9 @@ void setup() {
 #else
     Serial.println("LINEAR:lut8");
 #endif
+#ifdef TINYLM_AUTOLOAD
+    Serial.printf("AUTOLOAD:%d\n", TINYLM_AUTOLOAD);
+#endif
 #ifdef TINYLM_REPEAT_PROBE
     Serial.printf("REPEAT:%d\n", TINYLM_REPEAT_PROBE);   /* timing only: the outputs differ from intsim.py */
 #endif
@@ -61,6 +69,26 @@ void setup() {
     static TinyModel m;
     static TinyState s;
     if (tinylm_load(&m, buf, MODEL_BYTES) || tinylm_state_init(&s, &m)) fail("load / state");
+#ifdef TINYLM_AUTOLOAD
+    /* data cache autoload on a miss (ROM, size TINYLM_AUTOLOAD of 0..3), over the bytes
+       of the model buffer (region 0 over the whole external range rebooted the board: it maps the flash too);
+       ../chip_kernels/psram_prefetch_bench.py measured the 1-bit linears 40 -> 56 MB/s with it */
+    {
+        struct autoload_config cfg = {.ena = 1, .order = 0, .trigger = 0, .size = (uint8_t)TINYLM_AUTOLOAD};
+        struct autoload_region_config rc = {.region = 0, .ena = 1, .addr = (uint32_t)buf,
+                                            .size = (uint32_t)MODEL_BYTES};
+        Cache_Config_DCache_Autoload(&cfg);
+        Cache_Config_DCache_Region_Autoload(&rc);
+#if TINYLM_AUTOLOAD_KV
+        /* region 1: the state's PSRAM buffers (KV cache), allocated after the model by tinylm_state_init */
+        struct autoload_region_config rk = {.region = 1, .ena = 1, .addr = (uint32_t)tinylm_big_lo,
+                                            .size = (uint32_t)(tinylm_big_hi - tinylm_big_lo)};
+        Cache_Config_DCache_Region_Autoload(&rk);
+        Serial.printf("AUTOLOAD_KV:%u\n", (unsigned)(tinylm_big_hi - tinylm_big_lo));
+#endif
+        Cache_Enable_DCache_Autoload();
+    }
+#endif
 #if defined(TINYLM_REPEAT_PROBE) && TINYLM_REPEAT_PROBE == 2
     /* the block copy needs 221 KB of internal RAM: the 32 KB of outputs go to PSRAM in this probe */
     int64_t *z = (int64_t *)heap_caps_malloc(8L * m.vocab, MALLOC_CAP_SPIRAM);
