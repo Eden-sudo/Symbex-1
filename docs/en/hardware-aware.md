@@ -15,7 +15,7 @@ The best choice changes from chip to chip, so a fixed recipe cannot be right eve
 
 | Chip | How it counts bits (best, `count_<chip>.json`) | int8 first layer vs binary one | Vertical engine vs standard (ResNet-8) |
 |---|---|---|---|
-| ESP32-S3 | no popcount; lut16, 110 cycles / output | 1.79x (Nov 3 kernel), 5.7x with the PIE kernel (Nov 5) | 3.3x faster (32.33 -> 9.73 ms) |
+| ESP32-S3 | no popcount; lut16, 110 cycles / output | 1.79x (Nov 3 kernel); separately, the Nov 5 PIE int8 kernel is 5.7x faster than that int8 kernel | 3.3x faster (32.33 -> 9.73 ms) |
 | Classic ESP32 | no popcount; lut16, 129 cycles | 0.86x (slower) | 1.29x (compact) |
 | Pico 2 Cortex-M33 | no popcount, DSP; lut16, 78 cycles | 1.13x | 1.15x (prepared) |
 | Pico 2 Hazard3 | `cpop` (Zbb); builtin, 56 cycles | 0.62x (slower) | slower: standard wins |
