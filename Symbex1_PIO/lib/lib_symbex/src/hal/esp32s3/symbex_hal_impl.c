@@ -183,9 +183,9 @@ const char* symbex_hal_name(void) {
 /* ------------------------------------------------------------------------------------------------ */
 /* The S3 has no popcount but has SIMD multiply-accumulate (ee.vmulas.u8.accx). These primitives use it
    when the buffers are 16-byte aligned and n_words is a multiple of 4; otherwise portable C, same results. */
+#if !defined(SYMBEX_HAL_TEST_NO_PIE)
 static inline int is_aligned16(const void* p) { return ((uintptr_t)p & 15U) == 0; }
 
-#if !defined(SYMBEX_HAL_TEST_NO_PIE)
 static const uint8_t and_ones[16] __attribute__((aligned(16))) = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
 static const uint8_t and_selector[16] __attribute__((aligned(16))) = {1,1,2,2,4,4,8,8,16,16,32,32,64,64,128,128};
 
