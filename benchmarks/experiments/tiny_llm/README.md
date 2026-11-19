@@ -635,6 +635,22 @@ of the KV study. Only then the C:
 values stored per position (so a skipped position is not decoded), the cut in tinylm.c, exact against intsim.py with
 the same cut, then the S3 time per position. Speed is claimed only from the chip.
 
+**Result (3 seeds, validation, 1024 windows, `results/attn_cut.json`):** loss rise over no cut (paired) and share of
+the far keys still read.
+
+| cut n (nats) | base: rise | base: far keys read | T2: rise | T2: far keys read |
+|---|---|---|---|---|
+| none | 0 (1.5307 ± 0.0013) | 90.0 % | 0 (1.5441 ± 0.0008) | 87.8 % |
+| 8 | +0.0000 ± 0.0001 | 63.8 % | +0.0000 ± 0.0001 | 61.6 % |
+| **6** | **+0.0002 ± 0.0002** | **42.6 %** | **+0.0002 ± 0.0002** | **41.3 %** |
+| 4 | +0.0051 ± 0.0011 | 22.1 % | +0.0045 ± 0.0007 | 21.9 % |
+| 3 | +0.0171 ± 0.0026 | 13.7 % | +0.0149 ± 0.0014 | 14.1 % |
+| 2 | +0.0522 ± 0.0057 | 6.8 % | +0.0454 ± 0.0025 | 7.5 % |
+| 1 | +0.1607 ± 0.0128 | 1.9 % | +0.1485 ± 0.0063 | 2.2 % |
+
+**Answer:** by the rule, **n = 6 for both**: the loss does not move (+0.0002) and less than half of the far
+positions need their values. Next: the C (values per position, the cut) and the time on the S3.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
