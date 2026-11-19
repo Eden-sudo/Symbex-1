@@ -611,7 +611,7 @@ tokens/s). **Correction (Nov 19, measured on the chip, next section):** that +12
 7.87 tokens/s (7.94 with the cut). Where it could pay more: a chip without SIMD (the bench: sign scores 8.7-22x
 faster than plain int8) or a value kernel on the packed bits (future work).
 
-### Reading the cache: memory down, time up (Nov 19, work in progress)
+### Reading the cache: memory down, time up (Nov 19)
 
 **What T2 achieved:** the KV cache is 2.8x smaller (1.67 -> 0.60 MB), exact on the chip. **What it costs:** every new
 token reads every earlier position, and reading the packed bits takes time: the cost per position grows from 0.157
@@ -679,6 +679,51 @@ bytes 1.2, packing 0.6). **Answer: the cache is 0.60 MB instead of 1.67 MB at 6 
 base (was 11 %); at position 255 T2 is now faster than the base (142.9 vs 148.1 ms).** The weights (84 of 132 ms)
 dominate the token: the attention has at most ~10 ms left to gain (estimate). Next ideas: a value kernel on the
 packed 2-bit codes (no decoding), a cheaper subset table, a longer context where the cut pays more.
+
+## KV cache: conclusions (Nov 19 2026)
+
+The work of this branch answers three questions. Model: 15.7 M W1A8, ESP32-S3, context 256; loss on validation
+(3 seeds), chip numbers seed 42, every chip run exact 100 %.
+
+**1. How do we lower the cache memory? Answered.**
+
+| cache | KV memory | val loss rise | retraining |
+|---|---|---|---|
+| int8 (base) | 1.67 MB | 0 | no |
+| K2 rotq + V2 + 32 recent int8 | 0.64 MB | +0.008 | no |
+| **T2: K 1 bit + V 2 bits + learned temperature + 32 recent int8** | **0.60 MB** | +0.011 | yes |
+
+What made it work: keys have outlier channels (values do not), so keys need the rotation; at 1-2 bits the damage
+behaves like a temperature bias, so a learned temperature fixes most of it; the last 32 positions in int8 cost
+little memory and keep the quality. A 1-bit key without retraining was never usable.
+
+**2. How do we make it faster? Partly.**
+
+| step | on the S3 |
+|---|---|
+| cut at 6 nats (p = 0 for far positions) | free in loss (+0.0002); 41-43 % of far keys read |
+| overflow fix (found by the chip profile) | attention values 25.1 -> 11.7 ms per token |
+| T2 + cut, whole model | 7.94 vs base 8.47 tokens/s (-6 %); position 255: 142.9 vs 148.1 ms (faster) |
+| Quest page bound | useless on 1-bit keys (skips 0-6.5 % of pages; oracle 32-46 %) |
+
+The limit on the S3: the PIE int8 dot already makes the int8 scores cheap, and the weights take 84 of the 132 ms of
+a token. The cache has at most ~10 ms left to gain (estimate). **This method lowers memory; speed must come from
+reading fewer weight bytes per token.**
+
+**3. Where can it help other models? Where memory decides.**
+
+- Small models on chips without PSRAM (classic ESP32, Pico 2): the cache must fit in internal RAM; a third of the
+  bytes decides whether the model runs at all.
+- Long contexts: the cache grows with every token, the weights do not; T2 with the cut gains more the longer the
+  context (estimate: measured only up to 256).
+- Chips without SIMD (classic ESP32, Hazard3): sign scores ran 8.7-22x faster than plain int8 (one kernel bench,
+  not a whole model).
+- Any softmax attention: the cut in nats and the int8 window carry over as they are.
+
+**Answer: T2 makes the model fit; speed comes from the weights.** Next (agreed Nov 19 2026): a smaller model (the
+260K shape: dim 64, 5 layers, 8 heads, vocabulary 512), weights from flash, cache in internal RAM, on the ESP32 and
+the Pico 2, where these conclusions are tested on a second model and on chips without wide SIMD. Repeated blocks
+(fewer weight bytes) is the other line for speed.
 
 ## Future work
 
