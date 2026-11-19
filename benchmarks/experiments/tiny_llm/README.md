@@ -554,6 +554,25 @@ from the loss: one head, random data, exact against numpy (`chip_kernels/bit_att
 XOR + popcount scores, values summed directly vs by buckets. ESTIMATE: buckets are not faster on chips with a one-cycle
 multiply (the additions stay 256 x 64); the gain is the memory.
 
+**Result** (validation loss, float model, `results/attn_bits.json`; learned temperature = mean of exp(τ) per block):
+
+| run | 42 / 43 / 44 | d vs base | temperature, blocks 0 -> 7 |
+|---|---|---|---|
+| T1 K1 V2 τ | 1.5952 | +0.070 | 0.43, 0.09, 0.06, 0.06, 0.02, 0.01, 0.01, 0.01 |
+| **T2 K1 V2 τ recent 32** | 1.5355 / 1.5361 / 1.5345 = **1.5354 ± 0.0008** | **+0.013** | 3.52, 0.42, 0.32, 0.15, 0.34, 0.23, 0.26, 0.13 |
+| T3 pure bits τ | 4.5241 | +3.00 | ~1.0 everywhere (did not learn) |
+| T4 pure bits τ recent 32 | 2.0752 | +0.55 | 0.82, 0.26, 0.25, 0.23, 0.29, 0.16, 0.25, 0.07 |
+
+Chips (`chip_kernels/bit_attn_bench.py`, chip_kernels README): sign scores 8.7-22x faster than int8, 2-bit values
+1.2-1.3x slower (unpacking), buckets no gain; scores + values 1.42-1.98x per head, exact on 4 cores.
+
+**Answer:** rule 1: T1 and T2 pass, T3 / T4 fail; T2 got seeds 43 / 44. Rule 2: T2 is usable in float (d +0.013 ±
+0.0008 < 0.03): 1-bit keys, 2-bit values and a learned temperature, with the last 32 positions unquantized. Rule 3:
+the temperature helps (T1 1.595 vs the earlier QAT 1.826, one seed: a ranking). The temperature goes DOWN, not up
+(the opposite of BinaryAttention): without the window, blocks 1-7 flatten their attention almost to an average. The
+pure bit form (sign query, key without its scale) fails: the scale of k and q matters. Next: T2 in intsim.py
+(integer, 1-bit keys with mean|k|, 32 int8 recent) and its KV bytes; the chip kernel for the values (bit planes).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
