@@ -62,6 +62,10 @@ def write_check_data(run, windows, path):
     sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, "tok4096.model"))
     model, a = I.load_model(run, sp.get_piece_size(), dev)
     P = I.to_device(I.integerize(model, a["weights"]), dev)
+    kv = I.read_kv_trailer(os.path.join(run, "model.bin"), a["layers"], a["heads"])
+    if kv is not None:      # the low-bit KV cache the C runs (intsim.py --export wrote it): the same in the reference
+        assert all((B["tq"].cpu().numpy() == t).all() for B, t in zip(P["blocks"], kv["tq"])), "model.bin is stale"
+        P["kv"] = {k: kv[k] for k in ("k_bits", "v_bits", "k_scale", "recent")}
     val = T.load_split("val", dev)
     w = val[torch.arange(windows, device=dev)[:, None] * a["seq"] + torch.arange(a["seq"], device=dev)].long()
     z, hm = I.forward(P, w)
@@ -85,7 +89,7 @@ def write_check_data(run, windows, path):
     lines += [f"#define CHECK_ID {check_id}u", ""]
     with open(path, "w") as f:
         f.write("\n".join(lines))
-    return ids, n_prompt, sp, check_id, a["seq"]
+    return ids, n_prompt, sp, check_id, a["seq"], P.get("kv")
 
 
 def main():
@@ -101,7 +105,7 @@ def main():
     args = ap.parse_args()
     run = os.path.normpath(args.run)
     proj = os.path.join(HERE, "chip")
-    ids, n_prompt, sp, check_id, seq = write_check_data(run, args.windows, os.path.join(proj, "src", "check_data.h"))
+    ids, n_prompt, sp, check_id, seq, kv = write_check_data(run, args.windows, os.path.join(proj, "src", "check_data.h"))
     if args.upload:
         print("building and uploading the firmware...")
         flags = ["-DTINYLM_SYMBEX_LINEAR"] if args.linear == "symbex" else []
@@ -191,7 +195,7 @@ def main():
                2: " linear, PIE int2 dot (output), PIE s8 dot (scores)"}.get(I.head_bits_of(run),
                                                                               " linear, PIE s8 dot (output, scores)")),
            "model_in": "psram",
-           "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
+           "kv_cache": kv or "int8", "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
            "check_tokens": len(hashes), "check_equal": int(sum(h[2] for h in hashes)),
            "equal_percent": round(100 * sum(h[2] for h in hashes) / max(1, len(hashes)), 3),
            "story_tokens": len(gen), "story_equal": int(sum(g[1] for g in gen)),

@@ -567,7 +567,8 @@ Chips (`chip_kernels/bit_attn_bench.py`, chip_kernels README): sign scores 8.7-2
 1.2-1.3x slower (unpacking), buckets no gain; scores + values 1.42-1.98x per head, exact on 4 cores.
 Note: these chip times are the PURE bit form (T3 / T4, which fails in training). T2 keeps an int8 query: its score
 is a masked sum of the query, sum over bit planes b of 2^b x popcount(q_b AND k) (8 planes x 2 words per key), not
-yet timed (ESTIMATE ~4x faster than int8, to be measured).
+yet timed (ESTIMATE ~4x faster than int8, to be measured). Measured in the whole model on the S3 (below): not
+faster than the PIE int8 dot.
 
 **Answer:** rule 1: T1 and T2 pass, T3 / T4 fail; T2 got seeds 43 / 44. Rule 2: T2 is usable in float (d +0.013 ±
 0.0008 < 0.03): 1-bit keys, 2-bit values and a learned temperature, with the last 32 positions unquantized. Rule 3:
@@ -584,6 +585,30 @@ agreement 98.2-98.3 %). KV bytes (computed, kv_modes3.json's formula: the int32 
 **0.55 MB** vs int8 1.67 MB: the "~0.2 MB" above ignored the scales and the window (1-bit K + 2-bit V alone: 0.39
 MB). Against the best KV without retraining (K2 rot + V2 + recent 32: +0.0079 at 0.64 MB), T2 has 14 % fewer bytes
 for a larger loss and needs training; what it adds is a key of 1 bit (scores without multiplications).
+
+**On the ESP32-S3 (Nov 19, seed 42, `chip_run.py --linear symbex`, `results/chip_s3_binary_attn_k1v2_tau_r32_s42_symbex.json`):**
+tinylm.c runs T2 when model.bin ends with a trailer (`intsim.py --export` writes it: key bits 1, value bits 2, the
+window, k_scale, exp(τ) per head): keys as signs + one scale, values transposed 2 bits each, a ring of the last 32
+int8 keys and values, the tempered exp-table index (two 32-bit divisions). Without the trailer the int8 path is
+unchanged. **Exact: 512 / 512 validation tokens and the 120-token story equal to intsim.py**, the base too (re-run
+on the same firmware). Both with the int8 output head.
+
+| | base (int8 KV) | T2 (K1 V2 τ + 32 int8) |
+|---|---|---|
+| val loss (integer) | 1.5318 | 1.5432 (+0.011) |
+| KV cache in PSRAM (allocated) | 1.67 MB | **0.60 MB** (PSRAM free +1.07 MB, measured) |
+| internal RAM free | 233 KB | 215 KB (-17 KB: one head's values decoded) |
+| tokens / s (story) | **8.47** | 7.56 (-11 %) |
+| ms per token, position 0 / 255 | 108.6 / 148.5 | 116.7 / 178.1 |
+| attention: cache write / scores / softmax / values (ms) | 9.7 / 7.8 / 2.0 / 13.3 | 12.1 / 9.2 / 2.9 / 25.1 |
+
+0.60 MB, not the 0.55 MB computed above: the C keeps every position also in 1 / 2 bits (a position leaving the
+window needs them; the int8 copy cannot rebuild them exactly). **T2 saves memory, not time, on the S3:** the PIE
+int8 dot already makes the scores cheap (the sign scores through a subset-sum table, plain C, are not faster), and
+the 2-bit values must be decoded to bytes for the PIE value kernel (+12 ms per token; copying each head from PSRAM
+to internal RAM first did not help, 7.50 tokens/s: the cost is the decoding, not the PSRAM). Where it could pay: a
+chip without SIMD (the bench: sign scores 8.7-22x faster than plain int8) or a value kernel on the packed bits
+(future work).
 
 ## Future work
 

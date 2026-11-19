@@ -487,6 +487,26 @@ def write_model(P, cfg, path):
                     f.write(struct.pack("<4i", B[n]["acts"], B[n]["had"], 0, 0))
                 f.write(pack_bits(B[n]["w"]).tobytes())
                 f.write(B[n]["m"].cpu().numpy().astype("<i4").tobytes())
+        if "tq" in P["blocks"][0]:  # trailer: the low-bit KV cache + learned temperature (tinylm.h, main() checks it)
+            kv = P["kv"]
+            f.write(struct.pack("<4id", 0x424C564B, kv["k_bits"], kv["v_bits"], kv["recent"], kv["k_scale"]))
+            f.write(torch.stack([B["tq"] for B in P["blocks"]]).cpu().numpy().astype("<i4").tobytes())
+
+
+def read_kv_trailer(path, layers, heads):
+    """the low-bit KV trailer of a model.bin (write_model), as P["kv"], or None (int8 cache)"""
+    n = 24 + 4 * layers * heads
+    with open(path, "rb") as f:
+        f.seek(0, 2)
+        if f.tell() < 32 + n:
+            return None
+        f.seek(-n, 2)
+        tr = f.read(n)
+    magic, kb, vb, recent, ks = struct.unpack("<4id", tr[:24])
+    if magic != 0x424C564B:
+        return None
+    return {"k_bits": kb, "v_bits": vb, "k_scale": ks, "recent": recent,
+            "tq": np.frombuffer(tr[24:], dtype="<i4").reshape(layers, heads)}
 
 
 def main():
@@ -535,10 +555,14 @@ def main():
            else "") + (f"s{args.qjl_seed}" if args.qjl_seed else "")
            + (f"g{args.k_scale:g}" if args.k_scale != 1.0 else "")  + f"_v{vb}{args.v_mode[0]}" + (f"g{args.v_scale:g}" if args.v_scale != 1.0 else "")
            + ("_f" if args.keep_first else "") + (f"_r{args.kv_recent}" if args.kv_recent else ""))
-    if args.export and a.get("attn_temp"):
-        ap.error("--export: the C has no learned attention temperature yet")
-    if args.export and ((kb, vb) != (8, 8) or args.k_scale != 1.0 or args.v_scale != 1.0 or args.kv_recent):
-        ap.error("--export: the C keeps an int8 KV cache (--kv-bits 8)")
+    # the C: an int8 KV cache, or (a model trained with --attn-temp) 1-bit keys + 2-bit values + an int8 window
+    low_bit_c = (kb, vb) == (1, 2) and args.k_mode == args.v_mode == "token" and args.v_scale == 1.0 \
+        and not args.keep_first and args.kv_recent > 0
+    if args.export and a.get("attn_temp") and not low_bit_c:
+        ap.error("--export with --attn-temp: the C has --k-bits 1 --v-bits 2 --kv-recent N (token modes) only")
+    if args.export and not a.get("attn_temp") and \
+            ((kb, vb) != (8, 8) or args.k_scale != 1.0 or args.v_scale != 1.0 or args.kv_recent):
+        ap.error("--export: the C keeps an int8 KV cache (--kv-bits 8); low-bit only for --attn-temp models")
     val = T.load_split("val", dev)
 
     fl = T.evaluate(model, val, a["seq"], args.windows // 32, 32)

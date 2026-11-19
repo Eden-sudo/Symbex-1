@@ -537,3 +537,9 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   +0.0134 ± 0.0020 (3 seeds), float -> integer +0.0002: usable. KV 0.55 MB computed (my "~0.2 MB" forgot the int32
   scales and the int8 window). Vs the no-retraining best K2 rot + V2 + N32 (+0.0079, 0.64 MB): 14 % fewer bytes,
   more loss. Next: the C (T2 scores = int8 q masked by k bits; values 2-bit) + chip times; window cost dominates.
+- T2 on the S3 (README "On the ESP32-S3"): model.bin trailer ('KVLB'), tinylm.c low-bit path (sign keys + lut8
+  subset sums, 2-bit values transposed + decoded for the PIE u8 kernel, int8 ring of 32, tempered index), check_pc
+  exact (plain and -DTINYLM_DOT_ROWS_C, ASan/UBSan clean), chip exact 100 %. First chip run "failed": chip_run.py
+  built its reference with the int8 KV (fixed: it reads the trailer). 7.56 vs 8.47 tokens/s (base re-run, same
+  firmware), PSRAM -1.07 MB (KV 1.67 -> 0.60 MB), internal -17 KB. Values decode +12 ms; PSRAM -> internal copy
+  first: no gain (reverted). Saves memory, not time, on a SIMD chip.
