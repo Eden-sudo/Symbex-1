@@ -530,3 +530,6 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   planes (masked adds or PIE), not started.
 - Weak points: the float loss is not the integer loss (old QAT +0.02 in integers); random data on the chip (the
   number of used h depends on the model: with trained heads maybe fewer buckets).
+- Night result (results/attn_bits.json, README): T2 (K1 V2 τ + recent 32) 1.5354 ± 0.0008, d +0.013 (usable in
+  float, 3 seeds); T1 +0.070; pure bits T3 +3.00 (τ stuck at ~1: did not learn), T4 +0.55. Temperatures go DOWN.
+  Next: T2 in intsim (integer); why T3 does not learn (gradient through two signs? τ lr?) only if Edén wants.
