@@ -481,3 +481,32 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
 - kv8 script bug: `grep -o '[0-9.]*'` on "K2 1.4," also caught the "2" of "K2" -> the K2 pre runs FAILED; fixed with
   sed, rerun (logs deleted first).
 - Next: chip cost (kv_attn_bench.py): window (two read paths), rotated keys (q rotated once), RoPE on read (pre).
+- Done after: rotq (chip form of rot, integers) 3 seeds d +0.0079 ± 0.0002 = rot; kv_attn_bench window / rotq / pre on
+  4 cores, exact (chip_kernels README). Window ~free, rotq = plain K2, pre 2-6x slower.
+
+## Nov 18 2026 -- ideas queued (Edén), not started
+
+Order agreed: (1) repeated blocks (running) -> (2) the ideas below -> GQA + sliding window -> 260K -> combine -> test
+once -> C / PIE inference on the S3.
+
+**Train K without its large channels + a softmax built for bits (Edén: "do they fit together?" -> yes: both need
+retraining and both live in train.py / intsim / C, which must stay exact).**
+- Why: kv_diag says the K error comes from how K is stored (outlier channels 3-10x, temperature bias at 1-2 bits),
+  not from the softmax (KL = 1/2 Var, quadratic). So the softmax change is for memory / simplicity, the K change for
+  accuracy. More channels does NOT fix it (outliers stay, every channel adds noise, KV grows): ESTIMATE, not measured.
+- K side: QK-norm (RMSNorm on q and k per head, OLMo 2 / Gemma 3); clipped softmax / gated attention (Bondarenko 2023,
+  "Quantizable Transformers": outliers from heads that learn a no-op; measured on activations, not on K).
+- Softmax side: base 2 with a learned temperature (Softermax 2021: 2^(s - max), exp of an integer = an exact shift, no
+  2048-entry table, 4 KB less: matters for the 260K on ESP32 / Pico); normalization by the nearest power of 2 (no
+  division); sigmoid attention (Apple 2024: no max, no sum). Measured cost today on the S3: softmax 2.0 + division
+  1.6 = 3.6 of 105 ms per token (~3 %): speed gain at most ~3 %.
+- Plan: 2 x 2 (base done / QK-norm / base-2 softmax / both), 1 seed screening (~33 min each), 3 seeds for those that
+  pass. Rule (to write in the README before running): base loss not worse by > 0.03, and K2 per token WITHOUT rotation
+  d < 0.03 (today 0.200). kv_diag D1 on the new models (do the outliers go away?).
+- Weak points: K outliers may come from RoPE's low-frequency channels (then QK-norm helps little); sigmoid / power-of-2
+  normalization change the attention and may cost loss on a model this small.
+
+**Other ideas on the list:** GQA (2 KV heads for 6 query heads: KV / 3, int8 1.67 -> 0.56 MB, with K2 / V2 ~0.2 MB,
+computed); sliding-window attention (KV stops growing; intsim first, then retrain); 260K shape (dim 64, 5 layers, 8
+heads, ctx 512, vocab 512: prepare.py --vocab 512 running on the CPU); PIE kernels for 2-bit values and rotq (the
+only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 us firmware shift (not understood).
