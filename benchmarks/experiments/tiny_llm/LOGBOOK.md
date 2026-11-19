@@ -548,3 +548,11 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   32-46 % oracle). C: -DTINYLM_P_CUT + group-of-4 skipping in low_bit_values (format unchanged), exact PC (8 builds,
   ASan/UBSan) and S3 (512 / 512 + story). S3 seed 42: T2 values 25.1 -> 20.4 ms, position 255 178.1 -> 164.4 ms,
   story 7.56 -> 7.64 tok/s; base 8.47 -> 8.48 (its int8 cache is untouched). Small gain; grows with context.
+- **Correction (measured, Nov 19):** I had said the T2 value time was the 2-bit decoding (an assumption, never
+  measured). chip_run.py --fine-prof (-DTINYLM_FINE_PROF, cycle counter marks inside the attention, cost ~0: 140.36
+  vs 140.29 ms) on the S3, T2 + cut 6, values 20.4 ms per token: **10.4 ms plain-C "wide" fallback**, decode 2-bit
+  3.6, PIE products 3.0, window copy 1.6, weight bytes 1.2, pack 0.6. Scores 9.2: subset table 4.0, far keys 3.5,
+  int8 window 1.7. Cause: in 26 % of T2's head steps p x vm2 >= 2^32 (PC count, same integers), so the U8 path
+  dropped to the int64 loop; the base never does (its weights always fit 4 bytes). Fix: the weights split into up
+  to 6 bytes (sum <= 2^63 checked), every head on the PIE. PC exact (8 builds, ASan/UBSan). Lesson: profile on the
+  chip before naming the cost.
