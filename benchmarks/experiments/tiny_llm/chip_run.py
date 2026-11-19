@@ -36,7 +36,9 @@ from compiler_core.chip.core import open_port, read_line  # noqa: E402
 MODEL_OFFSET = 0x310000
 PROMPT = "Once upon a time"
 PARTS = ("embedding_norms", "qkv", "attention_values", "o", "w1_w3", "swiglu", "w2", "output_head",
-         "attention_rope_cache", "attention_scores", "attention_softmax", "attention_division")  # TINYLM_PROF in tinylm.c
+         "attention_rope_cache", "attention_scores", "attention_softmax", "attention_division",  # TINYLM_PROF in tinylm.c
+         "values_pack", "values_decode_2bit", "values_copy_window", "values_weight_bytes",       # --fine-prof only
+         "scores_window_int8", "scores_subset_table", "values_wide_plain_c")
 
 
 def out_hash(z, hm):
@@ -104,6 +106,8 @@ def main():
                     help="1-bit linear layers: lut8 (tinylm.c's table) or symbex (lib_symbex's 8-bit x 1-bit kernel)")
     ap.add_argument("--p-cut", type=float, help="attention weights p < p_max e^-n are 0 (README 'Reading the cache'): "
                     "reference and firmware (-DTINYLM_P_CUT=round(128 n)) both")
+    ap.add_argument("--fine-prof", action="store_true", help="time the parts inside the attention too "
+                    "(-DTINYLM_FINE_PROF; results/..._prof.json: the extra marks cost a little)")
     ap.add_argument("--repeat-probe", choices=("psram", "copy"),
                     help="timing only: run layers in pairs on one block's weights (see the docstring)")
     args = ap.parse_args()
@@ -116,6 +120,8 @@ def main():
         flags = ["-DTINYLM_SYMBEX_LINEAR"] if args.linear == "symbex" else []
         if args.repeat_probe:
             flags.append(f"-DTINYLM_REPEAT_PROBE={1 if args.repeat_probe == 'psram' else 2}")
+        if args.fine_prof:
+            flags.append("-DTINYLM_FINE_PROF")
         if args.p_cut is not None:
             flags.append(f"-DTINYLM_P_CUT={min(2048, round(args.p_cut * 128))}")
         env = dict(os.environ, PLATFORMIO_BUILD_FLAGS=" ".join(flags))
@@ -202,7 +208,7 @@ def main():
                2: " linear, PIE int2 dot (output), PIE s8 dot (scores)"}.get(I.head_bits_of(run),
                                                                               " linear, PIE s8 dot (output, scores)")),
            "model_in": "psram",
-           "kv_cache": kv or "int8", "p_cut_nats": args.p_cut, "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
+           "kv_cache": kv or "int8", "p_cut_nats": args.p_cut, "fine_prof": args.fine_prof, "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
            "check_tokens": len(hashes), "check_equal": int(sum(h[2] for h in hashes)),
            "equal_percent": round(100 * sum(h[2] for h in hashes) / max(1, len(hashes)), 3),
            "story_tokens": len(gen), "story_equal": int(sum(g[1] for g in gen)),
@@ -221,7 +227,7 @@ def main():
     os.makedirs(os.path.join(HERE, "results"), exist_ok=True)
     suffix = ("" if args.linear == "lut8" else "_" + args.linear) + (f"_repeat_{args.repeat_probe}"
                                                                       if args.repeat_probe else "") \
-        + (f"_c{args.p_cut:g}" if args.p_cut is not None else "")
+        + (f"_c{args.p_cut:g}" if args.p_cut is not None else "") + ("_prof" if args.fine_prof else "")
     out = os.path.join(HERE, "results", f"chip_s3_{os.path.basename(run)}{suffix}.json")
     with open(out, "w") as f:
         json.dump(res, f, indent=2)

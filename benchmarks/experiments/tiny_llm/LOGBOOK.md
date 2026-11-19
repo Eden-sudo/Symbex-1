@@ -556,3 +556,9 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   dropped to the int64 loop; the base never does (its weights always fit 4 bytes). Fix: the weights split into up
   to 6 bytes (sum <= 2^63 checked), every head on the PIE. PC exact (8 builds, ASan/UBSan). Lesson: profile on the
   chip before naming the cost.
+- **Nov 19, the fix measured on the S3 (seed 42, exact 100 %, story 120 / 120 everywhere):** 6-byte split writing
+  only the bytes the largest weight needs (a first version always wrote 6 and slowed the base 8.47 -> 8.40; fixed
+  with a first pass over the 32-bit halves). T2 7.56 -> 7.87 tokens/s, with the cut 6: **7.94** (values 25.1 ->
+  11.7 ms, position 255 178.1 -> 142.9 ms, below the base's 148.1); base 8.47 / 8.48 with the cut (unchanged).
+  The first firmware's files are kept as `*_wide.json`. Token profile: weights 84 of 132 ms -> the attention has
+  little left; the next big gain must come from fewer weight bytes (repeated blocks, 260K), not the cache.

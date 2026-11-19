@@ -586,7 +586,7 @@ agreement 98.2-98.3 %). KV bytes (computed, kv_modes3.json's formula: the int32 
 MB). Against the best KV without retraining (K2 rot + V2 + recent 32: +0.0079 at 0.64 MB), T2 has 14 % fewer bytes
 for a larger loss and needs training; what it adds is a key of 1 bit (scores without multiplications).
 
-**On the ESP32-S3 (Nov 19, seed 42, `chip_run.py --linear symbex`, `results/chip_s3_binary_attn_k1v2_tau_r32_s42_symbex.json`):**
+**On the ESP32-S3 (Nov 19, seed 42, `chip_run.py --linear symbex`, first firmware: `results/chip_s3_binary_attn_k1v2_tau_r32_s42_symbex_wide.json`):**
 tinylm.c runs T2 when model.bin ends with a trailer (`intsim.py --export` writes it: key bits 1, value bits 2, the
 window, k_scale, exp(τ) per head): keys as signs + one scale, values transposed 2 bits each, a ring of the last 32
 int8 keys and values, the tempered exp-table index (two 32-bit divisions). Without the trailer the int8 path is
@@ -605,10 +605,11 @@ on the same firmware). Both with the int8 output head.
 0.60 MB, not the 0.55 MB computed above: the C keeps every position also in 1 / 2 bits (a position leaving the
 window needs them; the int8 copy cannot rebuild them exactly). **T2 saves memory, not time, on the S3:** the PIE
 int8 dot already makes the scores cheap (the sign scores through a subset-sum table, plain C, are not faster), and
-the 2-bit values must be decoded to bytes for the PIE value kernel (+12 ms per token; copying each head from PSRAM
-to internal RAM first did not help, 7.50 tokens/s: the cost is the decoding, not the PSRAM). Where it could pay: a
-chip without SIMD (the bench: sign scores 8.7-22x faster than plain int8) or a value kernel on the packed bits
-(future work).
+the 2-bit values cost +12 ms per token (copying each head from PSRAM to internal RAM first did not help, 7.50
+tokens/s). **Correction (Nov 19, measured on the chip, next section):** that +12 ms was mostly not the decoding: in
+26 % of T2's head steps the weights p x v overflowed 32 bits and the head fell back to a plain-C loop. Fixed, T2 runs
+7.87 tokens/s (7.94 with the cut). Where it could pay more: a chip without SIMD (the bench: sign scores 8.7-22x
+faster than plain int8) or a value kernel on the packed bits (future work).
 
 ### Reading the cache: memory down, time up (Nov 19, work in progress)
 
@@ -651,26 +652,33 @@ the far keys still read.
 **Answer:** by the rule, **n = 6 for both**: the loss does not move (+0.0002) and less than half of the far
 positions need their values. Then the C and the S3 (below).
 
-**On the S3 (Nov 19, seed 42, `chip_run.py --linear symbex --p-cut 6`, `results/chip_s3_*_symbex_c6.json`):**
+**On the S3 (Nov 19, seed 42, `chip_run.py --linear symbex [--p-cut 6] [--fine-prof]`, `results/chip_s3_*_symbex*.json`):**
 tinylm.c drops the weights past the cut (`-DTINYLM_P_CUT=768`) and, with the low-bit cache, decodes only the groups
 of 4 positions (one byte of the 2-bit cache) with some p != 0: the cache format stays (storing values per position
 would need 4x the stores per decoded position, an estimate). **Exact: 512 / 512 tokens and the story equal to
-intsim.py with the cut** (PC: every build, ASan / UBSan clean; the cut firmware against the no-cut reference does
-differ, so the check sees it).
+intsim.py, with and without the cut** (PC: every build, ASan / UBSan clean; the cut firmware against the no-cut
+reference does differ, so the check sees it).
 
-| | T2 | T2, cut 6 | base | base, cut 6 |
-|---|---|---|---|---|
-| attention values (ms per token, mean of 2 x 256) | 25.1 | **20.4** | 13.3 | 13.1 |
-| ms per token at position 255 | 178.1 | **164.4** | 148.7 | 147.2 |
-| ms per token, mean of positions 0-255 | 145.4 | 140.3 (-3.5 %) | 128.7 | 128.0 |
-| tokens / s (story, positions 5-125) | 7.56 | 7.64 (+1 %) | 8.47 | 8.48 |
+The first cut firmware gained little (T2 7.56 -> 7.64 tokens/s, `..._c6_wide.json`; skipping only exact-zero groups
+7.54, `..._skip0.json`). A fine profile on the chip (`--fine-prof`: cycle marks inside the attention, their cost
+~0) showed where the value time went: **10.4 of 20.4 ms in a plain-C fallback**, not in the decoding (`..._prof_wide.json`).
+In 26 % of T2's head steps p x v >= 2^32 (PC count), so the head left the PIE path. Fix: the weights split into
+up to 6 bytes, only the bytes the largest weight needs written (every head on the PIE; the sum <= 2^63 is checked).
 
-The same firmware without the cut (only exact-zero groups skipped) runs 7.54 tokens/s
-(`..._symbex_skip0.json`): no gain, as the exact zeros predicted. **Answer: the cut works and is free in loss, but
-the gain is small** (-4.7 ms of values per token, -14 ms at position 255; the base keeps its int8 cache untouched,
-so only its softmax gets faster). It grows with the context (the far positions): at 256 tokens it is 8 %. The value
-time left is the decoding of the kept groups, the window copy and the PIE products per channel row. Next ideas: a
-value kernel on the packed 2-bit codes (no decoding), or a longer context where the cut pays more.
+| | T2 first | T2 | T2, cut 6 | base | base, cut 6 |
+|---|---|---|---|---|---|
+| attention values (ms per token, mean of 2 x 256) | 25.1 | 15.3 | **11.7** | 13.0 | 12.9 |
+| ms per token at position 255 | 178.1 | 151.9 | **142.9** | 148.1 | 146.9 |
+| ms per token, mean of positions 0-255 | 145.4 | 135.6 | **131.6** | 128.4 | 127.9 |
+| tokens / s (story, positions 5-125) | 7.56 | 7.87 | **7.94** (+5 %) | 8.47 | 8.48 |
+
+Where a T2 + cut token goes (fine profile, mean of positions 0-255, ms): output head 28.0, w1 / w3 24.8, qkv 14.3,
+cache write + RoPE 12.1, w2 11.5, SwiGLU 5.9, o 5.4, norms + embedding 4.7; scores 9.2 (subset table 4.0, far keys
+3.5, int8 window 1.7), softmax + division 4.0, values 11.7 (PIE products 4.7, decoding 3.6, window copy 1.6, weight
+bytes 1.2, packing 0.6). **Answer: the cache is 0.60 MB instead of 1.67 MB at 6 % fewer tokens per second than the
+base (was 11 %); at position 255 T2 is now faster than the base (142.9 vs 148.1 ms).** The weights (84 of 132 ms)
+dominate the token: the attention has at most ~10 ms left to gain (estimate). Next ideas: a value kernel on the
+packed 2-bit codes (no decoding), a cheaper subset table, a longer context where the cut pays more.
 
 ## Future work
 

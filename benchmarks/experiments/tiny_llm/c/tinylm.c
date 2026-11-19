@@ -8,9 +8,18 @@
 
 /* Time per part of a token (optional): TINYLM_PROF(k) adds the time since the previous mark to part k
    (0 embedding / norms, 1 q k v, 2 attention values, 3 o, 4 w1 w3, 5 SwiGLU, 6 w2, 7 output head, 8 attention rope
-   and int8 cache, 9 attention scores, 10 attention softmax, 11 attention division). Empty by default. */
+   and int8 cache, 9 attention scores, 10 attention softmax, 11 attention division). Empty by default.
+   TINYLM_FINE_PROF: also the parts inside the attention, taken out of the parts above (12 values: pack p and the
+   scales, 13 values: decode the kept 2-bit groups, 14 values: copy the int8 window, 15 values: weights split in
+   bytes, 16 scores: int8 window products, 17 scores: subset-sum table of q, 18 values: plain sums of a head with a
+   weight past 32 bits; 2 is then the value products only). */
 #ifndef TINYLM_PROF
 #define TINYLM_PROF(k)
+#endif
+#ifdef TINYLM_FINE_PROF
+#define TINYLM_PROF_FINE(k) TINYLM_PROF(k)
+#else
+#define TINYLM_PROF_FINE(k)
 #endif
 
 /* TINYLM_BLOCK(m, l): the weights layer l runs on (default: its own block). A board can point it elsewhere, e.g. the
@@ -356,6 +365,7 @@ static void low_bit_scores(const TinyModel *m, TinyState *s, int l, int h, int t
         s->t3[r] = d;
     }
 #endif
+    TINYLM_PROF_FINE(16);
     int16_t *lut = s->lut;
     int32_t sq = 0;
     for (int g = 0; g < hd / 8; g++) {
@@ -367,6 +377,7 @@ static void low_bit_scores(const TinyModel *m, TinyState *s, int l, int h, int t
         }
     }
     for (int i = 0; i < hd; i++) sq += qq[i];
+    TINYLM_PROF_FINE(17);
     int64_t mx = INT64_MIN;
     for (int j = 0; j <= t; j++) {
         if (t - j < N) {
@@ -418,16 +429,21 @@ static int low_bit_values(const TinyModel *m, TinyState *s, int l, int h, int t)
     }
     for (int j = 4 * gf; j <= t; j++, n++) { p[n] = p[j]; s->vmj[n] = j < j0 ? vm2[j] : vm8[j % N]; }
     const int part = j0 > 4 * gf;                   /* positions 4 gf..j0 - 1: one more word */
+    TINYLM_PROF_FINE(12);
     for (int i = 0; i < hd; i++) {
         uint32_t *row = (uint32_t *)(s->vdec + (long)i * m->seq);
-        const uint8_t *src = vb + (long)i * (m->seq / 4), *w8 = (const uint8_t *)v8 + (long)i * N;
+        const uint8_t *src = vb + (long)i * (m->seq / 4);
         for (int w = 0; w < ng; w++) row[w] = dec4[src[kg[w]]];
         if (part) row[ng] = dec4[src[gf]];
-        /* window positions j0..t sit in slots s0.. (then 0..): at most two runs */
+    }
+    TINYLM_PROF_FINE(13);
+    for (int i = 0; i < hd; i++) {   /* window positions j0..t sit in slots s0.. (then 0..): at most two runs */
+        const uint8_t *w8 = (const uint8_t *)v8 + (long)i * N;
         uint8_t *dst = s->vdec + (long)i * m->seq + 4 * ng + (j0 - 4 * gf);
         memcpy(dst, w8 + s0, n1);
         memcpy(dst + n1, w8, t - j0 + 1 - n1);
     }
+    TINYLM_PROF_FINE(14);
 #else
     int8_t *vd = (int8_t *)s->vdec;
     for (int j = 0; j < j0; j++) {
@@ -547,33 +563,39 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             const int nv = m->kv_recent ? low_bit_values(m, s, l, h, t) : t + 1;   /* counted with the values */
             int64_t acc[256];
 #ifdef TINYLM_DOT_ROWS_U8
-            /* acc_i = sum_j pv_j vq_ji, pv_j = p_j vm_j < 2^32, as row products of the transposed V cache (row i =
-               value i + 128 of every position, unsigned) with the weights byte by byte: pv_j = sum_c 256^c b_cj,
-               sum_j pv_j (vq_ji + 128) = sum_c 256^c dot_c[i], dot_c[i] <= 255 * 255 * seq < 2^31; then the 128 of
-               every position comes off: 128 * sum_j pv_j. As many bytes as the largest weight needs (at most 4,
-               pv < 2^32: checked). The same integers as the loop below. */
+            /* acc_i = sum_j pv_j vq_ji, pv_j = p_j vm_j < 2^47 (p < 2^16, vm < 2^31), as row products of the transposed
+               V cache (row i = value i + 128 of every position, unsigned) with the weights byte by byte: pv_j = sum_c
+               256^c b_cj, sum_j pv_j (vq_ji + 128) = sum_c 256^c dot_c[i], dot_c[i] <= 255 * 255 * seq < 2^31; then
+               the 128 of every position comes off: 128 * sum_j pv_j. As many bytes as the largest weight needs (at
+               most 6). Every term is >= 0 and adds up to sum_j pv_j (vq_ji + 128) <= 255 sum_j pv_j: below 2^63
+               (checked, else the plain sums). The same integers as the loop below. */
             {
-                uint32_t *pv = (uint32_t *)s->t3;              /* t3: free until the feed-forward */
-                uint32_t pvmax = 0;
+                uint8_t *b = (uint8_t *)s->t1;                 /* t1 (16 seq bytes): free in the attention; 6 vectors */
+                uint32_t *lo = (uint32_t *)s->t3, *hi = (uint32_t *)s->t3 + m->seq;   /* t3: free; pv in 2 halves */
+                uint32_t hmax = 0, lmax = 0;
                 int64_t pvsum = 0;
-                int wide = 0;
                 for (int j = 0; j < nv; j++) {
-                    const int64_t w = (int64_t)s->p[j] * vmh[j];
-                    if (w >> 32) wide = 1;
-                    pv[j] = (uint32_t)w; pvsum += w;
-                    if (pv[j] > pvmax) pvmax = pv[j];
+                    const uint64_t w = (uint64_t)s->p[j] * (uint32_t)vmh[j];
+                    pvsum += (int64_t)w;
+                    lo[j] = (uint32_t)w; hi[j] = (uint32_t)(w >> 32);
+                    lmax |= lo[j]; hmax |= hi[j];
                 }
+                const uint64_t pvmax = ((uint64_t)hmax << 32) | lmax;   /* the OR: same top byte as the max */
                 int nb = 1;
-                while (nb < 4 && (pvmax >> (8 * nb))) nb++;
+                while (nb < 6 && (pvmax >> (8 * nb))) nb++;
+                for (int c = 0; c < nb && c < 4; c++)
+                    for (int j = 0; j < nv; j++) b[(long)c * m->seq + j] = (uint8_t)(lo[j] >> (8 * c));
+                for (int c = 4; c < nb; c++)
+                    for (int j = 0; j < nv; j++) b[(long)c * m->seq + j] = (uint8_t)(hi[j] >> (8 * (c - 4)));
+                const int wide = pvsum > INT64_MAX / 255;
                 for (int i = 0; i < hd; i++) acc[i] = -128 * pvsum;
-                uint8_t *b = (uint8_t *)s->iq;                 /* iq: free here; nb chunk vectors of t + 1 bytes */
-                for (int j = 0; j < nv; j++)
-                    for (int c = 0; c < nb; c++) b[(long)c * m->seq + j] = (uint8_t)(pv[j] >> (8 * c));
                 int32_t dot[256];
+                TINYLM_PROF_FINE(15);
                 for (int c = 0; c < nb && !wide; c++) {
                     TINYLM_DOT_ROWS_U8(b + (long)c * m->seq, nv, (const uint8_t *)vqh, m->seq, hd, dot);
                     for (int i = 0; i < hd; i++) acc[i] += (int64_t)dot[i] << (8 * c);
                 }
+                TINYLM_PROF_FINE(2);
                 if (wide) {                                    /* a weight past 32 bits: the plain sums */
                     for (int i = 0; i < hd; i++) acc[i] = 0;
                     for (int j = 0; j < nv; j++) {
@@ -583,6 +605,7 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
                     }
                 }
             }
+            TINYLM_PROF_FINE(18);
 #else
             /* key by key (rows of the V cache read in order): sum_j p_j vm_j vq_ji. Weights pv < 2^32 (p < 2^16,
                vm >= 1) go in two 16-bit halves into int32 sums: |half * vq| < 2^16 * 127, at most seq <= 258 keys
@@ -835,7 +858,7 @@ int tinylm_state_init(TinyState *s, const TinyModel *m) {
     int big = m->hidden > m->dim ? m->hidden : m->dim;
     if (m->hidden < 2 * m->seq) return -1;  /* t2 doubles as the int64 score buffer */
 #ifdef TINYLM_DOT_ROWS_U8
-    if (big < 4 * m->seq) return -1;        /* iq holds the 4 byte vectors of the attention weights */
+    if (big < 4 * m->seq) return -1;        /* t1 (4 big bytes) holds the 6 byte vectors of the attention weights */
 #endif
     memset(s, 0, sizeof(*s));
     const int hd = m->dim / m->heads;
