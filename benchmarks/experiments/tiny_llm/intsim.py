@@ -213,6 +213,8 @@ def quant_kv(x, bits):
     return torch.where(x >= 0, 1, -1), 127 * m
 
 
+ATTN_STATS = None   # attn_cut.py sets a list: the share of far keys with p > 0, per attention call
+
 KV_MODE_TAG = {"token": "t", "channel": "c", "qjl": "q", "hadqjl": "h", "rot": "r", "res": "x", "pre": "p", "rotq": "R"}
 KV_GROUP = 32    # tokens per group of the per-channel modes (KIVI's group size)
 
@@ -329,7 +331,13 @@ def attention(q, k, v, heads, C, S, exp_t, kv=None, tq=None):
     else:           # learned temperature: the index in 2^-10 steps, times tq (Q16), then >> 26
         x = check(check(dist * qm[..., None], 62, "score distance") // (16129 << 10) * tq.view(1, -1, 1, 1), 62,
                   "tempered distance") >> 26
-    p = torch.where(causal & (x < EXP_N), exp_t[x.clamp(max=EXP_N - 1)], 0)
+    # experiment (attn_cut.py): kv["p_cut"] = n drops the keys with p < p_max e^-n (exp-table index >= 128 n)
+    cut = EXP_N if kv.get("p_cut") is None else min(EXP_N, round(kv["p_cut"] * 2 ** EXP_Q))
+    p = torch.where(causal & (x < cut), exp_t[x.clamp(max=EXP_N - 1)], 0)
+    if ATTN_STATS is not None:  # attn_cut.py: keys before the last 32 positions with p > 0, of all of them
+        pos = torch.arange(t, device=q.device)
+        far = pos[:, None] - pos[None, :] >= 32
+        ATTN_STATS.append(((p > 0) & far).sum().item() / (far.sum().item() * b * heads))
     P = p.sum(-1, keepdim=True)
     if recent:
         acc = mm(torch.where(near, 0, p) * vm[..., None, :], vq) + mm(torch.where(near, p, 0) * vm8[..., None, :], v8)

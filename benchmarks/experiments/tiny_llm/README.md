@@ -610,6 +610,31 @@ to internal RAM first did not help, 7.50 tokens/s: the cost is the decoding, not
 chip without SIMD (the bench: sign scores 8.7-22x faster than plain int8) or a value kernel on the packed bits
 (future work).
 
+### Reading the cache: memory down, time up (Nov 19, work in progress)
+
+**What T2 achieved:** the KV cache is 2.8x smaller (1.67 -> 0.60 MB), exact on the chip. **What it costs:** every new
+token reads every earlier position, and reading the packed bits takes time: the cost per position grows from 0.157
+(base) to 0.241 ms (T2, both measured on the S3: 108.6 -> 148.5 and 116.7 -> 178.1 ms from position 0 to 255).
+The time is in unpacking the values (4 positions share a byte), not in the PSRAM. We are working on reading fewer
+positions:
+
+- **Exact zeros are rare.** The exp table gives p = 0 only ~11.8 nats below the maximum: 73-100 % of the keys before
+  the last 32 keep p > 0 (seed 42, 8 windows), so skipping them saves only ~5-10 % of the value decoding.
+- **An approximate cut** drops the keys with p < p_max e^-n (`attn_cut.py`, intsim `kv["p_cut"]`). Seed 42 (explored
+  first, a ranking), validation, 1024 windows: n = 6 keeps 39 % of T2's far keys for +0.0005 loss, n = 4 keeps 21 %
+  for +0.005.
+- **Page summaries do not work with 1-bit keys** (`quest_probe.py`, seed 42, 64 windows, a ranking): the Quest bound
+  (per-channel max / min of a page's keys) is almost never below the cut, because inside a page nearly every channel
+  has both a +1 and a -1. At n = 6 it skips 6.5 / 0.4 / 0.0 % of the far pages of 4 / 8 / 16 positions, while 46 /
+  39 / 32 % could be skipped (oracle). Not pursued: the scores of every position are still computed; the cut saves
+  only the values.
+
+**Rule (written before the 3 seeds):** for base and T2, cuts n = 8, 6, 4, 3, 2, 1, validation only. The chosen n is
+the smallest whose mean loss rise over no cut (paired by seed) is below 0.003, a tenth of the 0.03 "usable" limit
+of the KV study. Only then the C:
+values stored per position (so a skipped position is not decoded), the cut in tinylm.c, exact against intsim.py with
+the same cut, then the S3 time per position. Speed is claimed only from the chip.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
