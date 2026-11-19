@@ -474,3 +474,10 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
      (sink), the top-1 key, the recent 32.
 - Questions: (1) are there outlier key channels here? (2) is the K3 / K2 damage bias, shift or noise? (3) does the
   exponential matter (KL vs prediction)? (4) where does it land? Then tests chosen from the answers (rule first).
+- Result (results/kv_modes3.json, README "Why keys break" + the section above it): K4 pre +0.0010, K3 pre +0.0054
+  (per token +0.0079 / +0.048); K2 pre +0.140 (scale bias dominates at 2 bits). Factors from s42: K2 x 1.4, K2 rot x 1.3,
+  V2 x 1.2 help (> 2 sd), K1 x 1.75 does not. Recent int8 window N 32 + K2 rot x 1.3 + V2 x 1.2: +0.0079, 0.64 MB
+  (computed) -> fewest bytes among usable: goes to C by the rule. K3 pre V3 N 16 +0.0029 at 0.80 MB.
+- kv8 script bug: `grep -o '[0-9.]*'` on "K2 1.4," also caught the "2" of "K2" -> the K2 pre runs FAILED; fixed with
+  sed, rerun (logs deleted first).
+- Next: chip cost (kv_attn_bench.py): window (two read paths), rotated keys (q rotated once), RoPE on read (pre).

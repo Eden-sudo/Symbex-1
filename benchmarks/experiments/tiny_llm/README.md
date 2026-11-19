@@ -422,6 +422,39 @@ factor of (c), V2 x 1.2 = (c)'s choice on seed 42).
 K3 pre V3 0.74 MB, K3 pre V4 0.84, K4 pre V3 0.84, K2 pre V8 1.13, K3 pre V8 1.23 (KV4 0.88). Same rule: usable d < 0.03, beats KV4
 if usable with fewer bytes than 0.88 MB. Cost on the chip (not measured): RoPE on every key read (KVQuant fuses it).
 
+**Result (both rules, 3 seeds, validation, results/kv_modes3.json; reference int8 1.5307, KV4 +0.0098 at 0.885 MB):**
+
+| config | d ± sd | MB (computed) | |
+|---|---|---|---|
+| K8 V4 | +0.0017 ± 0.0001 | 1.28 | free |
+| K8 V3 | +0.0092 ± 0.0003 | 1.18 | usable |
+| K3 V8 / K3 V4 / K3 V3 (per token) | +0.048 / +0.050 / +0.058 | | no |
+| K4 V3 | +0.0173 ± 0.0006 | 0.79 | beats KV4 |
+| K4 V2 / K3 V2 / K2 V4 | +0.067 / +0.117 / +0.202 | | no |
+| K3 V3, recent N = 16 / 32 / 64 | +0.0079 / +0.0039 / +0.0014 | 0.75 / 0.81 / 0.93 | N 16, 32 beat KV4 |
+| K2 V2, N = 16 / 32 / 64 | +0.109 / +0.069 / +0.033 | | no |
+| K1 x pi/2 V2, N = 16 / 32 / 64 | +0.160 / +0.119 / +0.072 | | no |
+| K1 x 1.75 (s42 choice) | +0.232 ± 0.007 | | pi/2 +0.244 ± 0.008: does not help |
+| K2 x 1.4 (s42 choice) | +0.075 ± 0.003 | | factor 1 +0.200: helps |
+| K2 rot x 1.3 (s42 choice) | +0.043 ± 0.002 | | factor 1 +0.076: helps |
+| V2 x 1.2 (s42 choice) | +0.025 ± 0.001 | 1.08 | factor 1 +0.058: helps, usable |
+| K2 rot x 1.3 + V2 x 1.2 | +0.070 ± 0.000 | 0.49 | no |
+| **K2 rot x 1.3 + V2 x 1.2, N = 32** | **+0.0079 ± 0.0003** | **0.64** | **beats KV4, fewest bytes** |
+| K4 pre / K3 pre / K2 pre (V8) | +0.0010 / +0.0054 / +0.140 | 1.33 / 1.23 / 1.13 | per token: +0.0079 / +0.048 / +0.200 |
+| K2 pre x 1.4 (V8) | +0.074 ± 0.002 | 1.13 | = K2 per token x 1.4 |
+| K3 pre V3 / V4, K4 pre V3 | +0.0148 / +0.0070 / +0.0103 | 0.74 / 0.84 / 0.84 | beat KV4 |
+| K3 pre V3, N = 16 / 32 | +0.0029 / +0.0016 | 0.80 / 0.85 | beat KV4, ~free |
+| K2 pre x 1.4 + V2 x 1.2, N = 32 | +0.0181 ± 0.0003 | 0.68 | beats KV4 |
+
+Seeds 43 / 44 alone (the factors were chosen on 42) give the same within 0.0005 for every factor config.
+
+**Answer:** the diagnosis was right. Keys per channel before RoPE make K3 / K4 nearly free (9x / 8x less damage than per
+token); at 2 bits the temperature bias dominates and the scale factor fixes most of it, rotation the rest. The recent
+int8 window (32 tokens) takes most of what is left: K2 rot x 1.3 + V2 x 1.2 + N 32 is usable at 0.64 MB (int8 1.67 MB,
+2.6x less; KV4 0.88). By the rule it goes to C next. Close second with ~no loss: K3 pre V3 N 16 (+0.003, 0.80 MB).
+Not measured yet: the chip cost of the window (two read paths), the key rotation (rotate q once per query: ESTIMATE
+cheap) and RoPE on every key read (pre).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

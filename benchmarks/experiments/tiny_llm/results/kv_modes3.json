@@ -1,0 +1,563 @@
+{
+ "what": "intsim KV cache: 3 bits, mixed K / V bits, recent int8 window (--kv-recent), key / value scale factors (chosen on seed 42), keys per channel before RoPE (--k-mode pre, KVQuant); binary_d384l8 s42-44, validation 1024 windows, no retraining; d = loss - loss(kv8), sd over seeds (n - 1)",
+ "bytes": "computed (not measured): 15M model, 256 tokens, 8 layers x 6 heads; per 64-value vector bits x 8 B + int32 scale per token and head (4 B) or per channel and group of 32 tokens (pre: 8 B); a recent window of N counted as N int8 tokens (68 B) + 256 - N low-bit ones; int8 1.67 MB, KV4 0.885 MB",
+ "ref_kv8": {
+  "42": 1.5318,
+  "43": 1.5311,
+  "44": 1.5292
+ },
+ "configs": {
+  "k3t_v8t": {
+   "args": "--k-bits 3 --v-bits 8",
+   "per_seed": {
+    "42": 1.5824,
+    "43": 1.5766,
+    "44": 1.5768
+   },
+   "bytes_MB": 1.18,
+   "loss_mean": 1.5786,
+   "d_mean": 0.0479,
+   "d_sd": 0.0026,
+   "seeds": 3
+  },
+  "k8t_v3t": {
+   "args": "--k-bits 8 --v-bits 3",
+   "per_seed": {
+    "42": 1.5413,
+    "43": 1.54,
+    "44": 1.5385
+   },
+   "bytes_MB": 1.18,
+   "loss_mean": 1.5399,
+   "d_mean": 0.0092,
+   "d_sd": 0.0003,
+   "seeds": 3
+  },
+  "k8t_v4t": {
+   "args": "--k-bits 8 --v-bits 4",
+   "per_seed": {
+    "42": 1.5336,
+    "43": 1.5328,
+    "44": 1.5308
+   },
+   "bytes_MB": 1.278,
+   "loss_mean": 1.5324,
+   "d_mean": 0.0017,
+   "d_sd": 0.0001,
+   "seeds": 3
+  },
+  "k3t_v3t": {
+   "args": "--k-bits 3 --v-bits 3",
+   "per_seed": {
+    "42": 1.5929,
+    "43": 1.5859,
+    "44": 1.5872
+   },
+   "bytes_MB": 0.688,
+   "loss_mean": 1.5887,
+   "d_mean": 0.058,
+   "d_sd": 0.0032,
+   "seeds": 3
+  },
+  "k3t_v4t": {
+   "args": "--k-bits 3 --v-bits 4",
+   "per_seed": {
+    "42": 1.5843,
+    "43": 1.5781,
+    "44": 1.5795
+   },
+   "bytes_MB": 0.786,
+   "loss_mean": 1.5806,
+   "d_mean": 0.0499,
+   "d_sd": 0.0028,
+   "seeds": 3
+  },
+  "k4t_v3t": {
+   "args": "--k-bits 4 --v-bits 3",
+   "per_seed": {
+    "42": 1.5488,
+    "43": 1.5479,
+    "44": 1.5472
+   },
+   "bytes_MB": 0.786,
+   "loss_mean": 1.548,
+   "d_mean": 0.0173,
+   "d_sd": 0.0006,
+   "seeds": 3
+  },
+  "k4t_v2t": {
+   "args": "--k-bits 4 --v-bits 2",
+   "per_seed": {
+    "42": 1.5976,
+    "43": 1.5988,
+    "44": 1.5975
+   },
+   "bytes_MB": 0.688,
+   "loss_mean": 1.598,
+   "d_mean": 0.0673,
+   "d_sd": 0.0013,
+   "seeds": 3
+  },
+  "k3t_v2t": {
+   "args": "--k-bits 3 --v-bits 2",
+   "per_seed": {
+    "42": 1.6499,
+    "43": 1.6453,
+    "44": 1.6466
+   },
+   "bytes_MB": 0.59,
+   "loss_mean": 1.6473,
+   "d_mean": 0.1166,
+   "d_sd": 0.0021,
+   "seeds": 3
+  },
+  "k2t_v4t": {
+   "args": "--k-bits 2 --v-bits 4",
+   "per_seed": {
+    "42": 1.7205,
+    "43": 1.7489,
+    "44": 1.7286
+   },
+   "bytes_MB": 0.688,
+   "loss_mean": 1.7327,
+   "d_mean": 0.202,
+   "d_sd": 0.0147,
+   "seeds": 3
+  },
+  "k2t_v2t_r16": {
+   "args": "--k-bits 2 --v-bits 2 --kv-recent 16",
+   "per_seed": {
+    "42": 1.6359,
+    "43": 1.638,
+    "44": 1.6442
+   },
+   "bytes_MB": 0.565,
+   "loss_mean": 1.6394,
+   "d_mean": 0.1087,
+   "d_sd": 0.0057,
+   "seeds": 3
+  },
+  "k2t_v2t_r32": {
+   "args": "--k-bits 2 --v-bits 2 --kv-recent 32",
+   "per_seed": {
+    "42": 1.599,
+    "43": 1.5976,
+    "44": 1.603
+   },
+   "bytes_MB": 0.639,
+   "loss_mean": 1.5999,
+   "d_mean": 0.0692,
+   "d_sd": 0.004,
+   "seeds": 3
+  },
+  "k2t_v2t_r64": {
+   "args": "--k-bits 2 --v-bits 2 --kv-recent 64",
+   "per_seed": {
+    "42": 1.5642,
+    "43": 1.5615,
+    "44": 1.5648
+   },
+   "bytes_MB": 0.786,
+   "loss_mean": 1.5635,
+   "d_mean": 0.0328,
+   "d_sd": 0.0026,
+   "seeds": 3
+  },
+  "k1tg1.5708_v2t_r16": {
+   "args": "--k-bits 1 --v-bits 2 --k-scale 1.5708 --kv-recent 16",
+   "per_seed": {
+    "42": 1.6896,
+    "43": 1.6828,
+    "44": 1.7008
+   },
+   "bytes_MB": 0.473,
+   "loss_mean": 1.6911,
+   "d_mean": 0.1604,
+   "d_sd": 0.0102,
+   "seeds": 3
+  },
+  "k1tg1.5708_v2t_r32": {
+   "args": "--k-bits 1 --v-bits 2 --k-scale 1.5708 --kv-recent 32",
+   "per_seed": {
+    "42": 1.6518,
+    "43": 1.6417,
+    "44": 1.6557
+   },
+   "bytes_MB": 0.553,
+   "loss_mean": 1.6497,
+   "d_mean": 0.119,
+   "d_sd": 0.008,
+   "seeds": 3
+  },
+  "k1tg1.5708_v2t_r64": {
+   "args": "--k-bits 1 --v-bits 2 --k-scale 1.5708 --kv-recent 64",
+   "per_seed": {
+    "42": 1.6066,
+    "43": 1.5956,
+    "44": 1.6052
+   },
+   "bytes_MB": 0.713,
+   "loss_mean": 1.6025,
+   "d_mean": 0.0718,
+   "d_sd": 0.0063,
+   "seeds": 3
+  },
+  "k3t_v3t_r16": {
+   "args": "--k-bits 3 --v-bits 3 --kv-recent 16",
+   "per_seed": {
+    "42": 1.5399,
+    "43": 1.5392,
+    "44": 1.5368
+   },
+   "bytes_MB": 0.75,
+   "loss_mean": 1.5386,
+   "d_mean": 0.0079,
+   "d_sd": 0.0003,
+   "seeds": 3
+  },
+  "k3t_v3t_r32": {
+   "args": "--k-bits 3 --v-bits 3 --kv-recent 32",
+   "per_seed": {
+    "42": 1.5356,
+    "43": 1.5352,
+    "44": 1.533
+   },
+   "bytes_MB": 0.811,
+   "loss_mean": 1.5346,
+   "d_mean": 0.0039,
+   "d_sd": 0.0002,
+   "seeds": 3
+  },
+  "k3t_v3t_r64": {
+   "args": "--k-bits 3 --v-bits 3 --kv-recent 64",
+   "per_seed": {
+    "42": 1.533,
+    "43": 1.5325,
+    "44": 1.5307
+   },
+   "bytes_MB": 0.934,
+   "loss_mean": 1.5321,
+   "d_mean": 0.0014,
+   "d_sd": 0.0002,
+   "seeds": 3
+  },
+  "k1tg1.4_v8t": {
+   "args": "--k-bits 1 --k-scale 1.4",
+   "per_seed": {
+    "42": 1.8088
+   },
+   "bytes_MB": 0.983,
+   "loss_mean": 1.8088,
+   "d_mean": 0.277,
+   "seeds": 1
+  },
+  "k1tg1.75_v8t": {
+   "args": "--k-bits 1 --k-scale 1.75",
+   "per_seed": {
+    "42": 1.7663,
+    "43": 1.7685,
+    "44": 1.7538
+   },
+   "bytes_MB": 0.983,
+   "loss_mean": 1.7629,
+   "d_mean": 0.2322,
+   "d_sd": 0.0067,
+   "seeds": 3
+  },
+  "k1tg1.9_v8t": {
+   "args": "--k-bits 1 --k-scale 1.9",
+   "per_seed": {
+    "42": 1.7747
+   },
+   "bytes_MB": 0.983,
+   "loss_mean": 1.7747,
+   "d_mean": 0.2429,
+   "seeds": 1
+  },
+  "k2tg1.1_v8t": {
+   "args": "--k-bits 2 --k-scale 1.1",
+   "per_seed": {
+    "42": 1.6592
+   },
+   "bytes_MB": 1.081,
+   "loss_mean": 1.6592,
+   "d_mean": 0.1274,
+   "seeds": 1
+  },
+  "k2tg1.2_v8t": {
+   "args": "--k-bits 2 --k-scale 1.2",
+   "per_seed": {
+    "42": 1.6284
+   },
+   "bytes_MB": 1.081,
+   "loss_mean": 1.6284,
+   "d_mean": 0.0966,
+   "seeds": 1
+  },
+  "k2tg1.3_v8t": {
+   "args": "--k-bits 2 --k-scale 1.3",
+   "per_seed": {
+    "42": 1.6138
+   },
+   "bytes_MB": 1.081,
+   "loss_mean": 1.6138,
+   "d_mean": 0.082,
+   "seeds": 1
+  },
+  "k2tg1.4_v8t": {
+   "args": "--k-bits 2 --k-scale 1.4",
+   "per_seed": {
+    "42": 1.6093,
+    "43": 1.6055,
+    "44": 1.6014
+   },
+   "bytes_MB": 1.081,
+   "loss_mean": 1.6054,
+   "d_mean": 0.0747,
+   "d_sd": 0.0027,
+   "seeds": 3
+  },
+  "k2rg1.1_v8t": {
+   "args": "--k-bits 2 --k-mode rot --k-scale 1.1",
+   "per_seed": {
+    "42": 1.5845
+   },
+   "bytes_MB": 1.081,
+   "loss_mean": 1.5845,
+   "d_mean": 0.0527,
+   "seeds": 1
+  },
+  "k2rg1.2_v8t": {
+   "args": "--k-bits 2 --k-mode rot --k-scale 1.2",
+   "per_seed": {
+    "42": 1.5766
+   },
+   "bytes_MB": 1.081,
+   "loss_mean": 1.5766,
+   "d_mean": 0.0448,
+   "seeds": 1
+  },
+  "k2rg1.3_v8t": {
+   "args": "--k-bits 2 --k-mode rot --k-scale 1.3",
+   "per_seed": {
+    "42": 1.5764,
+    "43": 1.573,
+    "44": 1.5712
+   },
+   "bytes_MB": 1.081,
+   "loss_mean": 1.5735,
+   "d_mean": 0.0428,
+   "d_sd": 0.0015,
+   "seeds": 3
+  },
+  "k2rg1.4_v8t": {
+   "args": "--k-bits 2 --k-mode rot --k-scale 1.4",
+   "per_seed": {
+    "42": 1.5811
+   },
+   "bytes_MB": 1.081,
+   "loss_mean": 1.5811,
+   "d_mean": 0.0493,
+   "seeds": 1
+  },
+  "k8t_v2tg1.1": {
+   "args": "--k-bits 8 --v-bits 2 --v-scale 1.1",
+   "per_seed": {
+    "42": 1.5653
+   },
+   "bytes_MB": 1.081,
+   "loss_mean": 1.5653,
+   "d_mean": 0.0335,
+   "seeds": 1
+  },
+  "k8t_v2tg1.2": {
+   "args": "--k-bits 8 --v-bits 2 --v-scale 1.2",
+   "per_seed": {
+    "42": 1.556,
+    "43": 1.5572,
+    "44": 1.5542
+   },
+   "bytes_MB": 1.081,
+   "loss_mean": 1.5558,
+   "d_mean": 0.0251,
+   "d_sd": 0.001,
+   "seeds": 3
+  },
+  "k8t_v2tg1.3": {
+   "args": "--k-bits 8 --v-bits 2 --v-scale 1.3",
+   "per_seed": {
+    "42": 1.557
+   },
+   "bytes_MB": 1.081,
+   "loss_mean": 1.557,
+   "d_mean": 0.0252,
+   "seeds": 1
+  },
+  "k8t_v2tg1.4": {
+   "args": "--k-bits 8 --v-bits 2 --v-scale 1.4",
+   "per_seed": {
+    "42": 1.5669
+   },
+   "bytes_MB": 1.081,
+   "loss_mean": 1.5669,
+   "d_mean": 0.0351,
+   "seeds": 1
+  },
+  "k2rg1.3_v2tg1.2": {
+   "args": "--k-bits 2 --k-mode rot --k-scale 1.3 --v-bits 2 --v-scale 1.2",
+   "per_seed": {
+    "42": 1.6023,
+    "43": 1.6015,
+    "44": 1.5989
+   },
+   "bytes_MB": 0.492,
+   "loss_mean": 1.6009,
+   "d_mean": 0.0702,
+   "d_sd": 0.0004,
+   "seeds": 3
+  },
+  "k2rg1.3_v2tg1.2_r32": {
+   "args": "--k-bits 2 --k-mode rot --k-scale 1.3 --v-bits 2 --v-scale 1.2 --kv-recent 32",
+   "per_seed": {
+    "42": 1.5399,
+    "43": 1.5387,
+    "44": 1.5373
+   },
+   "bytes_MB": 0.639,
+   "loss_mean": 1.5386,
+   "d_mean": 0.0079,
+   "d_sd": 0.0003,
+   "seeds": 3
+  },
+  "k4p_v8t": {
+   "args": "--k-bits 4 --k-mode pre",
+   "per_seed": {
+    "42": 1.5327,
+    "43": 1.532,
+    "44": 1.5303
+   },
+   "bytes_MB": 1.327,
+   "loss_mean": 1.5317,
+   "d_mean": 0.001,
+   "d_sd": 0.0001,
+   "seeds": 3
+  },
+  "k3p_v8t": {
+   "args": "--k-bits 3 --k-mode pre",
+   "per_seed": {
+    "42": 1.537,
+    "43": 1.5365,
+    "44": 1.5349
+   },
+   "bytes_MB": 1.229,
+   "loss_mean": 1.5361,
+   "d_mean": 0.0054,
+   "d_sd": 0.0003,
+   "seeds": 3
+  },
+  "k2p_v8t": {
+   "args": "--k-bits 2 --k-mode pre",
+   "per_seed": {
+    "42": 1.6669,
+    "43": 1.6724,
+    "44": 1.6724
+   },
+   "bytes_MB": 1.13,
+   "loss_mean": 1.6706,
+   "d_mean": 0.1399,
+   "d_sd": 0.0042,
+   "seeds": 3
+  },
+  "k3p_v3t": {
+   "args": "--k-bits 3 --k-mode pre --v-bits 3",
+   "per_seed": {
+    "42": 1.5467,
+    "43": 1.5452,
+    "44": 1.5445
+   },
+   "bytes_MB": 0.737,
+   "loss_mean": 1.5455,
+   "d_mean": 0.0148,
+   "d_sd": 0.0006,
+   "seeds": 3
+  },
+  "k3p_v4t": {
+   "args": "--k-bits 3 --k-mode pre --v-bits 4",
+   "per_seed": {
+    "42": 1.5387,
+    "43": 1.5381,
+    "44": 1.5362
+   },
+   "bytes_MB": 0.836,
+   "loss_mean": 1.5377,
+   "d_mean": 0.007,
+   "d_sd": 0.0001,
+   "seeds": 3
+  },
+  "k4p_v3t": {
+   "args": "--k-bits 4 --k-mode pre --v-bits 3",
+   "per_seed": {
+    "42": 1.5422,
+    "43": 1.5409,
+    "44": 1.5398
+   },
+   "bytes_MB": 0.836,
+   "loss_mean": 1.541,
+   "d_mean": 0.0103,
+   "d_sd": 0.0004,
+   "seeds": 3
+  },
+  "k3p_v3t_r16": {
+   "args": "--k-bits 3 --k-mode pre --v-bits 3 --kv-recent 16",
+   "per_seed": {
+    "42": 1.5346,
+    "43": 1.5339,
+    "44": 1.5322
+   },
+   "bytes_MB": 0.796,
+   "loss_mean": 1.5336,
+   "d_mean": 0.0029,
+   "d_sd": 0.0001,
+   "seeds": 3
+  },
+  "k3p_v3t_r32": {
+   "args": "--k-bits 3 --k-mode pre --v-bits 3 --kv-recent 32",
+   "per_seed": {
+    "42": 1.5333,
+    "43": 1.5328,
+    "44": 1.5309
+   },
+   "bytes_MB": 0.854,
+   "loss_mean": 1.5323,
+   "d_mean": 0.0016,
+   "d_sd": 0.0001,
+   "seeds": 3
+  },
+  "k2pg1.4_v8t": {
+   "args": "--k-bits 2 --k-mode pre --k-scale 1.4",
+   "per_seed": {
+    "42": 1.6078,
+    "43": 1.6062,
+    "44": 1.6006
+   },
+   "bytes_MB": 1.13,
+   "loss_mean": 1.6049,
+   "d_mean": 0.0742,
+   "d_sd": 0.0024,
+   "seeds": 3
+  },
+  "k2pg1.4_v2tg1.2_r32": {
+   "args": "--k-bits 2 --k-mode pre --k-scale 1.4 --v-bits 2 --v-scale 1.2 --kv-recent 32",
+   "per_seed": {
+    "42": 1.5499,
+    "43": 1.5495,
+    "44": 1.5471
+   },
+   "bytes_MB": 0.682,
+   "loss_mean": 1.5488,
+   "d_mean": 0.0181,
+   "d_sd": 0.0003,
+   "seeds": 3
+  }
+ }
+}
