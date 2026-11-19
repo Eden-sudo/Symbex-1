@@ -456,6 +456,13 @@ int8 window (32 tokens) takes most of what is left: K2 rot x 1.3 + V2 x 1.2 + N 
 Not measured yet: the chip cost of the window (two read paths), the key rotation (rotate q once per query: ESTIMATE
 cheap) and RoPE on every key read (pre).
 
+**Chip form of the rotation (rule Nov 18 2026, before measuring):** `--k-mode rot` rebuilds every key in the original
+basis in floats (not what a chip does). `--k-mode rotq` is the chip form, all integers: keys stored as quant(H k / 8)
+(H = +-1 signed Sylvester Hadamard), the query rotated once, H q (int16, additions only), score = (H q) . code x scale
+/ 8. Smoke check (64 windows, s42, NOT a result): K8 rotq 1.5419 vs int8 1.5421; K2 x 1.3 V2 x 1.2 N 32: rotq 1.5489
+vs rot 1.5491. Run: rotq K2 x 1.3 + V2 x 1.2 + N 32, 3 seeds, 1024 windows. Rule: rotq replaces rot if its d is within
+2x the larger sd of rot's (+0.0079 ± 0.0003); otherwise the C has to rebuild keys (or the result does not hold).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

@@ -204,7 +204,7 @@ def quant_kv(x, bits):
     return torch.where(x >= 0, 1, -1), 127 * m
 
 
-KV_MODE_TAG = {"token": "t", "channel": "c", "qjl": "q", "hadqjl": "h", "rot": "r", "res": "x", "pre": "p"}
+KV_MODE_TAG = {"token": "t", "channel": "c", "qjl": "q", "hadqjl": "h", "rot": "r", "res": "x", "pre": "p", "rotq": "R"}
 KV_GROUP = 32    # tokens per group of the per-channel modes (KIVI's group size)
 
 
@@ -287,6 +287,10 @@ def attention(q, k, v, heads, C, S, exp_t, kv=None):
         if kv.get("keep_first"):
             q0, m0 = quant8(k[:, :, :1])
             kq, km = torch.cat((q0, kq[:, :, 1:]), 2), torch.cat((m0, km[:, :, 1:]), 2)
+    elif kv.get("k_mode") == "rotq":     # experiment, chip form of "rot": keys stored as Hk / 8, q rotated once
+        Hs = signed_hadamard(k.shape[-1], 1, kv.get("qjl_seed", 0), k.device).long()  # +-1: additions only
+        kq, km = quant_kv(rdiv(mm(k, Hs.T), torch.full_like(k, 8)), kv.get("k_bits", 8))
+        qr = mm(qq, Hs.T)                                                            # |qr| <= 127 x 64: int16
     else:
         kq, km = kv_store(k, kv.get("k_bits", 8), kv.get("k_mode", "token"), kv.get("qjl_m", 128),
                           kv.get("keep_first"), kv.get("qjl_seed", 0))
@@ -295,7 +299,10 @@ def attention(q, k, v, heads, C, S, exp_t, kv=None):
     vq, vm = kv_store(v, kv.get("v_bits", 8), kv.get("v_mode", "token"), kv.get("qjl_m", 128), kv.get("keep_first"))
     if kv.get("v_scale", 1.0) != 1.0:                                           # experiment: value scale times a factor
         vm = (vm.double() * kv["v_scale"]).round().long()
-    u = check(mm(qq, kq.transpose(-1, -2)) * km[..., None, :], 61, "scores")       # b, h, t(query), t(key)
+    if kv.get("k_mode") == "rotq":       # (Hq) . (Hk / 8) / 8 = q . k: the same units as the int8 scores
+        u = rdiv(check(mm(qr, kq.transpose(-1, -2)) * km[..., None, :], 61, "scores"), torch.tensor(8, device=q.device))
+    else:
+        u = check(mm(qq, kq.transpose(-1, -2)) * km[..., None, :], 61, "scores")   # b, h, t(query), t(key)
     causal = torch.ones(t, t, dtype=torch.bool, device=q.device).tril()
     recent = kv.get("recent", 0)
     if recent:      # experiment (KIVI's residual): the last `recent` keys and values of every query stay int8
@@ -478,8 +485,9 @@ def main():
                     help="bits of the KV cache (experiment, PC only: see quant_kv); result in intsim_kv<b>.json")
     ap.add_argument("--k-bits", type=int, choices=[8, 4, 3, 2, 1], help="keys only (overrides --kv-bits; see kv_store)")
     ap.add_argument("--v-bits", type=int, choices=[8, 4, 3, 2, 1], help="values only (overrides --kv-bits)")
-    ap.add_argument("--k-mode", choices=["token", "channel", "qjl", "hadqjl", "rot", "res", "pre"], default="token",
-                    help="pre = channel mode on the keys BEFORE RoPE, rotated after (KVQuant 2401.18079)")
+    ap.add_argument("--k-mode", choices=["token", "channel", "qjl", "hadqjl", "rot", "res", "pre", "rotq"], default="token",
+                    help="pre = channel mode on the keys BEFORE RoPE, rotated after (KVQuant 2401.18079); rotq = "
+                         "rot as the chip does it: keys stored as H k / 8, the query rotated once (integers)")
     ap.add_argument("--v-mode", choices=["token", "channel"], default="token")
     ap.add_argument("--qjl-m", type=int, default=128, help="--k-mode qjl: bits per key and head")
     ap.add_argument("--qjl-seed", type=int, default=0, help="seed of S (qjl / hadqjl / rot / res)")
