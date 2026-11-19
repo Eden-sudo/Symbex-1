@@ -515,6 +515,45 @@ the second pass saves: +3 % tokens/s for +0.12 loss. Overlapping the copy with t
 buffers = 442 KB) does not fit the ~250 KB of internal RAM. Not pursued; the ESTIMATE above (10.5-11 tokens/s) was
 wrong. The memory that limits the ESP32 and the Pico 2 is the KV cache, which repeating blocks does not shrink.
 
+## Attention in bits: sign scores, a learned temperature, buckets (rule Nov 19 2026, before measuring)
+
+**Question:** can attention itself run on bits? With the query and the key as signs (64 bits each per head), a
+score is q̂·k̂ = 64 - 2h, h = popcount(q̂ XOR k̂): XOR + popcount, no multiplication. A softmax weight is then one of
+65 values, 2^(-τ(h - hmin)) from a table, and the values can be summed per h first ("buckets": 65 sums, then 65
+multiplications). The KV cache drops from 1.57 MB (int8) to ~0.2 MB (keys 8 bytes + 2-bit values 16 bytes per
+position, head and layer). Our earlier QAT with 1-bit keys (section "KV cache trained at 1-bit keys and 2-bit values")
+lost +0.30 float / +0.32 integer: it had no learned temperature, no recent window, and the query stayed int8.
+
+**Literature (searched Nov 19):** each piece exists, not the whole: binary attention with a learnable bias against
+the flat softmax of binary scores (BinaryAttention, CVPR 2026, arXiv 2603.09582; HAD 2502.01770, BiBERT 2203.06390:
+encoders, fine-tuned or distilled), 1-bit key sketches with 4-bit values (QJL AAAI 2025, H1B-KV 2510.05529), base-2
+softmax (Softermax 2103.09301), few attention levels (Ji et al. 2106.01335), multiplication-free attention by
+gather-and-add (2605.01910), hashing attention (EcoFormer 2209.09004). Not found: summing the values per Hamming
+distance, nor a generative LLM trained this way and run exact on a microcontroller. Note: a norm before the sign
+(QK-norm) changes nothing, the sign does not see the scale.
+
+**What:** `train.py` options (float model; intsim.py and the C do not have them yet): `--attn-temp` (one learned
+temperature per head, exp of a parameter starting at 0), `--kv-recent N` (the last N positions unquantized, as
+intsim --kv-recent), `--q-bits 1` (query sign x mean|q|), `--k-unit` (key = pure sign: then the score is an integer
+Hamming count times one factor per query: the bucket form). Same recipe as the base (10,000 steps, batch 128,
+binary weights, fp32 output layer). Screening, seed 42, validation:
+
+| run | query | key | values | temperature | recent |
+|---|---|---|---|---|---|
+| T1 `attn_k1v2_tau` | int8 | sign x mean\|k\| x π/2 | 2 bits | learned | |
+| T2 `attn_k1v2_tau_r32` | int8 | as T1 | 2 bits | learned | 32 |
+| T3 `attn_bits_tau` | sign x mean\|q\| | pure sign | 2 bits | learned | |
+| T4 `attn_bits_tau_r32` | as T3 | as T3 | 2 bits | learned | 32 |
+
+**Rules** (d = validation loss - base; base 1.5252 seed 42, 1.5224 mean of 3): (1) a run passes the screening if d <
+0.10 at seed 42; the best one that passes (lowest loss) gets seeds 43 and 44 the same night. (2) Usable if the
+3-seed mean d < 0.03 (the KV rule). (3) The learned temperature helps if T1 is below the earlier QAT 1.826 by more than
+0.05 (one seed: a ranking, not a result). (4) Only a usable run goes on to intsim.py (integer, buckets) and the C;
+the float loss is not the final word (the earlier QAT lost 0.02 more in integers). Chips, the same night, separate
+from the loss: one head, random data, exact against numpy (`chip_kernels/bit_attn_bench.py`): int8 attention vs
+XOR + popcount scores, values summed directly vs by buckets. ESTIMATE: buckets are not faster on chips with a one-cycle
+multiply (the additions stay 256 x 64); the gain is the memory.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

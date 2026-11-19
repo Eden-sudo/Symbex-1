@@ -32,6 +32,11 @@ distribution, temperature --distill-t).
 --repeat 2 (MobileLLM's immediate block-wise sharing): --layers stays the depth run, but only layers / 2 distinct
 blocks exist and each runs twice in a row (a chip reads its weights once and uses them twice); --layers 8 --repeat 2
 = 4 distinct blocks. Not in intsim.py / the C yet.
+Bit attention (README "Attention in bits", not in intsim.py / the C yet): --attn-temp (one learned temperature per
+head multiplies the scores; BinaryAttention, CVPR 2026: binary similarities flatten the softmax), --kv-recent N (the
+last N keys / values of each query stay unquantized, as intsim.py --kv-recent), --q-bits 1 (the query also
+sign x mean|q|), --k-unit (1-bit keys without the per-token mean|k|: the score is then an integer Hamming count
+times one factor per query, see the README's bucket form). These run attention by hand (no fused kernel).
 
 Quantized runs: every linear layer of the blocks has quantized weights (scale = mean |w| of the row; ternary rounds
 w / scale to -1, 0, 1, binary takes the sign) and 8-bit inputs (absmax per token, 127 levels), both through the
@@ -52,6 +57,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.checkpoint
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "..", "..", "data", "tinystories")
@@ -165,10 +171,12 @@ def rope(x, cos, sin):
 
 class Block(nn.Module):
     def __init__(self, dim, heads, hidden, kind, acts=8, act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu",
-                 rotate=(), kv=(8, 8, 1.0)):
+                 rotate=(), kv=(8, 8, 1.0), attn=None):
         super().__init__()
         self.heads = heads
         self.kv = kv
+        self.attn = attn or {}
+        self.tau = nn.Parameter(torch.zeros(heads)) if self.attn.get("temp") else None   # log temperature
         self.gate = F.relu if ffn_act == "relu" else F.silu
         self.n1, self.n2 = nn.RMSNorm(dim, eps=1e-5), nn.RMSNorm(dim, eps=1e-5)
 
@@ -185,17 +193,45 @@ class Block(nn.Module):
         h = self.n1(x)
         q, k, v = (m(h).view(b, t, self.heads, -1).transpose(1, 2) for m in (self.q, self.k, self.v))
         kb, vb, ks = self.kv
-        a = F.scaled_dot_product_attention(rope(q, cos, sin), quant_kv(rope(k, cos, sin), kb, ks), quant_kv(v, vb),
-                                           is_causal=True)
+        if self.attn.get("temp") or self.attn.get("recent") or self.attn.get("q_bits", 8) == 1 \
+                or self.attn.get("k_unit"):
+            a = torch.utils.checkpoint.checkpoint(      # recomputed in backward: the score matrices do not fit
+                self.attend_bits, rope(q, cos, sin), rope(k, cos, sin), v, kb, vb, ks, use_reentrant=False)
+        else:
+            a = F.scaled_dot_product_attention(rope(q, cos, sin), quant_kv(rope(k, cos, sin), kb, ks),
+                                               quant_kv(v, vb), is_causal=True)
         x = x + self.o(a.transpose(1, 2).reshape(b, t, d))
         h = self.n2(x)
         return x + self.w2(self.gate(self.w1(h)) * self.w3(h))
+
+    def attend_bits(self, q, k, v, kb, vb, ks):
+        """Attention by hand for the bit-attention options (see the docstring); q, k after rope, (b, heads, t, hd)."""
+        t, hd = q.shape[-2], q.shape[-1]
+        qq = quant_kv(q, 1) if self.attn.get("q_bits", 8) == 1 else q
+        if self.attn.get("k_unit") and kb == 1:
+            kq = ste(k, torch.where(k >= 0, 1.0, -1.0) * ks)
+        else:
+            kq = quant_kv(k, kb, ks)
+        vq = quant_kv(v, vb)
+        s = (qq @ kq.transpose(-1, -2)) / math.sqrt(hd)
+        i = torch.arange(t, device=q.device)
+        dist = i[:, None] - i[None, :]
+        recent = self.attn.get("recent", 0)
+        near = (dist >= 0) & (dist < recent)
+        if recent:                                   # the recent keys unquantized (query unquantized too there)
+            s = torch.where(near, (q @ k.transpose(-1, -2)) / math.sqrt(hd), s)
+        if self.tau is not None:
+            s = s * self.tau.exp().to(s.dtype).view(1, -1, 1, 1)
+        p = torch.softmax(s.float().masked_fill(dist < 0, float("-inf")), dim=-1).to(v.dtype)
+        if recent:
+            return (p * near) @ v + (p * ~near) @ vq
+        return p @ vq
 
 
 class TinyLM(nn.Module):
     def __init__(self, vocab, dim, layers, heads, hidden, seq, kind, head="fp32", int8_blocks=(), acts=8,
                  act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=(),
-                 kv=(8, 8, 1.0), repeat=1):
+                 kv=(8, 8, 1.0), repeat=1, attn=None):
         super().__init__()
         assert layers % repeat == 0, "--layers must be a multiple of --repeat"
         self.head_kind = head
@@ -203,7 +239,7 @@ class TinyLM(nn.Module):
         self.emb = nn.Embedding(vocab, dim)
         self.blocks = nn.ModuleList(Block(dim, heads, hidden, "int8" if i in int8_blocks else kind, acts, act_opts,
                                           a8_inputs if not a8_blocks or i in a8_blocks else (), w2_acts, ffn_act,
-                                          rotate, kv) for i in range(layers // repeat))
+                                          rotate, kv, attn) for i in range(layers // repeat))
         self.norm = nn.RMSNorm(dim, eps=1e-5)
         hd = dim // heads
         freq = 1.0 / (10000 ** (torch.arange(0, hd, 2).float() / hd))
@@ -292,7 +328,9 @@ def run(args, seed):
                    args.weights, args.head, tuple(args.int8_blocks), args.acts,
                    {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
                    tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
-                   tuple(args.a8_blocks), (args.k_bits, args.v_bits, args.k_scale), args.repeat).to(device)
+                   tuple(args.a8_blocks), (args.k_bits, args.v_bits, args.k_scale), args.repeat,
+                   {"temp": args.attn_temp, "recent": args.kv_recent, "q_bits": args.q_bits,
+                    "k_unit": args.k_unit}).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)
@@ -405,6 +443,10 @@ def main():
                     help="train with the cached keys quantized per token and head (intsim.py --k-bits, mode token)")
     ap.add_argument("--v-bits", type=int, choices=[8, 4, 2, 1], default=8, help="the same for the cached values")
     ap.add_argument("--k-scale", type=float, default=1.0, help="key factor (intsim.py --k-scale; pi / 2 = 1.5708)")
+    ap.add_argument("--attn-temp", action="store_true", help="learned temperature per head (bit attention, see above)")
+    ap.add_argument("--kv-recent", type=int, default=0, help="last N keys / values unquantized (see above)")
+    ap.add_argument("--q-bits", type=int, choices=[8, 1], default=8, help="1: the query also 1 bit (see above)")
+    ap.add_argument("--k-unit", action="store_true", help="1-bit keys without mean|k| (see above)")
     ap.add_argument("--clip-groups", action="store_true",
                     help="clip the gradient norm per block (and the rest apart) instead of the whole model")
     ap.add_argument("--init-from", default="", help="start from this checkpoint ({seed} is replaced): two-step")
