@@ -780,7 +780,8 @@ stories260K shape; `--kv-heads 4` = grouped-query attention, each key / value he
 tokenizer `prepare.py --vocab 512` (ours, trained on TinyStories: llama2.c's val loss 1.297 uses its own tokenizer
 and is not comparable). The same recipe as every other run here (10000 steps, batch 128, lr 1.5e-3, warmup 500),
 fp32 and binary (1-bit weights, 8-bit inputs, fp32 output layer tied to the embedding), seeds 42, 43, 44, validation
-only. KV cache int8, computed: 5 layers x 512 positions x 4 heads x 8 dims x 2 (K, V) = 164 KB (328 KB with 8 KV heads).
+only. KV cache int8, computed: 5 layers x 512 positions x 4 heads x 8 dims x 2 (K, V) = 164 KB (328 KB with 8 KV heads;
+plus the int32 scales per token and head, 80 KB: see step 2).
 
 **Rule.** Report val loss mean ± sd of both and the gap. No accuracy threshold decides the next step: the binary
 model goes to intsim.py / the C (step 2) unless its sample stories are not sentences at all (then the recipe is
@@ -798,6 +799,36 @@ sentences with weak sense ("She lived in a big box. She wanted to play with his 
 
 **Answer.** It trains, and by the rule it goes to step 2 (intsim.py / the C). Binary costs much more at this size:
 with dim 64 every layer has few bits to spend. Better recipes for this size stay future work, chosen on validation.
+
+### Step 2: the 260K model as integers and C (Nov 19 2026)
+
+**Question.** Is the integer model of the 260K shape as good as its float one, and does the C give the same integers?
+
+**What.** intsim.py and c/tinylm.c learned what the shape needs: heads of any width that is a multiple of 8 (the score
+scale 1 / sqrt(hd) becomes the integer divisor `att_div(hd) << 20`, `att_div = (isqrt(16129^2 hd) + 4) >> 3`: 16129
+for 64-wide heads, the same integers as before; 5702 for 8-wide), grouped-query attention (the cache keeps the 4 key /
+value heads; model.bin's heads field = kv_heads << 16 | heads, old files unchanged), a hidden width that is not a
+multiple of 8 (172: the last table group counts the missing inputs as 0), and contexts past 258 tokens (the int32
+value sums run over blocks of 256 keys; the attention scratch is sized by the context, not by `hidden`). The low-bit
+cache keeps its limits (64-wide heads, no GQA, 258 tokens). Validation, 1024 windows of 512 tokens; the C on 4
+windows (2048 tokens, every one of the 512 outputs) + a 120-token greedy story, 3 kernels (lut8, lib_symbex,
+lib_symbex + the row-product hooks), built with ASan + UBSan.
+
+**Result** (results/intsim_binary_v512d64l5kv4_s*.json, results/c_check_pc_binary_v512d64l5kv4_s*.txt):
+
+| seed | val loss float | val loss integer | next token equal float / integer | C = intsim.py |
+|---|---|---|---|---|
+| 42 | 2.1671 | 2.1676 | 97.5 % | 2048 / 2048, story 120 / 120 |
+| 43 | 2.1397 | 2.1402 | 97.6 % | 2048 / 2048, story 120 / 120 |
+| 44 | 2.1457 | 2.1463 | 97.7 % | 2048 / 2048, story 120 / 120 |
+
+The integer model costs +0.0005 ± 0.0001 nats. (The float loss here is over 1024 windows; train.py's best checkpoint
+loss, 2.1404 ± 0.0148, over its own 40 x 128.) The older models (15.7 M with int8 / int4 / int2 head, W1A1, the
+low-bit cache) are still exact with the new C, and the S3 firmware builds.
+
+**Answer.** Yes: exact 100 %, 3 seeds. model.bin is 0.09 MB. RAM on a chip, computed: int8 KV 164 KB + its int32
+scales 80 KB (5 layers x 512 x 4 heads x 4 bytes x 2) = 244 KB, plus roughly 30 KB of scratch (estimate): it should fit the classic
+ESP32 (346 KB heap) and the Pico 2 (520 KB), to be measured. Next (step 3): firmware for both, weights from flash.
 
 
 ## Future work

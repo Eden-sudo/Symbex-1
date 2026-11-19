@@ -598,3 +598,13 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   (172 < 1024) must go; GQA in both.
 - Result (3 seeds, val): fp32 1.3464 ± 0.0068, binary 2.1404 ± 0.0148, gap +0.794 (15.7 M: +0.222). Binary flat
   from step ~4000. Stories are sentences -> rule: step 2. ~4.7 min per run.
+
+## Nov 19 2026 — 260K step 2: intsim.py + c/tinylm.c (Edén: "si adelante")
+- intsim.py: kv_heads (GQA: repeat_interleave after the view, per-token quantization the same), att_div(hd) instead of
+  16129 (equal for hd 64), tok{vocab}.model + load_split(vocab), heads field kv_heads << 16 | heads in model.bin.
+- tinylm.c: kv_heads + att_d at load (hd % 8, hd <= 256), cache stored once per kv head, scores per query head on
+  head h / grp; ragged last lut group (hidden 172); int32 value sums in runs of 256 keys (seq 512); t1-t3 sized
+  max(big, 2 seq) (the hidden >= 2 seq check removed); low-bit cache refuses hd != 64 / GQA / seq > 258.
+- 3 seeds: integer +0.0005 nats; C exact 2048 / 2048 + story, lut / symbex / symbex + DOT_ROWS_C, ASan + UBSan. Old
+  runs (d384l8, head4, head2, a1x, k1v2_tau_r32) exact with the new C; S3 firmware builds; pytest 865 passed.
+- KV RAM computed: 164 KB int8 + 80 KB scales = 244 KB (the 164 KB figure forgot the scales). Next: step 3 firmware.

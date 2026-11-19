@@ -1,0 +1,31 @@
+{
+  "run": "binary_v512d64l5kv4_s44",
+  "weights": "binary",
+  "kv_bits": 8,
+  "kv": {
+    "k_bits": 8,
+    "v_bits": 8,
+    "k_mode": "token",
+    "v_mode": "token",
+    "qjl_m": 128,
+    "keep_first": false,
+    "qjl_seed": 0,
+    "k_scale": 1.0,
+    "v_scale": 1.0,
+    "recent": 0,
+    "p_cut": null
+  },
+  "kv_tag": "kv8",
+  "trained_kv": [
+    8,
+    8,
+    1.0
+  ],
+  "val_windows": 1024,
+  "val_loss_float": 2.1457,
+  "val_loss_integer": 2.1463,
+  "val_perplexity_float": 8.548,
+  "val_perplexity_integer": 8.553,
+  "next_token_agreement_float_vs_integer": 0.977,
+  "sample_integer": "Once upon a time, there was a little girl named Sue. Sue lived in a big rock. One day, a little bird named Sue was a big bird. The bird was very happy. The bird was very happy and said, \"It's a big, but I can play with you.\" The bird was angry. The bird was very happy and said, \"It's a big, but I can play with you.\" The"
+}
