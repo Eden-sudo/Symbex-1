@@ -20,6 +20,8 @@ Everything is integer arithmetic (int64), no floating point after the export:
                         columns, byte j holds c of columns j, 16 + j, 32 + j, 48 + j in bits 1:0, 3:2, 5:4, 7:6)
     --acts 1 runs       1-bit inputs: the sign bits and 127 x mean|input| per token as the scale (train.py's
                         sign(x) x mean|x|), --a8-blocks keep int8 inputs there
+    --attn-temp runs    one learned temperature per head (train.py "Attention in bits"): tq = round(exp(tau) x 2^16),
+                        the exp-table index becomes (distance index x 2^10) x tq >> 26 (README "Attention in bits")
     --hadamard runs     the input times an integer Sylvester Hadamard block (+-1, additions only) before quantizing;
                         its 1 / sqrt(n) goes into the per-row multiplier (model.bin version 2 for the C)
 The output is z = (int8 embedding row . int8 final state) * m_row (int64): its argmax is the next token. For the loss
@@ -82,6 +84,7 @@ def load_model(run, vocab, dev):
     assert not a.get("learn_thr") and a.get("w2_acts", "same") == "same" and a.get("ffn_act", "silu") == "silu", \
         "--learn-thr / --w2-acts / --ffn-act relu runs have no integer model yet"
     assert a.get("repeat", 1) == 1, "--repeat runs have no integer model yet"
+    assert a.get("q_bits", 8) == 8 and not a.get("k_unit"), "--q-bits 1 / --k-unit runs have no integer model yet"
     for group in (("q", "k", "v"), ("w1", "w3")):        # forward() quantizes each group's input once
         for opt in ("a8_inputs", "hadamard") if a.get("acts", 8) != 8 else ("hadamard",):   # --acts 8: all 8 bits
             assert len({n in (a.get(opt) or []) for n in group}) == 1, \
@@ -89,7 +92,10 @@ def load_model(run, vocab, dev):
     model = T.TinyLM(vocab, a["dim"], a["layers"], a["heads"], a["hidden"], a["seq"], a["weights"],
                      head=a.get("head", "fp32"), acts=a.get("acts", 8), act_opts={"ste_mode": a.get("ste", "identity"), "ste_k": a.get("ste_k", 2.0)},
                      a8_inputs=tuple(a.get("a8_inputs", [])), rotate=tuple(a.get("hadamard", [])),
-                     a8_blocks=tuple(a.get("a8_blocks", []))).to(dev)
+                     a8_blocks=tuple(a.get("a8_blocks", [])),
+                     kv=(a.get("k_bits", 8), a.get("v_bits", 8), a.get("k_scale", 1.0)) if a.get("attn_temp") else (8, 8, 1.0),
+                     attn={"temp": a.get("attn_temp", False), "recent": a.get("kv_recent", 0), "q_bits": 8,
+                           "k_unit": False}).to(dev)
     model.load_state_dict(ck["model"])
     model.eval()
     return model, a
@@ -124,6 +130,8 @@ def integerize(model, kind):
         P["blocks"].append({"n1": torch.round(b.n1.weight.detach().double() * 2 ** QF).long(),
                             "n2": torch.round(b.n2.weight.detach().double() * 2 ** QF).long(),
                             **{k: lin(getattr(b, k)) for k in ("q", "k", "v", "o", "w1", "w3", "w2")}})
+        if getattr(b, "tau", None) is not None:                     # --attn-temp: exp(tau) per head in Q16
+            P["blocks"][-1]["tq"] = torch.round(b.tau.detach().double().exp() * 2 ** 16).long()
     hd = model.cos.shape[1] * 2
     freq = 1.0 / (10000 ** (np.arange(0, hd, 2) / hd))
     ang = np.outer(np.arange(model.cos.shape[0]), freq)
@@ -275,7 +283,7 @@ def rope(x, C, S):
     return torch.stack((r1, r2), -1).flatten(-2)
 
 
-def attention(q, k, v, heads, C, S, exp_t, kv=None):
+def attention(q, k, v, heads, C, S, exp_t, kv=None, tq=None):
     b, t, d = q.shape
     q, k, v = (z.view(b, t, heads, -1).transpose(1, 2) for z in (q, k, v))       # b, h, t, hd
     kv = kv or {}
@@ -316,7 +324,11 @@ def attention(q, k, v, heads, C, S, exp_t, kv=None):
     umax = u.amax(-1, keepdim=True)
     dist = torch.where(causal, umax - u, 0)
     # 16129 << 20 = 127^2 (int8 q, k) * 2^24 (Q12 x Q12) * sqrt(64) / 128 (exp table step): 64-wide heads only
-    x = check(dist * qm[..., None], 62, "score distance") // (16129 << 20)
+    if tq is None:
+        x = check(dist * qm[..., None], 62, "score distance") // (16129 << 20)
+    else:           # learned temperature: the index in 2^-10 steps, times tq (Q16), then >> 26
+        x = check(check(dist * qm[..., None], 62, "score distance") // (16129 << 10) * tq.view(1, -1, 1, 1), 62,
+                  "tempered distance") >> 26
     p = torch.where(causal & (x < EXP_N), exp_t[x.clamp(max=EXP_N - 1)], 0)
     P = p.sum(-1, keepdim=True)
     if recent:
@@ -336,7 +348,7 @@ def forward(P, idx):
         h, rms = norm_h(x, B["n1"])
         hq, hm = quant_in(h, B["q"], rms)                                                # q, k, v: one input
         q, k, v = (linear(hq, hm, B[n]) for n in ("q", "k", "v"))
-        a = attention(q, k, v, P["heads"], C, S, exp_t, P.get("kv"))
+        a = attention(q, k, v, P["heads"], C, S, exp_t, P.get("kv"), B.get("tq"))
         aq, am = quant_in(a, B["o"])
         x = check(x + linear(aq, am, B["o"]), 31, "residual")
         h, rms = norm_h(x, B["n2"])
@@ -523,6 +535,8 @@ def main():
            else "") + (f"s{args.qjl_seed}" if args.qjl_seed else "")
            + (f"g{args.k_scale:g}" if args.k_scale != 1.0 else "")  + f"_v{vb}{args.v_mode[0]}" + (f"g{args.v_scale:g}" if args.v_scale != 1.0 else "")
            + ("_f" if args.keep_first else "") + (f"_r{args.kv_recent}" if args.kv_recent else ""))
+    if args.export and a.get("attn_temp"):
+        ap.error("--export: the C has no learned attention temperature yet")
     if args.export and ((kb, vb) != (8, 8) or args.k_scale != 1.0 or args.v_scale != 1.0 or args.kv_recent):
         ap.error("--export: the C keeps an int8 KV cache (--kv-bits 8)")
     val = T.load_split("val", dev)

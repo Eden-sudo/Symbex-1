@@ -533,3 +533,7 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
 - Night result (results/attn_bits.json, README): T2 (K1 V2 τ + recent 32) 1.5354 ± 0.0008, d +0.013 (usable in
   float, 3 seeds); T1 +0.070; pure bits T3 +3.00 (τ stuck at ~1: did not learn), T4 +0.55. Temperatures go DOWN.
   Next: T2 in intsim (integer); why T3 does not learn (gradient through two signs? τ lr?) only if Edén wants.
+- intsim of T2 (intsim.py reads exp(τ) as Q16 on the exp-table index; base re-run unchanged 1.5318): integer d
+  +0.0134 ± 0.0020 (3 seeds), float -> integer +0.0002: usable. KV 0.55 MB computed (my "~0.2 MB" forgot the int32
+  scales and the int8 window). Vs the no-retraining best K2 rot + V2 + N32 (+0.0079, 0.64 MB): 14 % fewer bytes,
+  more loss. Next: the C (T2 scores = int8 q masked by k bits; values 2-bit) + chip times; window cost dominates.

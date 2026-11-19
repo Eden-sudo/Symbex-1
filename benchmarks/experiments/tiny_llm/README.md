@@ -576,6 +576,15 @@ the temperature helps (T1 1.595 vs the earlier QAT 1.826, one seed: a ranking). 
 pure bit form (sign query, key without its scale) fails: the scale of k and q matters. Next: T2 in intsim.py
 (integer, 1-bit keys with mean|k|, 32 int8 recent) and its KV bytes; the chip kernel for the values (bit planes).
 
+**Integer model (intsim.py, Nov 19, `results/attn_bits_intsim.json`):** intsim reads the learned temperature (exp(τ)
+per head in Q16, applied to the exp-table index) and runs T2 with the same KV it was trained with (`--k-bits 1
+--v-bits 2 --k-scale 1.5708 --kv-recent 32`), 1024 windows. Integer loss 1.5432 / 1.5445 / 1.5446, d vs the base
+integer KV8 of the same seed **+0.0134 ± 0.0020: usable in integers too** (float -> integer +0.0002; next-token
+agreement 98.2-98.3 %). KV bytes (computed, kv_modes3.json's formula: the int32 scales and the int8 window count)
+**0.55 MB** vs int8 1.67 MB: the "~0.2 MB" above ignored the scales and the window (1-bit K + 2-bit V alone: 0.39
+MB). Against the best KV without retraining (K2 rot + V2 + recent 32: +0.0079 at 0.64 MB), T2 has 14 % fewer bytes
+for a larger loss and needs training; what it adds is a key of 1 bit (scores without multiplications).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
