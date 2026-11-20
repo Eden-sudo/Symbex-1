@@ -3,14 +3,7 @@
 
 #include <stdint.h>
 
-/* Pure xorshift32; sampling requires a nonzero seed. */
-static inline uint32_t tinylm_sample_xorshift32(uint32_t state)
-{
-    state ^= state << 13;
-    state ^= state >> 17;
-    state ^= state << 5;
-    return state;
-}
+#include "tinylm_rng.h"
 
 /* Q16 staircase: 2^(-floor(distance / shift)), not interpolation. */
 static inline uint32_t tinylm_sample_exp_q(uint64_t distance, uint32_t shift)

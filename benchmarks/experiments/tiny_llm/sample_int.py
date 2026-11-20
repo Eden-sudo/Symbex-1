@@ -12,7 +12,10 @@ def _integer(value, name, low, high):
 
 
 def xorshift32(state):
-    """Advance a nonzero 32-bit xorshift state."""
+    """Xorshift32 (13,17,5), modulo 2^32; reject seed zero, no global state.
+
+    Seed 1 begins 270369, 67634689, 2647435461. C: tinylm_rng.h.
+    """
     _integer(state, "state", 1, 0xffffffff)
     state ^= (state << 13) & 0xffffffff
     state ^= state >> 17
