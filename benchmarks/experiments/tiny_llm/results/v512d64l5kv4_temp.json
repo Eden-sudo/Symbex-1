@@ -1,0 +1,56 @@
+{
+  "what": "260K step 6: learned temperature per head (--attn-temp), step 4 recipe, validation",
+  "runs": {
+    "binary": {
+      "val_loss": [
+        2.0448,
+        2.0601,
+        2.0482
+      ],
+      "mean": 2.051,
+      "sd": 0.008,
+      "best_step": [
+        19000,
+        13000,
+        14000
+      ],
+      "minutes": [
+        55.74,
+        55.77,
+        57.08
+      ],
+      "without_temp": {
+        "mean": 2.0613,
+        "sd": 0.0086
+      },
+      "diff": -0.0103,
+      "rule_pass": true
+    },
+    "ternary": {
+      "val_loss": [
+        1.8186,
+        1.8148,
+        1.8263
+      ],
+      "mean": 1.8199,
+      "sd": 0.0059,
+      "best_step": [
+        16500,
+        17000,
+        19000
+      ],
+      "minutes": [
+        55.9,
+        55.38,
+        55.58
+      ],
+      "without_temp": {
+        "mean": 1.8375,
+        "sd": 0.0053
+      },
+      "diff": -0.0176,
+      "rule_pass": true
+    }
+  },
+  "sample_binary_s42": "Once upon a time, there was a little boy named Tim. He loved to play with his friends. One day, Tim saw a big boy named Tim. He wanted to play with his friends. He wanted to play with the box. Tim was very happy. He wanted to help his friends. He said, \"I am a big, but I want to play with it.\"\nTim s"
+}

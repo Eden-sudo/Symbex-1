@@ -955,6 +955,18 @@ in intsim.py / the C yet (one integer factor per head on the scores: small work,
 **Rule.** Kept for a weight kind if its mean val loss beats the same kind without it by more than the larger sd.
 The test split is not read.
 
+**Result** (3 seeds, validation; [results/v512d64l5kv4_temp.json](results/v512d64l5kv4_temp.json)):
+
+| weights | without temperature | with `--attn-temp` | difference | rule |
+|---|---|---|---|---|
+| binary | 2.0613 ± 0.0086 | 2.0510 ± 0.0080 (2.0448 / 2.0601 / 2.0482) | -0.0103 | passes (just: 0.0103 > 0.0086) |
+| ternary | 1.8375 ± 0.0053 | **1.8199 ± 0.0059** (1.8186 / 1.8148 / 1.8263) | -0.0176 | passes (3x the sd) |
+
+**Answer.** Kept for both. Small for binary (barely above the spread), clearer for ternary; the best 260K is now
+ternary + temperature 1.8199 (gap to fp32 1.2709: 0.549). Training took ~56 min per run instead of ~10 (attention
+by hand, no fused kernel). On a chip the temperature is one factor per head on the scores (folded into the score
+scale: estimate, not in intsim.py / the C yet).
+
 ### Step 7: the key taken apart (rule Nov 20 2026, before the 3-seed runs and before any training)
 
 **Question.** At 15.7 M the key K was the part of the cache that broke in few bits. Which variable hurts the 260K

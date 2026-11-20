@@ -652,3 +652,5 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   (forward / backward, kmu moves, old checkpoint loads strict). intsim.load_model refuses both.
 - N4 queue chained after the temperature queue (runs/logs/chain_k.sh waits by PID 803655 -> q260k_k.sh -> q260k_k.log):
   k2c, k2, k4c, k4, i8k, i8v x 42/43/44 (~3 h, estimate).
+- Nov 20 03:39, step 6 done: binary + temp 2.0510 ± 0.0080 (vs 2.0613 ± 0.0086, -0.0103, passes just), ternary + temp
+  1.8199 ± 0.0059 (vs 1.8375 ± 0.0053, -0.0176, passes). ~56 min per run (attend_bits by hand). results/v512d64l5kv4_temp.json.
