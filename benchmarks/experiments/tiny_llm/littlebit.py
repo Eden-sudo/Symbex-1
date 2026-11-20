@@ -1,4 +1,4 @@
-"""Trainable binary factorization with row-fitted SVD initialization."""
+"""LittleBit Dual-SVID (2506.13771 §3.2), optionally Joint-ITQ (2603.00042 Alg. 1)."""
 import importlib.util
 import math
 from pathlib import Path
@@ -11,6 +11,10 @@ if _spec is None or _spec.loader is None:
     raise ImportError("Cannot load tiny_llm train.py")
 _train = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_train)
+
+_itq_spec = importlib.util.spec_from_file_location("littlebit_itq", Path(__file__).with_name("littlebit_itq.py"))
+_itq = importlib.util.module_from_spec(_itq_spec)
+_itq_spec.loader.exec_module(_itq)
 
 
 def _binary(z):
@@ -29,26 +33,33 @@ class _FactorPath(nn.Module):
         super().__init__()
         self.U = nn.Parameter(torch.randn(out_features, rank))
         self.V = nn.Parameter(torch.randn(in_features, rank))
-        self.g = nn.Parameter(torch.ones(out_features))
-        self.h = nn.Parameter(torch.ones(in_features))
+        self.h = nn.Parameter(torch.ones(out_features))
+        self.g = nn.Parameter(torch.ones(in_features))
         self.l = nn.Parameter(torch.full((rank,), 1 / math.sqrt(in_features * rank)))
 
 
-def _initialize(path, target, rank):
+def _magnitude_scales(factor):
+    """Nonnegative best rank-one magnitude envelope, split singular value evenly."""
+    left, singular, right = torch.linalg.svd(factor.abs(), full_matrices=False)
+    root = singular[0].sqrt()
+    return left[:, 0].abs() * root, right[0].abs() * root
+
+
+def _initialize(path, target, rank, itq_iters=None, seed=0):
     work = target.float() if target.dtype in (torch.float16, torch.bfloat16) else target
     left, singular, right = torch.linalg.svd(work, full_matrices=False)
     root = singular[:rank].sqrt()
     u = left[:, :rank] * root
     v = right[:rank, :].T * root
-    l = u.abs().mean(0) * v.abs().mean(0)
-    b = (_binary(u) * l) @ _binary(v).T
-    denominator = (b * b).sum(1)
-    safe = torch.where(denominator > 0, denominator, torch.ones_like(denominator))
-    g = torch.where(denominator > 0, (work * b).sum(1) / safe, torch.zeros_like(denominator))
+    if itq_iters is not None:
+        rotation = _itq.joint_itq(u.cpu(), v.cpu(), iters=itq_iters, seed=seed).to(u.device)
+        u, v = u @ rotation, v @ rotation
+    h, lu = _magnitude_scales(u)
+    g, lv = _magnitude_scales(v)
     path.U.copy_(u)
     path.V.copy_(v)
-    path.l.copy_(l)
-    path.h.fill_(1)
+    path.l.copy_(lu * lv)
+    path.h.copy_(h)
     path.g.copy_(g)
 
 
@@ -74,19 +85,19 @@ class FactorLinear(nn.Module):
             raise ValueError("x must have final dimension in_features")
         result = None
         for path in self.paths:
-            y = ((((x * path.h) @ _binary(path.V)) * path.l) @ _binary(path.U).T) * path.g
+            y = ((((x * path.g) @ _binary(path.V)) * path.l) @ _binary(path.U).T) * path.h
             result = y if result is None else result + y
         return result
 
     def dense(self):
         result = None
         for path in self.paths:
-            weight = path.g[:, None] * ((_binary(path.U) * path.l) @ _binary(path.V).T) * path.h[None, :]
+            weight = path.h[:, None] * ((_binary(path.U) * path.l) @ _binary(path.V).T) * path.g[None, :]
             result = weight if result is None else result + weight
         return result
 
     @classmethod
-    def from_dense(cls, W, rank, residual=False):
+    def from_dense(cls, W, rank, residual=False, *, itq_iters=None, seed=0):
         if not isinstance(W, torch.Tensor) or not W.is_floating_point():
             raise TypeError("W must be a floating tensor")
         if W.layout != torch.strided or W.ndim != 2 or not all(W.shape):
@@ -96,12 +107,12 @@ class FactorLinear(nn.Module):
         layer = cls(W.shape[1], W.shape[0], rank, residual).to(device=W.device, dtype=W.dtype)
         with torch.no_grad():
             target = W.detach()
-            _initialize(layer.paths[0], target, rank)
+            _initialize(layer.paths[0], target, rank, itq_iters, seed)
             if residual:
                 path = layer.paths[0]
-                reconstruction = path.g[:, None] * ((_binary(path.U) * path.l) @ _binary(path.V).T) * path.h[None, :]
+                reconstruction = path.h[:, None] * ((_binary(path.U) * path.l) @ _binary(path.V).T) * path.g[None, :]
                 target = target - reconstruction
-                _initialize(layer.paths[1], target, rank)
+                _initialize(layer.paths[1], target, rank, itq_iters, seed)
         return layer
 
     def storage_bytes(self, scale_bits=16):
