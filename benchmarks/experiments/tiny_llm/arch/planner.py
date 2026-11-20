@@ -5,7 +5,9 @@ GQA/factor layouts use the explicit packing contract in projection_layout().
 """
 
 from dataclasses import dataclass
+import json
 import math
+from pathlib import Path
 
 
 PROJECTIONS = ("q", "k", "v", "o", "w1", "w3", "w2")
@@ -125,3 +127,44 @@ def size_model(config):
                 dense_parameters=embedding + norms + c.layers * sum(p["dense_parameters"] for p in projections.values()),
                 linear_parameters=c.layers * sum(p["matmul_parameters"] for p in projections.values()),
                 flash_bytes=sum(parts.values()), flash_parts=parts, projections=projections)
+
+
+def latency(config, workload="mean"):
+    """Milliseconds/token, calibrated on Eden's seed-42 lib_symbex JSON.
+
+    mean: positions 0..ctx-1; full: ctx cached tokens; story: inferred effective
+    occupancy reproducing the 120-token story, scaled with context capacity.
+    Linear scales with executed binary products (W1A8); head with vocab*d*bits.
+    Attention's rope/cache term is fixed per step, remaining work scales with
+    occupied tokens*query_heads*head_dim*layers. GQA/KV bits do NOT imply a
+    free attention speedup: repeated query-head work and unpacking remain.
+    Factor scale/requantization overhead is unknown and excluded (optimistic).
+    """
+    if workload not in ("mean", "full", "story"):
+        raise ValueError("workload must be mean, full, or story")
+    ref = json.loads((Path(__file__).resolve().parents[1] /
+                      "results/chip_s3_binary_d384l8_s42_symbex.json").read_text())
+    p = ref["ms_per_token_by_part"]
+    linear_ms = sum(p[k] for k in ("qkv", "o", "w1_w3", "w2"))
+    rest_ms = p["embedding_norms"] + p["swiglu"]
+    fixed = p["attention_rope_cache"]
+    variable = sum(p[k] for k in ("attention_values", "attention_scores",
+                                  "attention_softmax", "attention_division"))
+    c = config
+    reference_tokens = (256 + 1) / 2
+    occupied = (c.ctx + 1) / 2
+    if workload == "full":
+        occupied = c.ctx
+    elif workload == "story":
+        story_attention = ref["ms_per_token_story_mean"] - linear_ms - rest_ms - p["output_head"]
+        occupied *= (story_attention - fixed) / variable
+        occupied = max(1, occupied)
+    scale = c.layers * c.heads * c.head_dim / (8 * 6 * 64)
+    parts = dict(linear=linear_ms * size_model(c)["linear_parameters"] / 14155776,
+                 attention=scale * (fixed + variable * occupied / reference_tokens),
+                 head=p["output_head"] * (c.vocab * c.dim * c.head_bits) / (4096 * 384 * 8),
+                 rest=p["embedding_norms"] * c.layers * c.dim / (8 * 384)
+                      + p["swiglu"] * c.layers * c.hidden / (8 * 1024))
+    total = sum(parts.values())
+    return dict(parts_ms=parts, ms_per_token=total, tokens_per_second=1000 / total,
+                occupied_tokens=occupied, workload=workload)
