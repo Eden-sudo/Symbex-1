@@ -82,12 +82,15 @@ embedding/classifier rows and prepared training data.
 Little-endian header, all standard scalar metadata types, strings, and arrays
 of scalars/strings; tensor infos and default 32-byte or explicit power-of-two
 alignment. GGUF dimensions are fastest-axis-first; NumPy shapes reverse them.
-Supports F32, F16 and Q8_0 (32 int8 weights per fp16 scale). Returned tensors
+Supports F32, F16, Q8_0 (32 int8 weights per fp16 scale), TQ1_0 and TQ2_0
+(256 weights per fp16 scale, 54 and 66 bytes per block). Returned tensors
 are float32. Invalid lengths, alignment, duplicate names, overlaps, unsupported
 versions and types are rejected.
 
-Known unsupported types are reported by name, including IQ1_S, IQ1_M, TQ1_0,
-TQ2_0 and Q1_0; unknown/vendor types retain their numeric ID. **ThoxMicro's
+TQ layouts are GGML's plane-interleaved blocks, not `ternary_pack.py` payloads.
+Synthetic tests cover all TQ1 five-trit patterns and multi-block row ordering.
+Known unsupported types are reported by name, including IQ1_S, IQ1_M and
+Q1_0; unknown/vendor types retain their numeric ID. **ThoxMicro's
 actual file encoding has not been inspected.** Its advertised 1-bit/ternary
 description does not identify a GGML tensor type. GGUF tensor decoding is not
 architecture mapping: the CLI deliberately rejects GGUF rather than assume

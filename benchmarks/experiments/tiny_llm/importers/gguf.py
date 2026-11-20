@@ -25,6 +25,45 @@ SCALARS = {0: "B", 1: "b", 2: "H", 3: "h", 4: "I", 5: "i", 6: "f",
            7: "?", 10: "Q", 11: "q", 12: "d"}
 
 
+def dequant_ternary(raw, kind):
+    """Decode GGML 256-weight TQ blocks, not tiny_llm's row-local codecs.
+
+    Format reference: llama.cpp ggml/src/ggml-common.h (block_tq1_0,
+    block_tq2_0), and gguf-py/gguf/quants.py (TQ1_0, TQ2_0):
+    https://github.com/ggml-org/llama.cpp/blob/master/gguf-py/gguf/quants.py
+    TQ1_0: qs[48], qh[4], little-endian fp16 d (54 bytes).
+    TQ2_0: qs[64], little-endian fp16 d (66 bytes).
+    TQ1 digits are high-first base-3 integers rescaled by ceil(v*256/243),
+    in 32x5, 16x5 and 4x4 planes; the tail has a zero fifth digit.
+    TQ2 has two 32x4 planes of low-first 2-bit digits. Values are (digit-1)*d.
+    Code 3 in TQ2 decodes to +2, as in GGML (not emitted by its quantizer).
+    """
+    if kind not in (34, 35):
+        raise ValueError("expected TQ1_0 or TQ2_0")
+    size = 54 if kind == 34 else 66
+    if len(raw) % size:
+        raise ValueError("truncated ternary block")
+    blocks = np.frombuffer(raw, dtype=np.uint8).reshape(-1, size)
+    scales = np.frombuffer(raw, dtype=np.dtype([("q", "u1", (size - 2,)),
+                                                ("d", "<f2")]))["d"].astype(np.float32)
+    codes = np.empty((len(blocks), 256), dtype=np.int16)
+    if kind == 34:
+        output = 0
+        for offset, width, planes in ((0, 32, 5), (32, 16, 5), (48, 4, 4)):
+            packed = blocks[:, offset:offset + width].astype(np.uint16)
+            for plane in range(planes):
+                # Multiplication wraps in uint8 before extracting the digit.
+                codes[:, output:output + width] = (((packed * 3**plane) & 255) * 3 // 256) - 1
+                output += width
+    else:
+        for half in range(2):
+            packed = blocks[:, half * 32:(half + 1) * 32]
+            for plane in range(4):
+                start = half * 128 + plane * 32
+                codes[:, start:start + 32] = ((packed >> (2 * plane)) & 3).astype(np.int16) - 1
+    return codes.astype(np.float32) * scales[:, None]
+
+
 def read_gguf(path):
     """Return metadata, tensor infos and decoded tensors; reject malformed data.
 
@@ -95,15 +134,17 @@ def read_gguf(path):
             dims = tuple(unpack("Q") for _ in range(rank))
             kind, offset = unpack("I"), unpack("Q")
             label = TYPE_NAMES.get(kind, f"UNKNOWN_{kind}")
-            if kind not in (0, 1, 8):
+            if kind not in (0, 1, 8, 34, 35):
                 raise ValueError(f"unsupported GGUF tensor type {label} ({kind}) for {name}; "
-                                 "only F32, F16 and Q8_0 are decoded; ternary/1-bit needs its own decoder")
+                                 "only F32, F16, Q8_0, TQ1_0 and TQ2_0 are decoded")
             if not all(dims) or offset % alignment:
                 raise ValueError("invalid GGUF dimensions or unaligned tensor offset")
-            if kind == 8 and dims[0] % 32:
-                raise ValueError("Q8_0 row width must be divisible by 32")
+            block, block_bytes = {0: (1, 4), 1: (1, 2), 8: (32, 34),
+                                  34: (256, 54), 35: (256, 66)}[kind]
+            if dims[0] % block:
+                raise ValueError(f"{label} row width must be divisible by {block}")
             n = math.prod(dims)
-            nbytes = n * (4 if kind == 0 else 2) if kind != 8 else n // 32 * 34
+            nbytes = n // block * block_bytes
             infos[name] = dict(dimensions=dims, shape=dims[::-1], type=label,
                                type_id=kind, offset=offset, nbytes=nbytes)
         start = (f.tell() + alignment - 1) // alignment * alignment
@@ -120,6 +161,8 @@ def read_gguf(path):
             if info["type_id"] == 8:
                 blocks = np.frombuffer(raw, dtype=np.dtype([("d", "<f2"), ("q", "i1", (32,))]))
                 tensor = blocks["q"].astype(np.float32) * blocks["d"].astype(np.float32)[:, None]
+            elif info["type_id"] in (34, 35):
+                tensor = dequant_ternary(raw, info["type_id"])
             else:
                 tensor = np.frombuffer(raw, dtype="<f4" if info["type_id"] == 0 else "<f2").astype(np.float32)
             tensors[name] = tensor.reshape(info["shape"])
