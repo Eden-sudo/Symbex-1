@@ -65,6 +65,39 @@ def test_random_factors(itq, rank, seed):
     assert objective(rotation) < objective(initial)
 
 
+def itq_objective(u, v, rotation):
+    z = torch.cat((u, v)) @ rotation
+    return torch.linalg.norm(torch.where(z >= 0, 1.0, -1.0) - z).item()
+
+
+@pytest.mark.parametrize("rank", [8, 32, 64])
+def test_objective_never_increases(itq, rank):
+    generator = torch.Generator().manual_seed(rank)
+    u = torch.randn(2 * rank, rank, generator=generator, dtype=torch.float64)
+    v = torch.randn(3 * rank, rank, generator=generator, dtype=torch.float64)
+    values = [itq_objective(u, v, itq.joint_itq(u, v, iters=k)) for k in range(0, 21)]
+    steps = [(k, b - a) for k, (a, b) in enumerate(zip(values, values[1:])) if b > a + 1e-9]
+    assert not steps, f"rank {rank}: objective rose at iterations {steps}; values {values}"
+    assert values[-1] < values[0], f"rank {rank}: no progress from the start rotation, {values[0]} -> {values[-1]}"
+
+
+@pytest.mark.parametrize("rank", [8, 32, 64])
+def test_mean_error_beats_identity(itq, rank):
+    # ITQ minimizes its own objective, so a single case can lose to the identity
+    # (rank 8 seed 1: 0.682 vs 0.665); over 8 seeds the mean must still be lower.
+    identity = torch.eye(rank, dtype=torch.float64)
+    cases = []
+    for seed in range(8):
+        generator = torch.Generator().manual_seed(seed)
+        u = torch.randn(2 * rank, rank, generator=generator, dtype=torch.float64)
+        v = torch.randn(3 * rank, rank, generator=generator, dtype=torch.float64)
+        cases.append((seed, itq.binarization_error(u, v, itq.joint_itq(u, v)),
+                      itq.binarization_error(u, v, identity)))
+    rotated = sum(c[1] for c in cases) / len(cases)
+    plain = sum(c[2] for c in cases) / len(cases)
+    assert rotated < plain, f"rank {rank}: mean {rotated:.4f} vs identity {plain:.4f}; cases {cases}"
+
+
 def test_one_update(itq):
     u = torch.tensor([[1., 2., 0.], [0., -1., 3.]], dtype=torch.float64)
     v = torch.tensor([[2., -1., 1.], [0., 0., 0.], [1., 3., 2.]], dtype=torch.float64)
