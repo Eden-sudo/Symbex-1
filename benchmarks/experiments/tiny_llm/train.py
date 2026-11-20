@@ -194,15 +194,18 @@ class TinyLM(nn.Module):
             for m in (blk.o, blk.w2):
                 nn.init.normal_(m.weight, std=0.02 / math.sqrt(2 * layers))
 
-    def forward(self, idx):
+    def forward(self, idx, return_hidden=False):
         t = idx.shape[1]
         x = F.embedding(idx, quant_weight(self.emb.weight, self.head_kind)) \
             if self.head_kind in ("int4", "int2") else self.emb(idx)
         for blk in self.blocks:
             x = blk(x, self.cos[:t], self.sin[:t])
+        hidden = self.norm(x)
         if self.head_kind in ("binary", "int4", "int2"):
-            return F.linear(quant_act8(self.norm(x)), quant_weight(self.emb.weight, self.head_kind))
-        return F.linear(self.norm(x), self.emb.weight)
+            logits = F.linear(quant_act8(hidden), quant_weight(self.emb.weight, self.head_kind))
+        else:
+            logits = F.linear(hidden, self.emb.weight)
+        return (logits, hidden) if return_hidden else logits
 
 
 # ---- data, evaluation, sampling ------------------------------------------------------------------------------------
@@ -274,7 +277,14 @@ def run(args, seed):
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)
         print(f"initialized from {init} (missing {len(miss)}: {miss[:3]}, unexpected {len(extra)})")
     teacher = None
+    hidden_weight = getattr(args, "distill_hidden_weight", 0.0)
+    if not math.isfinite(hidden_weight) or hidden_weight < 0 or (hidden_weight and not args.distill):
+        raise ValueError("hidden distillation requires a teacher and a finite nonnegative weight")
     if args.distill:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("littlebit_distill", os.path.join(HERE, "littlebit_distill.py"))
+        distill = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(distill)
         tpath = args.distill.format(seed=seed)
         tck = torch.load(tpath, map_location=device, weights_only=False)
         ta = tck["args"]
@@ -310,15 +320,16 @@ def run(args, seed):
             g["lr"] = lr
         x, y = batch(train, args.batch, args.seq, gen)
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            logits = step_fn(x)
+            result = step_fn(x, return_hidden=True) if hidden_weight else step_fn(x)
+            logits, hidden = result if hidden_weight else (result, None)
         loss = F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), y.reshape(-1))
         if teacher is not None:
             with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
-                t_logits = teacher(x)
-            t = args.distill_t
-            kl = F.kl_div(F.log_softmax(logits.float().reshape(-1, logits.shape[-1]) / t, -1),
-                          F.log_softmax(t_logits.float().reshape(-1, t_logits.shape[-1]) / t, -1),
-                          log_target=True, reduction="batchmean") * t * t
+                result = teacher(x, return_hidden=True) if hidden_weight else teacher(x)
+                t_logits, t_hidden = result if hidden_weight else (result, None)
+            kl = distill.distillation_loss(logits.float(), t_logits.float(), temperature=args.distill_t,
+                                           student_hidden=hidden, teacher_hidden=t_hidden,
+                                           hidden_weight=hidden_weight)
             loss = (1 - args.distill_alpha) * loss + args.distill_alpha * kl
         opt.zero_grad(set_to_none=True)
         loss.backward()
@@ -383,6 +394,8 @@ def main():
     ap.add_argument("--distill", default="", help="teacher checkpoint ({seed} is replaced): distillation")
     ap.add_argument("--distill-alpha", type=float, default=0.5, help="weight of the KL term (see above)")
     ap.add_argument("--distill-t", type=float, default=1.0, help="distillation temperature")
+    ap.add_argument("--distill-hidden-weight", type=float, default=0.0,
+                    help="final normalized hidden MSE weight inside the distillation term")
     ap.add_argument("--name", default="d384l8", help="run name (folder: runs/<weights>_<name>_s<seed>)")
     ap.add_argument("--dim", type=int, default=384)
     ap.add_argument("--layers", type=int, default=8)
