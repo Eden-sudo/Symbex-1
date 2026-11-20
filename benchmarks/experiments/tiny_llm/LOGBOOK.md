@@ -620,3 +620,6 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   M33 31.84 ± 0.06, Hazard3 35.38 ± 0.88 (150 MHz). Position 0 -> 511: ESP32 19.9 -> 49.1 ms.
 - Nov 19 evening: README step 3 got per-seed tok/s and a memory table (RAM used 279 092 B ESP32 / 278 800 B Pico 2
   = KV 163 840 + scales 81 920 + scratch ~33 KB, from the firmware's free-heap lines).
+- Nov 19 night, step 4 (recipe): binary lr 1e-3 2.1649, lr 3e-3 2.0989, lr 3e-3 20k 2.0613 ± 0.0086 (base 2.1404);
+  fp32 lr 3e-3 20k 1.2709 ± 0.0087 (base 1.3464). Both rules pass, but the gap stays +0.790 (was +0.794): recipe
+  helps both alike; the gap is the size. New recipe = lr 3e-3, 20k for the next screens (~10 min per run).

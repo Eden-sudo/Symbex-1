@@ -887,6 +887,38 @@ memory and exactness result, not a quality one. Not measured yet: an fp32 or int
 the S3's PIE kernels on this model.
 
 
+### Step 4: the training recipe at 260K (rule Nov 19 2026, before measuring)
+
+**Question.** The binary 260K model was trained with the 15.7 M recipe (lr 1.5e-3, 10000 steps) and its curve is flat
+from step ~4000. Does another learning rate or a longer run close part of the gap to fp32 (2.14 vs 1.35)?
+
+**What.** Binary W1A8, the same shape, seeds 42, 43, 44, validation only. A: lr 1e-3 and 3e-3 at 10000 steps (base
+1.5e-3 = 2.1404 ± 0.0148). B: 20000 steps (1.3 B tokens, 1.25 passes over the 1.05 B training tokens) at the best lr of
+A (or of the base if none wins). C: fp32 with the recipe chosen in B, so the gap is measured with one recipe for
+both (the fp32 base 1.3464 stays as the reference too).
+
+**Rule.** A new lr is kept only if its mean val loss beats the base by more than the larger sd; 20000 steps is kept
+only if it beats 10000 steps at that lr by more than the larger sd. Otherwise the base recipe stays. The test split is
+not read.
+
+**Result** (results/v512d64l5kv4_recipe.json, val loss, seeds 42 / 43 / 44):
+
+| weights | recipe | val loss | mean ± sd | minutes per run |
+|---|---|---|---|---|
+| binary | lr 1.5e-3, 10k (base) | 2.1567 / 2.1279 / 2.1365 | 2.1404 ± 0.0148 | 4.9 |
+| binary | lr 1e-3, 10k | 2.1688 / 2.1617 / 2.1642 | 2.1649 ± 0.0036 | 4.8 |
+| binary | lr 3e-3, 10k | 2.1007 / 2.0956 / 2.1003 | 2.0989 ± 0.0028 | 4.9 |
+| binary | **lr 3e-3, 20k** | 2.0632 / 2.0519 / 2.0688 | **2.0613 ± 0.0086** | 9.7 |
+| fp32 | lr 1.5e-3, 10k (base) | 1.3433 / 1.3542 / 1.3417 | 1.3464 ± 0.0068 | 4.5 |
+| fp32 | **lr 3e-3, 20k** | 1.2616 / 1.2787 / 1.2725 | **1.2709 ± 0.0087** | 9.2 |
+
+Both rules pass: lr 3e-3 beats the base by 0.042 (sd 0.015), 20000 steps beat 10000 by 0.038 (sd 0.009).
+
+**Answer.** The new recipe (lr 3e-3, 20000 steps) improves the binary model by 0.079, but fp32 gains the same
+(0.076): the gap stays +0.790 (was +0.794). The recipe was not what held the binary model back; the gap is the
+size (dim 64 at 1 bit). The new recipe is the one for the next steps (the chip models above stay the base ones
+until a combined model is exported).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
