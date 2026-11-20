@@ -943,6 +943,102 @@ after the next steps, with the other winners. The test split is not read.
 The C has no ternary weights yet (intsim.py's C check packs 1-bit weights only): carrying it to the chips needs that
 kernel.
 
+### Step 6: a learned temperature per head at 260K (rule Nov 19 2026, before measuring)
+
+**Question.** With quantized weights the attention scores come out flat (README "Attention in bits"); one learned
+temperature per head (`--attn-temp`) sharpens them. Does it help the 260K model, binary and ternary?
+
+**What.** `--attn-temp`, the step 4 recipe (lr 3e-3, 20000 steps), binary and ternary, seeds 42, 43, 44, validation
+only. Compared with steps 4 / 5 without it (binary 2.0613 ± 0.0086, ternary 1.8375 ± 0.0053). The temperature is not
+in intsim.py / the C yet (one integer factor per head on the scores: small work, estimate).
+
+**Rule.** Kept for a weight kind if its mean val loss beats the same kind without it by more than the larger sd.
+The test split is not read.
+
+### Step 7: the key taken apart (rule Nov 20 2026, before the 3-seed runs and before any training)
+
+**Question.** At 15.7 M the key K was the part of the cache that broke in few bits. Which variable hurts the 260K
+model most, does the residual sum pile the errors up, and what in K makes it hard, and can that be fixed?
+
+**What.** Two no-training diagnoses, 3 seeds, validation windows (fixed scales / means from TRAINING windows):
+`error_anatomy.py` (one quantization source at a time in the trained fp32 model: W1A8 on each linear kind, K or V
+cache in few bits; loss rise, residual error after each block, joint vs single, one block at a time and how its
+error grows through the later blocks) and `k_anatomy.py` (K statistics per layer and key head, and the key cache at
+4 / 3 / 2 bits stored six ways in the fp32, binary and ternary models). One-seed smoke runs of both were seen before
+this rule was written (the key mean holds 50-97 % of the key's energy; storing key - mean cut the 4-bit cache loss
+rise of the binary model from 0.10 to 0.01): the training below was chosen from them.
+
+Then training, binary weights, the step 4 recipe, 3 seeds, validation only:
+- key cache at 2 and at 4 bits, plain vs `--k-center` (key - a fixed mean, added back when read);
+- `--int8-linears k` vs `--int8-linears v` (the same bytes: W_k and W_v have the same shape).
+
+**Rule.** `--k-center` is kept at a bit width if its mean val loss beats the plain cache at the same width by more
+than the larger sd. K is "special in training" only if int8 W_k beats int8 W_v by more than the larger sd (else the
+15.7 M rule "bytes, not where" holds at 260K). The test split is not read.
+
+**Result: which variable hurts most** (`error_anatomy.py`, fp32 model, 3 seeds, 256 validation windows; loss rise,
+no retraining; [results/v512d64l5kv4_error_anatomy_int4.json](results/v512d64l5kv4_error_anatomy_int4.json),
+[_binary.json](results/v512d64l5kv4_error_anatomy_binary.json)):
+
+| source, in every block | int4 weights / 4-bit cache | W1A8 / 2-bit cache |
+|---|---|---|
+| W_q | 0.025 ± 0.004 | 0.87 ± 0.08 |
+| W_k | 0.027 ± 0.001 | 2.28 ± 0.21 |
+| W_v | 0.165 ± 0.040 | 5.79 ± 1.57 |
+| W_o | 0.032 ± 0.003 | 1.89 ± 0.20 |
+| W_1 / W_3 | 0.071 / 0.071 | 4.01 / 4.03 |
+| W_2 | 0.106 ± 0.003 | 4.54 ± 0.27 |
+| **K cache** | **1.682 ± 0.114** | 3.45 ± 0.13 |
+| V cache | 0.011 ± 0.000 | 0.44 ± 0.01 |
+
+- The key CACHE is the one variable that breaks: at 4 bits it costs 1.68 nats, 160x the value cache (0.011) and 10x
+  the worst weight matrix at 4 bits. The key WEIGHTS W_k are ordinary (like W_q). Among weights, W_v and W_2 hurt most.
+- One-shot W1A8 destroys the 260K fp32 model whatever is switched (rises of 1-6 nats, residual error ~1): this column
+  only ranks; the binary model is usable because it is trained binary.
+- Do errors add? With small errors (int4) the seven weight errors combine like independent ones: joint residual error
+  / root sum of squares = 0.98-1.01 at every block, not a linear sum (that would be up to sqrt 7 = 2.6x larger). The
+  loss is 1.32x the sum of single rises (0.651 vs 0.495): the loss grows faster than the error (quadratic), as at
+  15.7 M (2.2-2.5x).
+- Does the residual stream pile errors up? An error made in block 0 alone is 2.00 ± 0.06x larger at the last block
+  (block 1: 1.70, block 2: 1.51, block 3: 1.31): later blocks AMPLIFY an early error, they do not damp it. This
+  supports Edén's hypothesis for the LLM (the sum residual carries every error forward and the next blocks react to
+  it); the matching measure on ResNet-8's OR shortcuts is not done.
+
+**Result: the key taken apart** (`k_anatomy.py`, 3 seeds, 256 validation windows, fixed means / scales from 64
+training windows; [results/v512d64l5kv4_k_anatomy.json](results/v512d64l5kv4_k_anatomy.json)):
+
+| layer (mean over key heads) | 0 | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|---|
+| key energy in its mean, fp32 | 0.77 | 0.96 | 0.88 | 0.92 | 0.89 |
+| key energy in its mean, binary | 0.41 | 0.74 | 0.63 | 0.85 | 0.75 |
+| score variance from q . RoPE(mean), fp32 | 0.54 | 0.87 | 0.75 | 0.82 | 0.75 |
+| score variance from q . RoPE(mean), binary | 0.22 | 0.58 | 0.51 | 0.71 | 0.57 |
+
+- A key is mostly one fixed vector: its mean over tokens holds 41-96 % of its energy. Through RoPE that mean becomes
+  a term that depends only on the key's POSITION, and it carries 22-87 % of the score variance: much of what the
+  attention decides is "how far back", learned through the key mean. The content part is the small rest.
+- A per-token scale must cover mean + content, so the content (small) is what few bits erase. Outlier channels are
+  mild here (max / median channel RMS 2.3-4.9) and a smooth (per-channel) scale barely helps.
+
+Key cache loss rise by storage (binary model; fp32 and ternary in the JSON, same order):
+
+| storage | 4 bits | 3 bits | 2 bits | on a chip |
+|---|---|---|---|---|
+| token (now) | 0.100 ± 0.015 | 0.474 ± 0.013 | 0.803 ± 0.065 | as now |
+| smooth | 0.088 ± 0.010 | 0.366 ± 0.046 | 0.690 ± 0.055 | cheap |
+| hadamard | 0.090 ± 0.011 | 0.551 ± 0.047 | 1.198 ± 0.015 | cheap |
+| pre (before RoPE) | 0.103 ± 0.040 | 0.306 ± 0.082 | 0.707 ± 0.110 | RoPE per key read |
+| pre-center | 0.011 ± 0.005 | **0.039 ± 0.011** | **0.122 ± 0.022** | RoPE per key read |
+| **center** | **0.009 ± 0.003** | 0.056 ± 0.017 | 0.128 ± 0.021 | + one dot per key (estimate) |
+| center + hadamard | 0.007 ± 0.002 | 0.045 ± 0.011 | 0.189 ± 0.053 | + one dot per key |
+
+- Storing key - mean (the mean rotated to the key's position, added back when read) cuts the cache damage 6-11x in
+  the binary model (4 bits 0.100 -> 0.009; 2 bits 0.80 -> 0.13), and 30x in fp32 at 4 bits (1.68 -> 0.056). The
+  usable 4-bit key cache needs no training at all with it. Rotations alone (Hadamard) do not fix it: the problem is
+  the mean, not the outliers.
+- Binary and ternary models are far less fragile than fp32 (4-bit token: 0.10 / 0.21 vs 1.68): their keys hold less
+  of their energy in the mean (41-85 % vs 77-96 %).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

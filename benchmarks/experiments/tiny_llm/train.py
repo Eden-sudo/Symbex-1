@@ -37,6 +37,10 @@ head multiplies the scores; BinaryAttention, CVPR 2026: binary similarities flat
 last N keys / values of each query stay unquantized, as intsim.py --kv-recent), --q-bits 1 (the query also
 sign x mean|q|), --k-unit (1-bit keys without the per-token mean|k|: the score is then an integer Hamming count
 times one factor per query, see the README's bucket form). These run attention by hand (no fused kernel).
+--k-center (with --k-bits < 8, README "Step 7"): the low-bit key cache stores key - mean, the mean rotated to the
+key's position (RoPE) and added back when read; the mean is a fixed channel average per key head (pre-RoPE), an
+exponential average of the training batches (momentum 0.99), not learned. --int8-linears k (or v, ...): those linear
+kinds get int8 weights in every block (the same-bytes control of README "Step 7"). Neither is in intsim.py / the C.
 
 Quantized runs: every linear layer of the blocks has quantized weights (scale = mean |w| of the row; ternary rounds
 w / scale to -1, 0, 1, binary takes the sign) and 8-bit inputs (absmax per token, 127 levels), both through the
@@ -171,7 +175,7 @@ def rope(x, cos, sin):
 
 class Block(nn.Module):
     def __init__(self, dim, heads, hidden, kind, acts=8, act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu",
-                 rotate=(), kv=(8, 8, 1.0), attn=None, kv_heads=None):
+                 rotate=(), kv=(8, 8, 1.0), attn=None, kv_heads=None, int8_linears=()):
         super().__init__()
         self.heads = heads
         self.kv_heads = kv_heads or heads      # grouped-query attention: kv_heads keys / values, shared by groups
@@ -179,11 +183,16 @@ class Block(nn.Module):
         self.kv = kv
         self.attn = attn or {}
         self.tau = nn.Parameter(torch.zeros(heads)) if self.attn.get("temp") else None   # log temperature
+        kc = self.attn.get("k_center")       # fixed key mean per key head (pre-RoPE), exponential average in training
+        assert not kc or not (self.attn.get("temp") or self.attn.get("recent") or self.attn.get("q_bits", 8) == 1
+                              or self.attn.get("k_unit")), "--k-center runs on the fused attention path only"
+        self.register_buffer("kmu", torch.zeros(self.kv_heads, 1, dim // heads) if kc else None)
         self.gate = F.relu if ffn_act == "relu" else F.silu
         self.n1, self.n2 = nn.RMSNorm(dim, eps=1e-5), nn.RMSNorm(dim, eps=1e-5)
 
         def lin(name, n_in, n_out):
-            return QLinear(n_in, n_out, kind, 8 if name in a8_inputs else acts, act_opts, name in rotate)
+            return QLinear(n_in, n_out, "int8" if name in int8_linears else kind, 8 if name in a8_inputs else acts,
+                           act_opts, name in rotate)
         kv_dim = dim // heads * self.kv_heads
         self.q, self.k, self.v, self.o = (lin(n, dim, o) for n, o in (("q", dim), ("k", kv_dim), ("v", kv_dim),
                                                                        ("o", dim)))   # this order: same init as before
@@ -197,6 +206,13 @@ class Block(nn.Module):
         h = self.n1(x)
         q = self.q(h).view(b, t, self.heads, -1).transpose(1, 2)
         k, v = (m(h).view(b, t, self.kv_heads, -1).transpose(1, 2) for m in (self.k, self.v))
+        mu = None
+        if self.kmu is not None:
+            if self.training:
+                with torch.no_grad():
+                    self.kmu.lerp_(k.detach().float().mean((0, 2))[:, None], 0.01)
+            mu = self.kmu.to(k.dtype).repeat_interleave(self.heads // self.kv_heads, dim=0).expand(
+                self.heads, t, -1)
         if self.kv_heads != self.heads:        # each key / value head serves heads / kv_heads query heads in a row
             k, v = (z.repeat_interleave(self.heads // self.kv_heads, dim=1) for z in (k, v))
         kb, vb, ks = self.kv
@@ -204,6 +220,10 @@ class Block(nn.Module):
                 or self.attn.get("k_unit"):
             a = torch.utils.checkpoint.checkpoint(      # recomputed in backward: the score matrices do not fit
                 self.attend_bits, rope(q, cos, sin), rope(k, cos, sin), v, kb, vb, ks, use_reentrant=False)
+        elif mu is not None:
+            m = rope(mu, cos, sin)
+            a = F.scaled_dot_product_attention(rope(q, cos, sin), quant_kv(rope(k, cos, sin) - m, kb, ks) + m,
+                                               quant_kv(v, vb), is_causal=True)
         else:
             a = F.scaled_dot_product_attention(rope(q, cos, sin), quant_kv(rope(k, cos, sin), kb, ks),
                                                quant_kv(v, vb), is_causal=True)
@@ -238,7 +258,7 @@ class Block(nn.Module):
 class TinyLM(nn.Module):
     def __init__(self, vocab, dim, layers, heads, hidden, seq, kind, head="fp32", int8_blocks=(), acts=8,
                  act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=(),
-                 kv=(8, 8, 1.0), repeat=1, attn=None, kv_heads=None):
+                 kv=(8, 8, 1.0), repeat=1, attn=None, kv_heads=None, int8_linears=()):
         super().__init__()
         assert layers % repeat == 0, "--layers must be a multiple of --repeat"
         self.head_kind = head
@@ -246,7 +266,7 @@ class TinyLM(nn.Module):
         self.emb = nn.Embedding(vocab, dim)
         self.blocks = nn.ModuleList(Block(dim, heads, hidden, "int8" if i in int8_blocks else kind, acts, act_opts,
                                           a8_inputs if not a8_blocks or i in a8_blocks else (), w2_acts, ffn_act,
-                                          rotate, kv, attn, kv_heads) for i in range(layers // repeat))
+                                          rotate, kv, attn, kv_heads, int8_linears) for i in range(layers // repeat))
         self.norm = nn.RMSNorm(dim, eps=1e-5)
         hd = dim // heads
         freq = 1.0 / (10000 ** (torch.arange(0, hd, 2).float() / hd))
@@ -338,7 +358,8 @@ def run(args, seed):
                    tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
                    tuple(args.a8_blocks), (args.k_bits, args.v_bits, args.k_scale), args.repeat,
                    {"temp": args.attn_temp, "recent": args.kv_recent, "q_bits": args.q_bits,
-                    "k_unit": args.k_unit}, args.kv_heads).to(device)
+                    "k_unit": args.k_unit, "k_center": args.k_center}, args.kv_heads,
+                   tuple(args.int8_linears)).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)
@@ -455,6 +476,9 @@ def main():
     ap.add_argument("--kv-recent", type=int, default=0, help="last N keys / values unquantized (see above)")
     ap.add_argument("--q-bits", type=int, choices=[8, 1], default=8, help="1: the query also 1 bit (see above)")
     ap.add_argument("--k-unit", action="store_true", help="1-bit keys without mean|k| (see above)")
+    ap.add_argument("--k-center", action="store_true", help="low-bit key cache minus a fixed key mean (see above)")
+    ap.add_argument("--int8-linears", nargs="*", default=[], choices=["q", "k", "v", "o", "w1", "w3", "w2"],
+                    help="these linear kinds int8 in every block (see above)")
     ap.add_argument("--clip-groups", action="store_true",
                     help="clip the gradient norm per block (and the rest apart) instead of the whole model")
     ap.add_argument("--init-from", default="", help="start from this checkpoint ({seed} is replaced): two-step")

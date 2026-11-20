@@ -625,3 +625,30 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   helps both alike; the gap is the size. New recipe = lr 3e-3, 20k for the next screens (~10 min per run).
 - Step 5 (ternary, new recipe, 3 seeds): 1.8375 ± 0.0053 vs binary 2.0613: -0.224, gap 0.790 -> 0.567 (28 % closed).
   C has no ternary linear yet (needed to put it on the chips).
+
+## Nov 19-20 2026 — night roadmap (Edén asleep: "analizar mejor K, descomponerla, buscar una mejor adaptación a las binarias")
+Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses below are no-training and tiny):
+- N1 step 6 temperature queue (running): finish, apply the rule, JSON + README.
+- N2 `error_anatomy.py` (no training, 260K, 3 seeds): which variable hurts most and whether the residual sum
+  accumulates errors. On the fp32 260K model, one source at a time in every block (W1A8 on q, k, v, o, w1, w3, w2;
+  K cache 2-bit; V cache 2-bit): val loss rise and the residual error after each block; all W1A8 together vs the sum;
+  one block binarized at a time: does its error grow or shrink through the later blocks (gain per block).
+- N3 `k_anatomy.py` (no training): K in the binary and fp32 260K models per layer / KV head (head width 8): share of
+  the token mean (softmax ignores q . mean only before RoPE-free parts; measured, not assumed), outlier channels,
+  effective rank, attention entropy (flat attention?), which channels carry the score. One-shot K adaptations on
+  the fp32 model (only W_k changed): sign x mean|w| (now), centered rows, two binary bases, ternary, Hadamard input.
+- N4 (GPU after N1, rule in README before): QAT, binary 260K, lr 3e-3 / 20k, 3 seeds: int8 W_k in every block vs int8
+  W_v (same bytes, control: is K special in training?), `--hadamard k`; plus the best N3 one-shot if it needs no new
+  inference op.
+- N5 write everything (README section, results JSON, LOGBOOK), pytest + C tests, commit + push exp/llm-260k.
+- Nov 20 ~00:10, N2 + N3 done (3 seeds, results/v512d64l5kv4_error_anatomy_{int4,binary}.json, _k_anatomy.json,
+  README "Step 7"). K CACHE is the variable: 4-bit +1.68 (fp32) vs V cache +0.011; W_k weights ordinary (int4 0.027
+  like W_q); W_v / W_2 the worst weights. Errors combine like independent ones (joint / rss 0.98-1.01), loss 1.32x the
+  sum. An error in block 0 is 2.0x larger at the last block (amplified, Edén's hypothesis supported for the LLM).
+  Key = mostly its mean (41-96 % of the energy); via RoPE the mean is a position-only score term (22-87 % of score
+  variance). Center (key - RoPE(mean), fixed mean from training windows) cuts the binary 4-bit cache rise 0.100 ->
+  0.009, 2-bit 0.80 -> 0.13; Hadamard / smooth do little. One-shot W1A8 of the fp32 260K saturates (ranking only).
+- Smoke OOM: the GPU holds the temperature run (8.8 GB) -> train.py --k-center / --int8-linears checked on CPU
+  (forward / backward, kmu moves, old checkpoint loads strict). intsim.load_model refuses both.
+- N4 queue chained after the temperature queue (runs/logs/chain_k.sh waits by PID 803655 -> q260k_k.sh -> q260k_k.log):
+  k2c, k2, k4c, k4, i8k, i8v x 42/43/44 (~3 h, estimate).
