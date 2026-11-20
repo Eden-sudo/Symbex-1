@@ -235,3 +235,39 @@ def memory(config, *, sram_bytes=512 * 1024, psram_bytes=8 * 1024**2,
         violations.append("model exceeds current flash partition")
     return dict(fits=not violations, violations=violations, totals=totals,
                 sram=sram, psram=psram, firmware_gaps=firmware_gaps(c))
+
+
+def training(config, tokens=327680000, *, batch=128, seq=256):
+    """M4 Pro MPS estimate from the user-supplied 1.59 s / 128x256 step.
+
+    FLOPs/token = 6*(executed linear weights + tied head) + 12*L*seq*d:
+    forward/backward dense matmuls and full square attention. QAT still uses
+    floating-point matmuls: head/KV bit width does NOT accelerate training.
+    Factored training assumes direct factor matmuls, no SVD/teacher overhead.
+    Constant achieved FLOP/s and linear batch scaling are extrapolations.
+    Memory is a conservative planning allowance, not a measured MPS peak:
+    FP32 Adam state/grad/weights (16 B/parameter), saved activations, logits,
+    materialized attention and 4 GiB for OS/framework. Fused/chunked kernels
+    may need less; QAT copies/allocator fragmentation may need more.
+    """
+    positive_int("batch", batch)
+    positive_int("seq", seq)
+    if seq > config.ctx:
+        raise ValueError("training seq exceeds configured context")
+    if isinstance(tokens, bool) or not isinstance(tokens, (int, float)) or not math.isfinite(tokens) or tokens < 0:
+        raise ValueError("tokens must be finite and nonnegative")
+    c = config
+    size = size_model(c)
+    flops = 6 * (size["linear_parameters"] + c.vocab * c.dim) + 12 * c.layers * seq * c.dim
+    reference_flops = 6 * (14155776 + 4096 * 384) + 12 * 8 * 256 * 384
+    seconds = 1.59 * (batch * seq / (128 * 256)) * flops / reference_flops
+    tps = batch * seq / seconds
+    memory_parts = dict(optimizer=16 * size["parameters"],
+                        activations=4 * batch * seq * c.layers * (10 * c.dim + 4 * c.hidden),
+                        logits=8 * batch * seq * c.vocab,
+                        attention=8 * batch * c.layers * c.heads * seq * seq,
+                        reserve=4 * 1024**3)
+    memory_bytes = sum(memory_parts.values())
+    return dict(flops_per_token=flops, seconds_per_step=seconds, tokens_per_second=tps,
+                hours=tokens / tps / 3600, memory_bytes=memory_bytes,
+                memory_parts=memory_parts, fits_24gib=memory_bytes <= 24 * 1024**3)

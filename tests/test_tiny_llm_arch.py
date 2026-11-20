@@ -135,3 +135,34 @@ def test_memory_exact_boundary_and_firmware_limits(planner):
     assert planner.memory(planner.Config(ctx=512))["firmware_gaps"]
     with pytest.raises(ValueError):
         planner.memory(c, sram_reserve=-1)
+
+
+def test_mac_training_anchor_and_arithmetic(planner):
+    t = planner.training(planner.Config())
+    assert t["seconds_per_step"] == pytest.approx(1.59)
+    assert t["tokens_per_second"] == pytest.approx(32768 / 1.59)
+    assert t["hours"] == pytest.approx(10000 * 1.59 / 3600)
+    assert t["memory_bytes"] == sum(t["memory_parts"].values())
+    assert t["fits_24gib"]
+    assert planner.training(planner.Config(), tokens=0)["hours"] == 0
+
+
+def test_training_scales_flops_not_quantized_bytes(planner):
+    from dataclasses import replace
+
+    c = planner.Config()
+    base = planner.training(c)
+    assert planner.training(replace(c, head_bits=2, kv_bits=2))["seconds_per_step"] == base["seconds_per_step"]
+    assert planner.training(c, batch=64)["seconds_per_step"] == base["seconds_per_step"] / 2
+    bigger = planner.training(replace(c, layers=16))
+    expected_flops = 6 * (2 * 14155776 + 4096 * 384) + 12 * 16 * 256 * 384
+    assert bigger["flops_per_token"] == expected_flops
+    assert bigger["hours"] / base["hours"] == pytest.approx(expected_flops / base["flops_per_token"])
+    assert not planner.training(c, batch=4096)["fits_24gib"]
+
+
+@pytest.mark.parametrize("kwargs", [dict(batch=0), dict(seq=257), dict(tokens=-1),
+                                   dict(tokens=float("inf")), dict(seq=1.5)])
+def test_training_rejects_invalid_inputs(planner, kwargs):
+    with pytest.raises(ValueError):
+        planner.training(planner.Config(), **kwargs)
