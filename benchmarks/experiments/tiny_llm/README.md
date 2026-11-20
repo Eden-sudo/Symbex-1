@@ -217,3 +217,25 @@ repeats itself more. Ternary sits between the two at twice the weight memory.
 - Binarizing more is research: 1-bit activations were measured (above: +0.26 loss with the best recipe, one seed,
   no gain on the chip); a binary embedding and binary attention are not measured: an open question.
 - The test split, once, for the final numbers.
+
+## Memory budget before training
+
+From the repository root, run:
+
+```
+python benchmarks/experiments/tiny_llm/memory_budget.py --dim 384 --layers 8 --heads 6 --hidden 1024 --seq 256 --vocab 4096 --weights binary --head fp32
+```
+
+These are the defaults. The JSON reports `model_bin_bytes` (the exporter layout), `linear_weight_bytes` (packed
+matrix payload, without row multipliers), `embedding_head_bytes` (shared table and row multipliers, counted once),
+`kv_cache_bytes` (including scales and the read guard), `per_token_internal_ram_bytes` (resident working buffers,
+reused each token) and `bits_per_linear_weight` (excluding padding and multipliers). The fp32 training head exports
+an int8 table. Both weight choices use one bit in the current writer: its positive mask loses ternary zeros, and the
+intsim CLI does not support ternary export. This is a size estimate, not a working ternary firmware format.
+
+The model and KV cache live in PSRAM. Internal working buffers include the output array and four static S3 scratch
+arrays, but exclude allocator/alignment overhead, stack, firmware/framework state, profiling counters, model/block
+structs, read-only constants and optional-kernel allocations. These numbers are not total internal RAM or a complete
+PSRAM budget, and do not prove that a model fits. Exportable shapes are not necessarily firmware-compatible: current
+C requires 64-wide heads, dim and hidden multiples of 8, seq <= 258, hidden >= 2*seq, and the S3 unsigned-attention
+path requires max(dim, hidden) >= 4*seq; optional kernels impose additional limits.
