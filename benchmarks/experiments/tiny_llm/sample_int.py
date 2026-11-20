@@ -56,3 +56,41 @@ def sample_topk(scores, k, shift, state):
         cumulative += weight
         if cumulative > r:
             return token, next_state
+
+
+def sample(scores, k, temperature, top_p, state):
+    """Integer temperature = score units per log2 weight halving; 0 = greedy.
+
+    k=0 means whole vocabulary. top_p is 1..65536 (Q16), applied after
+    top-k: keep the shortest prefix reaching ceil(total * top_p / 65536).
+    Ties prefer smaller IDs. Greedy does not advance RNG; stochastic draws
+    advance once, using next_state % retained_total (intentional modulo bias).
+    """
+    from collections.abc import Sequence
+
+    if not isinstance(scores, Sequence):
+        raise TypeError("scores must be a finite sequence")
+    if not 1 <= len(scores) <= 2147483647:
+        raise ValueError("scores must not be empty")
+    _integer(k, "k", 0, 2147483647)
+    _integer(temperature, "temperature", 0, 0xffffffff)
+    _integer(top_p, "top_p", 1, 65536)
+    _integer(state, "state", 1, 0xffffffff)
+    for score in scores:
+        _integer(score, "scores", -(1 << 63), (1 << 63) - 1)
+    ids = sorted(range(len(scores)), key=lambda i: (-scores[i], i))[:k or len(scores)]
+    if temperature == 0:
+        return ids[0], state
+    weights = [exp_q(scores[ids[0]] - scores[i], temperature) for i in ids]
+    target = (sum(weights) * top_p + 65535) // 65536
+    total = 0
+    for end, weight in enumerate(weights, 1):
+        total += weight
+        if total >= target:
+            break
+    state = xorshift32(state)
+    draw = state % total
+    for token, weight in zip(ids[:end], weights[:end]):
+        if draw < weight:
+            return token, state
+        draw -= weight
