@@ -1,5 +1,12 @@
 """Canonical sensor prompt v1; see prompt_format.md."""
 import re
+import importlib.util
+from pathlib import Path
+
+_spec = importlib.util.spec_from_file_location("sensor_modules", Path(__file__).with_name("_modules.py"))
+_modules = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_modules)
+bilingual = _modules.load("bilingual.py")
 
 START = "<sensor_v1>"
 ANSWER = "<text>"
@@ -14,6 +21,8 @@ FIELDS = {
 
 
 def canonical_record(event):
+    if event.get("source") == "environment":
+        return bilingual.environment.canonical_record(event)
     source = event.get("source")
     if source not in FIELDS:
         raise ValueError("unknown sensor source")
@@ -33,6 +42,8 @@ def canonical_record(event):
 
 
 def serialize(event):
+    if event.get("source") == "environment":
+        return bilingual.serialize(event)
     record = canonical_record(event)
     parts = [START, f"source={record['source']}", f"class={record['class']}"]
     parts.extend(f"{name}={record[name]} {unit}" for name, unit, _, _ in FIELDS[record["source"]])
@@ -40,6 +51,8 @@ def serialize(event):
 
 
 def parse(text):
+    if isinstance(text, str) and text.startswith(bilingual.environment.START):
+        return bilingual.parse(text)
     if not isinstance(text, str):
         raise ValueError("prompt must be text")
     parts = text.split("|")

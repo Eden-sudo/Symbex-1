@@ -24,8 +24,10 @@ def trend(values):
 def canonical_record(event):
     names = {f[0] for f in FIELDS}
     expected = names | {"source", "window", "history", "trends"}
-    if set(event) - {"template_id"} != expected or event.get("source") != "environment":
+    if set(event) - {"template_id", "language"} != expected or event.get("source") != "environment":
         raise ValueError("missing or extra environmental fields")
+    if "language" in event and event["language"] not in ("en", "es"):
+        raise ValueError("language must be en or es")
     n = event["window"]
     if type(n) is not int or not 2 <= n <= 16:
         raise ValueError("window must be an integer in [2, 16]")
@@ -50,6 +52,8 @@ def canonical_record(event):
                 raise ValueError(f"inconsistent {name} trend")
             result["history"][name] = list(history)
             result["trends"][name] = direction
+    if "language" in event:
+        result["language"] = event["language"]
     return result
 
 
