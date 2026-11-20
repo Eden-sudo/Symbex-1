@@ -687,3 +687,9 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   1.0985 / 0.30. Plain 4-bit key cache, binary: 0.100 / 0.036 / 0.021 -> rule 2: limit = d256 (3.76 M). fp32 1.68 /
   0.13 / 0.035. 2-bit key (center) not usable at any width (0.08-0.13). KV int8 + scales at ctx 512 (computed):
   246 / 410 / 737 KB -> on chips without PSRAM the cache sets the size. Step 9 queue started 15:15.
+- Nov 20 ~17:00, chip comparison point (Edén: "adelante"; README "The comparison point on the chip", rule first):
+  llama2.c run.c (commit 350e04f, unchanged, chip_l2c/llama2c/ + LICENSE) with our fp32 260K exported to its v0
+  format (chip_fp32.py; tied head, RoPE layout identical: PC run.c = PyTorch greedy 120/120, chips = PC 120/120, 9 runs).
+  Story tok/s fp32 vs binary: ESP32 6.48 vs 40.15 (6.2x), M33 8.89 vs 31.84 (3.6x), Hazard3 2.40 vs 35.38 (14.7x, no
+  FPU). Flash 1.06 MB vs 93 KB. fp32 KV at ctx 512 = 655 KB fits neither chip: fp32 ran at context 127. Quality price:
+  0.79 nats. Not measured: CMSIS-DSP / ESP-DSP fp32 kernels.

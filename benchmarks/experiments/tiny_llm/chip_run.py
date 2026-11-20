@@ -66,9 +66,10 @@ def model_sum(data):
     return s
 
 
-def write_model_data(run, path):
-    """model.bin as a 16-byte aligned const array (the boards without PSRAM read it in place from flash)"""
-    with open(os.path.join(run, "model.bin"), "rb") as f:
+def write_model_data(run, path, name="model.bin"):
+    """model.bin (or runs/<run>/<name>) as a 16-byte aligned const array (the boards without PSRAM read it in place
+    from flash)"""
+    with open(os.path.join(run, name), "rb") as f:
         mb = f.read()
     lines = ["/* written by chip_run.py: do not edit */", "#pragma once", "#include <stdint.h>",
              f"static const uint8_t model_bin[{len(mb)}] __attribute__((aligned(16))) = {{"]

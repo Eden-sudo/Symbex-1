@@ -1208,6 +1208,46 @@ rule); if none is, the best is compared with the trained 2-bit center key (2.110
 (3) `k1uctr` goes to intsim / the C / the chips only if it passes (2) or ties the 2-bit center key within the larger
 sd.
 
+### The comparison point on the chip: the same 260K in fp32 with llama2.c (rule Nov 20 2026, before measuring)
+
+**Question.** What does the binary 260K buy on a chip without PSRAM, against the plain way to run the same shape?
+
+**What.** Two comparisons, fixed here (Edén, Nov 20). Quality: the gap to fp32 of the same shape and recipe (steps 4-8).
+Chip: [karpathy/llama2.c](https://github.com/karpathy/llama2.c) `run.c` (MIT; copied unchanged into
+`chip_l2c/src/`), the reference fp32 inference for this exact architecture (Llama, RMSNorm, interleaved RoPE, SwiGLU,
+GQA, tied head), with our fp32 260K (`fp32_v512d64l5kv4_lr3e-3_20k`, 3 seeds) exported to its format. Weights in
+flash, KV cache in internal RAM, same compiler flags as the binary firmware (-O2), classic ESP32 and both Pico 2
+cores. The fp32 cache takes 1,280 bytes per position (computed): 655 KB at context 512 fits neither chip, so the
+fp32 run gets the context the story needs (128); the binary run keeps 512 (said in the table).
+
+**Rule (written before the runs).** Measured: tokens per second on the greedy story (prompt "Once upon a time", 120
+new tokens, the same positions as the binary runs of step 3), model flash bytes, free RAM. Speed-up = fp32 story time
+/ binary story time, per board, 3 seeds each (binary from results/chip_<board>_binary_v512d64l5kv4_s4*.json). No
+threshold: the number is reported as measured. Correctness: the chip's greedy tokens must equal `run.c` built on the
+PC; if a chip's float rounding makes them diverge, the first diverging position is reported and the time is kept
+(time does not depend on which token). `run.c` on the PC must give PyTorch's greedy story. `run.c` is plain C (no
+ESP-DSP / CMSIS-DSP): a tuned fp32 would be faster, the table says so.
+
+**Result** (3 seeds each, flash, story of 120 tokens; `chip_fp32.py`, results/chip_<board>_l2c_fp32_v512d64l5kv4_lr3e-3_20k_s4*.json;
+binary from step 3):
+
+| board | fp32 run.c, tokens/s | binary, tokens/s | binary faster | free RAM after load: fp32 (context 127) / binary (512) |
+|---|---|---|---|---|
+| classic ESP32, 240 MHz | 6.479 ± 0.001 | 40.15 ± 0.06 | **6.2x** | 180 / 72 KB |
+| Pico 2 Cortex-M33, 150 MHz | 8.890 ± 0.000 | 31.84 ± 0.06 | **3.6x** | 339 / 235 KB |
+| Pico 2 Hazard3, 150 MHz | 2.404 ± 0.001 | 35.38 ± 0.88 | **14.7x** | 330 / 228 KB |
+
+Model in flash: fp32 1,056,540 bytes, binary 93,120 (11.3x smaller). Validation loss: fp32 1.2709 ± 0.0087, binary
+2.0613 ± 0.0086 (the gap of 0.79, step 8). `run.c` on the PC gave PyTorch's greedy story (120 / 120 tokens, 3 seeds)
+and every chip gave the PC's story (120 / 120, 9 runs).
+
+**Answer.** On chips without PSRAM the binary 260K is 3.6-14.7x faster than the same shape in fp32 with llama2.c,
+11x smaller in flash, and holds 4x the context in less RAM (int8 cache 246 KB at 512 positions vs fp32 655 KB,
+computed: the fp32 model only fits 127 positions here). The price is quality: 0.79 nats of validation loss. Reading
+the boards: the M33 has a single-precision FPU, so fp32 runs at its best there (3.6x); the classic ESP32 has an FPU
+too but is 6.2x slower in fp32; the RP2350's Hazard3 has no FPU (software floats), hence 14.7x. `run.c` is plain C:
+CMSIS-DSP / ESP-DSP fp32 kernels would narrow the M33 and ESP32 figures (not measured).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal
