@@ -6,6 +6,7 @@ _spec = importlib.util.spec_from_file_location("sensor_modules", Path(__file__).
 _modules = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_modules)
 environment = _modules.load("environment.py")
+alerts = _modules.load("alerts.py")
 
 LABELS = {
     "en": ("Temperature", "Humidity", "CO2", "Battery", "Motion", "Light", "Sound level", "Door"),
@@ -54,6 +55,7 @@ def render(event, phrasing=0):
     for name, values in facts(event).items():
         templates = ANALOG_TEMPLATES if name in environment.ANALOG else STATE_TEMPLATES
         clauses.append(templates[language][phrasing].format(**values))
+    clauses.append(alerts.render(event))
     return "; ".join(clauses) + "."
 
 

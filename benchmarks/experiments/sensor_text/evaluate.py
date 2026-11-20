@@ -38,6 +38,8 @@ def score(event, generated, reference):
     Numeric hallucinations count occurrences of values absent from the record;
     swapped ECG values are field errors, not numeric hallucinations.
     """
+    if event.get("source") == "environment":
+        return score_environment(event, generated, reference)
     record = prompt.canonical_record(event)
     fields = [field[0] for field in prompt.FIELDS[record["source"]]]
     allowed = {Decimal(record[name]) for name in fields}
@@ -51,7 +53,40 @@ def score(event, generated, reference):
     return {"exact_match": generated == reference, "field_fact_accuracy": correct / total,
             "correct_fields": correct, "total_fields": total,
             "all_facts_correct": correct == total and hallucinations == 0,
-            "hallucination_count": hallucinations, "supported": extracted is not None}
+            "hallucination_count": hallucinations, "supported": extracted is not None,
+            "missed_alerts": 0, "false_alerts": 0, "alerts_supported": True}
+
+
+def score_environment(event, generated, reference):
+    b = prompt.bilingual
+    record = b.environment.canonical_record(event)
+    facts = b.facts(record)
+    language = record["language"]
+    # Match whole declared clauses, not substrings that could credit a negation.
+    clauses = generated[:-1].split("; ") if generated.endswith(".") else []
+    correct = 0
+    remainder = generated
+    for name, values in facts.items():
+        templates = b.ANALOG_TEMPLATES if name in b.environment.ANALOG else b.STATE_TEMPLATES
+        matches = [template.format(**values) for template in templates[language]]
+        # Some analog forms contain semicolons internally; use bounded full phrases.
+        found = [text for text in matches if re.search(r"(?:^|; )" + re.escape(text) + r"(?=; |\.$)", generated)]
+        if len(found) == 1:
+            correct += len(values) - 1  # label selects field; unit is a fact too
+            remainder = remainder.replace(found[0], "", 1)
+    total = sum(len(v) - 1 for v in facts.values())
+    alert_score = b.alerts.score(record, generated)
+    allowed = {Decimal(record[name]) for name in b.environment.ANALOG} | {Decimal(record["window"])}
+    hallucinations = sum(Decimal(m.group()) not in allowed for m in NUMBERS.finditer(generated))
+    # Unsupported wording is explicitly flagged, including extra/contradictory clauses.
+    expected_alert = b.alerts.render(record)
+    remainder = remainder.replace(expected_alert, "", 1)
+    supported = not remainder.strip("; .") and correct == total
+    return {"exact_match": generated == reference, "field_fact_accuracy": correct / total,
+            "correct_fields": correct, "total_fields": total,
+            "all_facts_correct": supported and not hallucinations and alert_score["alerts_supported"]
+                                 and not alert_score["missed_alerts"] and not alert_score["false_alerts"],
+            "hallucination_count": hallucinations, "supported": supported, **alert_score}
 
 
 def evaluate(rows):
@@ -62,6 +97,9 @@ def evaluate(rows):
             "exact_match": sum(r["exact_match"] for r in results) / len(results),
             "field_fact_accuracy": sum(r["correct_fields"] for r in results) / sum(r["total_fields"] for r in results),
             "hallucination_count": sum(r["hallucination_count"] for r in results),
+            "missed_alerts": sum(r["missed_alerts"] for r in results),
+            "false_alerts": sum(r["false_alerts"] for r in results),
+            "unsupported_alert_count": sum(not r["alerts_supported"] for r in results),
             "unsupported_count": sum(not r["supported"] for r in results), "rows": results}
 
 
