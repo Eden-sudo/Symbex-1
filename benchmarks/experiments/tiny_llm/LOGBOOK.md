@@ -670,3 +670,8 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   (head width 16 / 32), fp32 + binary, 3 seeds; k_anatomy on all. Queue runs/logs/step8_queue.sh (resumable, log
   step8_queue.log, ends "STEP8 QUEUE DONE"). Run time ESTIMATE ~6-7 h (200-step smokes: d256 ~2.5x the 260K).
   intsim.load_model: vocab from the checkpoint, float_only for k_anatomy (sink / gate have no integer model).
+- Nov 20, 1-bit key probe (scratch /tmp/kbits/k_bits_probe.py, NOT in the repo; 260K, 3 seeds, 256 val windows, no
+  training): binary model, sign of the post-RoPE key = sign of the (rotated) mean on 84 % of the bits (61-97 % by
+  layer); bit entropy 0.46 bit per stored bit plain, 0.98 after center. 1-bit key cache (sign x mean|k|) rise plain
+  +1.29 vs center +0.39 (fp32 model 4.10 vs 2.23); x pi/2 worse. KV bytes 260K (computed): 164 KB int8 + 80 KB int32
+  scales (33 % of the cache is scales). For Edén's "how Q K V are read / stored / computed" question.
