@@ -919,6 +919,30 @@ Both rules pass: lr 3e-3 beats the base by 0.042 (sd 0.015), 20000 steps beat 10
 size (dim 64 at 1 bit). The new recipe is the one for the next steps (the chip models above stay the base ones
 until a combined model is exported).
 
+### Step 5: ternary weights at 260K (rule Nov 19 2026, before measuring)
+
+**Question.** If the gap is the size (step 4), ternary weights (-1, 0, 1: up to ~1.58 bits each, 2 bits stored) give
+each layer more to spend at the same shape. How much of the gap do they close?
+
+**What.** `--weights ternary`, the same shape, the step 4 recipe (lr 3e-3, 20000 steps), seeds 42, 43, 44,
+validation only. Compared with binary at the same recipe (2.0613 ± 0.0086) and fp32 (1.2709 ± 0.0087).
+
+**Rule.** Ternary counts as better if its mean val loss beats binary by more than the larger sd. Weights in flash
+double (2 bits, computed: ~0.09 -> ~0.15 MB model.bin, still small). Whether it is carried to the chips is decided
+after the next steps, with the other winners. The test split is not read.
+
+**Result** (results/v512d64l5kv4_ternary.json, lr 3e-3, 20000 steps, val loss):
+
+| weights | seeds 42 / 43 / 44 | mean ± sd | gap to fp32 |
+|---|---|---|---|
+| binary | 2.0632 / 2.0519 / 2.0688 | 2.0613 ± 0.0086 | +0.790 |
+| **ternary** | 1.8315 / 1.8416 / 1.8394 | **1.8375 ± 0.0053** | **+0.567** |
+| fp32 | 1.2616 / 1.2787 / 1.2725 | 1.2709 ± 0.0087 | 0 |
+
+**Answer.** Yes: ternary beats binary by 0.224 (larger sd 0.009), 28 % of the gap. The rest (+0.57) is still large.
+The C has no ternary weights yet (intsim.py's C check packs 1-bit weights only): carrying it to the chips needs that
+kernel.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

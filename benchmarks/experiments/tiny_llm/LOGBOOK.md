@@ -623,3 +623,5 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
 - Nov 19 night, step 4 (recipe): binary lr 1e-3 2.1649, lr 3e-3 2.0989, lr 3e-3 20k 2.0613 ± 0.0086 (base 2.1404);
   fp32 lr 3e-3 20k 1.2709 ± 0.0087 (base 1.3464). Both rules pass, but the gap stays +0.790 (was +0.794): recipe
   helps both alike; the gap is the size. New recipe = lr 3e-3, 20k for the next screens (~10 min per run).
+- Step 5 (ternary, new recipe, 3 seeds): 1.8375 ± 0.0053 vs binary 2.0613: -0.224, gap 0.790 -> 0.567 (28 % closed).
+  C has no ternary linear yet (needed to put it on the chips).

@@ -1,0 +1,31 @@
+{
+  "ternary": {
+    "val_loss": [
+      1.8315,
+      1.8416,
+      1.8394
+    ],
+    "mean": 1.8375,
+    "sd": 0.0053,
+    "minutes": [
+      9.97,
+      9.75,
+      9.74
+    ],
+    "best_step": [
+      17000,
+      18500,
+      19000
+    ]
+  },
+  "binary_ref": {
+    "mean": 2.0613,
+    "sd": 0.0086
+  },
+  "fp32_ref": {
+    "mean": 1.2709,
+    "sd": 0.0087
+  },
+  "sample_s42": "Once upon a time, there was a little girl named Jane. She lived in a big park with her friends. Every day, she wouldn't like to play with her toys. Every day, she wouldn't beliver wanted to play with her toys.\nOne day, Jane was playing with her friends. She saw a big box with a big box. She wanted to see the box. She said, \"I want to play with your ball!\" Jane was very happy. Jane was very happy. Jane was very happy. Jane was very happy. Jane was very happy. Jane was very happy. \nAmy and Jane played with the balls and had a",
+  "note": "260K ternary, lr 3e-3, 20k steps, validation (README Step 5)"
+}
