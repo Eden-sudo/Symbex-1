@@ -19,6 +19,11 @@ No training. For each trained model, layer and key head (head width 8 at 260K):
               center      after RoPE, minus that mean rotated to the key's position (a fixed table), added back when
                           read: no RoPE on read, but q . RoPE(mean) is one more dot product per key (estimate)
               center+had  center, then the Hadamard rotation
+              sage        after RoPE, minus a fixed vector (the mean of the keys AFTER RoPE on training windows),
+                          NOT added back: q . c is the same for every key of a query, softmax ignores it
+                          (SageAttention's smooth K with a fixed mean): free on a chip, exact without quantization
+    stats also split the key mean by RoPE pair: mean_slow = share of the mean's energy in the pairs that turn less
+    than once over the context (theta x seq < 2 pi, the "rotary offset features" of Jonasson 2025)
     The value cache stays as trained. Fixed scales and means come from training windows; losses from validation.
 """
 import argparse
@@ -33,7 +38,7 @@ import intsim as I
 import train as T
 
 BITS = (4, 3, 2)
-MODES = ("token", "smooth", "hadamard", "smooth+had", "pre", "pre-center", "center", "center+had")
+MODES = ("token", "smooth", "hadamard", "smooth+had", "pre", "pre-center", "center", "center+had", "sage")
 KFUN = None          # (block index, k before RoPE, cos, sin) -> key after RoPE as the attention reads it
 STATS = None         # list collecting (q after RoPE, k before RoPE, k after RoPE) per block when not None
 
@@ -71,6 +76,8 @@ def make_kfun(mode, bits, cal, had):
             mu = cal["mean"][i] if mode == "pre-center" else 0.0
             return T.rope(qtok(k - mu, bits) + mu, cos, sin)
         kr = T.rope(k, cos, sin)
+        if mode == "sage":                   # a constant per key head: shifts each query's scores by one number
+            return qtok(kr - cal["post"][i], bits)
         if mode.startswith("center"):        # minus the fixed mean, rotated to the key's position (no RoPE on read)
             m = T.rope(cal["mean"][i].expand_as(k), cos, sin)
             z = kr - m
@@ -120,6 +127,10 @@ def head_stats(qr, k, kr, heads, cos, sin):
     outlier = (rms.amax(-1) / rms.median(-1).values).tolist()
     mu = k.mean((0, 2))
     mean_share = (mu.pow(2).sum(-1) / k.pow(2).sum(-1).mean((0, 2))).tolist()
+    t_all = cos.shape[0]
+    slow = torch.acos(cos[1].clamp(-1, 1)) * t_all < 2 * math.pi   # angle per position step = the pair's frequency
+    pe = mu.pow(2).view(mu.shape[0], -1, 2).sum(-1)              # kv heads x pairs: the mean's energy per pair
+    mean_slow = (pe[:, slow].sum(-1) / pe.sum(-1).clamp(min=1e-12)).tolist()
     peak = (kr.abs().amax(-1) / kr.pow(2).mean(-1).sqrt().clamp(min=1e-8)).mean((0, 2)).tolist()
     kv = kr.shape[1]
     kk = kr.repeat_interleave(heads // kv, dim=1)
@@ -147,6 +158,7 @@ def head_stats(qr, k, kr, heads, cos, sin):
     mshare, cshare = (torch.cat(z).mean(0).tolist() for z in (mshare, cshare))
     return {"outlier": [round(v, 2) for v in outlier], "mean_share": [round(v, 3) for v in mean_share],
             "token_peak": [round(v, 2) for v in peak], "attn_entropy": [round(v, 2) for v in ent],
+            "mean_slow": [round(v, 3) for v in mean_slow], "slow_pairs": int(slow.sum()),
             "score_var_mean": [round(v, 3) for v in mshare], "score_var_content": [round(v, 3) for v in cshare]}
 
 
@@ -159,13 +171,14 @@ def one(run, seed, args, dev):
         blk.index = i
         blk.forward = forward.__get__(blk)
     seq = a["seq"]
-    val = windows(T.load_split("val", dev, a["vocab"]), args.windows, seq, args.batch, dev)
-    cal_w = windows(T.load_split("train", dev, a["vocab"]), args.cal_windows, seq, args.batch, dev)
+    val = windows(T.load_split("val", dev, a.get("vocab", 4096)), args.windows, seq, args.batch, dev)
+    cal_w = windows(T.load_split("train", dev, a.get("vocab", 4096)), args.cal_windows, seq, args.batch, dev)
     per = collect(model, cal_w)
     hd = per[0][1].shape[-1]
-    cal = {"mean": [], "rms": []}
+    cal = {"mean": [], "rms": [], "post": []}
     for _, k, kr in per:
         cal["mean"].append(k.mean((0, 2))[None, :, None, :].to(dev))
+        cal["post"].append(kr.mean((0, 2))[None, :, None, :].to(dev))
         r = kr.pow(2).mean((0, 2))                                 # kv heads x hd
         r = r.view(r.shape[0], -1, 2).mean(-1).repeat_interleave(2, -1).sqrt()   # one scale per RoPE pair
         cal["rms"].append(r[None, :, None, :].to(dev))
@@ -203,7 +216,8 @@ def main():
     for run, rs in res.items():
         print(f"\n{run} ({len(rs)} seeds), loss {ms([r['loss'] for r in rs])[0]:.4f}")
         L = len(rs[0]["stats"])
-        for key in ("outlier", "mean_share", "token_peak", "attn_entropy", "score_var_mean", "score_var_content"):
+        for key in ("outlier", "mean_share", "mean_slow", "token_peak", "attn_entropy", "score_var_mean",
+                    "score_var_content"):
             row = [round(ms([sum(r["stats"][l][key]) / len(r["stats"][l][key]) for r in rs])[0], 3)
                    for l in range(L)]
             summary.setdefault(run, {})[key] = row

@@ -1078,6 +1078,49 @@ through the residual stream (2x from block 0 to the last). For the weights, the 
 bits pay most. Not done: `--k-center` in intsim and the C (an extra dot of q with RoPE(mean) per key, estimate),
 center combined with the learned temperature or ternary weights, the growth measure on ResNet-8's OR shortcuts.
 
+### Step 7b: the key at two sizes, and what the literature says (Nov 20 2026, no training)
+
+**Question.** Is the key's mean a 260K problem or does it stay when the model grows, and which published key fixes
+match it?
+
+**What.** `k_anatomy.py` on the 260K (head width 8) and the 15.7 M d384l8 (head width 64), fp32 / binary / ternary,
+3 seeds, 256 validation windows, calibration from 64 training windows. New: `mean_slow` (share of the key mean's
+energy in the RoPE pairs that turn less than once over the context: 260K 2 of 4 pairs, 15.7 M 19 of 32) and `sage`
+(subtract the post-RoPE key mean, not added back: free, exact without quantization, SageAttention's K smoothing).
+[results/v512d64l5kv4_k_anatomy.json](results/v512d64l5kv4_k_anatomy.json),
+[results/d384l8_k_anatomy.json](results/d384l8_k_anatomy.json).
+
+**Result** (loss rise of the key cache at 4 / 2 bits, mean ± sd over 3 seeds; mean_share / mean_slow = range over layers):
+
+| model | mean_share | mean_slow | token 4b / 2b | sage 4b / 2b | center 4b / 2b | pre-center 4b / 2b |
+|---|---|---|---|---|---|---|
+| 260K fp32 | 0.77-0.96 | 0.87-0.92 | 1.68 / 3.45 | 0.44 / 2.91 | 0.056 / 1.03 | 0.062 / 0.72 |
+| 260K binary | 0.41-0.85 | 0.79-0.88 | 0.100 / 0.80 | 0.045 / 0.66 | 0.009 / 0.13 | 0.011 / 0.12 |
+| 260K ternary | 0.57-0.83 | 0.82-0.91 | 0.208 / 1.15 | 0.059 / 0.91 | 0.017 / 0.30 | 0.017 / 0.24 |
+| 15.7 M fp32 | 0.42-0.74 | 0.64-0.84 | 0.0094 / 0.48 | 0.0049 / 0.43 | 0.0020 / 0.087 | 0.0018 / 0.082 |
+| 15.7 M binary | 0.29-0.76 | 0.58-0.84 | 0.0082 / 0.20 | 0.0048 / 0.18 | 0.0014 / 0.056 | 0.0016 / 0.052 |
+| 15.7 M ternary | 0.32-0.69 | 0.65-0.83 | 0.0085 / 0.23 | 0.0048 / 0.20 | 0.0019 / 0.059 | 0.0019 / 0.054 |
+
+- The mean is there at both sizes (a third to three quarters of the key's energy at 15.7 M) and lives in the slow
+  RoPE pairs (58-92 %): the "rotary offset features" of Jonasson 2025 and the low-frequency bias zones of the
+  "massive spikes are bias vectors" paper. It is not a 260K artifact.
+- What changes with size is the fragility: a plain 4-bit key cache costs 1.68 nats on the 260K fp32, 0.0094 on the
+  15.7 M fp32 (~180x). Removing the mean (center / pre-center) cuts it 4-30x at both sizes.
+- `sage` (free) helps 2-4x at 4 bits and almost nothing at 2 bits: subtracting a constant does not shrink the
+  per-token scale enough. SageAttention's own table shows no gain on a Llama at INT8 either.
+- Hadamard helps on 64-wide heads (15.7 M 4b 0.0094 -> 0.0036) and hurts on 8-wide ones (260K 0.100 -> 0.090
+  binary, 2b worse): too few channels to spread an outlier.
+- Literature read (PDFs): KVQuant (pre-RoPE per channel keys + zero point = our pre-center; first token kept in
+  fp16), SageAttention (K = shared bias + small token signal), rotary offset features (the mean of q and k makes a
+  position-only attention pattern in slow pairs), Bondarenko 2023 (outliers from "no-op" heads; clipped softmax /
+  gated attention), HAD and BinaryAttention (1-bit Q and K: lose magnitude, fixed with standardization, a learned
+  bias and distillation).
+
+**Answer.** The key's mean is a general feature of RoPE models (it is the position term in the slow pairs) and
+removing it before quantizing is the fix that works at both sizes, as in the literature. The small model is ~100x
+more fragile to cache bits, so the limit search is a size question: where between 260K and 15.7 M does a plain
+low-bit key cache become cheap. Not done: intermediate sizes (d128 / d256), first-token (sink) kept at int8.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

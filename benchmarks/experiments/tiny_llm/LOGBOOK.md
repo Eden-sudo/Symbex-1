@@ -659,3 +659,9 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   2.0613) -> center kept at both widths. int8 W_k 2.0339 ± 0.0116 vs int8 W_v 1.9757 ± 0.0172 -> K not special;
   "bytes, not where" fails at 260K (W_v gains 3x more). Next (Edén decides): W_v int8 + center 2-4 bit K + temp +
   ternary together; center into intsim / C / chips; growth measure on ResNet-8's OR shortcuts.
+- Nov 20, step 7b (README, results/v512d64l5kv4_k_anatomy.json + d384l8_k_anatomy.json, 3 seeds, no training):
+  k_anatomy.py + `sage` mode + `mean_slow`. Key mean lives in slow RoPE pairs at both sizes (58-92 %). Plain 4-bit key
+  cache: 260K fp32 +1.68, 15.7 M fp32 +0.0094 (~180x less fragile). center / pre-center work at both sizes; sage
+  (free) 2-4x at 4 bits only; Hadamard helps 64-wide heads, not 8-wide. PDFs read: KVQuant, SageAttention, rotary
+  offset features, massive spikes = bias vectors, Bondarenko 2023, HAD, BinaryAttention. Next (Edén decides): size
+  ladder d128 / d256 to find where the key stops being fragile; Edén's own K idea still to hear.
