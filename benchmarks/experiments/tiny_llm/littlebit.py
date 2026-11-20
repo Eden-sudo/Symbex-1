@@ -109,11 +109,20 @@ class FactorLinear(nn.Module):
             target = W.detach()
             _initialize(layer.paths[0], target, rank, itq_iters, seed)
             if residual:
-                path = layer.paths[0]
-                reconstruction = path.h[:, None] * ((_binary(path.U) * path.l) @ _binary(path.V).T) * path.g[None, :]
-                target = target - reconstruction
-                _initialize(layer.paths[1], target, rank, itq_iters, seed)
+                layer.fit_residual_(target, itq_iters=itq_iters, seed=seed)
         return layer
+
+    @torch.no_grad()
+    def fit_residual_(self, W, *, itq_iters=None, seed=0):
+        """Refit only the second pair to W minus the current primary pair."""
+        if not self.residual:
+            raise ValueError("layer has no residual path")
+        if W.shape != (self.out_features, self.in_features) or not torch.isfinite(W).all():
+            raise ValueError("W must be a finite matrix with the layer shape")
+        path = self.paths[0]
+        primary = path.h[:, None] * ((_binary(path.U) * path.l) @ _binary(path.V).T) * path.g[None, :]
+        _initialize(self.paths[1], W.detach().to(primary) - primary, self.rank, itq_iters, seed)
+        return self
 
     def storage_bytes(self, scale_bits=16):
         _positive_int("scale_bits", scale_bits)
