@@ -40,6 +40,7 @@ test split once, for the final numbers. Writes runs/<weights>_<name>_s<seed>/{mo
 the best validation loss and perplexity, the parameter counts, the time and a sample story.
 """
 import argparse
+import importlib.util
 import json
 import math
 import os
@@ -53,6 +54,11 @@ import torch.nn.functional as F
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "..", "..", "data", "tinystories")
 
+# Load by path so standalone scripts and file-path test imports both work.
+_ternary_spec = importlib.util.spec_from_file_location("tiny_llm_ternary", os.path.join(HERE, "ternary.py"))
+_ternary = importlib.util.module_from_spec(_ternary_spec)
+_ternary_spec.loader.exec_module(_ternary)
+
 
 # ---- quantization --------------------------------------------------------------------------------------------------
 
@@ -63,7 +69,7 @@ def ste(x, q):
 def quant_weight(w, kind):
     scale = w.abs().mean(dim=1, keepdim=True).clamp(min=1e-5)
     if kind == "ternary":
-        return ste(w, (w / scale).round().clamp(-1, 1) * scale)
+        return _ternary.quant_weight(w)
     if kind == "int8":
         s8 = w.abs().amax(dim=1, keepdim=True).clamp(min=1e-5) / 127.0
         return ste(w, (w / s8).round().clamp(-127, 127) * s8)
