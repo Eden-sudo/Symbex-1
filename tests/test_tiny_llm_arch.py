@@ -166,3 +166,48 @@ def test_training_scales_flops_not_quantized_bytes(planner):
 def test_training_rejects_invalid_inputs(planner, kwargs):
     with pytest.raises(ValueError):
         planner.training(planner.Config(), **kwargs)
+
+
+@pytest.fixture(scope="module")
+def searcher():
+    return load("tiny_arch_search_test", TINY / "arch/search.py")
+
+
+def test_pareto_strict_dominance_and_ties(searcher):
+    rows = [dict(parameters=p, tokens_per_second=t, name=n) for p, t, n in
+            [(10, 10, "fast"), (20, 5, "large"), (9, 9, "dominated"),
+             (10, 9, "same-count"), (19, 5, "same-speed"), (10, 10, "tie")]]
+    assert [r["name"] for r in searcher.pareto(rows)] == ["fast", "tie", "large"]
+    assert searcher.pareto([]) == []
+
+
+def test_tiny_grid_filters_and_deduplicates(searcher):
+    grid = dict(layers=[4, 8], head_bits=[4, 8])
+    configs = list(searcher.grid_configs(grid))
+    result = searcher.search(configs + configs)
+    assert result["evaluated"] == result["feasible"] == 4
+    assert len(result["frontier"]) == 2
+    assert all(r["config"]["head_bits"] == 4 for r in result["frontier"])
+    assert searcher.search(configs, memory_kwargs=dict(psram_bytes=1))["feasible"] == 0
+    assert searcher.search(configs, batch=4096)["rejected"]["training_memory"] == 4
+    proposed = [searcher.P.Config(kv_heads=2)]
+    assert searcher.search(proposed, current_only=True)["rejected"]["firmware"] == 1
+    assert searcher.search(proposed)["feasible"] == 1
+
+
+def test_search_cli_table_and_json(searcher, tmp_path, capsys):
+    path = tmp_path / "grid.json"
+    path.write_text(json.dumps(dict(layers=[4, 8], head_bits=[4])))
+    searcher.main(["--grid", str(path), "--json"])
+    result = json.loads(capsys.readouterr().out)
+    assert result["evaluated"] == 2 and len(result["frontier"]) == 2
+    searcher.main(["--grid", str(path), "--top", "1"])
+    output = capsys.readouterr().out
+    assert "ESTIMATES, not measurements" in output
+    assert len(output.splitlines()) == 4
+
+
+@pytest.mark.parametrize("grid", [{}, {"typo": [1]}, {"layers": []}, {"layers": [0]}])
+def test_search_rejects_bad_grid(searcher, grid):
+    with pytest.raises(ValueError):
+        list(searcher.grid_configs(grid))
