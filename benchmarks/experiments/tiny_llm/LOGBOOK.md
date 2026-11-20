@@ -665,3 +665,8 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   (free) 2-4x at 4 bits only; Hadamard helps 64-wide heads, not 8-wide. PDFs read: KVQuant, SageAttention, rotary
   offset features, massive spikes = bias vectors, Bondarenko 2023, HAD, BinaryAttention. Next (Edén decides): size
   ladder d128 / d256 to find where the key stops being fragile; Edén's own K idea still to hear.
+- Nov 20 08:49, step 8 started (rules in README "Step 8" first): train.py --attn-sink (learned sink logit per head,
+  zero value) / --attn-gate (sigmoid gate per head, Qiu 2025), binary 260K 3 seeds; then width ladder d128 / d256
+  (head width 16 / 32), fp32 + binary, 3 seeds; k_anatomy on all. Queue runs/logs/step8_queue.sh (resumable, log
+  step8_queue.log, ends "STEP8 QUEUE DONE"). Run time ESTIMATE ~6-7 h (200-step smokes: d256 ~2.5x the 260K).
+  intsim.load_model: vocab from the checkpoint, float_only for k_anatomy (sink / gate have no integer model).

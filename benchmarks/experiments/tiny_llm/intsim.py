@@ -77,10 +77,12 @@ def isqrt(n):
     return r
 
 
-def load_model(run, vocab, dev):
-    """The trained float model of runs/<run> (train.py's options that have an integer model) and its args."""
+def load_model(run, vocab, dev, float_only=False):
+    """The trained float model of runs/<run> (train.py's options that have an integer model) and its args;
+    float_only: also --attn-sink / --attn-gate runs (float studies such as k_anatomy.py, no integer model)"""
     ck = torch.load(os.path.join(run, "model.pt"), map_location=dev)
     a = ck["args"]
+    vocab = a.get("vocab", vocab)                        # runs before --vocab have no key: the caller's value
     assert a.get("head", "fp32") in ("fp32", "int4", "int2") and not a.get("int8_blocks"), \
         "--head binary / --int8-blocks runs have no integer model yet"
     assert not a.get("learn_thr") and a.get("w2_acts", "same") == "same" and a.get("ffn_act", "silu") == "silu", \
@@ -89,6 +91,7 @@ def load_model(run, vocab, dev):
     assert not a.get("int8_linears") and not a.get("k_center"), \
         "--int8-linears / --k-center runs have no integer model yet"
     assert a.get("q_bits", 8) == 8 and not a.get("k_unit"), "--q-bits 1 / --k-unit runs have no integer model yet"
+    assert float_only or not a.get("attn_sink") and not a.get("attn_gate"), "--attn-sink / --attn-gate runs have no integer model yet"
     for group in (("q", "k", "v"), ("w1", "w3")):        # forward() quantizes each group's input once
         for opt in ("a8_inputs", "hadamard") if a.get("acts", 8) != 8 else ("hadamard",):   # --acts 8: all 8 bits
             assert len({n in (a.get(opt) or []) for n in group}) == 1, \
@@ -100,7 +103,8 @@ def load_model(run, vocab, dev):
                      a8_blocks=tuple(a.get("a8_blocks", [])),
                      kv=(a.get("k_bits", 8), a.get("v_bits", 8), a.get("k_scale", 1.0)),   # as trained
                      attn={"temp": a.get("attn_temp", False), "recent": a.get("kv_recent", 0), "q_bits": 8,
-                           "k_unit": False}).to(dev)
+                           "k_unit": False, "sink": a.get("attn_sink", False),
+                           "gate": a.get("attn_gate", False)}).to(dev)
     model.load_state_dict(ck["model"])
     model.eval()
     return model, a

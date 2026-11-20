@@ -1121,6 +1121,36 @@ removing it before quantizing is the fix that works at both sizes, as in the lit
 more fragile to cache bits, so the limit search is a size question: where between 260K and 15.7 M does a plain
 low-bit key cache become cheap. Not done: intermediate sizes (d128 / d256), first-token (sink) kept at int8.
 
+### Step 8: a softmax that does not need the key's mean, and the size ladder (rule Nov 20 2026, before measuring)
+
+**Question 1.** The key's mean builds a position-only score in the slow RoPE pairs: a learned "attention sink"
+(rotary offset features; massive spikes are bias vectors). If the softmax can attend to "nothing" by itself, does the
+model stop building that mean, and does the key then survive a plain low-bit cache? Until now only the softmax's
+temperature was tried (step 6, a small loss gain); the softmax does not amplify key errors exponentially (KL = ½ Var,
+section "Why keys break"), so a softmax change can only help by changing what the key has to carry.
+
+**What 1.** `train.py --attn-sink` (one learned logit per head joins each softmax with a zero value; starts at 0 =
+softmax with +1 in the denominator) and `--attn-gate` (sigmoid gate per head and token on the attention output, a
+dim -> heads linear in the blocks' weight format; Qiu et al. 2025 report it removes attention sinks). Binary 260K,
+same recipe as the base (lr 3e-3, 20,000 steps), 3 seeds, validation; then `k_anatomy.py` on each. C cost
+(ESTIMATE): sink = one add to the softmax sum per head; gate = a 64 -> 8 linear and a sigmoid table per token.
+
+**Rule 1 (written before the runs).** A change helps the key if (a) the plain per-token 4-bit key cache rise falls
+below the base's by more than the larger sd (base binary 0.100 ± 0.015) and (b) the as-trained validation loss is not
+worse than the base by more than 0.03 (base 2.0613 ± 0.0086). Also reported, not part of the rule: mean_share,
+mean_slow, 2-bit rise, center with it.
+
+**Question 2.** The plain 4-bit key cache costs 1.68 nats at 260K fp32 and 0.009 at 15.7 M. Where in between does
+it become cheap, and how does the binary - fp32 gap move?
+
+**What 2.** Only the width grows, everything else as the 260K (5 layers, 8 heads, 4 key heads, vocab 512, context
+512, hidden = 2.6875 x dim, lr 3e-3, 20,000 steps): d128 (head width 16) and d256 (head width 32), fp32 and binary, 3
+seeds, validation; `k_anatomy.py` on each. Head width grows with the width (as in 260K -> 15.7 M).
+
+**Rule 2 (written before the runs).** The size limit is the smallest width whose binary model has a plain per-token
+4-bit key cache rise below 0.03 nats (the "usable" bound of the KV cache study), mean over 3 seeds. Also reported:
+binary and fp32 validation loss, the gap, center 4 / 2 bits.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

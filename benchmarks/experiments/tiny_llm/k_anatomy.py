@@ -55,7 +55,7 @@ def forward(self, x, cos, sin):
         STATS.append((qr, k, kr))
     if self.kv_heads != self.heads:
         kr, v = (z.repeat_interleave(self.heads // self.kv_heads, dim=1) for z in (kr, v))
-    a = F.scaled_dot_product_attention(qr, kr, v, is_causal=True)
+    a = self.sdpa(qr, kr, v, h)                     # train.Block.sdpa: with --attn-sink / --attn-gate if trained so
     x = x + self.o(a.transpose(1, 2).reshape(b, t, d))
     h = self.n2(x)
     return x + self.w2(self.gate(self.w1(h)) * self.w3(h))
@@ -164,7 +164,8 @@ def head_stats(qr, k, kr, heads, cos, sin):
 
 def one(run, seed, args, dev):
     global KFUN
-    model, a = I.load_model(os.path.join(T.HERE, "runs", f"{run}_s{seed}"), 512 if "v512" in run else 4096, dev)
+    model, a = I.load_model(os.path.join(T.HERE, "runs", f"{run}_s{seed}"), 512 if "v512" in run else 4096, dev,
+                            float_only=True)
     assert not a.get("attn_temp") and a.get("k_bits", 8) == 8 and not a.get("kv_recent"), \
         "k_anatomy.py reads models with the plain as-trained cache"
     for i, blk in enumerate(model.blocks):

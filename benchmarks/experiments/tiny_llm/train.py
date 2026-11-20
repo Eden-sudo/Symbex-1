@@ -41,6 +41,11 @@ times one factor per query, see the README's bucket form). These run attention b
 key's position (RoPE) and added back when read; the mean is a fixed channel average per key head (pre-RoPE), an
 exponential average of the training batches (momentum 0.99), not learned. --int8-linears k (or v, ...): those linear
 kinds get int8 weights in every block (the same-bytes control of README "Step 7"). Neither is in intsim.py / the C.
+Softmax changes against the key's mean (README "Step 8", not in intsim.py / the C): --attn-sink (one learned logit
+per head joins every softmax with a zero value: a query can attend to "nothing" without a key built for it; starts
+at 0 = softmax + 1 in the denominator, Miller 2023 / gpt-oss sinks), --attn-gate (attention output x sigmoid of a
+dim -> heads linear of the block input, one gate per head and token, Qiu et al. 2025 "Gated Attention": removes
+attention sinks; the gate linear has the blocks' weight format).
 
 Quantized runs: every linear layer of the blocks has quantized weights (scale = mean |w| of the row; ternary rounds
 w / scale to -1, 0, 1, binary takes the sign) and 8-bit inputs (absmax per token, 127 levels), both through the
@@ -200,6 +205,12 @@ class Block(nn.Module):
         self.w2 = lin("w2", hidden, dim)
         if w2_acts is not None and acts != 8 and "w2" not in a8_inputs:
             self.w2.acts = w2_acts
+        # created last: the other layers keep the same initialization as runs without them
+        self.sink = nn.Parameter(torch.zeros(heads)) if self.attn.get("sink") else None
+        self.g = lin("g", dim, heads) if self.attn.get("gate") else None
+        assert not (self.sink is not None or self.g is not None) or not (
+            self.attn.get("temp") or self.attn.get("recent") or self.attn.get("q_bits", 8) == 1
+            or self.attn.get("k_unit")), "--attn-sink / --attn-gate run on the fused attention path only"
 
     def forward(self, x, cos, sin):
         b, t, d = x.shape
@@ -222,14 +233,28 @@ class Block(nn.Module):
                 self.attend_bits, rope(q, cos, sin), rope(k, cos, sin), v, kb, vb, ks, use_reentrant=False)
         elif mu is not None:
             m = rope(mu, cos, sin)
-            a = F.scaled_dot_product_attention(rope(q, cos, sin), quant_kv(rope(k, cos, sin) - m, kb, ks) + m,
-                                               quant_kv(v, vb), is_causal=True)
+            a = self.sdpa(rope(q, cos, sin), quant_kv(rope(k, cos, sin) - m, kb, ks) + m, quant_kv(v, vb), h)
         else:
-            a = F.scaled_dot_product_attention(rope(q, cos, sin), quant_kv(rope(k, cos, sin), kb, ks),
-                                               quant_kv(v, vb), is_causal=True)
+            a = self.sdpa(rope(q, cos, sin), quant_kv(rope(k, cos, sin), kb, ks), quant_kv(v, vb), h)
         x = x + self.o(a.transpose(1, 2).reshape(b, t, d))
         h = self.n2(x)
         return x + self.w2(self.gate(self.w1(h)) * self.w3(h))
+
+    def sdpa(self, q, k, v, h):
+        """Causal fused attention, q, k after rope (b, heads, t, hd), with --attn-sink / --attn-gate; h = block input"""
+        if self.sink is None:
+            a = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        else:                                  # a zero key and value in front; the mask gives its logit = sink
+            b, n, t, hd = q.shape
+            z = q.new_zeros(b, n, 1, hd)
+            i = torch.arange(t, device=q.device)
+            causal = torch.zeros(t, t, device=q.device).masked_fill(i[None] > i[:, None], float("-inf"))
+            mask = torch.cat([(self.sink * math.sqrt(hd)).view(n, 1, 1).expand(n, t, 1), causal.expand(n, t, t)], -1)
+            a = F.scaled_dot_product_attention(q, torch.cat([z, k], 2), torch.cat([z, v], 2),
+                                               attn_mask=mask[None].to(q.dtype))
+        if self.g is not None:
+            a = a * torch.sigmoid(self.g(h)).transpose(1, 2)[..., None].to(a.dtype)
+        return a
 
     def attend_bits(self, q, k, v, kb, vb, ks):
         """Attention by hand for the bit-attention options (see the docstring); q, k after rope, (b, heads, t, hd)."""
@@ -358,7 +383,8 @@ def run(args, seed):
                    tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
                    tuple(args.a8_blocks), (args.k_bits, args.v_bits, args.k_scale), args.repeat,
                    {"temp": args.attn_temp, "recent": args.kv_recent, "q_bits": args.q_bits,
-                    "k_unit": args.k_unit, "k_center": args.k_center}, args.kv_heads,
+                    "k_unit": args.k_unit, "k_center": args.k_center, "sink": args.attn_sink,
+                    "gate": args.attn_gate}, args.kv_heads,
                    tuple(args.int8_linears)).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
@@ -477,6 +503,8 @@ def main():
     ap.add_argument("--q-bits", type=int, choices=[8, 1], default=8, help="1: the query also 1 bit (see above)")
     ap.add_argument("--k-unit", action="store_true", help="1-bit keys without mean|k| (see above)")
     ap.add_argument("--k-center", action="store_true", help="low-bit key cache minus a fixed key mean (see above)")
+    ap.add_argument("--attn-sink", action="store_true", help="learned sink logit per head in the softmax (see above)")
+    ap.add_argument("--attn-gate", action="store_true", help="sigmoid gate per head on the attention output (see above)")
     ap.add_argument("--int8-linears", nargs="*", default=[], choices=["q", "k", "v", "o", "w1", "w3", "w2"],
                     help="these linear kinds int8 in every block (see above)")
     ap.add_argument("--clip-groups", action="store_true",
