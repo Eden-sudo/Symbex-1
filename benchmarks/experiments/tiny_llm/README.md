@@ -1140,6 +1140,22 @@ below the base's by more than the larger sd (base binary 0.100 ± 0.015) and (b)
 worse than the base by more than 0.03 (base 2.0613 ± 0.0086). Also reported, not part of the rule: mean_share,
 mean_slow, 2-bit rise, center with it.
 
+**Result 1** (3 seeds, validation; `k_anatomy.py`, [results/v512d64l5kv4_softmax_k_anatomy.json](results/v512d64l5kv4_softmax_k_anatomy.json);
+base = binary 260K of step 7):
+
+| run | val loss 42 / 43 / 44 | mean ± sd | plain 4b / 2b key cache rise | center 4b / 2b | mean_share by layer |
+|---|---|---|---|---|---|
+| base | | 2.0613 ± 0.0086 | 0.100 ± 0.015 / 0.80 | 0.009 / 0.13 | 0.41-0.85 |
+| `--attn-sink` | 2.0481 / 2.0585 / 2.0576 | 2.0547 ± 0.0058 | 0.155 ± 0.057 / 1.75 | 0.011 / 0.25 | 0.60-0.89 |
+| `--attn-gate` | 2.0319 / 2.0152 / 2.0546 | 2.0339 ± 0.0198 | 0.136 ± 0.013 / 0.85 | 0.009 / 0.12 | 0.55-0.91 |
+
+**Answer 1.** Neither passes rule 1: the plain 4-bit key cache gets worse, not better (0.155 and 0.136 vs 0.100),
+and the key's mean does not shrink (its share even grows with the sink). A softmax that can attend to "nothing" does
+NOT make the model drop the key's mean at 260K: the mean is not only a sink. Center still fixes the cache on both.
+Side result (not a rule of this step): the gate lowers the loss by 0.027 (larger sd 0.020), the size of the int8 W_k
+gain, for a 64 -> 8 binary linear per block (~0.6 KB of weights in all, computed); the sink by 0.007 (within sd). The
+sink run is 2.6x slower to train (masked attention, no flash kernel).
+
 **Question 2.** The plain 4-bit key cache costs 1.68 nats at 260K fp32 and 0.009 at 15.7 M. Where in between does
 it become cheap, and how does the binary - fp32 gap move?
 

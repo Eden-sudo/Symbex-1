@@ -679,3 +679,6 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   260K, k1 / k1c / k1uctr / k1ctr / k1tr x 3 seeds, waits for step 8 (runs/logs/step9_queue.sh, log step9_queue.log,
   ends "STEP9 QUEUE DONE"). train.py: --k-center now also on the bit-attention path (--attn-temp / --kv-recent) and
   with --k-unit (sign of key - mean, mean added back). Run time ESTIMATE ~8 h after step 8 (bit path ~57 min a run).
+- Nov 20 10:55, step 8 part 1 DONE (README "Step 8" Result 1): sink 2.0547 ± 0.0058, gate 2.0339 ± 0.0198 (base
+  2.0613); plain 4-bit key rise 0.155 / 0.136 vs 0.100: rule 1 FAILS for both, mean not reduced. Gate: loss -0.027
+  (side result). Width ladder running.
