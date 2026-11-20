@@ -97,3 +97,41 @@ def test_latency_scaling_and_workloads(planner):
     assert planner.latency(c)["tokens_per_second"] < 8
     with pytest.raises(ValueError):
         planner.latency(c, "unknown")
+
+
+def test_memory_default_and_placement(planner):
+    m = planner.memory(planner.Config())
+    assert m["fits"] and not m["firmware_gaps"]
+    assert m["psram"]["kv_payload"] == 1572864
+    assert m["psram"]["kv_scales"] == 98304
+    assert m["sram"]["linear_lut"] == 65536
+    assert m["sram"]["logits"] == 32768
+    # Recorded ~5.35 MB PSRAM consumption includes model, KV/scales and row counts.
+    used = m["totals"]["psram"] - m["psram"]["reserve"]
+    assert used == pytest.approx(8386295 - 3036407, abs=4096)
+
+
+def test_gqa_low_bit_kv_saves_payload_not_scales(planner):
+    base = planner.memory(planner.Config())
+    proposed = planner.memory(planner.Config(kv_heads=2, kv_bits=4))
+    assert proposed["psram"]["kv_payload"] == base["psram"]["kv_payload"] // 6
+    assert proposed["psram"]["kv_scales"] == base["psram"]["kv_scales"] // 3
+    assert len(proposed["firmware_gaps"]) == 2
+
+
+@pytest.mark.parametrize("budget,part", [("sram_bytes", "sram"), ("psram_bytes", "psram"),
+                                       ("flash_bytes", "flash"), ("model_partition_bytes", "partition")])
+def test_memory_rejects_each_overflow(planner, budget, part):
+    result = planner.memory(planner.Config(), **{budget: 1})
+    assert not result["fits"]
+    assert any(part in message for message in result["violations"])
+
+
+def test_memory_exact_boundary_and_firmware_limits(planner):
+    c = planner.Config()
+    total = planner.memory(c)["totals"]["sram"]
+    assert planner.memory(c, sram_bytes=total)["fits"]
+    assert not planner.memory(c, sram_bytes=total - 1)["fits"]
+    assert planner.memory(planner.Config(ctx=512))["firmware_gaps"]
+    with pytest.raises(ValueError):
+        planner.memory(c, sram_reserve=-1)

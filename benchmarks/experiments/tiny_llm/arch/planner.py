@@ -168,3 +168,70 @@ def latency(config, workload="mean"):
     total = sum(parts.values())
     return dict(parts_ms=parts, ms_per_token=total, tokens_per_second=1000 / total,
                 occupied_tokens=occupied, workload=workload)
+
+
+def firmware_gaps(c):
+    """Known structural restrictions, not a proof of runnable firmware."""
+    gaps = []
+    if c.kv_heads != c.heads:
+        gaps.append("GQA needs exporter and attention kernels")
+    if c.kv_bits != 8:
+        gaps.append("packed KV needs quantization and kernels")
+    if any(b != 1 for b in c.weight_bits):
+        gaps.append("LittleBit needs training, exporter and factor kernels")
+    if c.head_dim != 64 or c.dim % 64 or c.hidden % 32 or c.vocab % 4:
+        gaps.append("current kernels require head_dim=64 and aligned dimensions/tables")
+    if c.ctx > 258 or c.hidden < 2 * c.ctx or max(c.dim, c.hidden) < 4 * c.ctx:
+        gaps.append("context exceeds current score/attention scratch constraints")
+    if max(c.dim, c.hidden) > 1024:
+        gaps.append("lib_symbex input workspace is capped at 1024")
+    return gaps
+
+
+def memory(config, *, sram_bytes=512 * 1024, psram_bytes=8 * 1024**2,
+           flash_bytes=16 * 1024**2, sram_reserve=160 * 1024,
+           psram_reserve=256 * 1024, flash_reserve=0x310000,
+           model_partition_bytes=0x500000):
+    """Placement estimate with explicit application/runtime headroom.
+
+    Replicates current state buffers (including the allocated-but-unused lut8
+    buffer for symbex). Proposed packed KV pads each head's K/V payload to
+    bytes and retains int32 scales per token/head. No automatic SRAM spill:
+    changing placement would invalidate latency calibration. Reserves cover
+    stacks, static workspaces, allocator overhead, tokenizer/application, not
+    a claim that all physical SRAM is heap. Current flash partition is 5 MiB.
+    """
+    limits = locals().copy()
+    for name, value in limits.items():
+        if name == "config":
+            continue
+        if type(value) is not int or value < 0:
+            raise ValueError(f"{name} must be a nonnegative integer")
+    c = config
+    size = size_model(c)
+    big = max(c.dim, c.hidden, 4 * c.ctx)
+    # Keep existing d-wide k/v scratch even for GQA, a conservative extension.
+    activations = 20 * c.dim + 21 * big + 2 * c.ctx + 4 * (big // 32 + 1)
+    factor_rank = max((p["rank"] or 0 for p in size["projections"].values()), default=0)
+    activations += 5 * factor_rank  # int32 latent + int8 requantized latent
+    sram = dict(activations=activations, linear_lut=64 * ((big + 7) // 8) * 8,
+                logits=8 * c.vocab, block_descriptors=c.layers * (8 + 7 * 32),
+                reserve=sram_reserve)
+    kv = 2 * c.layers * c.kv_heads * ((c.ctx * c.head_dim * c.kv_bits + 7) // 8)
+    kv_scales = 8 * c.layers * c.ctx * c.kv_heads
+    row_counts = 0
+    for name, p in size["projections"].items():
+        rows = c.kv_dim if name in ("k", "v") else c.hidden if name in ("w1", "w3") else c.dim
+        row_counts += 4 * (rows + (p["rank"] or 0))
+    psram = dict(model=size["flash_bytes"], kv_payload=kv, kv_scales=kv_scales,
+                 kv_guard=16, binary_row_counts=c.layers * row_counts, reserve=psram_reserve)
+    totals = dict(sram=sum(sram.values()), psram=sum(psram.values()),
+                  flash=size["flash_bytes"] + flash_reserve)
+    violations = []
+    for name, capacity in (("sram", sram_bytes), ("psram", psram_bytes), ("flash", flash_bytes)):
+        if totals[name] > capacity:
+            violations.append(f"{name} exceeds budget by {totals[name] - capacity} bytes")
+    if size["flash_bytes"] > model_partition_bytes:
+        violations.append("model exceeds current flash partition")
+    return dict(fits=not violations, violations=violations, totals=totals,
+                sram=sram, psram=psram, firmware_gaps=firmware_gaps(c))
