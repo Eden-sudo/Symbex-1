@@ -858,6 +858,29 @@ the first to the last token. The story runs 125 positions, so its speed is above
 (seed 42 34.8, 43 36.4, 44 34.9 tokens/s, same code) is code layout under the XIP cache, as seen before with
 SYMBEX on this core.
 
+Tokens per second of the story, per seed (each run's JSON, `tokens_per_second_story`):
+
+| chip | seed 42 | seed 43 | seed 44 | mean ± sd |
+|---|---|---|---|---|
+| ESP32 (classic, 240 MHz) | 40.200 | 40.090 | 40.166 | 40.15 ± 0.06 |
+| Pico 2 Cortex-M33 (150 MHz) | 31.835 | 31.776 | 31.896 | 31.84 ± 0.06 |
+| Pico 2 Hazard3 (150 MHz) | 34.823 | 36.394 | 34.909 | 35.38 ± 0.88 |
+
+Memory (bytes; RAM used = free heap at start - free heap after loading, from the firmware's own lines, the same on
+all 3 seeds; KV cache and scales computed from the shape; scratch = used - the two):
+
+| | ESP32 | Pico 2 M33 | Pico 2 Hazard3 |
+|---|---|---|---|
+| model.bin in flash | 93 120 | 93 120 | 93 120 |
+| free RAM at start | 350 764 | 513 944 | 506 928 |
+| free RAM after loading | 71 672 | 235 144 | 228 128 |
+| **RAM used** | **279 092** | **278 800** | **278 800** |
+| of it: int8 KV cache (5 x 512 x 4 x 8 x 2) | 163 840 | 163 840 | 163 840 |
+| of it: int32 KV scales (5 x 512 x 4 x 4 x 2) | 81 920 | 81 920 | 81 920 |
+| of it: scratch, buffers, heap overhead | 33 332 | 33 040 | 33 040 |
+
+The ~30 KB scratch estimate of step 2 is now measured: 33 KB.
+
 **Answer.** Yes: a binary W1A8 language model runs exact (100 %, 3 seeds, 3 cores) on a classic ESP32 and on a
 Pico 2, weights in flash, at 32-40 tokens/s. Its stories are weak (val loss 2.14 vs fp32 1.35, above): this is a
 memory and exactness result, not a quality one. Not measured yet: an fp32 or int8 baseline on the same chips, and

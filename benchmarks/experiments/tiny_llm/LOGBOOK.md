@@ -618,3 +618,5 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   PC exact with and without (ASan + UBSan, 260K + d384l8); S3 build OK; pytest 865 passed.
 - 3 seeds x 3 cores, all exact (1024 / 1024 + story 120 / 120 each). Story tokens/s: ESP32 40.15 ± 0.06,
   M33 31.84 ± 0.06, Hazard3 35.38 ± 0.88 (150 MHz). Position 0 -> 511: ESP32 19.9 -> 49.1 ms.
+- Nov 19 evening: README step 3 got per-seed tok/s and a memory table (RAM used 279 092 B ESP32 / 278 800 B Pico 2
+  = KV 163 840 + scales 81 920 + scratch ~33 KB, from the firmware's free-heap lines).
