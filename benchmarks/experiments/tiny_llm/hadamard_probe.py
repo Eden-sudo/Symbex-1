@@ -15,6 +15,7 @@ def rot(x, blk):
 dev = "cuda"
 for run in sys.argv[1:]:
     ck = torch.load(f"runs/{run}/model.pt", map_location=dev, weights_only=False); a = ck["args"]
+    assert a.get("emb_scale", 1.0) == 1.0 and not a.get("int8_units") and not a.get("bin2_units"), "--emb-scale / --int8-units / --bin2-units runs: load them with damage_probe.load"
     m = TinyLM(4096, a["dim"], a["layers"], a["heads"], a["hidden"], a["seq"], a["weights"], a.get("head", "fp32"),
                tuple(a.get("int8_blocks", [])), a.get("acts", 8),
                {"ste_mode": a.get("ste", "identity"), "ste_k": a.get("ste_k", 2.0), "learn_thr": a.get("learn_thr", False)},

@@ -1,0 +1,70 @@
+{
+ "seed": 42,
+ "args": {
+  "seed": 42,
+  "epochs": 30,
+  "lr": 0.0005,
+  "calib": 10000,
+  "table": "/home/eden/Proyectos/Symbex1_damage/benchmarks/experiments/damage_probe/results/layer_table.json",
+  "out": "/home/eden/Proyectos/Symbex1_damage/benchmarks/experiments/damage_probe/results/quick_check.json"
+ },
+ "twin_recalibrated": 81.26,
+ "all_binary_one_shot": 13.4,
+ "B_finetuned": 53.72,
+ "layers": {
+  "stem": {
+   "predicted_drop": 43.96,
+   "gain_real_in_B": -8.94,
+   "one_minus_cos": 0.1653
+  },
+  "b0": {
+   "predicted_drop": 18.26,
+   "gain_real_in_B": -1.04,
+   "one_minus_cos": 0.3382
+  },
+  "b1": {
+   "predicted_drop": 10.7,
+   "gain_real_in_B": 0.46,
+   "one_minus_cos": 0.327
+  },
+  "b2": {
+   "predicted_drop": 11.98,
+   "gain_real_in_B": 1.06,
+   "one_minus_cos": 0.3017
+  },
+  "ds2": {
+   "predicted_drop": 9.98,
+   "gain_real_in_B": 1.36,
+   "one_minus_cos": 0.303
+  },
+  "b3": {
+   "predicted_drop": 10.28,
+   "gain_real_in_B": 0.08,
+   "one_minus_cos": 0.4756
+  },
+  "b4": {
+   "predicted_drop": 15.16,
+   "gain_real_in_B": 0.74,
+   "one_minus_cos": 0.4363
+  },
+  "ds4": {
+   "predicted_drop": 10.12,
+   "gain_real_in_B": 0.76,
+   "one_minus_cos": 0.572
+  },
+  "b5": {
+   "predicted_drop": 12.12,
+   "gain_real_in_B": 0.78,
+   "one_minus_cos": 0.4358
+  },
+  "fc": {
+   "predicted_drop": 8.7,
+   "gain_real_in_B": -1.56,
+   "one_minus_cos": 0.3739
+  }
+ },
+ "spearman_pred_vs_gain": -0.285,
+ "spearman_pred_vs_cos": -0.297,
+ "spearman_gain_vs_cos": 0.042,
+ "seconds": 95.9
+}

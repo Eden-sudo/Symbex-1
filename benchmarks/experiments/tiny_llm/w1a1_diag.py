@@ -53,6 +53,7 @@ def stats(x):
 def measure(path, val, train, windows, device):
     ck = torch.load(path, map_location=device, weights_only=False)
     a = ck["args"]
+    assert a.get("emb_scale", 1.0) == 1.0 and not a.get("int8_units") and not a.get("bin2_units"), "--emb-scale / --int8-units / --bin2-units runs: load them with damage_probe.load"
     model = TinyLM(4096, a["dim"], a["layers"], a["heads"], a["hidden"], a["seq"], a["weights"], a.get("head", "fp32"),
                    tuple(a.get("int8_blocks", [])), a.get("acts", 8)).to(device)
     model.load_state_dict(ck["model"])

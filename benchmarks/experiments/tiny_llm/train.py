@@ -72,6 +72,11 @@ def quant_weight(w, kind):
         return ste(w, (w / s4).round().clamp(-7, 7) * s4)
     if kind == "int2":
         return ste(w, ((w / scale).floor().clamp(-2, 1) + 0.5) * scale)
+    if kind == "binary2":  # two binary bases: sign(w) a1 + sign(residual) a2 (residual binarization, damage_probe part 7)
+        b1 = torch.where(w >= 0, 1.0, -1.0) * scale
+        r = w - b1
+        b2 = torch.where(r >= 0, 1.0, -1.0) * r.abs().mean(dim=1, keepdim=True).clamp(min=1e-5)
+        return ste(w, b1 + b2)
     return ste(w, torch.where(w >= 0, 1.0, -1.0) * scale)
 
 
@@ -141,6 +146,9 @@ class QLinear(nn.Linear):
 
 # ---- model ---------------------------------------------------------------------------------------------------------
 
+UNIT_GROUPS = {"qkv": ("q", "k", "v"), "o": ("o",), "w13": ("w1", "w3"), "w2": ("w2",)}
+
+
 def rope(x, cos, sin):
     x1, x2 = x[..., ::2], x[..., 1::2]
     return torch.stack((x1 * cos - x2 * sin, x1 * sin + x2 * cos), dim=-1).flatten(-2)
@@ -174,13 +182,23 @@ class Block(nn.Module):
 
 class TinyLM(nn.Module):
     def __init__(self, vocab, dim, layers, heads, hidden, seq, kind, head="fp32", int8_blocks=(), acts=8,
-                 act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=()):
+                 act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=(),
+                 int8_units=(), emb_scale=1.0, bin2_units=()):
         super().__init__()
         self.head_kind = head
+        self.emb_scale = emb_scale  # constant on the embedding lookup only (the tied output layer is unchanged)
         self.emb = nn.Embedding(vocab, dim)
         self.blocks = nn.ModuleList(Block(dim, heads, hidden, "int8" if i in int8_blocks else kind, acts, act_opts,
                                           a8_inputs if not a8_blocks or i in a8_blocks else (), w2_acts, ffn_act,
                                           rotate) for i in range(layers))
+        for unit in int8_units:  # "<block>.<group>": only these linears get int8 weights (damage_probe's test)
+            bi, group = unit.split(".")
+            for n in UNIT_GROUPS[group]:
+                getattr(self.blocks[int(bi)], n).kind = "int8"
+        for unit in bin2_units:  # "<block>.<group>": only these linears get two binary bases (damage_probe part 7)
+            bi, group = unit.split(".")
+            for n in UNIT_GROUPS[group]:
+                getattr(self.blocks[int(bi)], n).kind = "binary2"
         self.norm = nn.RMSNorm(dim, eps=1e-5)
         hd = dim // heads
         freq = 1.0 / (10000 ** (torch.arange(0, hd, 2).float() / hd))
@@ -198,6 +216,8 @@ class TinyLM(nn.Module):
         t = idx.shape[1]
         x = F.embedding(idx, quant_weight(self.emb.weight, self.head_kind)) \
             if self.head_kind in ("int4", "int2") else self.emb(idx)
+        if self.emb_scale != 1.0:
+            x = x * self.emb_scale
         for blk in self.blocks:
             x = blk(x, self.cos[:t], self.sin[:t])
         if self.head_kind in ("binary", "int4", "int2"):
@@ -268,7 +288,7 @@ def run(args, seed):
                    args.weights, args.head, tuple(args.int8_blocks), args.acts,
                    {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
                    tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
-                   tuple(args.a8_blocks)).to(device)
+                   tuple(args.a8_blocks), tuple(args.int8_units), args.emb_scale, tuple(args.bin2_units)).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)
@@ -283,14 +303,17 @@ def run(args, seed):
                          {"ste_mode": ta.get("ste", "identity"), "ste_k": ta.get("ste_k", 2.0),
                           "learn_thr": ta.get("learn_thr", False)}, tuple(ta.get("a8_inputs", [])),
                          W2_ACTS[ta.get("w2_acts", "same")], ta.get("ffn_act", "silu"),
-                         tuple(ta.get("hadamard", [])), tuple(ta.get("a8_blocks", []))).to(device)
+                         tuple(ta.get("hadamard", [])), tuple(ta.get("a8_blocks", [])),
+                         tuple(ta.get("int8_units", [])), ta.get("emb_scale", 1.0),
+                         tuple(ta.get("bin2_units", []))).to(device)
         teacher.load_state_dict(tck["model"])
         teacher.eval().requires_grad_(False)
         print(f"distilling from {tpath} (alpha {args.distill_alpha}, temperature {args.distill_t})")
     n_lin = sum(m.weight.numel() for m in model.modules() if isinstance(m, QLinear))
     n_all = sum(p.numel() for p in model.parameters())
-    decay = [p for p in model.parameters() if p.dim() >= 2]
-    rest = [p for p in model.parameters() if p.dim() < 2]
+    no_decay = {id(model.emb.weight)} if args.emb_no_decay else set()
+    decay = [p for p in model.parameters() if p.dim() >= 2 and id(p) not in no_decay]
+    rest = [p for p in model.parameters() if p.dim() < 2 or id(p) in no_decay]
     opt = torch.optim.AdamW([{"params": decay, "weight_decay": args.wd}, {"params": rest, "weight_decay": 0.0}],
                             lr=args.lr, betas=(0.9, 0.95), fused=True)
     step_fn = torch.compile(model) if args.compile else model
@@ -363,6 +386,10 @@ def main():
     ap.add_argument("--seeds", type=int, nargs="+", default=[42])
     ap.add_argument("--head", choices=["fp32", "binary", "int4", "int2"], default="fp32", help="output layer weights (see above)")
     ap.add_argument("--int8-blocks", type=int, nargs="*", default=[], help="blocks with int8 weights (see above)")
+    ap.add_argument("--int8-units", nargs="*", default=[],
+                    help="int8 weights only in these <block>.<group> units, group qkv / o / w13 / w2 (e.g. 0.w13 7.w13)")
+    ap.add_argument("--bin2-units", nargs="*", default=[],
+                    help="two binary bases (2 bits per weight) only in these <block>.<group> units (damage_probe part 7)")
     ap.add_argument("--acts", type=int, choices=[8, 1], default=8, help="bits of the blocks' linear inputs (see above)")
     ap.add_argument("--ste", choices=["identity", "clip"], default="identity",
                     help="--acts 1 gradient: everywhere, or only where |x| <= --ste-k x mean|x| (see above)")
@@ -383,6 +410,10 @@ def main():
     ap.add_argument("--distill", default="", help="teacher checkpoint ({seed} is replaced): distillation")
     ap.add_argument("--distill-alpha", type=float, default=0.5, help="weight of the KL term (see above)")
     ap.add_argument("--distill-t", type=float, default=1.0, help="distillation temperature")
+    ap.add_argument("--emb-scale", type=float, default=1.0,
+                    help="multiply the embedding lookup by this constant (sqrt(dim) = 19.6 as the original Transformer "
+                         "and Gemma; damage_probe part 6); the tied output layer is unchanged")
+    ap.add_argument("--emb-no-decay", action="store_true", help="no weight decay on the (tied) embedding (part 6)")
     ap.add_argument("--name", default="d384l8", help="run name (folder: runs/<weights>_<name>_s<seed>)")
     ap.add_argument("--dim", type=int, default=384)
     ap.add_argument("--layers", type=int, default=8)
