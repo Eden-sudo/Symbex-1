@@ -211,3 +211,16 @@ def test_search_cli_table_and_json(searcher, tmp_path, capsys):
 def test_search_rejects_bad_grid(searcher, grid):
     with pytest.raises(ValueError):
         list(searcher.grid_configs(grid))
+
+
+def test_readme_grid_example_is_executable(searcher):
+    import re
+
+    text = (TINY / "arch/README.md").read_text()
+    examples = re.findall(r"```json\n(.*?)\n```", text, re.DOTALL)
+    assert len(examples) == 1
+    configs = list(searcher.grid_configs(json.loads(examples[0])))
+    assert len(configs) == 4
+    result = searcher.search(configs)
+    assert result["feasible"] == 4
+    assert all(row["firmware_gaps"] for row in result["frontier"])
