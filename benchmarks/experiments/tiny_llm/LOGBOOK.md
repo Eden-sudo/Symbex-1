@@ -682,3 +682,8 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
 - Nov 20 10:55, step 8 part 1 DONE (README "Step 8" Result 1): sink 2.0547 ± 0.0058, gate 2.0339 ± 0.0198 (base
   2.0613); plain 4-bit key rise 0.155 / 0.136 vs 0.100: rule 1 FAILS for both, mean not reduced. Gate: loss -0.027
   (side result). Width ladder running.
+- Nov 20 15:14, step 8 part 2 DONE (README "Step 8" Result 2, results/v512_width_k_anatomy.json): width ladder,
+  3 seeds, validation. fp32 / binary / gap: d64 1.2709 / 2.0613 / 0.79, d128 0.9677 / 1.4943 / 0.53, d256 0.7946 /
+  1.0985 / 0.30. Plain 4-bit key cache, binary: 0.100 / 0.036 / 0.021 -> rule 2: limit = d256 (3.76 M). fp32 1.68 /
+  0.13 / 0.035. 2-bit key (center) not usable at any width (0.08-0.13). KV int8 + scales at ctx 512 (computed):
+  246 / 410 / 737 KB -> on chips without PSRAM the cache sets the size. Step 9 queue started 15:15.

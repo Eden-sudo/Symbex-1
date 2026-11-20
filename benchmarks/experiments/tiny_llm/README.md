@@ -1167,6 +1167,26 @@ seeds, validation; `k_anatomy.py` on each. Head width grows with the width (as i
 4-bit key cache rise below 0.03 nats (the "usable" bound of the KV cache study), mean over 3 seeds. Also reported:
 binary and fp32 validation loss, the gap, center 4 / 2 bits.
 
+**Result 2** (3 seeds, validation; key cache rises from `k_anatomy.py`, results/v512_width_k_anatomy.json; the d64
+row is the 260K of steps 5-7, results/v512d64l5kv4_k_anatomy.json):
+
+| width | parameters | fp32 | binary | gap | binary / fp32 | plain 4-bit key, binary | fp32 | center 4 / 2 bits, binary |
+|---|---|---|---|---|---|---|---|---|
+| d64 (head 8) | 260 K | 1.2709 ± 0.0087 | 2.0613 ± 0.0086 | 0.790 ± 0.015 | 1.62 | 0.100 ± 0.015 | 1.682 | 0.009 / 0.128 |
+| d128 (head 16) | 973 K | 0.9677 ± 0.0030 | 1.4943 ± 0.0076 | 0.527 ± 0.005 | 1.54 | 0.036 ± 0.002 | 0.127 | 0.005 / 0.093 |
+| d256 (head 32) | 3.76 M | 0.7946 ± 0.0012 | 1.0985 ± 0.0062 | 0.304 ± 0.007 | 1.38 | **0.021 ± 0.002** | 0.035 | 0.002 / 0.079 |
+
+KV cache in RAM at context 512, int8 with int32 scales (computed): d64 164 + 82 = 246 KB, d128 328 + 82 = 410 KB,
+d256 655 + 82 = 737 KB.
+
+**Answer 2.** Rule 2: d256 is the first width whose binary model takes a plain 4-bit key cache (0.021 < 0.03); d128
+just misses (0.036). The key's fragility falls fast with width (fp32 1.68 -> 0.13 -> 0.035), and the binary model is
+less fragile than fp32 at every width. The binary - fp32 gap shrinks with width too (0.79 -> 0.53 -> 0.30 nats, each
+step outside the spread). Center stays the better key at every width; a 2-bit key is not usable at any of the three
+(center 0.08-0.13). Binary d256 (1.0985) is better than fp32 d64 (1.2709) with ~0.6 MB of weights vs ~1.0 MB
+(computed: 1-bit linears + int8 embedding vs fp32), but its KV cache (737 KB) does not fit a chip without PSRAM:
+there the cache, not the weights, sets the size.
+
 ### Step 9: a 1-bit key cache at 260K, for chips without int8 SIMD (rule Nov 20 2026, before measuring)
 
 **Question.** On the classic ESP32 and the Pico 2 (no int8 SIMD), a 1-bit key makes the score q . k a sum of
