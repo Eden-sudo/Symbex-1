@@ -130,7 +130,7 @@ def test_storage():
     assert layer.bits_per_weight() == 0.2890625
     assert layer.storage_bytes(32) == 17152
     assert FactorLinear(384, 1024, 64, True).storage_bytes() == 28416
-    assert FactorLinear(7, 11, 3).storage_bytes() == 60
+    assert FactorLinear(7, 11, 3).storage_bytes() == 56
     for value, exc in [(True, TypeError), (1.5, TypeError), (0, ValueError), (7, ValueError)]:
         with pytest.raises(exc, match="scale_bits"):
             layer.storage_bytes(value)

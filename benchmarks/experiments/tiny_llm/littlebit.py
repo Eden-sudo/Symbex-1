@@ -16,6 +16,12 @@ _itq_spec = importlib.util.spec_from_file_location("littlebit_itq", Path(__file_
 _itq = importlib.util.module_from_spec(_itq_spec)
 _itq_spec.loader.exec_module(_itq)
 
+_budget_spec = importlib.util.spec_from_file_location("littlebit_budget", Path(__file__).with_name("littlebit_budget.py"))
+_budget = importlib.util.module_from_spec(_budget_spec)
+_budget_spec.loader.exec_module(_budget)
+bits_per_weight = _budget.bits_per_weight
+rank_for_bpw = _budget.rank_for_bpw
+
 
 def _binary(z):
     return _train.ste(z, torch.where(z >= 0, torch.ones_like(z), -torch.ones_like(z)))
@@ -128,9 +134,7 @@ class FactorLinear(nn.Module):
         _positive_int("scale_bits", scale_bits)
         if scale_bits % 8:
             raise ValueError("scale_bits must be a multiple of 8")
-        signs = (self.out_features + self.in_features) * ((self.rank + 7) // 8)
-        scales = (self.out_features + self.in_features + self.rank) * (scale_bits // 8)
-        return len(self.paths) * (signs + scales)
+        return _budget.storage_bytes(self.rank, self.in_features, self.out_features, self.residual, scale_bits)
 
     def bits_per_weight(self):
         return 8 * self.storage_bytes() / (self.in_features * self.out_features)
