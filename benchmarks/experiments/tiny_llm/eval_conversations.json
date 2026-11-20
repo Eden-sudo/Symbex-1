@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "memory-es",
+      "language": "es",
+      "turns": [
+        {"prompt": "Me llamo Ana y vivo en Lima. ¿Cómo me llamo?", "keywords": ["Ana"], "facts": [["Ana"]], "min_words": 1, "max_words": 20},
+        {"prompt": "¿En qué ciudad vivo?", "keywords": ["Lima"], "facts": [["Lima"]], "min_words": 1, "max_words": 20}
+      ]
+    },
+    {
+      "id": "memory-en",
+      "language": "en",
+      "turns": [
+        {"prompt": "My name is Sam and my bag is blue. What is my name?", "keywords": ["Sam"], "facts": [["Sam"]], "min_words": 1, "max_words": 20},
+        {"prompt": "What color is my bag?", "keywords": ["blue"], "facts": [["blue"]], "min_words": 1, "max_words": 20}
+      ]
+    }
+  ]
+}
