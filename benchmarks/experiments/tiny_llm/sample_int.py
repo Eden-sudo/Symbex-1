@@ -35,27 +35,10 @@ def exp_q(distance, shift):
 
 def sample_topk(scores, k, shift, state):
     """Return (token, next_state), ranking equal scores by lower token ID."""
-    from collections.abc import Sequence
-
-    if not isinstance(scores, Sequence):
-        raise TypeError("scores must be a finite sequence of built-in integers")
-    if not 1 <= len(scores) <= 2147483647:
-        raise ValueError("scores length must be in range 1..2147483647")
+    # Preserve this API's nonzero k/shift contract; sample owns ranking and RNG.
     _integer(k, "k", 1, 2147483647)
     _integer(shift, "shift", 1, 0xffffffff)
-    _integer(state, "state", 1, 0xffffffff)
-    for score in scores:
-        _integer(score, "scores", -(1 << 63), (1 << 63) - 1)
-    ids = sorted(range(len(scores)), key=lambda i: (-scores[i], i))[:k]
-    maximum = scores[ids[0]]
-    weights = [exp_q(maximum - scores[i], shift) for i in ids]
-    next_state = xorshift32(state)
-    r = next_state % sum(weights)
-    cumulative = 0
-    for token, weight in zip(ids, weights):
-        cumulative += weight
-        if cumulative > r:
-            return token, next_state
+    return sample(scores, k, shift, 65536, state)
 
 
 def sample(scores, k, temperature, top_p, state):

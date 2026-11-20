@@ -102,6 +102,18 @@ def test_ram(sizing):
     assert b["per_token_internal_ram_bytes"] == 20 * 128 + 21 * 128 + 22 + 512 * 16 + 20 + 8 * 23 + 4096
 
 
+def test_kv_budget_uses_shared_calculator(sizing, monkeypatch):
+    calls = []
+
+    def kv(*args):
+        calls.append(args)
+        return {"kv_total_bytes": 1234}
+
+    monkeypatch.setattr(sizing._attention, "kv_bytes", kv)
+    assert sizing.budget(*DEFAULT)["kv_cache_bytes"] == 1250
+    assert calls == [(6, 6, 256, 8, 384, 8)]
+
+
 @pytest.mark.parametrize("index,value", [(i, v) for i in range(6) for v in (0, -1, True, 1.5, 2**31)])
 def test_invalid_numbers(sizing, index, value):
     args = list(DEFAULT)

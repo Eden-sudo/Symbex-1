@@ -141,6 +141,18 @@ def test_helpers_and_oracles():
                for seed in range(1, 100))
 
 
+def test_topk_delegates_to_shared_sampler(monkeypatch):
+    calls = []
+
+    def sample(*args):
+        calls.append(args)
+        return 1, 270369
+
+    monkeypatch.setattr(sampler, "sample", sample)
+    assert sampler.sample_topk([0, 2, 1], 3, 1, 1) == (1, 270369)
+    assert calls == [([0, 2, 1], 3, 1, 65536, 1)]
+
+
 def test_invalid_and_independent_streams():
     scores = [1, 2, 3]
     for args, error, name in [

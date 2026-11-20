@@ -1,6 +1,12 @@
 """Size the default integer exporter layout and the S3 working buffers."""
 import argparse
+import importlib.util
 import json
+from pathlib import Path
+
+_spec = importlib.util.spec_from_file_location("attention_memory", Path(__file__).with_name("attention_memory.py"))
+_attention = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_attention)
 
 
 def _packed_linear_bytes(n_out, n_in):
@@ -46,7 +52,8 @@ def budget(dim, layers, heads, hidden, seq, vocab, weights, head):
                 + 4 * (big // 32 + 1) + 8 * vocab + 4096)
     return {"model_bin_bytes": model, "linear_weight_bytes": linear,
             "embedding_head_bytes": embedding,
-            "kv_cache_bytes": 2 * layers * seq * dim + 8 * layers * seq * heads + 16,
+            # The legacy allocator adds a 16-byte guard to the common KV layout.
+            "kv_cache_bytes": _attention.kv_bytes(heads, heads, seq, 8, dim, layers)["kv_total_bytes"] + 16,
             "per_token_internal_ram_bytes": internal, "bits_per_linear_weight": 1}
 
 
