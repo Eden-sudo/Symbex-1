@@ -47,3 +47,17 @@ def test_bad_settings_and_existing_output(tmp_path):
         t.train_tokenizer(tmp_path / "bad", vocab_size=100)
     with pytest.raises(FileExistsError):
         t.train_tokenizer(tmp_path, rows=41)
+
+
+def test_environment_train_only_and_bilingual_round_trip(tmp_path):
+    t = load()
+    sp = t.train_tokenizer(tmp_path / "tok", rows=8, environment=True)
+    corpus = (tmp_path / "tok/corpus.txt").read_text()
+    assert "language=en" in corpus and "language=es" in corpus
+    assert "the recorded state is" not in corpus
+    assert "el estado registrado es" not in corpus
+    for record in t.prompt.bilingual.environment.generate_records(8, 42):
+        for language in ("en", "es"):
+            event = dict(record, language=language)
+            text = t.prompt.example(event, t.prompt.bilingual.render(event, 2))
+            assert sp.decode(sp.encode(text)) == text

@@ -63,7 +63,6 @@ def score_environment(event, generated, reference):
     facts = b.facts(record)
     language = record["language"]
     # Match whole declared clauses, not substrings that could credit a negation.
-    clauses = generated[:-1].split("; ") if generated.endswith(".") else []
     correct = 0
     remainder = generated
     for name, values in facts.items():

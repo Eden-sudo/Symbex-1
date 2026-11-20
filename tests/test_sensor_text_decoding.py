@@ -59,3 +59,17 @@ def test_number_trie_blocks_composition_and_handles_minimum_logits(tmp_path):
     masked, legal = copy.mask(logits, enabled=False)
     assert legal.all() and np.array_equal(masked, logits)
     assert copy.choose(logits, enabled=False) == sp.vocab_size() - 1
+
+
+def test_environment_negative_number_and_window_slots(tmp_path):
+    t, d = load("tokenizer.py"), load("decoding.py")
+    sp = t.train_tokenizer(tmp_path / "tok", rows=8, environment=True)
+    event = dict(t.prompt.bilingual.environment.generate_records(1, 0)[0], language="es")
+    event["temperature"] = -40
+    event["history"]["temperature"] = [-40] * event["window"]
+    event["trends"]["temperature"] = "steady"
+    for field in ("temperature", "window"):
+        copy = d.NumberCopy(event, sp, field=field)
+        assert {sp.decode(list(seq)) for seq in copy.sequences} == {str(event[field]) + " "}
+    with pytest.raises(ValueError, match="numeric"):
+        d.NumberCopy(event, sp, field="language")

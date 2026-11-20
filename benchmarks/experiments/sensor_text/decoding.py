@@ -21,7 +21,9 @@ class NumberCopy:
 
     def __init__(self, event, sp, field=None):
         record = prompt.canonical_record(event)
-        fields = [item[0] for item in prompt.FIELDS[record["source"]]]
+        fields = ([item[0] for item in prompt.bilingual.environment.FIELDS] + ["window"]
+                  if record["source"] == "environment" else
+                  [item[0] for item in prompt.FIELDS[record["source"]]])
         if field is not None:
             if field not in fields:
                 raise ValueError("field is not numeric for this record")
