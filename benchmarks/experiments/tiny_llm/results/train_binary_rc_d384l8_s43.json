@@ -1,0 +1,171 @@
+{
+  "weights": "binary_rc",
+  "seed": 43,
+  "args": {
+    "weights": "binary_rc",
+    "seeds": [
+      43
+    ],
+    "head": "fp32",
+    "int8_blocks": [],
+    "acts": 8,
+    "ste": "identity",
+    "ste_k": 2.0,
+    "learn_thr": false,
+    "a8_inputs": [],
+    "a8_blocks": [],
+    "w2_acts": "same",
+    "hadamard": [],
+    "ffn_act": "silu",
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "d384l8",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15761792,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 9500,
+  "val_loss": 1.51,
+  "val_perplexity": 4.527,
+  "minutes": 22.12,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.2486,
+      "val_loss": 2.2711,
+      "minutes": 1.17
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.9211,
+      "val_loss": 1.9565,
+      "minutes": 2.27
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.8243,
+      "val_loss": 1.8448,
+      "minutes": 3.37
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.7575,
+      "val_loss": 1.7814,
+      "minutes": 4.47
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.6836,
+      "val_loss": 1.7415,
+      "minutes": 5.57
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.6831,
+      "val_loss": 1.7071,
+      "minutes": 6.68
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.6044,
+      "val_loss": 1.68,
+      "minutes": 7.78
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.6345,
+      "val_loss": 1.6552,
+      "minutes": 8.89
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.6553,
+      "val_loss": 1.6379,
+      "minutes": 9.99
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.6295,
+      "val_loss": 1.6191,
+      "minutes": 11.1
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.6197,
+      "val_loss": 1.6036,
+      "minutes": 12.2
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.5337,
+      "val_loss": 1.5886,
+      "minutes": 13.3
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.5579,
+      "val_loss": 1.5742,
+      "minutes": 14.4
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.5832,
+      "val_loss": 1.5596,
+      "minutes": 15.51
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.5543,
+      "val_loss": 1.5446,
+      "minutes": 16.61
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.5231,
+      "val_loss": 1.5343,
+      "minutes": 17.71
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.552,
+      "val_loss": 1.5251,
+      "minutes": 18.81
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.5349,
+      "val_loss": 1.5146,
+      "minutes": 19.91
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.4947,
+      "val_loss": 1.51,
+      "minutes": 21.01
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.4654,
+      "val_loss": 1.5114,
+      "minutes": 22.12
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She had a big, soft bed that she loved to sleep on. One day, Lily's mom told her to clean her room. Lily did not want to clean her room. She wanted to play with her toys.\nLily's mom said, \"Lily, you need to clean your room. It is very messy.\" Lily did not want to clean her room. She wanted to play with her toys. So, she started to clean her room. She put her toys in the right place.\nWhile Lily was cleaning, her mom came in. She saw the clean room and said, \"Lily, you need to clean your room.\" Lily was sad. She did not want to clean her room. She said, \"I am sorry, Mom.\" Her mom said, \"It's okay, we can clean it together.\" So, Lily and her mom cleaned the room together. They had fun and learned to clean her room."
+}
