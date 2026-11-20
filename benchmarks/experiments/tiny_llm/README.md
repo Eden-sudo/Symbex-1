@@ -1051,6 +1051,33 @@ Key cache loss rise by storage (binary model; fp32 and ternary in the JSON, same
 - Binary and ternary models are far less fragile than fp32 (4-bit token: 0.10 / 0.21 vs 1.68): their keys hold less
   of their energy in the mean (41-85 % vs 77-96 %).
 
+**Result: training** (binary weights, step 4 recipe, 3 seeds, validation;
+[results/v512d64l5kv4_k_train.json](results/v512d64l5kv4_k_train.json); the int8 key cache baseline is step 4's
+2.0613 ± 0.0086):
+
+| run | seeds 42 / 43 / 44 | val loss | vs int8 cache |
+|---|---|---|---|
+| key cache 2 bits, plain | 2.4176 / 2.4385 / 2.3452 | 2.4004 ± 0.0490 | +0.339 |
+| key cache 2 bits, `--k-center` | 2.1314 / 2.0998 / 2.0991 | **2.1101 ± 0.0184** | +0.049 |
+| key cache 4 bits, plain | 2.1227 / 2.1037 / 2.1061 | 2.1108 ± 0.0103 | +0.050 |
+| key cache 4 bits, `--k-center` | 2.0851 / 2.0705 / 2.0659 | **2.0738 ± 0.0100** | +0.013 |
+| int8 W_k (cache int8) | 2.0471 / 2.0250 / 2.0297 | 2.0339 ± 0.0116 | -0.027 |
+| int8 W_v (cache int8) | 1.9615 / 1.9708 / 1.9948 | **1.9757 ± 0.0172** | -0.086 |
+
+- `--k-center` passes the rule at both widths: 2 bits -0.290 (larger sd 0.049), 4 bits -0.037 (0.010). Trained with
+  it, a 2-bit key cache is as good as a plain 4-bit one (2.110 vs 2.111) and the 4-bit one is within 0.013 of int8.
+  Key cache bytes (computed, values only, scales unchanged): int8 82 KB, 4 bits 41 KB, 2 bits 20.5 KB.
+- K is NOT special in training: int8 W_v beats int8 W_k by 0.058 (larger sd 0.017), the reverse of the "K special"
+  test. And "bytes, not where" (the 15.7 M rule) does NOT hold at 260K either: the same bytes help 3x more in W_v
+  than in W_k, as the no-training ranking said (W_v the worst weight at int4, 0.165 vs 0.027).
+
+**Answer.** The variable that breaks the 260K model in few bits is the key CACHE, not the key weights; its problem
+is the key's mean (a position term through RoPE) eating the per-token scale. Storing key - mean fixes most of it,
+with or without training. Errors from different weights combine like independent ones, and an early error grows
+through the residual stream (2x from block 0 to the last). For the weights, the value projection W_v is where extra
+bits pay most. Not done: `--k-center` in intsim and the C (an extra dot of q with RoPE(mean) per key, estimate),
+center combined with the learned temperature or ternary weights, the growth measure on ResNet-8's OR shortcuts.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

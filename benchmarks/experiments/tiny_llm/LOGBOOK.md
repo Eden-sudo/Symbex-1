@@ -654,3 +654,8 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   k2c, k2, k4c, k4, i8k, i8v x 42/43/44 (~3 h, estimate).
 - Nov 20 03:39, step 6 done: binary + temp 2.0510 ± 0.0080 (vs 2.0613 ± 0.0086, -0.0103, passes just), ternary + temp
   1.8199 ± 0.0059 (vs 1.8375 ± 0.0053, -0.0176, passes). ~56 min per run (attend_bits by hand). results/v512d64l5kv4_temp.json.
+- Nov 20 06:42, step 7 training done (3 seeds, results/v512d64l5kv4_k_train.json, README "Step 7"): key cache 2 bits
+  plain 2.4004 ± 0.0490 vs center 2.1101 ± 0.0184; 4 bits plain 2.1108 ± 0.0103 vs center 2.0738 ± 0.0100 (int8 cache
+  2.0613) -> center kept at both widths. int8 W_k 2.0339 ± 0.0116 vs int8 W_v 1.9757 ± 0.0172 -> K not special;
+  "bytes, not where" fails at 260K (W_v gains 3x more). Next (Edén decides): W_v int8 + center 2-4 bit K + temp +
+  ternary together; center into intsim / C / chips; growth measure on ResNet-8's OR shortcuts.
