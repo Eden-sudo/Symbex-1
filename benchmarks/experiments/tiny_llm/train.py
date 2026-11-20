@@ -141,6 +141,13 @@ class QLinear(nn.Linear):
 
 # ---- model ---------------------------------------------------------------------------------------------------------
 
+def resolve_kv_heads(heads, kv_heads):
+    kv_heads = heads if kv_heads is None else kv_heads
+    if heads <= 0 or kv_heads <= 0 or heads % kv_heads:
+        raise ValueError("--heads and --kv-heads must be positive, and --heads must be divisible by --kv-heads")
+    return kv_heads
+
+
 def rope(x, cos, sin):
     x1, x2 = x[..., ::2], x[..., 1::2]
     return torch.stack((x1 * cos - x2 * sin, x1 * sin + x2 * cos), dim=-1).flatten(-2)
@@ -148,41 +155,51 @@ def rope(x, cos, sin):
 
 class Block(nn.Module):
     def __init__(self, dim, heads, hidden, kind, acts=8, act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu",
-                 rotate=()):
+                 rotate=(), kv_heads=None):
         super().__init__()
         self.heads = heads
+        self.kv_heads = resolve_kv_heads(heads, kv_heads)
+        self.head_dim = dim // heads if self.kv_heads == heads else 64
         self.gate = F.relu if ffn_act == "relu" else F.silu
         self.n1, self.n2 = nn.RMSNorm(dim, eps=1e-5), nn.RMSNorm(dim, eps=1e-5)
 
         def lin(name, n_in, n_out):
             return QLinear(n_in, n_out, kind, 8 if name in a8_inputs else acts, act_opts, name in rotate)
-        self.q, self.k, self.v, self.o = (lin(n, dim, dim) for n in ("q", "k", "v", "o"))
+        q_dim, kv_dim = heads * self.head_dim, self.kv_heads * self.head_dim
+        self.q, self.k, self.v, self.o = (lin("q", dim, q_dim), lin("k", dim, kv_dim),
+                                          lin("v", dim, kv_dim), lin("o", q_dim, dim))
         self.w1, self.w3 = lin("w1", dim, hidden), lin("w3", dim, hidden)
         self.w2 = lin("w2", hidden, dim)
         if w2_acts is not None and acts != 8 and "w2" not in a8_inputs:
             self.w2.acts = w2_acts
 
     def forward(self, x, cos, sin):
-        b, t, d = x.shape
+        b, t, _ = x.shape
         h = self.n1(x)
-        q, k, v = (m(h).view(b, t, self.heads, -1).transpose(1, 2) for m in (self.q, self.k, self.v))
-        a = F.scaled_dot_product_attention(rope(q, cos, sin), rope(k, cos, sin), v, is_causal=True)
-        x = x + self.o(a.transpose(1, 2).reshape(b, t, d))
+        q = self.q(h).view(b, t, self.heads, self.head_dim).transpose(1, 2)
+        k, v = (m(h).view(b, t, self.kv_heads, self.head_dim).transpose(1, 2) for m in (self.k, self.v))
+        q, k = rope(q, cos, sin), rope(k, cos, sin)
+        if self.kv_heads != self.heads:
+            k = k.repeat_interleave(self.heads // self.kv_heads, dim=1)
+            v = v.repeat_interleave(self.heads // self.kv_heads, dim=1)
+        a = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        x = x + self.o(a.transpose(1, 2).reshape(b, t, self.heads * self.head_dim))
         h = self.n2(x)
         return x + self.w2(self.gate(self.w1(h)) * self.w3(h))
 
 
 class TinyLM(nn.Module):
     def __init__(self, vocab, dim, layers, heads, hidden, seq, kind, head="fp32", int8_blocks=(), acts=8,
-                 act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=()):
+                 act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=(), kv_heads=None):
         super().__init__()
+        kv_heads = resolve_kv_heads(heads, kv_heads)
         self.head_kind = head
         self.emb = nn.Embedding(vocab, dim)
         self.blocks = nn.ModuleList(Block(dim, heads, hidden, "int8" if i in int8_blocks else kind, acts, act_opts,
                                           a8_inputs if not a8_blocks or i in a8_blocks else (), w2_acts, ffn_act,
-                                          rotate) for i in range(layers))
+                                          rotate, kv_heads=kv_heads) for i in range(layers))
         self.norm = nn.RMSNorm(dim, eps=1e-5)
-        hd = dim // heads
+        hd = dim // heads if kv_heads == heads else 64
         freq = 1.0 / (10000 ** (torch.arange(0, hd, 2).float() / hd))
         ang = torch.outer(torch.arange(seq).float(), freq)
         self.register_buffer("cos", ang.cos(), persistent=False)
@@ -268,7 +285,7 @@ def run(args, seed):
                    args.weights, args.head, tuple(args.int8_blocks), args.acts,
                    {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
                    tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
-                   tuple(args.a8_blocks)).to(device)
+                   tuple(args.a8_blocks), kv_heads=args.kv_heads).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)
@@ -283,7 +300,8 @@ def run(args, seed):
                          {"ste_mode": ta.get("ste", "identity"), "ste_k": ta.get("ste_k", 2.0),
                           "learn_thr": ta.get("learn_thr", False)}, tuple(ta.get("a8_inputs", [])),
                          W2_ACTS[ta.get("w2_acts", "same")], ta.get("ffn_act", "silu"),
-                         tuple(ta.get("hadamard", [])), tuple(ta.get("a8_blocks", []))).to(device)
+                         tuple(ta.get("hadamard", [])), tuple(ta.get("a8_blocks", [])),
+                         kv_heads=ta.get("kv_heads", ta["heads"])).to(device)
         teacher.load_state_dict(tck["model"])
         teacher.eval().requires_grad_(False)
         print(f"distilling from {tpath} (alpha {args.distill_alpha}, temperature {args.distill_t})")
@@ -387,6 +405,8 @@ def main():
     ap.add_argument("--dim", type=int, default=384)
     ap.add_argument("--layers", type=int, default=8)
     ap.add_argument("--heads", type=int, default=6)
+    ap.add_argument("--kv-heads", type=int, default=None,
+                    help="KV heads (default: --heads); reduced KV uses 64-wide heads")
     ap.add_argument("--hidden", type=int, default=1024)
     ap.add_argument("--seq", type=int, default=256)
     ap.add_argument("--batch", type=int, default=128)
@@ -399,6 +419,10 @@ def main():
     ap.add_argument("--no-compile", dest="compile", action="store_false")
     ap.add_argument("--test", action="store_true", help="also score the test split (once, final numbers only)")
     args = ap.parse_args()
+    try:
+        args.kv_heads = resolve_kv_heads(args.heads, args.kv_heads)
+    except ValueError as e:
+        ap.error(str(e))
     for seed in args.seeds:
         run(args, seed)
 
