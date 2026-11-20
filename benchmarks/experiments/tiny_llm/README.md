@@ -1151,6 +1151,27 @@ seeds, validation; `k_anatomy.py` on each. Head width grows with the width (as i
 4-bit key cache rise below 0.03 nats (the "usable" bound of the KV cache study), mean over 3 seeds. Also reported:
 binary and fp32 validation loss, the gap, center 4 / 2 bits.
 
+### Step 9: a 1-bit key cache at 260K, for chips without int8 SIMD (rule Nov 20 2026, before measuring)
+
+**Question.** On the classic ESP32 and the Pico 2 (no int8 SIMD), a 1-bit key makes the score q . k a sum of
+plus / minus the query's 8 values. Can the 260K be trained with it? A no-training probe (LOGBOOK, Nov 20) found that
+84 % of the key's sign bits only copy the sign of the key's mean (0.46 bit of information per stored bit; 0.98 after
+subtracting the mean), and a 1-bit cache costs +1.29 plain vs +0.39 with center.
+
+**What.** Binary 260K, base recipe (lr 3e-3, 20,000 steps), value cache as trained (8 bits), 3 seeds, validation:
+`k1` (`--k-bits 1`: sign x mean|k| per token and head), `k1c` (+ `--k-center`), `k1tr` (`--k-bits 1 --attn-temp
+--kv-recent 32`: the 15.7 M T2 recipe with the value at 8 bits), `k1ctr` (k1tr + `--k-center`), `k1uctr` (k1ctr +
+`--k-unit`: the pure sign of key - mean, no per-token scale; the learned temperature carries the scale). Key cache
+bytes per key head and position (computed): int8 8 + 4 (int32 scale) = 12, 2 bits 2 + 4 = 6, 1 bit 1 + 4 = 5,
+`--k-unit` 1 (plus 32 int8 positions per head with the window). At head width 8 the per-token scale is most of a
+low-bit key: only `--k-unit` removes it.
+
+**Rule (written before the runs).** (1) Center helps a 1-bit key if `k1c` < `k1` and `k1ctr` < `k1tr`, each by more
+than the larger sd. (2) A 1-bit key is usable if its 3-seed loss is within 0.03 of the base (2.0613 ± 0.0086, the KV
+rule); if none is, the best is compared with the trained 2-bit center key (2.1101 ± 0.0184, step 7) at its bytes.
+(3) `k1uctr` goes to intsim / the C / the chips only if it passes (2) or ties the 2-bit center key within the larger
+sd.
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

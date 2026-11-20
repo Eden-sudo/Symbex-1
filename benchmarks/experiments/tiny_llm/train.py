@@ -39,7 +39,8 @@ sign x mean|q|), --k-unit (1-bit keys without the per-token mean|k|: the score i
 times one factor per query, see the README's bucket form). These run attention by hand (no fused kernel).
 --k-center (with --k-bits < 8, README "Step 7"): the low-bit key cache stores key - mean, the mean rotated to the
 key's position (RoPE) and added back when read; the mean is a fixed channel average per key head (pre-RoPE), an
-exponential average of the training batches (momentum 0.99), not learned. --int8-linears k (or v, ...): those linear
+exponential average of the training batches (momentum 0.99), not learned; it also runs with --attn-temp /
+--kv-recent (README "Step 9"). --int8-linears k (or v, ...): those linear
 kinds get int8 weights in every block (the same-bytes control of README "Step 7"). Neither is in intsim.py / the C.
 Softmax changes against the key's mean (README "Step 8", not in intsim.py / the C): --attn-sink (one learned logit
 per head joins every softmax with a zero value: a query can attend to "nothing" without a key built for it; starts
@@ -189,8 +190,7 @@ class Block(nn.Module):
         self.attn = attn or {}
         self.tau = nn.Parameter(torch.zeros(heads)) if self.attn.get("temp") else None   # log temperature
         kc = self.attn.get("k_center")       # fixed key mean per key head (pre-RoPE), exponential average in training
-        assert not kc or not (self.attn.get("temp") or self.attn.get("recent") or self.attn.get("q_bits", 8) == 1
-                              or self.attn.get("k_unit")), "--k-center runs on the fused attention path only"
+        assert not kc or self.attn.get("q_bits", 8) == 8, "--k-center does not combine with --q-bits 1"
         self.register_buffer("kmu", torch.zeros(self.kv_heads, 1, dim // heads) if kc else None)
         self.gate = F.relu if ffn_act == "relu" else F.silu
         self.n1, self.n2 = nn.RMSNorm(dim, eps=1e-5), nn.RMSNorm(dim, eps=1e-5)
@@ -230,7 +230,8 @@ class Block(nn.Module):
         if self.attn.get("temp") or self.attn.get("recent") or self.attn.get("q_bits", 8) == 1 \
                 or self.attn.get("k_unit"):
             a = torch.utils.checkpoint.checkpoint(      # recomputed in backward: the score matrices do not fit
-                self.attend_bits, rope(q, cos, sin), rope(k, cos, sin), v, kb, vb, ks, use_reentrant=False)
+                self.attend_bits, rope(q, cos, sin), rope(k, cos, sin), v, kb, vb, ks,
+                None if mu is None else rope(mu, cos, sin), use_reentrant=False)
         elif mu is not None:
             m = rope(mu, cos, sin)
             a = self.sdpa(rope(q, cos, sin), quant_kv(rope(k, cos, sin) - m, kb, ks) + m, quant_kv(v, vb), h)
@@ -256,12 +257,15 @@ class Block(nn.Module):
             a = a * torch.sigmoid(self.g(h)).transpose(1, 2)[..., None].to(a.dtype)
         return a
 
-    def attend_bits(self, q, k, v, kb, vb, ks):
+    def attend_bits(self, q, k, v, kb, vb, ks, m=None):
         """Attention by hand for the bit-attention options (see the docstring); q, k after rope, (b, heads, t, hd)."""
         t, hd = q.shape[-2], q.shape[-1]
         qq = quant_kv(q, 1) if self.attn.get("q_bits", 8) == 1 else q
-        if self.attn.get("k_unit") and kb == 1:
-            kq = ste(k, torch.where(k >= 0, 1.0, -1.0) * ks)
+        if self.attn.get("k_unit") and kb == 1:     # with --k-center: sign(key - RoPE(mean)), the mean added back
+            z = k if m is None else k - m
+            kq = ste(k, torch.where(z >= 0, 1.0, -1.0) * ks + (0.0 if m is None else m))
+        elif m is not None:                          # --k-center: key - RoPE(mean) stored, the mean added back
+            kq = quant_kv(k - m, kb, ks) + m
         else:
             kq = quant_kv(k, kb, ks)
         vq = quant_kv(v, vb)

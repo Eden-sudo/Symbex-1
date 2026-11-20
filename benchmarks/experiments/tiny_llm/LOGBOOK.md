@@ -675,3 +675,7 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   layer); bit entropy 0.46 bit per stored bit plain, 0.98 after center. 1-bit key cache (sign x mean|k|) rise plain
   +1.29 vs center +0.39 (fp32 model 4.10 vs 2.23); x pi/2 worse. KV bytes 260K (computed): 164 KB int8 + 80 KB int32
   scales (33 % of the cache is scales). For Edén's "how Q K V are read / stored / computed" question.
+- Nov 20 09:30, step 9 queued (rule in README "Step 9" first; Edén away, said "sigue avanzando"): 1-bit key cache at
+  260K, k1 / k1c / k1uctr / k1ctr / k1tr x 3 seeds, waits for step 8 (runs/logs/step9_queue.sh, log step9_queue.log,
+  ends "STEP9 QUEUE DONE"). train.py: --k-center now also on the bit-attention path (--attn-temp / --kv-recent) and
+  with --k-unit (sign of key - mean, mean added back). Run time ESTIMATE ~8 h after step 8 (bit path ~57 min a run).
