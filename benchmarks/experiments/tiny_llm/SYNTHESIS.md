@@ -112,3 +112,33 @@ The table compares different tasks and networks: it shows a correlation, not a p
 
 C is the strongest. If it holds, it gives a design rule of our own for binary networks: at a fixed budget, choose
 width over depth.
+
+## 6. Pending: place the findings in the literature and confirm them (not started)
+
+The literature below is cited from memory. Before any of it reaches the README or the preprint, each citation must
+be checked: read the PDF and quote the exact claim.
+
+| our finding | prior work that seems to cover it (to verify) | what may be ours | still to confirm |
+|---|---|---|---|
+| the key has a large mean; centering fixes the low-bit key cache | SageAttention ("smooth K": subtract the mean over tokens); KIVI / KVQuant (key outlier channels, per-channel key quantization) | 1-bit, trained with the cache, binary weights | that SageAttention's smoothing is the same operation as ours (RoPE(mean), added back exactly) |
+| 1-bit key cache as the pure sign | QJL 2024 (sign of a random projection of the key + its norm) | sign of key - mean, 1 byte per head, no per-token scale | how QJL's loss compares at the same bytes |
+| the binary gap shrinks with size | BitNet, Spectra / TriLM | the ladder at microcontroller sizes | — |
+| ternary much better than binary | BitNet b1.58 | — | — |
+| first / last layer at higher precision | XNOR-Net and later BNN practice | measured on ResNet-8, HAR, LLM head | — |
+| binary needs high dimension | Anderson & Berg 2017 | the same pattern in LLM, conv1d, conv2d | tests A / B / C (section 5) |
+| wide binary beats narrow fp32 at the same memory | Spectra (large models) | microcontroller sizes, KV cache as the real limit | — |
+
+Findings that look new (NO literature search done yet):
+
+1. **Binary weights make the key cache more robust.** Plain 4-bit key, no retraining: fp32 260K +1.68 vs binary
+   260K +0.100 (~17x). Weak point: our fp32 260K may be under-trained (the reason distillation was dropped). To
+   confirm: train fp32 longer or with a tuned recipe and measure again. Also check whether the effect holds at d128 /
+   d256 (fp32 0.13 / 0.035 vs binary 0.036 / 0.021: the ratio shrinks to ~1.7-3.6x).
+2. **"Bytes, not where" depends on size:** it held at 15.7 M and failed at 260K (int8 W_v gains 3x more than W_k).
+   To confirm: the same W_v / W_k control at d128 / d256.
+3. **Additivity depends on the statistic** (ResNet-8: accuracy 0.45, clipped 0.81-0.86, mean loss 0.92-0.98, median
+   2.1-3.1). To confirm: the median for tiny_llm (never measured).
+4. **Binary may prefer width over depth** (test C, section 5). To confirm: test C itself.
+
+Order proposed (Edén decides): systematic literature search for 1-4 (OpenAlex / arXiv); test A (no GPU); then B /
+C and the fp32 recipe check for finding 1.
