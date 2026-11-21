@@ -1,0 +1,24 @@
+{
+ "what": "260K step 9b: 2-bit value cache on top of the 1-bit keys (README Step 9b), validation, 3 seeds; k1trv2 not run yet",
+ "runs": {
+  "k1uctrv2": {
+   "val_loss": [
+    2.1217,
+    2.0952,
+    2.1105
+   ],
+   "mean": 2.1091,
+   "sd": 0.0133,
+   "best_step": [
+    16000,
+    20000,
+    17500
+   ],
+   "minutes": [
+    95.4,
+    89.42,
+    88.11
+   ]
+  }
+ }
+}

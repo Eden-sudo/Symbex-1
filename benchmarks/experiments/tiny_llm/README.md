@@ -1268,6 +1268,15 @@ Rules, written before measuring:
 2. A run whose loss rises by more than the larger sd beyond rule 1 goes back to int8 values. The cost is then
    reported as the price of short sums: fan-in 8 against 64 at 15.7 M (section 4 of SYNTHESIS.md).
 
+**Result so far (Nov 21; `k1trv2` paused, not run yet).** results/v512d64l5kv4_v2_train.json.
+
+| run | seed 42 / 43 / 44 | mean ± sd | int8-value twin | difference (paired per seed) |
+|---|---|---|---|---|
+| `k1uctrv2` | 2.1217 / 2.0952 / 2.1105 | 2.1091 ± 0.0133 | `k1uctr` 2.0943 ± 0.0219 | +0.0148 (+0.0054 / +0.0012 / +0.0379) |
+
+`k1uctrv2` passes rule 1 on the mean (+0.0148 < 0.02), so its cache goes from 141 to 87 KB. One seed (44) costs +0.038.
+Against the int8 cache (2.0613) it is +0.048, outside the "usable" line of 0.03, as `k1uctr` already was (+0.033).
+
 ### Speed of each cache method, one at a time (Nov 21 2026; a timing, no decision rule)
 
 **Question.** Each trick of steps 7-9b changes the attention code differently. What does each one cost or save on
@@ -1343,7 +1352,7 @@ cache_methods_table.py gathers each method's validation loss (3 seeds), cache RA
 | unit keys + window + temp, no center | not trained | 140.8 KB | 21.2 / 21.1 / 29.1 | 184 B | +323 / +300 / +338 B |
 | `k2c` (step 7) | 2.1101 (+0.049) | 184.3 KB | not timed | 664 B | not timed |
 | `k1trv2` (step 9b) | running | 128.0 KB | 31.8 / 33.7 / 40.6 | 184 B | +474 / +442 / +580 B |
-| `k1uctrv2` (step 9b) | running | 87.0 KB | 38.9 / 42.0 / 49.6 | 824 B | +640 / +640 / +834 B |
+| `k1uctrv2` (step 9b) | 2.1091 (+0.048) | 87.0 KB | 38.9 / 42.0 / 49.6 | 824 B | +640 / +640 / +834 B |
 
 The methods:
 - **int8 (base):** int8 keys and values with one int32 scale per position.

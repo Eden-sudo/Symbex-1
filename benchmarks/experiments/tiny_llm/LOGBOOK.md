@@ -713,3 +713,6 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   table" (loss, KV RAM computed, speed kv260k_bench, flash data computed, code measured with nm -S per core: methods
   add 84-834 bytes of code). Under the rule in use (usable < +0.03, then fewest bytes) k1tr wins; also fastest on
   ESP32 / M33, not on Hazard3 (temperature). Step 9b README cache figure fixed: k1trv2 128 KB (was written 120).
+- Nov 21 13:40: step 9b k1uctrv2 done, 3 seeds: 2.1091 ± 0.0133 vs k1uctr 2.0943 (+0.0148, paired +0.005 / +0.001 /
+  +0.038): passes rule 1 on the mean, cache 87 KB; +0.048 vs the int8 cache (not usable under 0.03, like k1uctr).
+  Queue paused at Edén's request (GPU needed); k1trv2 3 seeds left: relaunch step9b_queue.sh (skips done runs).
