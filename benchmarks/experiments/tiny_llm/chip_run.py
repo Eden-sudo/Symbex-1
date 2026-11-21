@@ -108,9 +108,15 @@ def main():
                     "reference and firmware (-DTINYLM_P_CUT=round(128 n)) both")
     ap.add_argument("--fine-prof", action="store_true", help="time the parts inside the attention too "
                     "(-DTINYLM_FINE_PROF; results/..._prof.json: the extra marks cost a little)")
+    ap.add_argument("--autoload", type=int, choices=(0, 1, 2, 3),
+                    help="data cache autoload on a miss, size 0..3 (-DTINYLM_AUTOLOAD; "
+                         "../chip_kernels/psram_prefetch_bench.py)")
+    ap.add_argument("--autoload-kv", action="store_true", help="--autoload over the KV cache too (region 1)")
     ap.add_argument("--repeat-probe", choices=("psram", "copy"),
                     help="timing only: run layers in pairs on one block's weights (see the docstring)")
     args = ap.parse_args()
+    if args.autoload_kv and args.autoload is None:
+        ap.error("--autoload-kv needs --autoload")
     run = os.path.normpath(args.run)
     proj = os.path.join(HERE, "chip")
     ids, n_prompt, sp, check_id, seq, kv = write_check_data(run, args.windows, os.path.join(proj, "src", "check_data.h"),
@@ -122,6 +128,10 @@ def main():
             flags.append(f"-DTINYLM_REPEAT_PROBE={1 if args.repeat_probe == 'psram' else 2}")
         if args.fine_prof:
             flags.append("-DTINYLM_FINE_PROF")
+        if args.autoload is not None:
+            flags.append(f"-DTINYLM_AUTOLOAD={args.autoload}")
+            if args.autoload_kv:
+                flags.append("-DTINYLM_AUTOLOAD_KV=1")
         if args.p_cut is not None:
             flags.append(f"-DTINYLM_P_CUT={min(2048, round(args.p_cut * 128))}")
         env = dict(os.environ, PLATFORMIO_BUILD_FLAGS=" ".join(flags))
@@ -150,6 +160,10 @@ def main():
             elif line.startswith("LINEAR:"):
                 if line[7:] != args.linear:
                     raise RuntimeError(f"the board runs the {line[7:]} linear kernel, not {args.linear}")
+            elif line.startswith("AUTOLOAD:"):
+                info["autoload"] = int(line[9:])
+            elif line.startswith("AUTOLOAD_KV:"):
+                info["autoload_kv_bytes"] = int(line[12:])
             elif line.startswith("REPEAT:"):
                 info["repeat"] = int(line[7:])
             elif line.startswith("RC:"):
@@ -193,6 +207,10 @@ def main():
     want_repeat = {None: None, "psram": 1, "copy": 2}[args.repeat_probe]
     if info.get("repeat") != want_repeat:
         problems.append(f"the board runs repeat probe {info.get('repeat')}, not {want_repeat} (run without --no-upload)")
+    if info.get("autoload") != args.autoload:
+        problems.append(f"the board runs autoload {info.get('autoload')}, not {args.autoload} (run without --no-upload)")
+    if args.autoload_kv != ("autoload_kv_bytes" in info):
+        problems.append("the board's autoload KV region differs from --autoload-kv (run without --no-upload)")
     if bad and not args.repeat_probe:       # the probe changes the outputs on purpose: timing only
         problems.append(f"{bad} outputs differ from intsim.py")
     if info.get("repeat_failed"):
@@ -208,7 +226,7 @@ def main():
                2: " linear, PIE int2 dot (output), PIE s8 dot (scores)"}.get(I.head_bits_of(run),
                                                                               " linear, PIE s8 dot (output, scores)")),
            "model_in": "psram",
-           "kv_cache": kv or "int8", "p_cut_nats": args.p_cut, "fine_prof": args.fine_prof, "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
+           "kv_cache": kv or "int8", "p_cut_nats": args.p_cut, "fine_prof": args.fine_prof, "dcache_autoload": args.autoload, "dcache_autoload_kv_bytes": info.get("autoload_kv_bytes"), "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
            "check_tokens": len(hashes), "check_equal": int(sum(h[2] for h in hashes)),
            "equal_percent": round(100 * sum(h[2] for h in hashes) / max(1, len(hashes)), 3),
            "story_tokens": len(gen), "story_equal": int(sum(g[1] for g in gen)),
@@ -227,7 +245,8 @@ def main():
     os.makedirs(os.path.join(HERE, "results"), exist_ok=True)
     suffix = ("" if args.linear == "lut8" else "_" + args.linear) + (f"_repeat_{args.repeat_probe}"
                                                                       if args.repeat_probe else "") \
-        + (f"_c{args.p_cut:g}" if args.p_cut is not None else "") + ("_prof" if args.fine_prof else "")
+        + (f"_c{args.p_cut:g}" if args.p_cut is not None else "") + ("_prof" if args.fine_prof else "") \
+        + (f"_al{args.autoload}" if args.autoload is not None else "") + ("kv" if args.autoload_kv else "")
     out = os.path.join(HERE, "results", f"chip_s3_{os.path.basename(run)}{suffix}.json")
     with open(out, "w") as f:
         json.dump(res, f, indent=2)
