@@ -1,0 +1,32 @@
+{
+  "run": "binary_v512d64l5kv4_s44",
+  "board": "rp2350 Hazard3",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": "int8",
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 150,
+  "ready": "TINYLM ready | cpu 150 MHz | ram 506928 bytes free",
+  "loaded": "LOADED 93120 bytes in 12 ms | ram free 228128",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 39.865,
+  "ms_per_token_at_position": {
+    "0": 23.648,
+    "63": 28.726,
+    "127": 32.669,
+    "255": 40.044,
+    "511": 54.416
+  },
+  "ms_per_token_story_mean": 28.646,
+  "tokens_per_second_story": 34.909,
+  "ms_per_token_by_part": {},
+  "story": "Once upon a time, there was a little girl named Sue. Sue lived in a big rock. One day, a little bird named Sue was a big bird. The bird was very happy. The bird was very happy and said, \"It's a big, but I can play with you.\" The bird was angry. The bird was very happy and said, \"It's a big, but I can play with you.\" The"
+}

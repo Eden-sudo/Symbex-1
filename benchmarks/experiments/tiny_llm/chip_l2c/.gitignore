@@ -1,0 +1,4 @@
+.pio/
+src/gen_data.h
+src/model_data.h
+pc_check

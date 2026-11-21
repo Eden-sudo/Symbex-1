@@ -768,6 +768,512 @@ the flash) rebooted the board in a loop: not saved.
 The estimate before measuring was -19 ms; measured -12 on the linears. Weak point: the ROM cache functions are marked
 "do not call in your SDK application"; they work on this Arduino core (ESP-IDF 4.4) and may change with another.
 
+## A 260K model for chips without PSRAM (rule Nov 19 2026, before measuring)
+
+**Question.** The 15.7 M model needs PSRAM (KV cache 1.67 MB): the classic ESP32 (346 KB heap, no PSRAM) and the
+Pico 2 (520 KB RAM) cannot run it. Does llama2.c's 260K shape train as a binary W1A8 model, and how far is it from its
+fp32 twin? The goal of this line is **a model that runs exact on a chip without PSRAM** (weights from flash), not
+better stories.
+
+**What.** `train.py --vocab 512 --dim 64 --layers 5 --heads 8 --kv-heads 4 --hidden 172 --seq 512` (llama2.c's
+stories260K shape; `--kv-heads 4` = grouped-query attention, each key / value head serves 2 query heads),
+tokenizer `prepare.py --vocab 512` (ours, trained on TinyStories: llama2.c's val loss 1.297 uses its own tokenizer
+and is not comparable). The same recipe as every other run here (10000 steps, batch 128, lr 1.5e-3, warmup 500),
+fp32 and binary (1-bit weights, 8-bit inputs, fp32 output layer tied to the embedding), seeds 42, 43, 44, validation
+only. KV cache int8, computed: 5 layers x 512 positions x 4 heads x 8 dims x 2 (K, V) = 164 KB (328 KB with 8 KV heads;
+plus the int32 scales per token and head, 80 KB: see step 2).
+
+**Rule.** Report val loss mean ± sd of both and the gap. No accuracy threshold decides the next step: the binary
+model goes to intsim.py / the C (step 2) unless its sample stories are not sentences at all (then the recipe is
+looked at first, on validation). The test split is not read.
+
+**Result** (results/v512d64l5kv4_train.json, 0.26 M parameters, ~4.7 min per run on the RTX GPU):
+
+| weights | val loss (42 / 43 / 44) | mean ± sd |
+|---|---|---|
+| fp32 | 1.3433 / 1.3542 / 1.3417 | 1.3464 ± 0.0068 |
+| binary W1A8 | 2.1567 / 2.1279 / 2.1365 | 2.1404 ± 0.0148 |
+
+Gap +0.794 (the 15.7 M model: +0.222). The binary curve is flat from step ~4000 (2.23 -> 2.14). Its stories are
+sentences with weak sense ("She lived in a big box. She wanted to play with his friends and play with the park").
+
+**Answer.** It trains, and by the rule it goes to step 2 (intsim.py / the C). Binary costs much more at this size:
+with dim 64 every layer has few bits to spend. Better recipes for this size stay future work, chosen on validation.
+
+### Step 2: the 260K model as integers and C (Nov 19 2026)
+
+**Question.** Is the integer model of the 260K shape as good as its float one, and does the C give the same integers?
+
+**What.** intsim.py and c/tinylm.c learned what the shape needs: heads of any width that is a multiple of 8 (the score
+scale 1 / sqrt(hd) becomes the integer divisor `att_div(hd) << 20`, `att_div = (isqrt(16129^2 hd) + 4) >> 3`: 16129
+for 64-wide heads, the same integers as before; 5702 for 8-wide), grouped-query attention (the cache keeps the 4 key /
+value heads; model.bin's heads field = kv_heads << 16 | heads, old files unchanged), a hidden width that is not a
+multiple of 8 (172: the last table group counts the missing inputs as 0), and contexts past 258 tokens (the int32
+value sums run over blocks of 256 keys; the attention scratch is sized by the context, not by `hidden`). The low-bit
+cache keeps its limits (64-wide heads, no GQA, 258 tokens). Validation, 1024 windows of 512 tokens; the C on 4
+windows (2048 tokens, every one of the 512 outputs) + a 120-token greedy story, 3 kernels (lut8, lib_symbex,
+lib_symbex + the row-product hooks), built with ASan + UBSan.
+
+**Result** (results/intsim_binary_v512d64l5kv4_s*.json, results/c_check_pc_binary_v512d64l5kv4_s*.txt):
+
+| seed | val loss float | val loss integer | next token equal float / integer | C = intsim.py |
+|---|---|---|---|---|
+| 42 | 2.1671 | 2.1676 | 97.5 % | 2048 / 2048, story 120 / 120 |
+| 43 | 2.1397 | 2.1402 | 97.6 % | 2048 / 2048, story 120 / 120 |
+| 44 | 2.1457 | 2.1463 | 97.7 % | 2048 / 2048, story 120 / 120 |
+
+The integer model costs +0.0005 ± 0.0001 nats. (The float loss here is over 1024 windows; train.py's best checkpoint
+loss, 2.1404 ± 0.0148, over its own 40 x 128.) The older models (15.7 M with int8 / int4 / int2 head, W1A1, the
+low-bit cache) are still exact with the new C, and the S3 firmware builds.
+
+**Answer.** Yes: exact 100 %, 3 seeds. model.bin is 0.09 MB. RAM on a chip, computed: int8 KV 164 KB + its int32
+scales 80 KB (5 layers x 512 x 4 heads x 4 bytes x 2) = 244 KB, plus roughly 30 KB of scratch (estimate): it should fit the classic
+ESP32 (346 KB heap) and the Pico 2 (520 KB), to be measured. Next (step 3): firmware for both, weights from flash.
+
+### Step 3: the 260K model on the classic ESP32 and the Pico 2 (Nov 19 2026)
+
+**Question.** Does the 260K binary model run exact on chips without PSRAM, weights read from flash, and how fast?
+
+**What.** `chip_mcu/` (PlatformIO, Arduino): model.bin is a 16-byte aligned const array in the firmware
+(`src/model_data.h`, written by `chip_run.py`): the ESP32 reads it through its flash cache, the RP2350 through XIP
+(16 KB cache). The int8 KV cache and the buffers sit in internal RAM. Plain C everywhere (lut8 linear layers, no
+SIMD). The classic ESP32 needed two changes: its byte heap is 279 KB in regions (largest block 115 KB), so
+`-DTINYLM_KV_SPLIT` allocates the cache per layer (16 KB blocks), and `TINYLM_MALLOC_WORDS` puts the int32 scales
+in the 32-bit-only IRAM heap (~72 KB). Both are opt-in: the PC and the S3 builds are unchanged, and the C is exact with or
+without them (PC, ASan + UBSan). `python chip_run.py runs/<run> --board esp32|pico2_arm|pico2_riscv --port ...`:
+2 validation windows of 512 tokens (a hash of every output equal to intsim.py's) + the 120-token greedy story.
+ESP32 at 240 MHz, Pico 2 at 150 MHz (Arduino-Pico default). Seeds 42, 43, 44.
+
+**Result** (results/chip_{esp32,pico2_arm,pico2_riscv}_binary_v512d64l5kv4_s*.json):
+
+| chip | exact (3 seeds) | story tokens/s | ms per token, windows mean | at position 0 / 511 |
+|---|---|---|---|---|
+| ESP32 (classic, 240 MHz) | 3072 / 3072, story 360 / 360 | 40.15 ± 0.06 | 35.38 ± 0.03 | 19.9 / 49.1 |
+| Pico 2 Cortex-M33 (150 MHz) | 3072 / 3072, story 360 / 360 | 31.84 ± 0.06 | 41.36 ± 0.05 | 27.0 / 54.1 |
+| Pico 2 Hazard3 (150 MHz) | 3072 / 3072, story 360 / 360 | 35.38 ± 0.88 | 39.52 ± 0.75 | 23.3 / 53.6 |
+
+Flash: the firmware is 0.39 MB on the ESP32 (model 0.09 MB). Free RAM after loading: ESP32 72 KB (most of it IRAM),
+Pico 2 228-235 KB. The time per token grows with the position (the attention reads the whole cache): ~2.5x from
+the first to the last token. The story runs 125 positions, so its speed is above the window mean. The Hazard3 spread
+(seed 42 34.8, 43 36.4, 44 34.9 tokens/s, same code) is code layout under the XIP cache, as seen before with
+SYMBEX on this core.
+
+Tokens per second of the story, per seed (each run's JSON, `tokens_per_second_story`):
+
+| chip | seed 42 | seed 43 | seed 44 | mean ± sd |
+|---|---|---|---|---|
+| ESP32 (classic, 240 MHz) | 40.200 | 40.090 | 40.166 | 40.15 ± 0.06 |
+| Pico 2 Cortex-M33 (150 MHz) | 31.835 | 31.776 | 31.896 | 31.84 ± 0.06 |
+| Pico 2 Hazard3 (150 MHz) | 34.823 | 36.394 | 34.909 | 35.38 ± 0.88 |
+
+Memory (bytes; RAM used = free heap at start - free heap after loading, from the firmware's own lines, the same on
+all 3 seeds; KV cache and scales computed from the shape; scratch = used - the two):
+
+| | ESP32 | Pico 2 M33 | Pico 2 Hazard3 |
+|---|---|---|---|
+| model.bin in flash | 93 120 | 93 120 | 93 120 |
+| free RAM at start | 350 764 | 513 944 | 506 928 |
+| free RAM after loading | 71 672 | 235 144 | 228 128 |
+| **RAM used** | **279 092** | **278 800** | **278 800** |
+| of it: int8 KV cache (5 x 512 x 4 x 8 x 2) | 163 840 | 163 840 | 163 840 |
+| of it: int32 KV scales (5 x 512 x 4 x 4 x 2) | 81 920 | 81 920 | 81 920 |
+| of it: scratch, buffers, heap overhead | 33 332 | 33 040 | 33 040 |
+
+The ~30 KB scratch estimate of step 2 is now measured: 33 KB.
+
+**Answer.** Yes: a binary W1A8 language model runs exact (100 %, 3 seeds, 3 cores) on a classic ESP32 and on a
+Pico 2, weights in flash, at 32-40 tokens/s. Its stories are weak (val loss 2.14 vs fp32 1.35, above): this is a
+memory and exactness result, not a quality one. Not measured yet: an fp32 or int8 baseline on the same chips, and
+the S3's PIE kernels on this model.
+
+
+### Step 4: the training recipe at 260K (rule Nov 19 2026, before measuring)
+
+**Question.** The binary 260K model was trained with the 15.7 M recipe (lr 1.5e-3, 10000 steps) and its curve is flat
+from step ~4000. Does another learning rate or a longer run close part of the gap to fp32 (2.14 vs 1.35)?
+
+**What.** Binary W1A8, the same shape, seeds 42, 43, 44, validation only. A: lr 1e-3 and 3e-3 at 10000 steps (base
+1.5e-3 = 2.1404 ± 0.0148). B: 20000 steps (1.3 B tokens, 1.25 passes over the 1.05 B training tokens) at the best lr of
+A (or of the base if none wins). C: fp32 with the recipe chosen in B, so the gap is measured with one recipe for
+both (the fp32 base 1.3464 stays as the reference too).
+
+**Rule.** A new lr is kept only if its mean val loss beats the base by more than the larger sd; 20000 steps is kept
+only if it beats 10000 steps at that lr by more than the larger sd. Otherwise the base recipe stays. The test split is
+not read.
+
+**Result** (results/v512d64l5kv4_recipe.json, val loss, seeds 42 / 43 / 44):
+
+| weights | recipe | val loss | mean ± sd | minutes per run |
+|---|---|---|---|---|
+| binary | lr 1.5e-3, 10k (base) | 2.1567 / 2.1279 / 2.1365 | 2.1404 ± 0.0148 | 4.9 |
+| binary | lr 1e-3, 10k | 2.1688 / 2.1617 / 2.1642 | 2.1649 ± 0.0036 | 4.8 |
+| binary | lr 3e-3, 10k | 2.1007 / 2.0956 / 2.1003 | 2.0989 ± 0.0028 | 4.9 |
+| binary | **lr 3e-3, 20k** | 2.0632 / 2.0519 / 2.0688 | **2.0613 ± 0.0086** | 9.7 |
+| fp32 | lr 1.5e-3, 10k (base) | 1.3433 / 1.3542 / 1.3417 | 1.3464 ± 0.0068 | 4.5 |
+| fp32 | **lr 3e-3, 20k** | 1.2616 / 1.2787 / 1.2725 | **1.2709 ± 0.0087** | 9.2 |
+
+Both rules pass: lr 3e-3 beats the base by 0.042 (sd 0.015), 20000 steps beat 10000 by 0.038 (sd 0.009).
+
+**Answer.** The new recipe (lr 3e-3, 20000 steps) improves the binary model by 0.079, but fp32 gains the same
+(0.076): the gap stays +0.790 (was +0.794). The recipe was not what held the binary model back; the gap is the
+size (dim 64 at 1 bit). The new recipe is the one for the next steps (the chip models above stay the base ones
+until a combined model is exported).
+
+### Step 5: ternary weights at 260K (rule Nov 19 2026, before measuring)
+
+**Question.** If the gap is the size (step 4), ternary weights (-1, 0, 1: up to ~1.58 bits each, 2 bits stored) give
+each layer more to spend at the same shape. How much of the gap do they close?
+
+**What.** `--weights ternary`, the same shape, the step 4 recipe (lr 3e-3, 20000 steps), seeds 42, 43, 44,
+validation only. Compared with binary at the same recipe (2.0613 ± 0.0086) and fp32 (1.2709 ± 0.0087).
+
+**Rule.** Ternary counts as better if its mean val loss beats binary by more than the larger sd. Weights in flash
+double (2 bits, computed: ~0.09 -> ~0.15 MB model.bin, still small). Whether it is carried to the chips is decided
+after the next steps, with the other winners. The test split is not read.
+
+**Result** (results/v512d64l5kv4_ternary.json, lr 3e-3, 20000 steps, val loss):
+
+| weights | seeds 42 / 43 / 44 | mean ± sd | gap to fp32 |
+|---|---|---|---|
+| binary | 2.0632 / 2.0519 / 2.0688 | 2.0613 ± 0.0086 | +0.790 |
+| **ternary** | 1.8315 / 1.8416 / 1.8394 | **1.8375 ± 0.0053** | **+0.567** |
+| fp32 | 1.2616 / 1.2787 / 1.2725 | 1.2709 ± 0.0087 | 0 |
+
+**Answer.** Yes: ternary beats binary by 0.224 (larger sd 0.009), 28 % of the gap. The rest (+0.57) is still large.
+The C has no ternary weights yet (intsim.py's C check packs 1-bit weights only): carrying it to the chips needs that
+kernel.
+
+### Step 6: a learned temperature per head at 260K (rule Nov 19 2026, before measuring)
+
+**Question.** With quantized weights the attention scores come out flat (README "Attention in bits"); one learned
+temperature per head (`--attn-temp`) sharpens them. Does it help the 260K model, binary and ternary?
+
+**What.** `--attn-temp`, the step 4 recipe (lr 3e-3, 20000 steps), binary and ternary, seeds 42, 43, 44, validation
+only. Compared with steps 4 / 5 without it (binary 2.0613 ± 0.0086, ternary 1.8375 ± 0.0053). The temperature is not
+in intsim.py / the C yet (one integer factor per head on the scores: small work, estimate).
+
+**Rule.** Kept for a weight kind if its mean val loss beats the same kind without it by more than the larger sd.
+The test split is not read.
+
+**Result** (3 seeds, validation; [results/v512d64l5kv4_temp.json](results/v512d64l5kv4_temp.json)):
+
+| weights | without temperature | with `--attn-temp` | difference | rule |
+|---|---|---|---|---|
+| binary | 2.0613 ± 0.0086 | 2.0510 ± 0.0080 (2.0448 / 2.0601 / 2.0482) | -0.0103 | passes (just: 0.0103 > 0.0086) |
+| ternary | 1.8375 ± 0.0053 | **1.8199 ± 0.0059** (1.8186 / 1.8148 / 1.8263) | -0.0176 | passes (3x the sd) |
+
+**Answer.** Kept for both. Small for binary (barely above the spread), clearer for ternary; the best 260K is now
+ternary + temperature 1.8199 (gap to fp32 1.2709: 0.549). Training took ~56 min per run instead of ~10 (attention
+by hand, no fused kernel). On a chip the temperature is one factor per head on the scores (folded into the score
+scale: estimate, not in intsim.py / the C yet).
+
+### Step 7: the key taken apart (rule Nov 20 2026, before the 3-seed runs and before any training)
+
+**Question.** At 15.7 M the key K was the part of the cache that broke in few bits. Which variable hurts the 260K
+model most, does the residual sum pile the errors up, and what in K makes it hard, and can that be fixed?
+
+**What.** Two no-training diagnoses, 3 seeds, validation windows (fixed scales / means from TRAINING windows):
+`error_anatomy.py` (one quantization source at a time in the trained fp32 model: W1A8 on each linear kind, K or V
+cache in few bits; loss rise, residual error after each block, joint vs single, one block at a time and how its
+error grows through the later blocks) and `k_anatomy.py` (K statistics per layer and key head, and the key cache at
+4 / 3 / 2 bits stored six ways in the fp32, binary and ternary models). One-seed smoke runs of both were seen before
+this rule was written (the key mean holds 50-97 % of the key's energy; storing key - mean cut the 4-bit cache loss
+rise of the binary model from 0.10 to 0.01): the training below was chosen from them.
+
+Then training, binary weights, the step 4 recipe, 3 seeds, validation only:
+- key cache at 2 and at 4 bits, plain vs `--k-center` (key - a fixed mean, added back when read);
+- `--int8-linears k` vs `--int8-linears v` (the same bytes: W_k and W_v have the same shape).
+
+**Rule.** `--k-center` is kept at a bit width if its mean val loss beats the plain cache at the same width by more
+than the larger sd. K is "special in training" only if int8 W_k beats int8 W_v by more than the larger sd (else the
+15.7 M rule "bytes, not where" holds at 260K). The test split is not read.
+
+**Result: which variable hurts most** (`error_anatomy.py`, fp32 model, 3 seeds, 256 validation windows; loss rise,
+no retraining; [results/v512d64l5kv4_error_anatomy_int4.json](results/v512d64l5kv4_error_anatomy_int4.json),
+[_binary.json](results/v512d64l5kv4_error_anatomy_binary.json)):
+
+| source, in every block | int4 weights / 4-bit cache | W1A8 / 2-bit cache |
+|---|---|---|
+| W_q | 0.025 ± 0.004 | 0.87 ± 0.08 |
+| W_k | 0.027 ± 0.001 | 2.28 ± 0.21 |
+| W_v | 0.165 ± 0.040 | 5.79 ± 1.57 |
+| W_o | 0.032 ± 0.003 | 1.89 ± 0.20 |
+| W_1 / W_3 | 0.071 / 0.071 | 4.01 / 4.03 |
+| W_2 | 0.106 ± 0.003 | 4.54 ± 0.27 |
+| **K cache** | **1.682 ± 0.114** | 3.45 ± 0.13 |
+| V cache | 0.011 ± 0.000 | 0.44 ± 0.01 |
+
+- The key CACHE is the one variable that breaks: at 4 bits it costs 1.68 nats, 160x the value cache (0.011) and 10x
+  the worst weight matrix at 4 bits. The key WEIGHTS W_k are ordinary (like W_q). Among weights, W_v and W_2 hurt most.
+- One-shot W1A8 destroys the 260K fp32 model whatever is switched (rises of 1-6 nats, residual error ~1): this column
+  only ranks; the binary model is usable because it is trained binary.
+- Do errors add? With small errors (int4) the seven weight errors combine like independent ones: joint residual error
+  / root sum of squares = 0.98-1.01 at every block, not a linear sum (that would be up to sqrt 7 = 2.6x larger). The
+  loss is 1.32x the sum of single rises (0.651 vs 0.495): the loss grows faster than the error (quadratic), as at
+  15.7 M (2.2-2.5x).
+- Does the residual stream pile errors up? An error made in block 0 alone is 2.00 ± 0.06x larger at the last block
+  (block 1: 1.70, block 2: 1.51, block 3: 1.31): later blocks AMPLIFY an early error, they do not damp it. This
+  supports Edén's hypothesis for the LLM (the sum residual carries every error forward and the next blocks react to
+  it); the matching measure on ResNet-8's OR shortcuts is not done.
+
+**Result: the key taken apart** (`k_anatomy.py`, 3 seeds, 256 validation windows, fixed means / scales from 64
+training windows; [results/v512d64l5kv4_k_anatomy.json](results/v512d64l5kv4_k_anatomy.json)):
+
+| layer (mean over key heads) | 0 | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|---|
+| key energy in its mean, fp32 | 0.77 | 0.96 | 0.88 | 0.92 | 0.89 |
+| key energy in its mean, binary | 0.41 | 0.74 | 0.63 | 0.85 | 0.75 |
+| score variance from q . RoPE(mean), fp32 | 0.54 | 0.87 | 0.75 | 0.82 | 0.75 |
+| score variance from q . RoPE(mean), binary | 0.22 | 0.58 | 0.51 | 0.71 | 0.57 |
+
+- A key is mostly one fixed vector: its mean over tokens holds 41-96 % of its energy. Through RoPE that mean becomes
+  a term that depends only on the key's POSITION, and it carries 22-87 % of the score variance: much of what the
+  attention decides is "how far back", learned through the key mean. The content part is the small rest.
+- A per-token scale must cover mean + content, so the content (small) is what few bits erase. Outlier channels are
+  mild here (max / median channel RMS 2.3-4.9) and a smooth (per-channel) scale barely helps.
+
+Key cache loss rise by storage (binary model; fp32 and ternary in the JSON, same order):
+
+| storage | 4 bits | 3 bits | 2 bits | on a chip |
+|---|---|---|---|---|
+| token (now) | 0.100 ± 0.015 | 0.474 ± 0.013 | 0.803 ± 0.065 | as now |
+| smooth | 0.088 ± 0.010 | 0.366 ± 0.046 | 0.690 ± 0.055 | cheap |
+| hadamard | 0.090 ± 0.011 | 0.551 ± 0.047 | 1.198 ± 0.015 | cheap |
+| pre (before RoPE) | 0.103 ± 0.040 | 0.306 ± 0.082 | 0.707 ± 0.110 | RoPE per key read |
+| pre-center | 0.011 ± 0.005 | **0.039 ± 0.011** | **0.122 ± 0.022** | RoPE per key read |
+| **center** | **0.009 ± 0.003** | 0.056 ± 0.017 | 0.128 ± 0.021 | + one dot per key (estimate) |
+| center + hadamard | 0.007 ± 0.002 | 0.045 ± 0.011 | 0.189 ± 0.053 | + one dot per key |
+
+- Storing key - mean (the mean rotated to the key's position, added back when read) cuts the cache damage 6-11x in
+  the binary model (4 bits 0.100 -> 0.009; 2 bits 0.80 -> 0.13), and 30x in fp32 at 4 bits (1.68 -> 0.056). The
+  usable 4-bit key cache needs no training at all with it. Rotations alone (Hadamard) do not fix it: the problem is
+  the mean, not the outliers.
+- Binary and ternary models are far less fragile than fp32 (4-bit token: 0.10 / 0.21 vs 1.68): their keys hold less
+  of their energy in the mean (41-85 % vs 77-96 %).
+
+**Result: training** (binary weights, step 4 recipe, 3 seeds, validation;
+[results/v512d64l5kv4_k_train.json](results/v512d64l5kv4_k_train.json); the int8 key cache baseline is step 4's
+2.0613 ± 0.0086):
+
+| run | seeds 42 / 43 / 44 | val loss | vs int8 cache |
+|---|---|---|---|
+| key cache 2 bits, plain | 2.4176 / 2.4385 / 2.3452 | 2.4004 ± 0.0490 | +0.339 |
+| key cache 2 bits, `--k-center` | 2.1314 / 2.0998 / 2.0991 | **2.1101 ± 0.0184** | +0.049 |
+| key cache 4 bits, plain | 2.1227 / 2.1037 / 2.1061 | 2.1108 ± 0.0103 | +0.050 |
+| key cache 4 bits, `--k-center` | 2.0851 / 2.0705 / 2.0659 | **2.0738 ± 0.0100** | +0.013 |
+| int8 W_k (cache int8) | 2.0471 / 2.0250 / 2.0297 | 2.0339 ± 0.0116 | -0.027 |
+| int8 W_v (cache int8) | 1.9615 / 1.9708 / 1.9948 | **1.9757 ± 0.0172** | -0.086 |
+
+- `--k-center` passes the rule at both widths: 2 bits -0.290 (larger sd 0.049), 4 bits -0.037 (0.010). Trained with
+  it, a 2-bit key cache is as good as a plain 4-bit one (2.110 vs 2.111) and the 4-bit one is within 0.013 of int8.
+  Key cache bytes (computed, values only, scales unchanged): int8 82 KB, 4 bits 41 KB, 2 bits 20.5 KB.
+- K is NOT special in training: int8 W_v beats int8 W_k by 0.058 (larger sd 0.017), the reverse of the "K special"
+  test. And "bytes, not where" (the 15.7 M rule) does NOT hold at 260K either: the same bytes help 3x more in W_v
+  than in W_k, as the no-training ranking said (W_v the worst weight at int4, 0.165 vs 0.027).
+
+**Answer.** The variable that breaks the 260K model in few bits is the key CACHE, not the key weights; its problem
+is the key's mean (a position term through RoPE) eating the per-token scale. Storing key - mean fixes most of it,
+with or without training. Errors from different weights combine like independent ones, and an early error grows
+through the residual stream (2x from block 0 to the last). For the weights, the value projection W_v is where extra
+bits pay most. Not done: `--k-center` in intsim and the C (an extra dot of q with RoPE(mean) per key, estimate),
+center combined with the learned temperature or ternary weights, the growth measure on ResNet-8's OR shortcuts.
+
+### Step 7b: the key at two sizes, and what the literature says (Nov 20 2026, no training)
+
+**Question.** Is the key's mean a 260K problem or does it stay when the model grows, and which published key fixes
+match it?
+
+**What.** `k_anatomy.py` on the 260K (head width 8) and the 15.7 M d384l8 (head width 64), fp32 / binary / ternary,
+3 seeds, 256 validation windows, calibration from 64 training windows. New: `mean_slow` (share of the key mean's
+energy in the RoPE pairs that turn less than once over the context: 260K 2 of 4 pairs, 15.7 M 19 of 32) and `sage`
+(subtract the post-RoPE key mean, not added back: free, exact without quantization, SageAttention's K smoothing).
+[results/v512d64l5kv4_k_anatomy.json](results/v512d64l5kv4_k_anatomy.json),
+[results/d384l8_k_anatomy.json](results/d384l8_k_anatomy.json).
+
+**Result** (loss rise of the key cache at 4 / 2 bits, mean ± sd over 3 seeds; mean_share / mean_slow = range over layers):
+
+| model | mean_share | mean_slow | token 4b / 2b | sage 4b / 2b | center 4b / 2b | pre-center 4b / 2b |
+|---|---|---|---|---|---|---|
+| 260K fp32 | 0.77-0.96 | 0.87-0.92 | 1.68 / 3.45 | 0.44 / 2.91 | 0.056 / 1.03 | 0.062 / 0.72 |
+| 260K binary | 0.41-0.85 | 0.79-0.88 | 0.100 / 0.80 | 0.045 / 0.66 | 0.009 / 0.13 | 0.011 / 0.12 |
+| 260K ternary | 0.57-0.83 | 0.82-0.91 | 0.208 / 1.15 | 0.059 / 0.91 | 0.017 / 0.30 | 0.017 / 0.24 |
+| 15.7 M fp32 | 0.42-0.74 | 0.64-0.84 | 0.0094 / 0.48 | 0.0049 / 0.43 | 0.0020 / 0.087 | 0.0018 / 0.082 |
+| 15.7 M binary | 0.29-0.76 | 0.58-0.84 | 0.0082 / 0.20 | 0.0048 / 0.18 | 0.0014 / 0.056 | 0.0016 / 0.052 |
+| 15.7 M ternary | 0.32-0.69 | 0.65-0.83 | 0.0085 / 0.23 | 0.0048 / 0.20 | 0.0019 / 0.059 | 0.0019 / 0.054 |
+
+- The mean is there at both sizes (a third to three quarters of the key's energy at 15.7 M) and lives in the slow
+  RoPE pairs (58-92 %): the "rotary offset features" of Jonasson 2025 and the low-frequency bias zones of the
+  "massive spikes are bias vectors" paper. It is not a 260K artifact.
+- What changes with size is the fragility: a plain 4-bit key cache costs 1.68 nats on the 260K fp32, 0.0094 on the
+  15.7 M fp32 (~180x). Removing the mean (center / pre-center) cuts it 4-30x at both sizes.
+- `sage` (free) helps 2-4x at 4 bits and almost nothing at 2 bits: subtracting a constant does not shrink the
+  per-token scale enough. SageAttention's own table shows no gain on a Llama at INT8 either.
+- Hadamard helps on 64-wide heads (15.7 M 4b 0.0094 -> 0.0036) and hurts on 8-wide ones (260K 0.100 -> 0.090
+  binary, 2b worse): too few channels to spread an outlier.
+- Literature read (PDFs): KVQuant (pre-RoPE per channel keys + zero point = our pre-center; first token kept in
+  fp16), SageAttention (K = shared bias + small token signal), rotary offset features (the mean of q and k makes a
+  position-only attention pattern in slow pairs), Bondarenko 2023 (outliers from "no-op" heads; clipped softmax /
+  gated attention), HAD and BinaryAttention (1-bit Q and K: lose magnitude, fixed with standardization, a learned
+  bias and distillation).
+
+**Answer.** The key's mean is a general feature of RoPE models (it is the position term in the slow pairs) and
+removing it before quantizing is the fix that works at both sizes, as in the literature. The small model is ~100x
+more fragile to cache bits, so the limit search is a size question: where between 260K and 15.7 M does a plain
+low-bit key cache become cheap. Not done: intermediate sizes (d128 / d256), first-token (sink) kept at int8.
+
+### Step 8: a softmax that does not need the key's mean, and the size ladder (rule Nov 20 2026, before measuring)
+
+**Question 1.** The key's mean builds a position-only score in the slow RoPE pairs: a learned "attention sink"
+(rotary offset features; massive spikes are bias vectors). If the softmax can attend to "nothing" by itself, does the
+model stop building that mean, and does the key then survive a plain low-bit cache? Until now only the softmax's
+temperature was tried (step 6, a small loss gain); the softmax does not amplify key errors exponentially (KL = ½ Var,
+section "Why keys break"), so a softmax change can only help by changing what the key has to carry.
+
+**What 1.** `train.py --attn-sink` (one learned logit per head joins each softmax with a zero value; starts at 0 =
+softmax with +1 in the denominator) and `--attn-gate` (sigmoid gate per head and token on the attention output, a
+dim -> heads linear in the blocks' weight format; Qiu et al. 2025 report it removes attention sinks). Binary 260K,
+same recipe as the base (lr 3e-3, 20,000 steps), 3 seeds, validation; then `k_anatomy.py` on each. C cost
+(ESTIMATE): sink = one add to the softmax sum per head; gate = a 64 -> 8 linear and a sigmoid table per token.
+
+**Rule 1 (written before the runs).** A change helps the key if (a) the plain per-token 4-bit key cache rise falls
+below the base's by more than the larger sd (base binary 0.100 ± 0.015) and (b) the as-trained validation loss is not
+worse than the base by more than 0.03 (base 2.0613 ± 0.0086). Also reported, not part of the rule: mean_share,
+mean_slow, 2-bit rise, center with it.
+
+**Result 1** (3 seeds, validation; `k_anatomy.py`, [results/v512d64l5kv4_softmax_k_anatomy.json](results/v512d64l5kv4_softmax_k_anatomy.json);
+base = binary 260K of step 7):
+
+| run | val loss 42 / 43 / 44 | mean ± sd | plain 4b / 2b key cache rise | center 4b / 2b | mean_share by layer |
+|---|---|---|---|---|---|
+| base | | 2.0613 ± 0.0086 | 0.100 ± 0.015 / 0.80 | 0.009 / 0.13 | 0.41-0.85 |
+| `--attn-sink` | 2.0481 / 2.0585 / 2.0576 | 2.0547 ± 0.0058 | 0.155 ± 0.057 / 1.75 | 0.011 / 0.25 | 0.60-0.89 |
+| `--attn-gate` | 2.0319 / 2.0152 / 2.0546 | 2.0339 ± 0.0198 | 0.136 ± 0.013 / 0.85 | 0.009 / 0.12 | 0.55-0.91 |
+
+**Answer 1.** Neither passes rule 1: the plain 4-bit key cache gets worse, not better (0.155 and 0.136 vs 0.100),
+and the key's mean does not shrink (its share even grows with the sink). A softmax that can attend to "nothing" does
+NOT make the model drop the key's mean at 260K: the mean is not only a sink. Center still fixes the cache on both.
+Side result (not a rule of this step): the gate lowers the loss by 0.027 (larger sd 0.020), the size of the int8 W_k
+gain, for a 64 -> 8 binary linear per block (~0.6 KB of weights in all, computed); the sink by 0.007 (within sd). The
+sink run is 2.6x slower to train (masked attention, no flash kernel).
+
+**Question 2.** The plain 4-bit key cache costs 1.68 nats at 260K fp32 and 0.009 at 15.7 M. Where in between does
+it become cheap, and how does the binary - fp32 gap move?
+
+**What 2.** Only the width grows, everything else as the 260K (5 layers, 8 heads, 4 key heads, vocab 512, context
+512, hidden = 2.6875 x dim, lr 3e-3, 20,000 steps): d128 (head width 16) and d256 (head width 32), fp32 and binary, 3
+seeds, validation; `k_anatomy.py` on each. Head width grows with the width (as in 260K -> 15.7 M).
+
+**Rule 2 (written before the runs).** The size limit is the smallest width whose binary model has a plain per-token
+4-bit key cache rise below 0.03 nats (the "usable" bound of the KV cache study), mean over 3 seeds. Also reported:
+binary and fp32 validation loss, the gap, center 4 / 2 bits.
+
+**Result 2** (3 seeds, validation; key cache rises from `k_anatomy.py`, results/v512_width_k_anatomy.json; the d64
+row is the 260K of steps 5-7, results/v512d64l5kv4_k_anatomy.json):
+
+| width | parameters | fp32 | binary | gap | binary / fp32 | plain 4-bit key, binary | fp32 | center 4 / 2 bits, binary |
+|---|---|---|---|---|---|---|---|---|
+| d64 (head 8) | 260 K | 1.2709 ± 0.0087 | 2.0613 ± 0.0086 | 0.790 ± 0.015 | 1.62 | 0.100 ± 0.015 | 1.682 | 0.009 / 0.128 |
+| d128 (head 16) | 973 K | 0.9677 ± 0.0030 | 1.4943 ± 0.0076 | 0.527 ± 0.005 | 1.54 | 0.036 ± 0.002 | 0.127 | 0.005 / 0.093 |
+| d256 (head 32) | 3.76 M | 0.7946 ± 0.0012 | 1.0985 ± 0.0062 | 0.304 ± 0.007 | 1.38 | **0.021 ± 0.002** | 0.035 | 0.002 / 0.079 |
+
+KV cache in RAM at context 512, int8 with int32 scales (computed): d64 164 + 82 = 246 KB, d128 328 + 82 = 410 KB,
+d256 655 + 82 = 737 KB.
+
+**Answer 2.** Rule 2: d256 is the first width whose binary model takes a plain 4-bit key cache (0.021 < 0.03); d128
+just misses (0.036). The key's fragility falls fast with width (fp32 1.68 -> 0.13 -> 0.035), and the binary model is
+less fragile than fp32 at every width. The binary - fp32 gap shrinks with width too (0.79 -> 0.53 -> 0.30 nats, each
+step outside the spread). Center stays the better key at every width; a 2-bit key is not usable at any of the three
+(center 0.08-0.13). Binary d256 (1.0985) is better than fp32 d64 (1.2709) with ~0.6 MB of weights vs ~1.0 MB
+(computed: 1-bit linears + int8 embedding vs fp32), but its KV cache (737 KB) does not fit a chip without PSRAM:
+there the cache, not the weights, sets the size.
+
+### Step 9: a 1-bit key cache at 260K, for chips without int8 SIMD (rule Nov 20 2026, before measuring)
+
+**Question.** On the classic ESP32 and the Pico 2 (no int8 SIMD), a 1-bit key makes the score q . k a sum of
+plus / minus the query's 8 values. Can the 260K be trained with it? A no-training probe (LOGBOOK, Nov 20) found that
+84 % of the key's sign bits only copy the sign of the key's mean (0.46 bit of information per stored bit; 0.98 after
+subtracting the mean), and a 1-bit cache costs +1.29 plain vs +0.39 with center.
+
+**What.** Binary 260K, base recipe (lr 3e-3, 20,000 steps), value cache as trained (8 bits), 3 seeds, validation:
+`k1` (`--k-bits 1`: sign x mean|k| per token and head), `k1c` (+ `--k-center`), `k1tr` (`--k-bits 1 --attn-temp
+--kv-recent 32`: the 15.7 M T2 recipe with the value at 8 bits), `k1ctr` (k1tr + `--k-center`), `k1uctr` (k1ctr +
+`--k-unit`: the pure sign of key - mean, no per-token scale; the learned temperature carries the scale). Key cache
+bytes per key head and position (computed): int8 8 + 4 (int32 scale) = 12, 2 bits 2 + 4 = 6, 1 bit 1 + 4 = 5,
+`--k-unit` 1 (plus 32 int8 positions per head with the window). At head width 8 the per-token scale is most of a
+low-bit key: only `--k-unit` removes it.
+
+**Rule (written before the runs).** (1) Center helps a 1-bit key if `k1c` < `k1` and `k1ctr` < `k1tr`, each by more
+than the larger sd. (2) A 1-bit key is usable if its 3-seed loss is within 0.03 of the base (2.0613 ± 0.0086, the KV
+rule); if none is, the best is compared with the trained 2-bit center key (2.1101 ± 0.0184, step 7) at its bytes.
+(3) `k1uctr` goes to intsim / the C / the chips only if it passes (2) or ties the 2-bit center key within the larger
+sd.
+
+**Result** (3 seeds, validation, results/v512d64l5kv4_k1_train.json; base = int8 key cache 2.0613 ± 0.0086):
+
+| run | key cache | bytes per key head and position | loss | vs base |
+|---|---|---|---|---|
+| `k1` | sign x mean\|k\| | 5 | 2.8593 ± 0.0045 | +0.798 |
+| `k1c` | same, centered | 5 | 2.1415 ± 0.0119 | +0.080 |
+| `k1tr` | sign x mean\|k\| + temperature + int8 window of 32 | 5 (+ window) | **2.0854 ± 0.0070** | **+0.024** |
+| `k1ctr` | `k1tr`, centered | 5 (+ window) | 2.0915 ± 0.0102 | +0.030 |
+| `k1uctr` | pure sign of key - mean + temperature + window | 1 (+ window) | 2.0943 ± 0.0219 | +0.033 |
+| `k2c` (step 7) | 2 bits, centered | 6 | 2.1101 ± 0.0184 | +0.049 |
+
+Rule (1) FAILS: center cuts a 1-bit key's damage tenfold on its own (`k1c` vs `k1`, -0.72), but with the temperature
+and the int8 window it gives nothing (`k1ctr` 2.0915 vs `k1tr` 2.0854: +0.006, within sd). Rule (2): `k1tr` passes
+(+0.024 < 0.03); `k1ctr` (+0.0302) and `k1uctr` (+0.033) miss it by a hair. Rule (3): `k1uctr` ties the 2-bit centered
+key (2.0943 vs 2.1101, difference 0.016 < sd 0.022) at a sixth of its bytes, so it passes.
+
+**Answer.** The 260K can be trained with a 1-bit key cache. Two recipes are usable:
+- `k1tr` (no center) is the most accurate, +0.024 at 5 bytes per key head and position.
+- `k1uctr` costs +0.033 at 1 byte and is the one rule (3) sends on.
+
+What fixes a 1-bit key is the int8 window of the last 32 positions plus the temperature. Center also fixes it, but
+only when there is no window. A reading, not measured: the key's mean is a score term that depends only on position,
+and in these stories the recent positions carry it, so a window that keeps them exact makes centering redundant.
+Next (Edén decides): `k1uctr` or `k1tr` into intsim / the C / the chips (the C low-bit cache now handles only 64-wide
+heads without GQA).
+
+### The comparison point on the chip: the same 260K in fp32 with llama2.c (rule Nov 20 2026, before measuring)
+
+**Question.** What does the binary 260K buy on a chip without PSRAM, against the plain way to run the same shape?
+
+**What.** Two comparisons, fixed here (Edén, Nov 20). Quality: the gap to fp32 of the same shape and recipe (steps 4-8).
+Chip: [karpathy/llama2.c](https://github.com/karpathy/llama2.c) `run.c` (MIT; copied unchanged into
+`chip_l2c/src/`), the reference fp32 inference for this exact architecture (Llama, RMSNorm, interleaved RoPE, SwiGLU,
+GQA, tied head), with our fp32 260K (`fp32_v512d64l5kv4_lr3e-3_20k`, 3 seeds) exported to its format. Weights in
+flash, KV cache in internal RAM, same compiler flags as the binary firmware (-O2), classic ESP32 and both Pico 2
+cores. The fp32 cache takes 1,280 bytes per position (computed): 655 KB at context 512 fits neither chip, so the
+fp32 run gets the context the story needs (128); the binary run keeps 512 (said in the table).
+
+**Rule (written before the runs).** Measured: tokens per second on the greedy story (prompt "Once upon a time", 120
+new tokens, the same positions as the binary runs of step 3), model flash bytes, free RAM. Speed-up = fp32 story time
+/ binary story time, per board, 3 seeds each (binary from results/chip_<board>_binary_v512d64l5kv4_s4*.json). No
+threshold: the number is reported as measured. Correctness: the chip's greedy tokens must equal `run.c` built on the
+PC; if a chip's float rounding makes them diverge, the first diverging position is reported and the time is kept
+(time does not depend on which token). `run.c` on the PC must give PyTorch's greedy story. `run.c` is plain C (no
+ESP-DSP / CMSIS-DSP): a tuned fp32 would be faster, the table says so.
+
+**Result** (3 seeds each, flash, story of 120 tokens; `chip_fp32.py`, results/chip_<board>_l2c_fp32_v512d64l5kv4_lr3e-3_20k_s4*.json;
+binary from step 3):
+
+| board | fp32 run.c, tokens/s | binary, tokens/s | binary faster | free RAM after load: fp32 (context 127) / binary (512) |
+|---|---|---|---|---|
+| classic ESP32, 240 MHz | 6.479 ± 0.001 | 40.15 ± 0.06 | **6.2x** | 180 / 72 KB |
+| Pico 2 Cortex-M33, 150 MHz | 8.890 ± 0.000 | 31.84 ± 0.06 | **3.6x** | 339 / 235 KB |
+| Pico 2 Hazard3, 150 MHz | 2.404 ± 0.001 | 35.38 ± 0.88 | **14.7x** | 330 / 228 KB |
+
+Model in flash: fp32 1,056,540 bytes, binary 93,120 (11.3x smaller). Validation loss: fp32 1.2709 ± 0.0087, binary
+2.0613 ± 0.0086 (the gap of 0.79, step 8). `run.c` on the PC gave PyTorch's greedy story (120 / 120 tokens, 3 seeds)
+and every chip gave the PC's story (120 / 120, 9 runs).
+
+**Answer.** On chips without PSRAM the binary 260K is 3.6-14.7x faster than the same shape in fp32 with llama2.c,
+11x smaller in flash, and holds 4x the context in less RAM (int8 cache 246 KB at 512 positions vs fp32 655 KB,
+computed: the fp32 model only fits 127 positions here). The price is quality: 0.79 nats of validation loss. Reading
+the boards: the M33 has a single-precision FPU, so fp32 runs at its best there (3.6x); the classic ESP32 has an FPU
+too but is 6.2x slower in fp32; the RP2350's Hazard3 has no FPU (software floats), hence 14.7x. `run.c` is plain C:
+CMSIS-DSP / ESP-DSP fp32 kernels would narrow the M33 and ESP32 figures (not measured).
+
 ## Future work
 
 - The chip, faster. `../chip_kernels/psram_bw_bench.py` ran the same kernels with the data in PSRAM and in internal

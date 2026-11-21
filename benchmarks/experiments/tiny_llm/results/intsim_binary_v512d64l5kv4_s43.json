@@ -1,0 +1,31 @@
+{
+  "run": "binary_v512d64l5kv4_s43",
+  "weights": "binary",
+  "kv_bits": 8,
+  "kv": {
+    "k_bits": 8,
+    "v_bits": 8,
+    "k_mode": "token",
+    "v_mode": "token",
+    "qjl_m": 128,
+    "keep_first": false,
+    "qjl_seed": 0,
+    "k_scale": 1.0,
+    "v_scale": 1.0,
+    "recent": 0,
+    "p_cut": null
+  },
+  "kv_tag": "kv8",
+  "trained_kv": [
+    8,
+    8,
+    1.0
+  ],
+  "val_windows": 1024,
+  "val_loss_float": 2.1397,
+  "val_loss_integer": 2.1402,
+  "val_perplexity_float": 8.497,
+  "val_perplexity_integer": 8.501,
+  "next_token_agreement_float_vs_integer": 0.976,
+  "sample_integer": "Once upon a time, there was a little boy named Tim. Tim lived a little boy named Tim. Tim was very happy. He wanted to play with his friend, he saw a big ball. He was happy and said, \"Tim, I am a little boy named Tim. Tim. Tim, help you go to the park and asked his mom. Tim and his mom were very happy. They played with Tim and played with Tim and played with Tim. They played with Tim and the b"
+}

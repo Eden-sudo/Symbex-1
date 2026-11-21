@@ -1,0 +1,10 @@
+# c/check_pc runs/binary_v512d64l5kv4_s42  (2026-11-19, lut8 / lib_symbex / lib_symbex + DOT_ROWS_C kernels, ASan + UBSan)
+## lut
+validation: 2048 / 2048 tokens with every output equal (1.16 ms per token on this PC)
+greedy story: 120 tokens, the same as intsim.py
+## sym
+validation: 2048 / 2048 tokens with every output equal (1.11 ms per token on this PC)
+greedy story: 120 tokens, the same as intsim.py
+## symdot
+validation: 2048 / 2048 tokens with every output equal (1.94 ms per token on this PC)
+greedy story: 120 tokens, the same as intsim.py

@@ -245,14 +245,16 @@ static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int
     }
 }
 #else
-/* lut[g][b] = sum of q[8g + k] over the bits k of b (b = one weight byte: inputs 8g..8g+7, bit k = input 8g+k) */
+/* lut[g][b] = sum of q[8g + k] over the bits k of b (b = one weight byte: inputs 8g..8g+7, bit k = input 8g+k); a
+   last group past n_in (n_in not a multiple of 8) counts its missing inputs as 0 (their weight bits are padding) */
 static void prepare(TinyState *s, const int8_t *q, int n_in) {
-    for (int g = 0; g < n_in / 8; g++) {
+    for (int g = 0; g < (n_in + 7) / 8; g++) {
         int16_t *t = s->lut + 256 * g;
         const int8_t *qg = q + 8 * g;
+        const int nk = n_in - 8 * g < 8 ? n_in - 8 * g : 8;
         t[0] = 0;
         for (int k = 0; k < 8; k++) {
-            int16_t v = qg[k];
+            int16_t v = k < nk ? qg[k] : 0;
             for (int b = 0; b < (1 << k); b++) t[(1 << k) + b] = (int16_t)(t[b] + v);
         }
     }
@@ -261,7 +263,7 @@ static void prepare(TinyState *s, const int8_t *q, int n_in) {
 static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int64_t hmax, int32_t *out) {
     int32_t total = 0;
     for (int i = 0; i < L->n_in; i++) total += q[i];
-    const int groups = L->n_in / 8;
+    const int groups = (L->n_in + 7) / 8;
     for (int r = 0; r < L->n_out; r++) {
         const uint32_t *w = L->w + (long)r * L->words_in;
         const int16_t *t = s->lut;
@@ -461,7 +463,7 @@ static int low_bit_values(const TinyModel *m, TinyState *s, int l, int h, int t)
 }
 
 int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t *hmax_out) {
-    const int dim = m->dim, hd = dim / m->heads, t = s->pos;
+    const int dim = m->dim, hd = dim / m->heads, t = s->pos, kvd = hd * m->kv_heads, grp = m->heads / m->kv_heads;
     if (t >= m->seq || token < 0 || token >= m->vocab) return -1;  /* context full (no sliding window) or bad token */
     int32_t *x = s->x;
     for (int i = 0; i < dim; i++) {
@@ -474,8 +476,14 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
     for (int l = 0; l < m->layers; l++) {
         const TinyBlock *B = TINYLM_BLOCK(m, l);
         const long lk = m->kv_recent ? 0 : (long)l;    /* the int8 cache is NULL with the low-bit one */
-        int8_t *kq = s->kq + lk * m->seq * dim, *vq = s->vq + lk * m->seq * dim;
-        int32_t *km = s->km + lk * m->seq * m->heads, *vm = s->vm + lk * m->seq * m->heads;
+#ifdef TINYLM_KV_SPLIT
+        (void)kvd;
+        int8_t *kq = s->kql[lk], *vq = s->vql[lk];
+        int32_t *km = s->kml[lk], *vm = s->vml[lk];
+#else
+        int8_t *kq = s->kq + lk * m->seq * kvd, *vq = s->vq + lk * m->seq * kvd;
+        int32_t *km = s->km + lk * m->seq * m->kv_heads, *vm = s->vm + lk * m->seq * m->kv_heads;
+#endif
         int64_t hm = in_quant(&B->q, s, s->t1, dim, norm_h(x, B->n1, dim, s->t1));   /* q, k, v: one input */
         TINYLM_PROF(0);
         if (B->q.acts == 8) prepare(s, s->iq, dim);
@@ -483,35 +491,44 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
         run_linear(&B->k, s, hm, s->k);
         run_linear(&B->v, s, hm, s->v);
         TINYLM_PROF(1);
+        if (!m->kv_recent)      /* the int8 cache: position t of every cached head (grouped-query: kv_heads of them) */
+            for (int g = 0; g < m->kv_heads; g++) {
+                int32_t *kh = s->k + g * hd;
+                rope(kh, C, S, hd);
+                int8_t *kqh = kq + (long)g * m->seq * hd, *vqh = vq + (long)g * m->seq * hd;
+                int32_t *kmh = km + (long)g * m->seq, *vmh = vm + (long)g * m->seq;
+                kmh[t] = quant8(kh, hd, kqh + (long)t * hd);
+#ifdef TINYLM_DOT_ROWS_U8
+                {   /* the V cache transposed and unsigned: row i of head g = value i + 128 of positions 0..seq-1 */
+                    int8_t vt[256];
+                    vmh[t] = quant8(s->v + g * hd, hd, vt);
+                    for (int i = 0; i < hd; i++) ((uint8_t *)vqh)[(long)i * m->seq + t] = (uint8_t)(vt[i] + 128);
+                }
+#else
+                vmh[t] = quant8(s->v + g * hd, hd, vqh + (long)t * hd);
+#endif
+            }
         for (int h = 0; h < m->heads; h++) {
             int8_t qq[256];
-            int32_t *qh = s->q + h * hd, *kh = s->k + h * hd;
+            int32_t *qh = s->q + h * hd;
             rope(qh, C, S, hd);
-            rope(kh, C, S, hd);
             int32_t qm = quant8(qh, hd, qq);
             /* scores u_j = (qq . kq_j) * km_j, softmax through the exp table */
-            int64_t *u = (int64_t *)s->t2;  /* hidden int32 >= 2 * seq int32: checked in init */
+            int64_t *u = (int64_t *)s->t2;  /* t2: >= 2 seq int32 (tinylm_state_init) */
             int64_t umax = INT64_MIN;
             int8_t *vqh;
             int32_t *vmh;
-            if (m->kv_recent) {
+            if (m->kv_recent) {     /* kv_heads == heads (tinylm_load) */
+                int32_t *kh = s->k + h * hd;
+                rope(kh, C, S, hd);
                 vqh = (int8_t *)s->vdec; vmh = s->vmj;
                 low_bit_scores(m, s, l, h, t, qq, kh, s->v + h * hd, u, &umax);
             } else {
-            /* the cache of head h: keys and values of positions 0..seq-1 one after another (read in order) */
-            int8_t *kqh = kq + (long)h * m->seq * hd;
-            int32_t *kmh = km + (long)h * m->seq;
-            vqh = vq + (long)h * m->seq * hd; vmh = vm + (long)h * m->seq;
-            kmh[t] = quant8(kh, hd, kqh + (long)t * hd);
-#ifdef TINYLM_DOT_ROWS_U8
-            {   /* the V cache transposed and unsigned: row i of head h = value i + 128 of positions 0..seq-1 */
-                int8_t vt[256];
-                vmh[t] = quant8(s->v + h * hd, hd, vt);
-                for (int i = 0; i < hd; i++) ((uint8_t *)vqh)[(long)i * m->seq + t] = (uint8_t)(vt[i] + 128);
-            }
-#else
-            vmh[t] = quant8(s->v + h * hd, hd, vqh + (long)t * hd);
-#endif
+            /* the cache of head h's key / value head: positions 0..seq-1 one after another (read in order) */
+            const int g = h / grp;
+            int8_t *kqh = kq + (long)g * m->seq * hd;
+            int32_t *kmh = km + (long)g * m->seq;
+            vqh = vq + (long)g * m->seq * hd; vmh = vm + (long)g * m->seq;
             TINYLM_PROF(8);
 #ifdef TINYLM_DOT_ROWS
             TINYLM_DOT_ROWS(qq, hd, kqh, hd, t + 1, s->t3);  /* t3: free until the feed-forward */
@@ -549,11 +566,12 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
                     P += s->p[j];
                 }
             } else {
-            /* floor(n / (16129 << 20)) = floor((n >> 20) / 16129) for n >= 0; past the table p = 0, so only
-               n >> 20 < 2048 * 16129 (32 bits) needs the division */
+            /* floor(n / (att_d << 20)) = floor((n >> 20) / att_d) for n >= 0 (64-wide heads: att_d = 16129); past
+               the table p = 0, so only n >> 20 < 2048 * att_d (32 bits: att_d < 2^21) needs the division */
+            const uint32_t ad = (uint32_t)m->att_d;
             for (int j = 0; j <= t; j++) {
                 const uint64_t n20 = (uint64_t)((umax - u[j]) * qm) >> 20;
-                const uint32_t xi = n20 < (uint64_t)TINYLM_EXP_N * 16129 ? (uint32_t)n20 / 16129u : TINYLM_EXP_N;
+                const uint32_t xi = n20 < (uint64_t)TINYLM_EXP_N * ad ? (uint32_t)n20 / ad : TINYLM_EXP_N;
                 s->p[j] = xi < TINYLM_P_CUT ? m->exp_t[xi] : 0;
                 P += s->p[j];
             }
@@ -570,7 +588,7 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
                most 6). Every term is >= 0 and adds up to sum_j pv_j (vq_ji + 128) <= 255 sum_j pv_j: below 2^63
                (checked, else the plain sums). The same integers as the loop below. */
             {
-                uint8_t *b = (uint8_t *)s->t1;                 /* t1 (16 seq bytes): free in the attention; 6 vectors */
+                uint8_t *b = (uint8_t *)s->t1;                 /* t1 (>= 8 seq bytes): free in the attention; 6 vectors */
                 uint32_t *lo = (uint32_t *)s->t3, *hi = (uint32_t *)s->t3 + m->seq;   /* t3: free; pv in 2 halves */
                 uint32_t hmax = 0, lmax = 0;
                 int64_t pvsum = 0;
@@ -608,10 +626,11 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             TINYLM_PROF_FINE(18);
 #else
             /* key by key (rows of the V cache read in order): sum_j p_j vm_j vq_ji. Weights pv < 2^32 (p < 2^16,
-               vm >= 1) go in two 16-bit halves into int32 sums: |half * vq| < 2^16 * 127, at most seq <= 258 keys
-               (tinylm_load), so no overflow; a larger weight sends the head to the int64 sums. The same integers. */
+               vm >= 1) go in two 16-bit halves into int32 sums: |half * vq| < 2^16 * 127, over runs of at most 256
+               keys, so no overflow (one run when seq <= 256); a larger weight sends the head to the int64 sums. The
+               same integers. */
             int wide = 0;
-            int32_t *pl = s->t3, *ph = s->t3 + m->seq;  /* t3: hidden >= 2 * seq (tinylm_state_init) */
+            int32_t *pl = s->t3, *ph = s->t3 + m->seq;  /* t3: >= 2 seq int32 (tinylm_state_init) */
             for (int j = 0; j < nv; j++) {
                 const int64_t pv = (int64_t)s->p[j] * vmh[j];
                 if (pv >> 32) wide = 1;
@@ -620,17 +639,22 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             /* 4 columns at a time over every key: 8 sums in registers, the head's cache (t * hd bytes) stays in the
                data cache across the 16 passes */
             for (int i = 0; i < hd && !wide; i += 4) {
-                int32_t l0 = 0, l1 = 0, l2 = 0, l3 = 0, h0 = 0, h1 = 0, h2 = 0, h3 = 0;
-                const int8_t *v = vqh + i;
-                for (int j = 0; j < nv; j++, v += hd) {
-                    const int32_t a = pl[j], b = ph[j];
-                    const int32_t v0 = v[0], v1 = v[1], v2 = v[2], v3 = v[3];
-                    l0 += a * v0; l1 += a * v1; l2 += a * v2; l3 += a * v3;
-                    h0 += b * v0; h1 += b * v1; h2 += b * v2; h3 += b * v3;
+                acc[i] = acc[i + 1] = acc[i + 2] = acc[i + 3] = 0;
+                for (int j0 = 0; j0 < nv; j0 += 256) {
+                    const int j1 = nv - j0 < 256 ? nv : j0 + 256;
+                    int32_t l0 = 0, l1 = 0, l2 = 0, l3 = 0, h0 = 0, h1 = 0, h2 = 0, h3 = 0;
+                    const int8_t *v = vqh + (long)j0 * hd + i;
+                    for (int j = j0; j < j1; j++, v += hd) {
+                        const int32_t a = pl[j], b = ph[j];
+                        const int32_t v0 = v[0], v1 = v[1], v2 = v[2], v3 = v[3];
+                        l0 += a * v0; l1 += a * v1; l2 += a * v2; l3 += a * v3;
+                        h0 += b * v0; h1 += b * v1; h2 += b * v2; h3 += b * v3;
+                    }
+                    /* the high sums can be negative (vq is signed): multiplied, not shifted (C99 leaves the shift
+                       undefined) */
+                    acc[i] += (int64_t)h0 * 65536 + l0; acc[i + 1] += (int64_t)h1 * 65536 + l1;
+                    acc[i + 2] += (int64_t)h2 * 65536 + l2; acc[i + 3] += (int64_t)h3 * 65536 + l3;
                 }
-                /* the high sums can be negative (vq is signed): multiplied, not shifted (C99 leaves the shift undefined) */
-                acc[i] = (int64_t)h0 * 65536 + l0; acc[i + 1] = (int64_t)h1 * 65536 + l1;
-                acc[i + 2] = (int64_t)h2 * 65536 + l2; acc[i + 3] = (int64_t)h3 * 65536 + l3;
             }
             if (wide) {
                 for (int i = 0; i < hd; i++) acc[i] = 0;
@@ -787,16 +811,22 @@ int tinylm_load(TinyModel *m, const uint8_t *buf, long size) {
     if (size < 32 || h[0] != TINYLM_MAGIC || h[1] < 1 || h[1] > 4) return -1;
     const int version = h[1];  /* 2: per linear layer, its input bits and Hadamard block; 3 / 4: also the int4 /
                                   int2 table */
-    m->vocab = h[2]; m->dim = h[3]; m->hidden = h[4]; m->layers = h[5]; m->heads = h[6]; m->seq = h[7];
+    m->vocab = h[2]; m->dim = h[3]; m->hidden = h[4]; m->layers = h[5]; m->seq = h[7];
+    m->heads = h[6] & 0xFFFF; m->kv_heads = (h[6] >> 16) & 0xFFFF;   /* kv_heads << 16 | heads (0: kv_heads = heads) */
+    if (!m->kv_heads) m->kv_heads = m->heads;
     if (m->vocab <= 0 || m->dim <= 0 || m->hidden <= 0 || m->layers <= 0 || m->heads <= 0 || m->seq <= 0) return -1;
-    /* the attention scale 16129 << 20 = 127^2 * 2^24 / 128 * sqrt(64) assumes 64-wide heads (as intsim.py) */
-    if (m->dim % m->heads || m->dim / m->heads != 64 || m->dim % 8 || m->hidden % 8) return -1;
-    if (m->seq > 258) return -1;  /* the int32 attention sums (tinylm_step) */
+    if (h[6] < 0 || m->heads % m->kv_heads) return -1;
+    /* head width: a multiple of 8 (rotary pairs, the 4-column value sums, the low-bit key bytes), at most 256 (the
+       per-head buffers of tinylm_step); the score divisor as intsim.att_div */
+    if (m->dim % m->heads || m->dim % 8) return -1;
+    const int hd = m->dim / m->heads;
+    if (hd % 8 || hd > 256) return -1;
+    m->att_d = (int)((isqrt64(16129LL * 16129 * hd) + 4) >> 3);
 #if defined(TINYLM_U8_SUM_ROWS)
     if (m->dim > TINYLM_U8_MAX_IN || m->hidden > TINYLM_U8_MAX_IN) return -1;
 #endif
     const uint8_t *p = buf + 32, *end = buf + size;
-    int hd2 = m->dim / m->heads / 2;
+    int hd2 = hd / 2;
     m->emb_q = NULL; m->emb_p = NULL; m->emb_c = NULL;
     if (version == 3) {
         if (m->dim % 32) return -1;
@@ -822,8 +852,8 @@ int tinylm_load(TinyModel *m, const uint8_t *buf, long size) {
         B->n2 = (const int32_t *)take(&p, end, 4L * m->dim);
         if (!B->n1 || !B->n2) return -1;
         if (take_linear(&B->q, m->dim, m->dim, &p, end, version) ||
-            take_linear(&B->k, m->dim, m->dim, &p, end, version) ||
-            take_linear(&B->v, m->dim, m->dim, &p, end, version) ||
+            take_linear(&B->k, m->dim, hd * m->kv_heads, &p, end, version) ||
+            take_linear(&B->v, m->dim, hd * m->kv_heads, &p, end, version) ||
             take_linear(&B->o, m->dim, m->dim, &p, end, version) ||
             take_linear(&B->w1, m->dim, m->hidden, &p, end, version) ||
             take_linear(&B->w3, m->dim, m->hidden, &p, end, version) ||
@@ -841,8 +871,10 @@ int tinylm_load(TinyModel *m, const uint8_t *buf, long size) {
         int32_t f[4];
         memcpy(f, tr, 16);
         memcpy(&m->k_scale, tr + 16, 8);
+        /* the low-bit cache: 64-wide heads (the tempered division), no grouped-query attention, seq <= 258 (its
+           buffers) */
         if (f[0] != TINYLM_KVLB_MAGIC || f[1] != 1 || f[2] != 2 || f[3] < 1 || f[3] > m->seq || m->seq % 4 ||
-            !(m->k_scale > 0 && m->k_scale < 64))
+            !(m->k_scale > 0 && m->k_scale < 64) || hd != 64 || m->kv_heads != m->heads || m->seq > 258)
             return -1;
         m->kv_recent = f[3];
         m->tq = (const int32_t *)take(&p, end, 4L * m->layers * m->heads);
@@ -854,14 +886,13 @@ int tinylm_load(TinyModel *m, const uint8_t *buf, long size) {
 }
 
 int tinylm_state_init(TinyState *s, const TinyModel *m) {
-    long kv = (long)m->layers * m->seq * m->dim, kvm = (long)m->layers * m->seq * m->heads;
-    int big = m->hidden > m->dim ? m->hidden : m->dim;
-    if (m->hidden < 2 * m->seq) return -1;  /* t2 doubles as the int64 score buffer */
-#ifdef TINYLM_DOT_ROWS_U8
-    if (big < 4 * m->seq) return -1;        /* t1 (4 big bytes) holds the 6 byte vectors of the attention weights */
-#endif
-    memset(s, 0, sizeof(*s));
     const int hd = m->dim / m->heads;
+    long kv = (long)m->layers * m->seq * hd * m->kv_heads, kvm = (long)m->layers * m->seq * m->kv_heads;
+    int big = m->hidden > m->dim ? m->hidden : m->dim;
+    /* t1 t2 t3 serve the attention too: t2 the int64 scores (2 seq int32), t3 the split weights (2 seq), t1 the 6
+       byte vectors of TINYLM_DOT_ROWS_U8 (6 seq bytes) */
+    const int scr = big > 2 * m->seq ? big : 2 * m->seq;
+    memset(s, 0, sizeof(*s));
     if (m->kv_recent) {     /* the low-bit cache (tinylm.h) instead of the int8 one */
         const long lh = (long)m->layers * m->heads, N = m->kv_recent;
         s->kb = TINYLM_MALLOC_BIG(lh * m->seq * hd / 8); s->vb = TINYLM_MALLOC_BIG(lh * hd * m->seq / 4);
@@ -873,16 +904,25 @@ int tinylm_state_init(TinyState *s, const TinyModel *m) {
             return -1;
         if (big / 8 < hd / 8) return -1;    /* s->lut holds the subset sums of the query */
     } else {
+#ifdef TINYLM_KV_SPLIT
+    if (m->layers > TINYLM_KV_SPLIT_MAX) return -1;
+    for (int l = 0; l < m->layers; l++) {
+        s->kql[l] = TINYLM_MALLOC_BIG(kv / m->layers); s->vql[l] = TINYLM_MALLOC_BIG(kv / m->layers + 16);
+        s->kml[l] = TINYLM_MALLOC_WORDS(4 * kvm / m->layers); s->vml[l] = TINYLM_MALLOC_WORDS(4 * kvm / m->layers);
+        if (!s->kql[l] || !s->vql[l] || !s->kml[l] || !s->vml[l]) return -1;
+    }
+#else
     s->kq = TINYLM_MALLOC_BIG(kv); s->vq = TINYLM_MALLOC_BIG(kv + 16);  /* +16: the row kernel reads whole blocks */
-    s->km = TINYLM_MALLOC_BIG(4 * kvm); s->vm = TINYLM_MALLOC_BIG(4 * kvm);
+    s->km = TINYLM_MALLOC_WORDS(4 * kvm); s->vm = TINYLM_MALLOC_WORDS(4 * kvm);
     if (!s->kq || !s->vq || !s->km || !s->vm) return -1;
+#endif
     }
     s->x = TINYLM_MALLOC_FAST(4L * m->dim);
-    s->t1 = TINYLM_MALLOC_FAST(4L * big); s->t2 = TINYLM_MALLOC_FAST(4L * big); s->t3 = TINYLM_MALLOC_FAST(4L * big);
+    s->t1 = TINYLM_MALLOC_FAST(4L * scr); s->t2 = TINYLM_MALLOC_FAST(4L * scr); s->t3 = TINYLM_MALLOC_FAST(4L * scr);
     s->q = TINYLM_MALLOC_FAST(4L * m->dim); s->k = TINYLM_MALLOC_FAST(4L * m->dim);
     s->v = TINYLM_MALLOC_FAST(4L * m->dim); s->a = TINYLM_MALLOC_FAST(4L * m->dim);
     s->iq = TINYLM_MALLOC_FAST(big); s->p = TINYLM_MALLOC_FAST(2L * m->seq);
-    s->lut = TINYLM_MALLOC_FAST(2L * 256 * (big / 8));
+    s->lut = TINYLM_MALLOC_FAST(2L * 256 * ((big + 7) / 8));
     s->r = TINYLM_MALLOC_FAST(8L * big); s->xb = TINYLM_MALLOC_FAST(4L * (big / 32 + 1));
     return s->x && s->t1 && s->t2 && s->t3 && s->q && s->k && s->v && s->a &&
                    s->iq && s->p && s->lut && s->r && s->xb ? 0 : -1;
@@ -892,5 +932,8 @@ void tinylm_state_free(TinyState *s) {
     void *all[] = {s->kq, s->vq, s->km, s->vm, s->x, s->t1, s->t2, s->t3, s->q, s->k, s->v, s->a, s->iq, s->p, s->lut,
                    s->r, s->xb, s->kb, s->vb, s->km1, s->vm2, s->k8, s->v8, s->km8, s->vm8, s->vdec, s->vmj};
     for (unsigned i = 0; i < sizeof(all) / sizeof(all[0]); i++) free(all[i]);
+#ifdef TINYLM_KV_SPLIT
+    for (int l = 0; l < TINYLM_KV_SPLIT_MAX; l++) { free(s->kql[l]); free(s->vql[l]); free(s->kml[l]); free(s->vml[l]); }
+#endif
     memset(s, 0, sizeof(*s));
 }
