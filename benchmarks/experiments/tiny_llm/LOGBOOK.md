@@ -693,3 +693,8 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   Story tok/s fp32 vs binary: ESP32 6.48 vs 40.15 (6.2x), M33 8.89 vs 31.84 (3.6x), Hazard3 2.40 vs 35.38 (14.7x, no
   FPU). Flash 1.06 MB vs 93 KB. fp32 KV at ctx 512 = 655 KB fits neither chip: fp32 ran at context 127. Quality price:
   0.79 nats. Not measured: CMSIS-DSP / ESP-DSP fp32 kernels.
+- Nov 20 night, SYNTHESIS.md (Edén asked to write down the conclusions): key cache damage removed 74-96 % by
+  centering; width vs fixed-width levers; how to binarize a model without changing its design (QAT, not one-shot);
+  cross-benchmark conjecture "binary loses where each sum has few terms (fan-in) or a mean dominates" (LLM ladder,
+  ECG s/m/l, HAR, ResNet-8 stem), with the cases against it and tests A (per-layer, no GPU) / B (step 10) / C (deep
+  vs wide at same parameters) to confirm it. Not started; Edén decides.
