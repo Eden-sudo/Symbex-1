@@ -709,3 +709,7 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   on ESP32 / M33 / Hazard3): 1-bit scores 4.1-6.2x faster; center +190-230 us per head (drop it); temperature softmax
   1.4 / 1.5 / 1.9x slower (Hazard3: k1tr 29.2 vs base 28.3 ms per token); 2-bit values 2x slower with tinylm.c's
   decoding. Best: k1tr ESP32 21.3 vs 27.2 ms, M33 21.1 vs 24.0 (full context, attention only).
+- Nov 21 midday: cache_methods_table.py -> results/v512d64l5kv4_cache_methods.json + README "The cache methods in one
+  table" (loss, KV RAM computed, speed kv260k_bench, flash data computed, code measured with nm -S per core: methods
+  add 84-834 bytes of code). Under the rule in use (usable < +0.03, then fewest bytes) k1tr wins; also fastest on
+  ESP32 / M33, not on Hazard3 (temperature). Step 9b README cache figure fixed: k1trv2 128 KB (was written 120).

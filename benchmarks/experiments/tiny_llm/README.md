@@ -1260,7 +1260,7 @@ the bit counts: no GQA (8 key / value heads) +2.6 KB, int8 W_v +9 KB, ternary at
 top of `k1tr` / `k1uctr`?
 
 **What.** `k1trv2` (`k1tr` + `--v-bits 2`) and `k1uctrv2` (`k1uctr` + `--v-bits 2`). The int8 window of 32 covers
-keys and values. Same recipe, 3 seeds, validation. Computed cache: 120 KB / 87 KB (from 182 / 141 KB).
+keys and values. Same recipe, 3 seeds, validation. Computed cache: 128 KB / 87 KB (from 182 / 141 KB; the window holds keys and values).
 
 Rules, written before measuring:
 1. The 2-bit value is kept if its run is within +0.02 of its int8-value twin (`k1tr` 2.0854, `k1uctr` 2.0943).
@@ -1320,6 +1320,47 @@ Speed ideas, not measured:
 - decode the 2-bit values through a byte table;
 - separate the window and the temperature in training (README "window" study W4): if the window alone holds the
   accuracy, the temperature can go, and with it its cost.
+
+### The cache methods in one table (Nov 21 2026)
+
+cache_methods_table.py gathers each method's validation loss (3 seeds), cache RAM, attention speed and flash cost
+-> results/v512d64l5kv4_cache_methods.json.
+- RAM: computed, ctx 512.
+- Speed: kv260k_bench, full context, attention only.
+- Flash data: computed. The center vectors have no format yet and are counted as int32.
+- Code: measured. The attention functions are compiled at -O2 for each core and sized with `nm -S`; the column is
+  the method's code minus the int8 base's.
+
+| method | loss (vs int8 cache) | KV RAM | ms / token ESP32 / M33 / Hazard3 | flash data | code vs base ESP32 / M33 / Hazard3 |
+|---|---|---|---|---|---|
+| int8 (base) | 2.0613 | 245.8 KB | 27.2 / 24.0 / 28.3 | 0 B | 0 |
+| + temperature | 2.0510 (-0.010) | 245.8 KB | 29.8 / 27.6 / 36.3 | 160 B | +147 / +124 / +150 B |
+| `k1` | 2.8593 (+0.798) | 174.1 KB | 18.1 / 17.0 / 20.7 | 24 B | +110 / +104 / +84 B |
+| `k1c` | 2.1415 (+0.080) | 174.1 KB | 25.8 / 26.4 / 30.6 | 664 B | +281 / +312 / +340 B |
+| **`k1tr`** | **2.0854 (+0.024)** | **181.8 KB** | **21.3 / 21.1** / 29.2 | 184 B | +345 / +310 / +338 B |
+| `k1ctr` | 2.0915 (+0.030) | 181.8 KB | not timed | 824 B | not timed |
+| `k1uctr` | 2.0943 (+0.033) | 140.8 KB | 28.4 / 29.3 / 38.2 | 824 B | +511 / +508 / +592 B |
+| unit keys + window + temp, no center | not trained | 140.8 KB | 21.2 / 21.1 / 29.1 | 184 B | +323 / +300 / +338 B |
+| `k2c` (step 7) | 2.1101 (+0.049) | 184.3 KB | not timed | 664 B | not timed |
+| `k1trv2` (step 9b) | running | 128.0 KB | 31.8 / 33.7 / 40.6 | 184 B | +474 / +442 / +580 B |
+| `k1uctrv2` (step 9b) | running | 87.0 KB | 38.9 / 42.0 / 49.6 | 824 B | +640 / +640 / +834 B |
+
+The methods:
+- **int8 (base):** int8 keys and values with one int32 scale per position.
+- **Temperature:** one learned factor per head on the scores. It gains 0.010 in loss and costs two divisions per
+  position in the softmax.
+- **`k1`:** sign of the key times mean|k|. It is the fastest, but loses 0.80.
+- **`k1c`:** k1 with the key mean taken out before the sign and added back as a score term. It recovers 90 % of the
+  loss, but the term costs 4 rotation pairs per position.
+- **`k1tr`:** k1 + an int8 window of the last 32 positions + temperature.
+- **`k1ctr` / `k1uctr`:** k1tr with center; `k1uctr` also drops the per-token scale (1 byte per head and position).
+- **`k2c`:** 2-bit centered key.
+- **v2:** the value at 2 bits.
+
+Ranking rule in use (README "KV cache", 15.7 M): a method is usable if it costs < +0.03 against the int8 cache; among
+the usable ones, the fewest bytes win. Speed was never part of that rule. Under it, **`k1tr` wins** (181.8 KB,
++0.024). It is also the fastest usable method on the ESP32 (1.28x) and the M33 (1.14x). On Hazard3 the int8 cache
+is still faster (28.3 vs 29.2 ms) because of the temperature's divisions. `k1uctr` (+0.033) misses the 0.03 line.
 
 ### The comparison point on the chip: the same 260K in fp32 with llama2.c (rule Nov 20 2026, before measuring)
 
