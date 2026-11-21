@@ -1,0 +1,45 @@
+{
+  "run": "binary_d384l8_head4_s42",
+  "board": "esp32s3 N16R8",
+  "kernel": "lib_symbex u8 x 1-bit (PIE) linear, PIE int4 dot (output), PIE s8 dot (scores)",
+  "model_in": "psram",
+  "kv_cache_in": "psram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | psram 8386295 bytes free",
+  "loaded": "LOADED 2765216 bytes in 494 ms | internal free 266536 | psram free 3789159",
+  "check_tokens": 512,
+  "check_equal": 0,
+  "equal_percent": 0.0,
+  "story_tokens": 120,
+  "story_equal": 7,
+  "ms_per_token_check_mean": 112.219,
+  "ms_per_token_at_position": {
+    "0": 91.868,
+    "63": 100.641,
+    "127": 111.205,
+    "255": 132.256
+  },
+  "ms_per_token_story_mean": 101.584,
+  "tokens_per_second_story": 9.844,
+  "ms_per_token_by_part": {
+    "embedding_norms": 19.732,
+    "qkv": 9.607,
+    "attention_values": 13.339,
+    "o": 3.537,
+    "w1_w3": 16.498,
+    "swiglu": 5.891,
+    "w2": 7.322,
+    "output_head": 15.312,
+    "attention_rope_cache": 9.686,
+    "attention_scores": 7.783,
+    "attention_softmax": 1.91,
+    "attention_division": 1.601
+  },
+  "story": "Once upon a time, there was a little boy who loved to play with. One day while playing in the park, he saw a big, colorful bird in the park. He wanted to join him and his friends.\n\"Hi, I am the one of the other animals,\" said said said totheers.\n\"Yes, I can,\" said said.\nSo, the two friends started to find a special day of the others in the park. They both started to the p--w-ch-clutted up to the top of the tree.\n\"Let' go play,\" said said said tot",
+  "repeat_probe": {
+    "mode": "copy",
+    "timing_only": true,
+    "note": "layers 2i and 2i + 1 on block 2i's weights; outputs differ from intsim.py",
+    "copy_ms_per_token": 15.087
+  }
+}

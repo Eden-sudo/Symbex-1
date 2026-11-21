@@ -1,0 +1,101 @@
+{
+ "date": "2026-11-19",
+ "what": "README \"Attention in bits\": float validation loss of train.py (intsim / C not yet)",
+ "base": {
+  "seeds": {
+   "42": 1.5252,
+   "43": 1.5219,
+   "44": 1.52
+  },
+  "mean": 1.5224
+ },
+ "old_qat_k1v2": 1.826,
+ "runs": {
+  "attn_k1v2_tau": {
+   "42": {
+    "val_loss": 1.5952,
+    "temperature_mean_per_block": [
+     0.392,
+     0.088,
+     0.055,
+     0.057,
+     0.015,
+     0.009,
+     0.012,
+     0.012
+    ]
+   }
+  },
+  "attn_k1v2_tau_r32": {
+   "42": {
+    "val_loss": 1.5355,
+    "temperature_mean_per_block": [
+     3.523,
+     0.416,
+     0.316,
+     0.154,
+     0.339,
+     0.229,
+     0.26,
+     0.128
+    ]
+   },
+   "43": {
+    "val_loss": 1.5361,
+    "temperature_mean_per_block": [
+     3.771,
+     0.424,
+     0.334,
+     0.253,
+     0.257,
+     0.142,
+     0.247,
+     0.123
+    ]
+   },
+   "44": {
+    "val_loss": 1.5345,
+    "temperature_mean_per_block": [
+     3.318,
+     0.417,
+     0.192,
+     0.353,
+     0.343,
+     0.299,
+     0.141,
+     0.107
+    ]
+   }
+  },
+  "attn_bits_tau": {
+   "42": {
+    "val_loss": 4.5241,
+    "temperature_mean_per_block": [
+     0.958,
+     1.031,
+     1.022,
+     1.038,
+     1.024,
+     1.019,
+     0.994,
+     1.022
+    ]
+   }
+  },
+  "attn_bits_tau_r32": {
+   "42": {
+    "val_loss": 2.0752,
+    "temperature_mean_per_block": [
+     0.823,
+     0.256,
+     0.248,
+     0.228,
+     0.288,
+     0.157,
+     0.245,
+     0.071
+    ]
+   }
+  }
+ }
+}

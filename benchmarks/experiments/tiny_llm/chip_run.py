@@ -3,6 +3,7 @@ chip_run.py -- tiny_llm on the ESP32-S3 (N16R8, native USB port): exactness agai
 
     python chip_run.py runs/binary_d384l8_s42 --port /dev/ttyACM0
     python chip_run.py runs/binary_d384l8_s42 --port /dev/ttyACM0 --no-upload     # firmware and model already there
+    python chip_run.py runs/binary_d384l8_head4_s42 --linear symbex --repeat-probe copy   # timing of a --repeat 2 model
 
 Needs runs/<run>/model.bin (python intsim.py <run> --export). Steps: writes chip/src/check_data.h (the validation
 windows, a hash of every output of intsim.py, the greedy story), builds and uploads chip/ with PlatformIO, writes
@@ -10,6 +11,10 @@ model.bin to the "model" partition (0x310000) with esptool, then reads the board
     every token of the windows: the hash of its 4096 outputs + final max equal to intsim.py's (must be 100 %)
     the greedy story: every token equal to intsim.py's, time per token (attention grows with the position)
 Writes results/chip_s3_<run>.json and prints the story the chip wrote.
+--repeat-probe psram|copy: layers 2i and 2i + 1 run on block 2i's weights (the schedule of a train.py --repeat 2
+model; psram = read again from PSRAM, copy = copied to internal RAM before layer 2i, see chip/src/tinylm_esp.c).
+Timing only: the outputs then differ from intsim.py, so the exactness check is skipped and the JSON says so
+(results/chip_s3_<run>_<linear>_repeat_<mode>.json).
 """
 import argparse
 import json
@@ -31,7 +36,9 @@ from compiler_core.chip.core import open_port, read_line  # noqa: E402
 MODEL_OFFSET = 0x310000
 PROMPT = "Once upon a time"
 PARTS = ("embedding_norms", "qkv", "attention_values", "o", "w1_w3", "swiglu", "w2", "output_head",
-         "attention_rope_cache", "attention_scores", "attention_softmax", "attention_division")  # TINYLM_PROF in tinylm.c
+         "attention_rope_cache", "attention_scores", "attention_softmax", "attention_division",  # TINYLM_PROF in tinylm.c
+         "values_pack", "values_decode_2bit", "values_copy_window", "values_weight_bytes",       # --fine-prof only
+         "scores_window_int8", "scores_subset_table", "values_wide_plain_c")
 
 
 def out_hash(z, hm):
@@ -50,13 +57,19 @@ def model_sum(data):
     return s
 
 
-def write_check_data(run, windows, path):
+def write_check_data(run, windows, path, p_cut=None):
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
     dev = "cuda"
     sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, "tok4096.model"))
     model, a = I.load_model(run, sp.get_piece_size(), dev)
     P = I.to_device(I.integerize(model, a["weights"]), dev)
+    kv = I.read_kv_trailer(os.path.join(run, "model.bin"), a["layers"], a["heads"])
+    if kv is not None:      # the low-bit KV cache the C runs (intsim.py --export wrote it): the same in the reference
+        assert all((B["tq"].cpu().numpy() == t).all() for B, t in zip(P["blocks"], kv["tq"])), "model.bin is stale"
+        P["kv"] = {k: kv[k] for k in ("k_bits", "v_bits", "k_scale", "recent")}
+    if p_cut is not None:   # the attention cut: the firmware is built with -DTINYLM_P_CUT (the ID proves the pair)
+        P["kv"] = dict(P.get("kv") or {}, p_cut=p_cut)
     val = T.load_split("val", dev)
     w = val[torch.arange(windows, device=dev)[:, None] * a["seq"] + torch.arange(a["seq"], device=dev)].long()
     z, hm = I.forward(P, w)
@@ -80,7 +93,7 @@ def write_check_data(run, windows, path):
     lines += [f"#define CHECK_ID {check_id}u", ""]
     with open(path, "w") as f:
         f.write("\n".join(lines))
-    return ids, n_prompt, sp, check_id, a["seq"]
+    return ids, n_prompt, sp, check_id, a["seq"], P.get("kv")
 
 
 def main():
@@ -91,13 +104,27 @@ def main():
     ap.add_argument("--no-upload", dest="upload", action="store_false")
     ap.add_argument("--linear", choices=("lut8", "symbex"), default="lut8",
                     help="1-bit linear layers: lut8 (tinylm.c's table) or symbex (lib_symbex's 8-bit x 1-bit kernel)")
+    ap.add_argument("--p-cut", type=float, help="attention weights p < p_max e^-n are 0 (README 'Reading the cache'): "
+                    "reference and firmware (-DTINYLM_P_CUT=round(128 n)) both")
+    ap.add_argument("--fine-prof", action="store_true", help="time the parts inside the attention too "
+                    "(-DTINYLM_FINE_PROF; results/..._prof.json: the extra marks cost a little)")
+    ap.add_argument("--repeat-probe", choices=("psram", "copy"),
+                    help="timing only: run layers in pairs on one block's weights (see the docstring)")
     args = ap.parse_args()
     run = os.path.normpath(args.run)
     proj = os.path.join(HERE, "chip")
-    ids, n_prompt, sp, check_id, seq = write_check_data(run, args.windows, os.path.join(proj, "src", "check_data.h"))
+    ids, n_prompt, sp, check_id, seq, kv = write_check_data(run, args.windows, os.path.join(proj, "src", "check_data.h"),
+                                                          args.p_cut)
     if args.upload:
         print("building and uploading the firmware...")
-        env = dict(os.environ, PLATFORMIO_BUILD_FLAGS="-DTINYLM_SYMBEX_LINEAR" if args.linear == "symbex" else "")
+        flags = ["-DTINYLM_SYMBEX_LINEAR"] if args.linear == "symbex" else []
+        if args.repeat_probe:
+            flags.append(f"-DTINYLM_REPEAT_PROBE={1 if args.repeat_probe == 'psram' else 2}")
+        if args.fine_prof:
+            flags.append("-DTINYLM_FINE_PROF")
+        if args.p_cut is not None:
+            flags.append(f"-DTINYLM_P_CUT={min(2048, round(args.p_cut * 128))}")
+        env = dict(os.environ, PLATFORMIO_BUILD_FLAGS=" ".join(flags))
         subprocess.run(["pio", "run", "-d", proj, "-t", "upload", "--upload-port", args.port], check=True,
                        capture_output=True, env=env)
         print("writing model.bin to the model partition...")
@@ -123,6 +150,14 @@ def main():
             elif line.startswith("LINEAR:"):
                 if line[7:] != args.linear:
                     raise RuntimeError(f"the board runs the {line[7:]} linear kernel, not {args.linear}")
+            elif line.startswith("REPEAT:"):
+                info["repeat"] = int(line[7:])
+            elif line.startswith("RC:"):
+                copy_us, failed = map(int, line[3:].split(","))
+                info["repeat_copy_us"], info["repeat_failed"] = copy_us, failed
+            elif line.startswith("RAM:"):
+                print("  " + line)
+                info["ram"] = line
             elif line.startswith("TINYLM ready") or line.startswith("LOADED"):
                 print("  " + line)
                 info[line.split()[0].lower()] = line
@@ -155,8 +190,13 @@ def main():
     if len(gen) != len(ids) - n_prompt:
         problems.append(f"{len(gen)} story tokens, expected {len(ids) - n_prompt}")
     bad = sum(1 - h[2] for h in hashes) + sum(1 - g[1] for g in gen)
-    if bad:
+    want_repeat = {None: None, "psram": 1, "copy": 2}[args.repeat_probe]
+    if info.get("repeat") != want_repeat:
+        problems.append(f"the board runs repeat probe {info.get('repeat')}, not {want_repeat} (run without --no-upload)")
+    if bad and not args.repeat_probe:       # the probe changes the outputs on purpose: timing only
         problems.append(f"{bad} outputs differ from intsim.py")
+    if info.get("repeat_failed"):
+        problems.append("repeat probe: no internal RAM for a block copy")
     if problems:
         raise RuntimeError("chip check failed, no result written: " + "; ".join(problems))
 
@@ -168,7 +208,7 @@ def main():
                2: " linear, PIE int2 dot (output), PIE s8 dot (scores)"}.get(I.head_bits_of(run),
                                                                               " linear, PIE s8 dot (output, scores)")),
            "model_in": "psram",
-           "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
+           "kv_cache": kv or "int8", "p_cut_nats": args.p_cut, "fine_prof": args.fine_prof, "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
            "check_tokens": len(hashes), "check_equal": int(sum(h[2] for h in hashes)),
            "equal_percent": round(100 * sum(h[2] for h in hashes) / max(1, len(hashes)), 3),
            "story_tokens": len(gen), "story_equal": int(sum(g[1] for g in gen)),
@@ -180,8 +220,14 @@ def main():
            "tokens_per_second_story": round(1e6 / us_gen.mean(), 3),
            "ms_per_token_by_part": {k: round(v / max(1, len(hashes)) / 1000, 3) for k, v in prof.items()},
            "story": story}
+    if args.repeat_probe:
+        res["repeat_probe"] = {"mode": args.repeat_probe, "timing_only": True,
+                               "note": "layers 2i and 2i + 1 on block 2i's weights; outputs differ from intsim.py",
+                               "copy_ms_per_token": round(info.get("repeat_copy_us", 0) / max(1, len(hashes)) / 1000, 3)}
     os.makedirs(os.path.join(HERE, "results"), exist_ok=True)
-    suffix = "" if args.linear == "lut8" else "_" + args.linear
+    suffix = ("" if args.linear == "lut8" else "_" + args.linear) + (f"_repeat_{args.repeat_probe}"
+                                                                      if args.repeat_probe else "") \
+        + (f"_c{args.p_cut:g}" if args.p_cut is not None else "") + ("_prof" if args.fine_prof else "")
     out = os.path.join(HERE, "results", f"chip_s3_{os.path.basename(run)}{suffix}.json")
     with open(out, "w") as f:
         json.dump(res, f, indent=2)

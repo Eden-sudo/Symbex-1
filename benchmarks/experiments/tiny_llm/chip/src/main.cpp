@@ -15,8 +15,12 @@ extern "C" {
 }
 #include "check_data.h"
 
-extern "C" uint64_t tinylm_prof[12];       /* tinylm_esp.c: cycles per part of a token */
+extern "C" uint64_t tinylm_prof[19];       /* tinylm_esp.c: cycles per part of a token */
 extern "C" void tinylm_prof_start(void);
+#ifdef TINYLM_REPEAT_PROBE
+extern "C" uint64_t tinylm_repeat_copy_cycles;   /* tinylm_esp.c: the repeated-blocks timing probe */
+extern "C" int tinylm_repeat_failed;
+#endif
 
 static uint64_t out_hash(const int64_t *z, int vocab, int64_t hm) {
     uint64_t h = 0;
@@ -37,6 +41,9 @@ void setup() {
 #else
     Serial.println("LINEAR:lut8");
 #endif
+#ifdef TINYLM_REPEAT_PROBE
+    Serial.printf("REPEAT:%d\n", TINYLM_REPEAT_PROBE);   /* timing only: the outputs differ from intsim.py */
+#endif
     Serial.printf("TINYLM ready | cpu %d MHz | psram %u bytes free\n", getCpuFrequencyMhz(),
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 
@@ -54,7 +61,13 @@ void setup() {
     static TinyModel m;
     static TinyState s;
     if (tinylm_load(&m, buf, MODEL_BYTES) || tinylm_state_init(&s, &m)) fail("load / state");
+#if defined(TINYLM_REPEAT_PROBE) && TINYLM_REPEAT_PROBE == 2
+    /* the block copy needs 221 KB of internal RAM: the 32 KB of outputs go to PSRAM in this probe */
+    int64_t *z = (int64_t *)heap_caps_malloc(8L * m.vocab, MALLOC_CAP_SPIRAM);
+    Serial.printf("RAM: internal largest block %u\n", (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+#else
     int64_t *z = (int64_t *)heap_caps_malloc(8L * m.vocab, MALLOC_CAP_INTERNAL);
+#endif
     if (!z) fail("no RAM for the outputs");
     Serial.printf("LOADED %d bytes in %lld ms | internal free %u | psram free %u\n", (int)MODEL_BYTES,
                   (esp_timer_get_time() - t0) / 1000, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
@@ -72,7 +85,11 @@ void setup() {
         }
     }
     /* microseconds per part over every token of the windows: "P:part,us" */
-    for (int k = 0; k < 12; k++) Serial.printf("P:%d,%llu\n", k, tinylm_prof[k] / getCpuFrequencyMhz());
+    for (int k = 0; k < 19; k++) Serial.printf("P:%d,%llu\n", k, tinylm_prof[k] / getCpuFrequencyMhz());
+#ifdef TINYLM_REPEAT_PROBE
+    /* microseconds of block copies over every token of the windows, 1 if some layer found no internal RAM */
+    Serial.printf("RC:%llu,%d\n", tinylm_repeat_copy_cycles / getCpuFrequencyMhz(), tinylm_repeat_failed);
+#endif
 
     s.pos = 0;
     int next = 0;
