@@ -14,7 +14,8 @@ int8 key cache, loss 2.0613.
 | 4 bits | +0.050 | +0.013 | 74 % |
 | 2 bits | +0.339 | +0.049 | 86 % |
 | 1 bit (sign x scale) | +0.798 | +0.081 | 90 % |
-| 1 bit, pure sign + temperature + int8 window of 32 (1 byte per head and position) | — | +0.033 | 96 % |
+| 1 bit + temperature + int8 window of 32 (step 9) | +0.024 | +0.030 | center adds nothing: the window does the work |
+| 1 bit, pure sign of key - mean + temperature + window (1 byte per head and position) | — | +0.033 | — |
 
 - **Cause:** the key carries a large mean (41-96 % of its energy). It lives in the slow RoPE pairs, so it becomes a
   score term that depends only on position. 84 % of the plain 1-bit key bits only copy the sign of that mean
@@ -23,6 +24,8 @@ int8 key cache, loss 2.0613.
   per token.
 - **Training matters:** without training, the 1-bit centered cache costs +0.39; trained with that cache, +0.08.
 - **What is left:** 0.03-0.08 nats at 1 bit, against 0.79 nats for binarizing the weights.
+- **Correction (step 9, Nov 21):** with the temperature and an int8 window of the last 32 positions, a plain 1-bit
+  key is already within +0.024, and centering adds nothing (+0.030). Center is the fix only when there is no window.
 - **Conjecture:** the key cache is no longer the main problem of the binary LLM; the weights are.
 
 ## 2. Width helps, and other levers win part of it back without widening (measured)
@@ -91,7 +94,7 @@ Three families (LLM, conv1d, conv2d) point the same way. The fixes that worked w
    - int8 exactly in the shortest-sum layer (ResNet-8 stem, HAR first layer);
    - 2-bit activations (HAR train fit +3..+14).
 2. **A common component (a mean) dominates the signal**, so the sign spends its bits on it. Fixes remove it:
-   - centering the key (90 % of the damage removed);
+   - centering the key (90 % of the damage removed without a window; an int8 window of recent keys does the same);
    - BN thresholds in the conv nets.
 
 **Against the pattern:**

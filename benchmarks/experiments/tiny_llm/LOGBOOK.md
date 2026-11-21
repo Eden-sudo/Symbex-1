@@ -698,3 +698,8 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   cross-benchmark conjecture "binary loses where each sum has few terms (fan-in) or a mean dominates" (LLM ladder,
   ECG s/m/l, HAR, ResNet-8 stem), with the cases against it and tests A (per-layer, no GPU) / B (step 10) / C (deep
   vs wide at same parameters) to confirm it. Not started; Edén decides.
+- Nov 21 04:37, step 9 DONE (README "Step 9" Result / Answer, results/v512d64l5kv4_k1_train.json, 3 seeds, val):
+  k1 2.8593, k1c 2.1415, k1tr 2.0854 ± 0.0070 (+0.024, passes the 0.03 rule), k1ctr 2.0915 (+0.030), k1uctr
+  2.0943 ± 0.0219 (+0.033, ties k2c 2.1101 at 1 byte -> rule 3 passes). Rule 1 FAILS: center helps a 1-bit key only
+  without the int8 window + temperature; with them it adds nothing. SYNTHESIS.md section 1 corrected (the 96 % row
+  credited center; the window does the work). Next (Edén decides): k1tr / k1uctr into intsim / C / chips.

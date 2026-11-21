@@ -1208,6 +1208,32 @@ rule); if none is, the best is compared with the trained 2-bit center key (2.110
 (3) `k1uctr` goes to intsim / the C / the chips only if it passes (2) or ties the 2-bit center key within the larger
 sd.
 
+**Result** (3 seeds, validation, results/v512d64l5kv4_k1_train.json; base = int8 key cache 2.0613 ± 0.0086):
+
+| run | key cache | bytes per key head and position | loss | vs base |
+|---|---|---|---|---|
+| `k1` | sign x mean\|k\| | 5 | 2.8593 ± 0.0045 | +0.798 |
+| `k1c` | same, centered | 5 | 2.1415 ± 0.0119 | +0.080 |
+| `k1tr` | sign x mean\|k\| + temperature + int8 window of 32 | 5 (+ window) | **2.0854 ± 0.0070** | **+0.024** |
+| `k1ctr` | `k1tr`, centered | 5 (+ window) | 2.0915 ± 0.0102 | +0.030 |
+| `k1uctr` | pure sign of key - mean + temperature + window | 1 (+ window) | 2.0943 ± 0.0219 | +0.033 |
+| `k2c` (step 7) | 2 bits, centered | 6 | 2.1101 ± 0.0184 | +0.049 |
+
+Rule (1) FAILS: center cuts a 1-bit key's damage tenfold on its own (`k1c` vs `k1`, -0.72), but with the temperature
+and the int8 window it gives nothing (`k1ctr` 2.0915 vs `k1tr` 2.0854: +0.006, within sd). Rule (2): `k1tr` passes
+(+0.024 < 0.03); `k1ctr` (+0.0302) and `k1uctr` (+0.033) miss it by a hair. Rule (3): `k1uctr` ties the 2-bit centered
+key (2.0943 vs 2.1101, difference 0.016 < sd 0.022) at a sixth of its bytes, so it passes.
+
+**Answer.** The 260K can be trained with a 1-bit key cache. Two recipes are usable:
+- `k1tr` (no center) is the most accurate, +0.024 at 5 bytes per key head and position.
+- `k1uctr` costs +0.033 at 1 byte and is the one rule (3) sends on.
+
+What fixes a 1-bit key is the int8 window of the last 32 positions plus the temperature. Center also fixes it, but
+only when there is no window. A reading, not measured: the key's mean is a score term that depends only on position,
+and in these stories the recent positions carry it, so a window that keeps them exact makes centering redundant.
+Next (Edén decides): `k1uctr` or `k1tr` into intsim / the C / the chips (the C low-bit cache now handles only 64-wide
+heads without GQA).
+
 ### The comparison point on the chip: the same 260K in fp32 with llama2.c (rule Nov 20 2026, before measuring)
 
 **Question.** What does the binary 260K buy on a chip without PSRAM, against the plain way to run the same shape?
