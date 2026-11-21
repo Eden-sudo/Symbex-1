@@ -1234,6 +1234,93 @@ and in these stories the recent positions carry it, so a window that keeps them 
 Next (Edén decides): `k1uctr` or `k1tr` into intsim / the C / the chips (the C low-bit cache now handles only 64-wide
 heads without GQA).
 
+**Memory of each row (computed, not measured).** ctx 512, 20 key heads (5 layers x 4 key / value heads), head width
+8. The storage follows c/tinylm.c's low-bit cache: one int32 scale per position, and a window slot of 8 int8 bytes
+plus 4 bytes of scale. The value cache stays int8 in every row (123 KB), so the window adds nothing on the value side.
+
+| run | keys | window | whole KV cache |
+|---|---|---|---|
+| int8 (base) | 123 KB | — | 246 KB |
+| `k1`, `k1c` | 51 KB | — | 174 KB |
+| `k1tr`, `k1ctr` | 51 KB | 7.7 KB | 182 KB |
+| `k1uctr` | 10 KB | 7.7 KB | 141 KB |
+| `k2c` | 61 KB | — | 184 KB |
+
+The center vectors take 0.6 KB. With the int32 scales, the 1-bit key saves 72 KB, not the 108 KB that 1 bit
+against 8 bits suggests. `k1uctr` drops the scale and saves 105 KB, which matters on the classic ESP32 (279 KB of byte
+heap, largest block 115 KB).
+
+Flash does not change across these rows: the cache lives in RAM. The only additions are the temperatures (8 per
+layer) and the center vectors (0.6 KB). The base model.bin is 93.1 KB (measured file). Weight changes, computed from
+the bit counts: no GQA (8 key / value heads) +2.6 KB, int8 W_v +9 KB, ternary at 2 bits +28 KB.
+
+### Step 9b: a 2-bit value cache with the 1-bit keys (rule Nov 21 2026, before measuring)
+
+**Question.** The value cache is still int8 (123 KB, the largest part of the cache left). Can it go to 2 bits on
+top of `k1tr` / `k1uctr`?
+
+**What.** `k1trv2` (`k1tr` + `--v-bits 2`) and `k1uctrv2` (`k1uctr` + `--v-bits 2`). The int8 window of 32 covers
+keys and values. Same recipe, 3 seeds, validation. Computed cache: 120 KB / 87 KB (from 182 / 141 KB).
+
+Rules, written before measuring:
+1. The 2-bit value is kept if its run is within +0.02 of its int8-value twin (`k1tr` 2.0854, `k1uctr` 2.0943).
+   0.02 is about the 15.7 M V2 cost (+0.013) plus a margin.
+2. A run whose loss rises by more than the larger sd beyond rule 1 goes back to int8 values. The cost is then
+   reported as the price of short sums: fan-in 8 against 64 at 15.7 M (section 4 of SYNTHESIS.md).
+
+### Speed of each cache method, one at a time (Nov 21 2026; a timing, no decision rule)
+
+**Question.** Each trick of steps 7-9b changes the attention code differently. What does each one cost or save on
+the chips without PSRAM?
+
+**What.** ../chip_kernels/kv260k_bench.py: one query head of the 260K at the last position (512 cached positions,
+width 8), every stage timed separately, plain C, internal RAM, random data checked against numpy (all exact). One
+token = 5 layers x 8 heads, so ms per token = 40 x the head time (the worst case: a full context). The center term
+has no integer model yet: its form in the bench is one plausible way, timed for its order of cost.
+
+**Result** (us per head, best of 7; results/kv260k_bench_<board>.json in chip_kernels):
+
+| stage | ESP32 | M33 | Hazard3 |
+|---|---|---|---|
+| scores int8 | 271 | 223 | 250 |
+| scores 1-bit (subset-sum table) | 43 | 49 | 61 |
+| scores 1-bit + int8 window of 32 | 59 | 61 | 73 |
+| scores unit 1-bit + window | 57 | 61 | 70 |
+| scores 1-bit + center | 237 | 282 | 308 |
+| softmax | 154 | 175 | 221 |
+| softmax with temperature | 218 | 265 | 421 |
+| values int8 | 255 | 202 | 235 |
+| values 2-bit + window (tinylm.c decoding) | 519 | 518 | 521 |
+
+| method (scores + softmax + values) | ESP32 ms / token | M33 | Hazard3 |
+|---|---|---|---|
+| int8 cache (base) | 27.2 | 24.0 | 28.3 |
+| + temperature | 29.8 | 27.6 | 36.3 |
+| `k1` | 18.1 | 17.0 | 20.7 |
+| `k1c` | 25.8 | 26.4 | 30.6 |
+| `k1tr` | **21.3** | **21.1** | 29.2 |
+| `k1uctr` | 28.4 | 29.3 | 38.2 |
+| unit keys + window + temperature, no center | 21.2 | 21.1 | 29.1 |
+| `k1tr` + 2-bit values | 31.8 | 33.7 | 40.6 |
+
+**Answer.**
+- **1-bit keys are the speed method.** The scores run 4.1-6.2x faster: one table lookup per position, against 8
+  multiplies and an int64 scale.
+- The int8 window costs 12-16 us per head, so it is cheap.
+- **Center costs more than it saves:** +190-230 us per head (4 rotation pairs per position). Since the window makes
+  it unneeded for accuracy (step 9), drop it.
+- Unit keys run at the same speed as scaled ones. Their gain is memory only (step 9: 141 vs 182 KB).
+- **The temperature is the hidden cost:** the softmax runs 1.4x slower on the ESP32, 1.5x on the M33 and 1.9x on
+  Hazard3 (two divisions per position). On Hazard3 it eats almost all the gain: `k1tr` is 29.2 vs 28.3 ms.
+- 2-bit values with tinylm.c's per-element decoding double the value time, so they are slower than int8 for now.
+  They are a memory method until the decoding is rewritten (a byte table, as kv_attn_bench.py's unpack: estimate).
+
+Speed ideas, not measured:
+- fold the temperature into the score multiplier, so it costs no extra division;
+- decode the 2-bit values through a byte table;
+- separate the window and the temperature in training (README "window" study W4): if the window alone holds the
+  accuracy, the temperature can go, and with it its cost.
+
 ### The comparison point on the chip: the same 260K in fp32 with llama2.c (rule Nov 20 2026, before measuring)
 
 **Question.** What does the binary 260K buy on a chip without PSRAM, against the plain way to run the same shape?

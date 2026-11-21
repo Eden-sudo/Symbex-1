@@ -703,3 +703,9 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   2.0943 ± 0.0219 (+0.033, ties k2c 2.1101 at 1 byte -> rule 3 passes). Rule 1 FAILS: center helps a 1-bit key only
   without the int8 window + temperature; with them it adds nothing. SYNTHESIS.md section 1 corrected (the 96 % row
   credited center; the window does the work). Next (Edén decides): k1tr / k1uctr into intsim / C / chips.
+- Nov 21 morning: README memory table per step 9 row (computed: int8 246 KB, k1tr 182, k1uctr 141, k2c 184; flash
+  unchanged, model.bin 93.1 KB). Step 9b queued (k1uctrv2 / k1trv2: 2-bit values, rule in README first; runs/logs/
+  step9b_queue.sh, PID 3209961). chip_kernels/kv260k_bench.py (one 260K head, 512 positions, each method alone, exact
+  on ESP32 / M33 / Hazard3): 1-bit scores 4.1-6.2x faster; center +190-230 us per head (drop it); temperature softmax
+  1.4 / 1.5 / 1.9x slower (Hazard3: k1tr 29.2 vs base 28.3 ms per token); 2-bit values 2x slower with tinylm.c's
+  decoding. Best: k1tr ESP32 21.3 vs 27.2 ms, M33 21.1 vs 24.0 (full context, attention only).

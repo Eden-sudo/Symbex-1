@@ -1,0 +1,164 @@
+{
+ "board": "pico2_arm",
+ "head_dim": 8,
+ "positions": 512,
+ "window": 32,
+ "heads_per_token": 40,
+ "reps": "best of 7",
+ "unit": "ns",
+ "date": "2026-11-21",
+ "rows": [
+  {
+   "op": "s_i8",
+   "ns": 222562,
+   "us": 222.56,
+   "equal_numpy": true
+  },
+  {
+   "op": "s_k1",
+   "ns": 48687,
+   "us": 48.69,
+   "equal_numpy": true
+  },
+  {
+   "op": "s_k1_win",
+   "ns": 60687,
+   "us": 60.69,
+   "equal_numpy": true
+  },
+  {
+   "op": "s_k1u_win",
+   "ns": 60687,
+   "us": 60.69,
+   "equal_numpy": true
+  },
+  {
+   "op": "s_k1c",
+   "ns": 282312,
+   "us": 282.31,
+   "equal_numpy": true
+  },
+  {
+   "op": "s_k1uc_win",
+   "ns": 266812,
+   "us": 266.81,
+   "equal_numpy": true
+  },
+  {
+   "op": "sm_base",
+   "ns": 175000,
+   "us": 175.0,
+   "equal_numpy": true
+  },
+  {
+   "op": "sm_temp",
+   "ns": 264875,
+   "us": 264.88,
+   "equal_numpy": true
+  },
+  {
+   "op": "v_i8",
+   "ns": 201562,
+   "us": 201.56,
+   "equal_numpy": true
+  },
+  {
+   "op": "v2_win",
+   "ns": 517937,
+   "us": 517.94,
+   "equal_numpy": true
+  }
+ ],
+ "methods": [
+  {
+   "method": "int8 (base)",
+   "ops": [
+    "s_i8",
+    "sm_base",
+    "v_i8"
+   ],
+   "us_per_head": 599.12,
+   "ms_per_token": 23.965
+  },
+  {
+   "method": "+ temperature",
+   "ops": [
+    "s_i8",
+    "sm_temp",
+    "v_i8"
+   ],
+   "us_per_head": 689.0,
+   "ms_per_token": 27.56
+  },
+  {
+   "method": "k1 (1-bit keys)",
+   "ops": [
+    "s_k1",
+    "sm_base",
+    "v_i8"
+   ],
+   "us_per_head": 425.25,
+   "ms_per_token": 17.01
+  },
+  {
+   "method": "k1c (k1 + center)",
+   "ops": [
+    "s_k1c",
+    "sm_base",
+    "v_i8"
+   ],
+   "us_per_head": 658.87,
+   "ms_per_token": 26.355
+  },
+  {
+   "method": "k1tr (k1 + window + temp)",
+   "ops": [
+    "s_k1_win",
+    "sm_temp",
+    "v_i8"
+   ],
+   "us_per_head": 527.12,
+   "ms_per_token": 21.085
+  },
+  {
+   "method": "k1uctr (unit + center + window + temp)",
+   "ops": [
+    "s_k1uc_win",
+    "sm_temp",
+    "v_i8"
+   ],
+   "us_per_head": 733.25,
+   "ms_per_token": 29.33
+  },
+  {
+   "method": "k1u + window + temp (no center)",
+   "ops": [
+    "s_k1u_win",
+    "sm_temp",
+    "v_i8"
+   ],
+   "us_per_head": 527.12,
+   "ms_per_token": 21.085
+  },
+  {
+   "method": "k1tr + 2-bit values",
+   "ops": [
+    "s_k1_win",
+    "sm_temp",
+    "v2_win"
+   ],
+   "us_per_head": 843.5,
+   "ms_per_token": 33.74
+  },
+  {
+   "method": "k1uctr + 2-bit values",
+   "ops": [
+    "s_k1uc_win",
+    "sm_temp",
+    "v2_win"
+   ],
+   "us_per_head": 1049.62,
+   "ms_per_token": 41.985
+  }
+ ]
+}
