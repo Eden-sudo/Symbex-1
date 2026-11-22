@@ -1,0 +1,24 @@
+{
+ "what": "260K step 9c: unit 1-bit keys (no scale, no center) + int8 window 32 + learned temperature, int8 values (README Step 9c), validation, 3 seeds",
+ "runs": {
+  "k1utr": {
+   "val_loss": [
+    2.1022,
+    2.0617,
+    2.0828
+   ],
+   "mean": 2.0822,
+   "sd": 0.0203,
+   "best_step": [
+    19500,
+    18500,
+    16500
+   ],
+   "minutes": [
+    80.54,
+    79.92,
+    80.76
+   ]
+  }
+ }
+}

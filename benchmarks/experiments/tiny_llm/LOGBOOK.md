@@ -727,3 +727,10 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
 - Why 2-bit values beat int8 values in training is not known (regularization? not tested).
 - Step 9c premise changed: k1utr (140.8 KB) cannot win on bytes any more; reported as written.
 - k1utr s42 started 04:48 (queue PID 1794355), s43 / s44 after.
+
+## Nov 22 2026, 08:50 — step 9c done, night queue done (GPU free)
+
+- k1utr (unit 1-bit keys, no scale / center, window 32 + temp), 3 seeds: 2.1022 / 2.0617 / 2.0828 = 2.0822 ± 0.0203,
+  +0.021 vs int8 cache: usable (rule passes). Ties k1tr (paired -0.003), same speed, 140.8 vs 181.8 KB -> the fast
+  option. Bytes winner stays k1trv2 (128 KB, +0.011, ~1.5x slower).
+- Next (agreed with Edén Nov 22 morning): cross test "2-bit values better than int8?" (rule in README first).

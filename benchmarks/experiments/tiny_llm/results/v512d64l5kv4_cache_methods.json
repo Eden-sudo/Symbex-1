@@ -225,9 +225,9 @@
    "window": 32,
    "temperature": true,
    "center": false,
-   "val_loss": null,
-   "val_sd": null,
-   "vs_int8_cache": null,
+   "val_loss": 2.0822,
+   "val_sd": 0.0203,
+   "vs_int8_cache": 0.0209,
    "kv_ram_bytes": 140800,
    "flash_data_bytes": 184,
    "ops": [
