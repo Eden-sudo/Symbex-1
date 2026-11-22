@@ -66,7 +66,7 @@ def test_encode_writes_bos_payloads_and_uint16(prepare, tiny_sp, tmp_path):
     items = ["A small story", "", "A happy ending", "number 123"]
     payloads = [tiny_sp.encode(item) for item in items]
     path = tmp_path / "tokens.bin"
-    count = prepare.encode(tiny_sp, items, path)
+    count = prepare.encode(tiny_sp, items, path, 1)
     assert tiny_sp.bos_id() != 1
     assert count == sum(len(payload) + 1 for payload in payloads)
     assert path.stat().st_size == count * np.dtype(np.uint16).itemsize
@@ -81,7 +81,7 @@ def test_encode_writes_bos_payloads_and_uint16(prepare, tiny_sp, tmp_path):
 def test_encode_empty_items_truncates_output(prepare, tiny_sp, tmp_path):
     path = tmp_path / "tokens.bin"
     path.write_bytes(b"old tokens")
-    assert prepare.encode(tiny_sp, [], path) == 0
+    assert prepare.encode(tiny_sp, [], path, 1) == 0
     assert path.is_file() and path.stat().st_size == 0
 
 
