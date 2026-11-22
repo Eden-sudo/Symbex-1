@@ -129,8 +129,13 @@ def size_model(config):
                 flash_bytes=sum(parts.values()), flash_parts=parts, projections=projections)
 
 
-def latency(config, workload="mean"):
+FIRMWARE = {"autoload": "_al3", "plain": ""}   # chip_run.py --autoload 3 (current firmware) / without it
+
+
+def latency(config, workload="mean", firmware="autoload"):
     """Milliseconds/token, calibrated on Eden's seed-42 lib_symbex JSON.
+
+    firmware: "autoload" (current, chip_run.py --autoload 3, results/*_al3.json) or "plain" (no autoload).
 
     mean: positions 0..ctx-1; full: ctx cached tokens; story: inferred effective
     occupancy reproducing the 120-token story, scaled with context capacity.
@@ -142,8 +147,10 @@ def latency(config, workload="mean"):
     """
     if workload not in ("mean", "full", "story"):
         raise ValueError("workload must be mean, full, or story")
+    if firmware not in FIRMWARE:
+        raise ValueError("firmware must be autoload or plain")
     ref = json.loads((Path(__file__).resolve().parents[1] /
-                      "results/chip_s3_binary_d384l8_s42_symbex.json").read_text())
+                      f"results/chip_s3_binary_d384l8_s42_symbex{FIRMWARE[firmware]}.json").read_text())
     p = ref["ms_per_token_by_part"]
     linear_ms = sum(p[k] for k in ("qkv", "o", "w1_w3", "w2"))
     rest_ms = p["embedding_norms"] + p["swiglu"]

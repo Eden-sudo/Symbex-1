@@ -57,7 +57,7 @@ def pareto(rows):
     return front
 
 
-def search(configs, *, workload="mean", tokens=327680000, batch=128, seq=256,
+def search(configs, *, workload="mean", firmware="autoload", tokens=327680000, batch=128, seq=256,
            current_only=False, memory_kwargs=None):
     rows = []
     seen = set()
@@ -82,12 +82,12 @@ def search(configs, *, workload="mean", tokens=327680000, batch=128, seq=256,
             continue
         s = P.size_model(c)
         rows.append(dict(config=asdict(c), parameters=s["parameters"], dense_parameters=s["dense_parameters"],
-                         tokens_per_second=P.latency(c, workload)["tokens_per_second"],
+                         tokens_per_second=P.latency(c, workload, firmware)["tokens_per_second"],
                          flash_bytes=s["flash_bytes"], sram_bytes=m["totals"]["sram"],
                          psram_bytes=m["totals"]["psram"], training_hours=t["hours"],
                          training_memory_bytes=t["memory_bytes"], firmware_gaps=m["firmware_gaps"]))
     return dict(evaluated=len(seen), feasible=len(rows), rejected=rejected,
-                workload=workload, frontier=pareto(rows))
+                workload=workload, firmware=firmware, frontier=pareto(rows))
 
 
 def default_configs():
@@ -102,6 +102,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--grid", type=Path, help="JSON object: Config fields mapped to value lists")
     parser.add_argument("--workload", choices=("mean", "full", "story"), default="mean")
+    parser.add_argument("--firmware", choices=("autoload", "plain"), default="autoload",
+                        help="latency calibration: current firmware (chip_run.py --autoload 3) or without autoload")
     parser.add_argument("--tokens", type=int, default=327680000)
     parser.add_argument("--batch", type=int, default=128)
     parser.add_argument("--seq", type=int, default=256)
@@ -113,14 +115,14 @@ def main(argv=None):
         parser.error("top, batch, seq must be positive; tokens must be nonnegative")
     try:
         configs = grid_configs(json.loads(args.grid.read_text())) if args.grid else default_configs()
-        result = search(configs, workload=args.workload, tokens=args.tokens, batch=args.batch,
+        result = search(configs, workload=args.workload, firmware=args.firmware, tokens=args.tokens, batch=args.batch,
                         seq=args.seq, current_only=args.current_only)
     except (ValueError, TypeError, OSError) as error:
         parser.error(str(error))
     if args.json:
         print(json.dumps(result, indent=2))
         return
-    print(f"ESTIMATES, not measurements; {args.workload} decode; speed-ranked, not quality-ranked")
+    print(f"ESTIMATES, not measurements; {args.workload} decode, {args.firmware} firmware; speed-ranked, not quality-ranked")
     print(f"{result['evaluated']} configs, {result['feasible']} feasible, {len(result['frontier'])} Pareto; rejected {result['rejected']}")
     print("rank d/L/H/KV/ff/vocab/ctx head/kv/weights  params(M) tok/s flash(MiB) psram(MiB) SRAM(KiB) train(h) gaps")
     for i, row in enumerate(result["frontier"][:args.top], 1):

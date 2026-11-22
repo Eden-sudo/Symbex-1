@@ -73,15 +73,17 @@ def test_invalid_configs(planner, kwargs):
         planner.Config(**kwargs)
 
 
-@pytest.mark.parametrize("bits,suffix", [(8, ""), (4, "_head4"), (2, "_head2")])
-def test_latency_against_measured_totals(planner, bits, suffix):
-    measured = json.loads((TINY / f"results/chip_s3_binary_d384l8{suffix}_s42_symbex.json").read_text())
+@pytest.mark.parametrize("bits,suffix,firmware", [(8, "", "plain"), (4, "_head4", "plain"), (2, "_head2", "plain"),
+                                                  (8, "", "autoload"), (4, "_head4", "autoload")])
+def test_latency_against_measured_totals(planner, bits, suffix, firmware):
+    al = planner.FIRMWARE[firmware]
+    measured = json.loads((TINY / f"results/chip_s3_binary_d384l8{suffix}_s42_symbex{al}.json").read_text())
     c = planner.Config(head_bits=bits)
     for workload, key in (("mean", "ms_per_token_check_mean"), ("story", "ms_per_token_story_mean")):
-        estimate = planner.latency(c, workload)
+        estimate = planner.latency(c, workload, firmware)
         assert estimate["ms_per_token"] == pytest.approx(measured[key], rel=0.05)
         assert estimate["tokens_per_second"] * estimate["ms_per_token"] == pytest.approx(1000)
-    assert planner.latency(c, "full")["ms_per_token"] == pytest.approx(
+    assert planner.latency(c, "full", firmware)["ms_per_token"] == pytest.approx(
         measured["ms_per_token_at_position"]["255"], rel=0.05)
 
 
@@ -93,10 +95,13 @@ def test_latency_scaling_and_workloads(planner):
     assert planner.latency(replace(c, layers=16))["parts_ms"]["linear"] == 2 * base["parts_ms"]["linear"]
     assert planner.latency(replace(c, head_bits=4))["parts_ms"]["head"] == base["parts_ms"]["head"] / 2
     assert planner.latency(replace(c, ctx=512))["parts_ms"]["attention"] > base["parts_ms"]["attention"]
-    assert planner.latency(c, "story")["tokens_per_second"] == pytest.approx(8.481, rel=0.001)
-    assert planner.latency(c)["tokens_per_second"] < 8
+    assert planner.latency(c, "story", "plain")["tokens_per_second"] == pytest.approx(8.481, rel=0.001)
+    assert planner.latency(c, firmware="plain")["tokens_per_second"] < 8
+    assert planner.latency(c, "story")["tokens_per_second"] == pytest.approx(1000 / 103.893, rel=0.01)
     with pytest.raises(ValueError):
         planner.latency(c, "unknown")
+    with pytest.raises(ValueError):
+        planner.latency(c, firmware="psram")
 
 
 def test_memory_default_and_placement(planner):

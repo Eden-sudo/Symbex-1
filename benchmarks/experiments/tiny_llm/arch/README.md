@@ -9,7 +9,8 @@ TinyLM on CPU solely to count parameters; there is no forward/backward pass.
 
 Use **d384, L8, H6, KV6, hidden1024, vocab4096, ctx256, W1A8, int4 tied
 embedding/head, int8 KV** as the evidence-backed starting point. Eden measured
-9.521 story tokens/s and a 2,765,216-byte export for seed 42; the parent README
+10.96 story tokens/s with the current firmware (`chip_run.py --autoload 3`, 3 seeds;
+9.52 without autoload) and a 2,765,216-byte export for seed 42; the parent README
 reports three-seed validation loss 1.5376 ± 0.0031. This is evidence for short
 English TinyStories, **not for answering questions or holding a useful chat**.
 The 256-token context includes the prompt and generated conversation; current
@@ -98,9 +99,13 @@ No SamsungLabs implementation was copied.
 
 ## Latency assumptions and evidence
 
-Calibration reads `../results/chip_s3_binary_d384l8_s42_symbex.json`: ESP32-S3
-N16R8, 240 MHz, lib_symbex PIE, model and KV in PSRAM. Rounded parts are linear
-55.6 ms, attention 34.3 ms, head 28.0 ms and rest 10.5 ms.
+Calibration reads `../results/chip_s3_binary_d384l8_s42_symbex_al3.json` by default
+(`--firmware autoload`: the current firmware, `chip_run.py --autoload 3`, data cache
+autoload over the model) or `../results/chip_s3_binary_d384l8_s42_symbex.json`
+(`--firmware plain`): ESP32-S3 N16R8, 240 MHz, lib_symbex PIE, model and KV in PSRAM.
+Rounded parts without autoload are linear 55.8 ms, attention 34.1 ms, head 28.0 ms and
+rest 10.6 ms; with autoload linear 43.7 ms, attention 34.0 ms, head 26.2 ms, rest 10.3 ms
+(autoload speeds up the linears, not attention).
 
 - Linear cost scales by executed W1A8 binary products, including both factor
   matmuls; all activations stay 8-bit. Factor scale/requantization cost is
@@ -115,13 +120,15 @@ N16R8, 240 MHz, lib_symbex PIE, model and KV in PSRAM. Rounded parts are linear
   int8 head time, whereas it measured 14.681 ms; int2 measured 8.435 ms.
   Tests check **whole-token totals** within 5%, not each part within 5%.
 - Norm/embedding and SwiGLU scale with layers × dim and layers × hidden.
-- `story` infers effective occupancy from the recorded 117.910 ms story mean
+- `story` infers effective occupancy from the recorded story mean (plain 118.0 ms,
+  autoload 103.9 ms)
   and scales it with context capacity. It is a comparison scenario, not a
-  prediction for arbitrary prompt lengths. The 8.481 story tokens/s must not
+  prediction for arbitrary prompt lengths. The plain 8.481 story tokens/s must not
   be confused with reciprocal mean-window latency (128.489 ms, ~7.78 tok/s).
 
 Tests compare mean, full and story totals against all three seed-42 head
-variants within 5%. That is calibration consistency, **not held-out predictive
+variants without autoload and the int8 / int4 heads with autoload (no int2 autoload
+run exists) within 5%. That is calibration consistency, **not held-out predictive
 accuracy**. Cache locality, PSRAM contention, bandwidth saturation, different
 head widths and larger workspaces can invalidate extrapolation.
 
@@ -175,7 +182,7 @@ fit, but the predicted batch scaling still requires measurement.
 ## Tiny verification
 
 ```sh
-/Users/obed/repos/Symbex-1/.venv/bin/python -m pytest -q tests/test_tiny_llm_arch.py
+python -m pytest -q tests/test_tiny_llm_arch.py
 ```
 
 This covers real CPU parameter count, three recorded export sizes, packing and
