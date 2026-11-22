@@ -1,0 +1,54 @@
+# Touch demo model -- CDT configuration (paths relative to benchmarks/mlp/mlp_digits/; run from that folder:
+#   python ../../../tools/cdt.py demo/symbex_demo.toml --no-distill).
+# The reference model's recipe (reference/config.toml: 64 -> 256 -> 10, every layer and the input at 1 bit), trained
+# on demo/augment_data.py's data (the training images + augmented copies that look like a reduced drawing),
+# labels only. Validation and test are the original images.
+
+[model]
+file       = "models/digits_mlp.pth"
+definition = "model.py:DigitsMLP"
+method     = "plain"
+
+[data]
+directory           = "../../data/digits_demo_aug"
+format              = "npy"
+calibration_samples = 64
+mean       = [0.3060]
+std        = [0.3762]
+input_bits = 1
+
+[hardware]
+ram_kb   = 2                                   # Arduino Uno
+flash_kb = 32
+psram_kb = 0
+cpu_bits = 8
+
+[target]
+budget            = 0.5
+tolerance         = 0.99
+options           = ["bin"]
+max_accuracy_drop = 1.0
+search_epochs     = 30
+widths            = [2.0]
+
+[training]
+epochs     = 150
+batch_size = 64
+checkpoint = "last"
+seed       = 42
+data_on_gpu = false
+
+[output]
+directory          = "demo/model"
+verbose            = true
+lib_path           = "../../../Symbex1_PIO/lib/lib_symbex"
+validation_samples = 360
+arithmetic         = "auto"
+int8_reference     = false
+
+[chip]
+board    = ""
+port     = "/dev/ttyUSB0"
+samples  = 360
+popcount = "swar"
+weights  = "flash"

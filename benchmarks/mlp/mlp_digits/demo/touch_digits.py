@@ -31,6 +31,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REF = os.path.join(HERE, "..", "reference")
+MODELS = {"reference": REF, "demo": os.path.join(HERE, "model")}   # demo: symbex_demo.toml (augmented data)
 LIB = os.path.normpath(os.path.join(HERE, "..", "..", "..", "..", "Symbex1_PIO", "lib", "lib_symbex"))
 SOURCES = ["src/ops/symbex_bitops.c", "src/ops/symbex_bitpack.c", "src/layers/dense/symbex_dense.c",
            "src/hal/generic/symbex_hal_impl.c"]
@@ -41,14 +42,15 @@ CANVAS = 400
 THICKEN = 25           # max filter size in canvas pixels (odd; 0 = off), set by --thicken
 
 
-def build():
-    """The reference header + lib_symbex as a shared library for the PC; returns the predict function"""
+def build(model=REF):
+    """The model's XNOR header + lib_symbex as a shared library for the PC; returns the predict function"""
     out = os.path.join(HERE, ".build")
     os.makedirs(out, exist_ok=True)
-    src, so = os.path.join(out, "digits.c"), os.path.join(out, "digits.so")
+    tag = os.path.basename(os.path.normpath(model))
+    src, so = os.path.join(out, f"digits_{tag}.c"), os.path.join(out, f"digits_{tag}.so")
     open(src, "w").write('#include "model_symbex_xnor.h"\n'
                          "int predict(const uint8_t* x) { return symbex_mlp_infer(x); }\n")
-    cmd = ["gcc", "-std=gnu11", "-O2", "-shared", "-fPIC", "-I", os.path.join(LIB, "include"), "-I", REF,
+    cmd = ["gcc", "-std=gnu11", "-O2", "-shared", "-fPIC", "-I", os.path.join(LIB, "include"), "-I", model,
            *AVR_PATHS, "-o", so, src, *[os.path.join(LIB, s) for s in SOURCES]]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
@@ -58,11 +60,11 @@ def build():
     return lambda x: fn(np.ascontiguousarray(x, dtype=np.uint8).ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)))
 
 
-def check(predict):
+def check(predict, model=REF):
     """the compiled C against the CDT's integer simulation on the 360 test images exported with the model"""
-    x = np.fromfile(os.path.join(REF, "validation_x.u8"), dtype=np.uint8).reshape(-1, 64)
-    sim = np.fromfile(os.path.join(REF, "validation_sim.u8"), dtype=np.uint8)
-    y = np.fromfile(os.path.join(REF, "validation_y.u8"), dtype=np.uint8)
+    x = np.fromfile(os.path.join(model, "validation_x.u8"), dtype=np.uint8).reshape(-1, 64)
+    sim = np.fromfile(os.path.join(model, "validation_sim.u8"), dtype=np.uint8)
+    y = np.fromfile(os.path.join(model, "validation_y.u8"), dtype=np.uint8)
     got = np.array([predict(r) for r in x])
     equal, acc = (got == sim).mean() * 100, (got == y).mean() * 100
     print(f"[*] C on the PC vs the integer simulation: {equal:.1f} % equal on {len(x)} test images "
@@ -188,10 +190,13 @@ def main():
     ap.add_argument("--pen", type=int, default=32, help="pen width in pixels of the 400x400 canvas (default 32)")
     ap.add_argument("--thicken", type=int, default=THICKEN,
                     help=f"stroke thickening before the reduction, max filter in canvas pixels (default {THICKEN}, 0 = off)")
+    ap.add_argument("--model", choices=sorted(MODELS), default="reference",
+                    help="reference: the benchmark's model; demo: the same network trained on augmented drawings "
+                         "(augment_data.py + symbex_demo.toml)")
     args = ap.parse_args()
     THICKEN = args.thicken
-    predict = build()
-    check(predict)
+    predict = build(MODELS[args.model])
+    check(predict, MODELS[args.model])
     if args.score:
         score(predict)
     else:
