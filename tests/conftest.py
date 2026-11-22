@@ -30,7 +30,12 @@ def rng():
 
 @pytest.fixture(autouse=True)
 def _seed_torch():
+    """Seed torch and restore its CPU thread count afterwards: a test that calls torch.set_num_threads must not change
+    the numerics of the tests after it (test_training_health's clipped ResNet-8 check fails with 1 thread)."""
+    threads = torch.get_num_threads()
     torch.manual_seed(0)
+    yield
+    torch.set_num_threads(threads)
 
 
 def _declare(lib):
