@@ -51,8 +51,8 @@ def test_manual_zero_and_paths():
         for p in layer.paths:
             p.U.copy_(torch.tensor([[0.], [-1.]]))
             p.V.copy_(torch.tensor([[0.], [-1.]]))
-            p.g.copy_(torch.tensor([2., 3.]))
-            p.h.copy_(torch.tensor([4., 5.]))
+            p.h.copy_(torch.tensor([2., 3.]))
+            p.g.copy_(torch.tensor([4., 5.]))
             p.l.fill_(2.)
     expected = torch.tensor([[32., -40.], [-48., 60.]])
     torch.testing.assert_close(layer.dense(), expected)
@@ -82,12 +82,12 @@ def test_gradients_and_state():
 def oracle(target, rank):
     left, s, right = torch.linalg.svd(target, full_matrices=False)
     u, v = left[:, :rank] * s[:rank].sqrt(), right[:rank].T * s[:rank].sqrt()
-    l = u.abs().mean(0) * v.abs().mean(0)
-    b = (torch.where(u >= 0, torch.ones_like(u), -torch.ones_like(u)) * l) @ torch.where(
-        v >= 0, torch.ones_like(v), -torch.ones_like(v)).T
-    denom = b.square().sum(1)
-    g = torch.where(denom > 0, (target * b).sum(1) / denom.clamp_min(1e-30), 0.)
-    return u, v, l, g, b
+    a, su, b = torch.linalg.svd(u.abs(), full_matrices=False)
+    c, sv, d = torch.linalg.svd(v.abs(), full_matrices=False)
+    h, g = a[:, 0].abs() * su[0].sqrt(), c[:, 0].abs() * sv[0].sqrt()
+    l = b[0].abs() * d[0].abs() * (su[0] * sv[0]).sqrt()
+    reconstruction = h[:, None] * ((u.sign() * l) @ v.sign().T) * g[None, :]
+    return u, v, l, g, h, reconstruction
 
 
 def test_initialization_oracle():
@@ -98,16 +98,14 @@ def test_initialization_oracle():
     two = FactorLinear.from_dense(w, 3, True)
     target = original
     for path in two.paths:
-        u, v, l, g, b = oracle(target, 3)
+        u, v, l, g, h, reconstruction = oracle(target, 3)
         # Singular vectors may flip signs together.
         signs = torch.where((path.U * u).sum(0) >= 0, 1., -1.)
         torch.testing.assert_close(path.U, u * signs)
         torch.testing.assert_close(path.V, v * signs)
         torch.testing.assert_close(path.l, l)
-        torch.testing.assert_close(path.h, torch.ones_like(path.h))
+        torch.testing.assert_close(path.h, h)
         torch.testing.assert_close(path.g, g)
-        reconstruction = g[:, None] * b
-        torch.testing.assert_close(((target - reconstruction) * b).sum(1), torch.zeros(9, dtype=w.dtype), atol=1e-12, rtol=0)
         target = target - reconstruction
     torch.testing.assert_close(two.dense(), original - target)
     for a, b in zip(one.paths[0].parameters(), two.paths[0].parameters()):
@@ -132,7 +130,7 @@ def test_storage():
     assert layer.bits_per_weight() == 0.2890625
     assert layer.storage_bytes(32) == 17152
     assert FactorLinear(384, 1024, 64, True).storage_bytes() == 28416
-    assert FactorLinear(7, 11, 3).storage_bytes() == 60
+    assert FactorLinear(7, 11, 3).storage_bytes() == 56
     for value, exc in [(True, TypeError), (1.5, TypeError), (0, ValueError), (7, ValueError)]:
         with pytest.raises(exc, match="scale_bits"):
             layer.storage_bytes(value)
@@ -169,3 +167,17 @@ def test_import_from_other_cwd(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     module = load("littlebit_other_cwd")
     assert module.FactorLinear(2, 3, 1)(torch.ones(2)).shape == (3,)
+
+
+def test_joint_itq_initializer():
+    w = torch.randn(12, 9, generator=torch.Generator().manual_seed(19), dtype=torch.float64)
+    plain = FactorLinear.from_dense(w, 4)
+    rotated = FactorLinear.from_dense(w, 4, itq_iters=5, seed=7)
+    again = FactorLinear.from_dense(w, 4, itq_iters=5, seed=7)
+    a, b = plain.paths[0], rotated.paths[0]
+    torch.testing.assert_close(a.U @ a.V.T, b.U @ b.V.T)
+    torch.testing.assert_close(rotated.dense(), again.dense(), rtol=0, atol=0)
+    assert not torch.allclose(a.U, b.U)
+    for factor, row_scale in ((b.U, b.h), (b.V, b.g)):
+        left, s, _ = torch.linalg.svd(factor.abs(), full_matrices=False)
+        torch.testing.assert_close(row_scale, left[:, 0].abs() * s[0].sqrt())

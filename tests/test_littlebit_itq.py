@@ -58,7 +58,11 @@ def test_random_factors(itq, rank, seed):
     errors = [itq.binarization_error(u, v, r) for r in rotations]
     for r, error in zip(rotations, errors):
         assert error == pytest.approx(independent_error(u, v, r), abs=1e-12)
-    assert errors[0] < errors[1] and errors[0] < errors[2], (rank, seed, errors)
+    # Algorithm 1 minimizes ||sign(ZR)-ZR||, not the scaled product error.
+    z = torch.cat((u, v))
+    initial = itq.joint_itq(u, v, iters=0)
+    objective = lambda r: (z @ r - torch.where(z @ r >= 0, 1., -1.)).square().sum()
+    assert objective(rotation) < objective(initial)
 
 
 def test_one_update(itq):
