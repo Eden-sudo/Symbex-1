@@ -1,0 +1,51 @@
+{
+ "board": "pico2_arm",
+ "head_dim": 64,
+ "positions": 256,
+ "table_tau": 0.25,
+ "reps": "best of 7",
+ "unit": "ns",
+ "date": "2026-11-19",
+ "bytes_per_position": {
+  "int8_kv": 128,
+  "bits_k_2bit_v": 24
+ },
+ "rows": [
+  {
+   "op": "i8_scores",
+   "ns": 669437,
+   "us": 669.44,
+   "equal_numpy": true
+  },
+  {
+   "op": "i8_values",
+   "ns": 668812,
+   "us": 668.81,
+   "equal_numpy": true
+  },
+  {
+   "op": "bit_scores",
+   "ns": 134062,
+   "us": 134.06,
+   "equal_numpy": true
+  },
+  {
+   "op": "bit_scores_swar",
+   "ns": 77187,
+   "us": 77.19,
+   "equal_numpy": true
+  },
+  {
+   "op": "bit_values",
+   "ns": 863625,
+   "us": 863.62,
+   "equal_numpy": true
+  },
+  {
+   "op": "bit_values_bkt",
+   "ns": 944812,
+   "us": 944.81,
+   "equal_numpy": true
+  }
+ ]
+}

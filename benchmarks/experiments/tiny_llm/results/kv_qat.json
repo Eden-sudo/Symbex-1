@@ -1,0 +1,50 @@
+{
+ "what": "QAT with the KV quantized (train.py --k-bits 1 --v-bits 2 --k-scale 1.5708, 10000 steps, d384l8 recipe) vs the base binary models with the same KV and no training; intsim validation 1024 windows; d = loss - base kv8",
+ "ref_kv8": {
+  "42": 1.5318,
+  "43": 1.5311,
+  "44": 1.5292
+ },
+ "configs": {
+  "noqat_k1v2": {
+   "per_seed": {
+    "42": 1.8862,
+    "43": 1.9153,
+    "44": 1.8915
+   },
+   "loss_mean": 1.8977,
+   "d_mean": 0.367,
+   "d_sd": 0.0154
+  },
+  "qat_k1v2": {
+   "per_seed": {
+    "42": 1.8388,
+    "43": 1.8773,
+    "44": 1.8382
+   },
+   "loss_mean": 1.8514,
+   "d_mean": 0.3207,
+   "d_sd": 0.0221
+  },
+  "qat_model_kv8": {
+   "per_seed": {
+    "42": 17.4901,
+    "43": 10.4604,
+    "44": 13.3944
+   },
+   "loss_mean": 13.7816,
+   "d_mean": 12.2509,
+   "d_sd": 3.5303
+  }
+ },
+ "train_val_loss_float": {
+  "42": 1.826,
+  "43": 1.865,
+  "44": 1.8248
+ },
+ "train_minutes": {
+  "42": 22.28,
+  "43": 22.4,
+  "44": 22.35
+ }
+}

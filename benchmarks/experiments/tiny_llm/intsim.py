@@ -20,6 +20,8 @@ Everything is integer arithmetic (int64), no floating point after the export:
                         columns, byte j holds c of columns j, 16 + j, 32 + j, 48 + j in bits 1:0, 3:2, 5:4, 7:6)
     --acts 1 runs       1-bit inputs: the sign bits and 127 x mean|input| per token as the scale (train.py's
                         sign(x) x mean|x|), --a8-blocks keep int8 inputs there
+    --attn-temp runs    one learned temperature per head (train.py "Attention in bits"): tq = round(exp(tau) x 2^16),
+                        the exp-table index becomes (distance index x 2^10) x tq >> 26 (README "Attention in bits")
     --hadamard runs     the input times an integer Sylvester Hadamard block (+-1, additions only) before quantizing;
                         its 1 / sqrt(n) goes into the per-row multiplier (model.bin version 2 for the C)
 The output is z = (int8 embedding row . int8 final state) * m_row (int64): its argmax is the next token. For the loss
@@ -81,6 +83,8 @@ def load_model(run, vocab, dev):
         "--head binary / --int8-blocks runs have no integer model yet"
     assert not a.get("learn_thr") and a.get("w2_acts", "same") == "same" and a.get("ffn_act", "silu") == "silu", \
         "--learn-thr / --w2-acts / --ffn-act relu runs have no integer model yet"
+    assert a.get("repeat", 1) == 1, "--repeat runs have no integer model yet"
+    assert a.get("q_bits", 8) == 8 and not a.get("k_unit"), "--q-bits 1 / --k-unit runs have no integer model yet"
     for group in (("q", "k", "v"), ("w1", "w3")):        # forward() quantizes each group's input once
         for opt in ("a8_inputs", "hadamard") if a.get("acts", 8) != 8 else ("hadamard",):   # --acts 8: all 8 bits
             assert len({n in (a.get(opt) or []) for n in group}) == 1, \
@@ -88,7 +92,10 @@ def load_model(run, vocab, dev):
     model = T.TinyLM(vocab, a["dim"], a["layers"], a["heads"], a["hidden"], a["seq"], a["weights"],
                      head=a.get("head", "fp32"), acts=a.get("acts", 8), act_opts={"ste_mode": a.get("ste", "identity"), "ste_k": a.get("ste_k", 2.0)},
                      a8_inputs=tuple(a.get("a8_inputs", [])), rotate=tuple(a.get("hadamard", [])),
-                     a8_blocks=tuple(a.get("a8_blocks", []))).to(dev)
+                     a8_blocks=tuple(a.get("a8_blocks", [])),
+                     kv=(a.get("k_bits", 8), a.get("v_bits", 8), a.get("k_scale", 1.0)),   # as trained
+                     attn={"temp": a.get("attn_temp", False), "recent": a.get("kv_recent", 0), "q_bits": 8,
+                           "k_unit": False}).to(dev)
     model.load_state_dict(ck["model"])
     model.eval()
     return model, a
@@ -123,6 +130,8 @@ def integerize(model, kind):
         P["blocks"].append({"n1": torch.round(b.n1.weight.detach().double() * 2 ** QF).long(),
                             "n2": torch.round(b.n2.weight.detach().double() * 2 ** QF).long(),
                             **{k: lin(getattr(b, k)) for k in ("q", "k", "v", "o", "w1", "w3", "w2")}})
+        if getattr(b, "tau", None) is not None:                     # --attn-temp: exp(tau) per head in Q16
+            P["blocks"][-1]["tq"] = torch.round(b.tau.detach().double().exp() * 2 ** 16).long()
     hd = model.cos.shape[1] * 2
     freq = 1.0 / (10000 ** (np.arange(0, hd, 2) / hd))
     ang = np.outer(np.arange(model.cos.shape[0]), freq)
@@ -185,6 +194,90 @@ def quant8(x):
     return rdiv(127 * x, m[..., None]), m
 
 
+def quant_kv(x, bits):
+    """the KV cache at `bits` bits per value, per token and head, kept in quant8's form (x ~ code * m / 127) so the
+    attention below is unchanged: 8 = quant8; 4 = codes -7..7 x max / 7; 3 = codes -3..3 x max / 3; 2 = codes -3, -1,
+    1, 3 x mean / 2 (train.py's int2 levels); 1 = sign x mean|x| (train.py's 1-bit scale). Experiment only
+    (--kv-bits): no C for bits < 8."""
+    if bits == 8:
+        return quant8(x)
+    a = x.abs()
+    if bits in (4, 3):
+        L = 7 if bits == 4 else 3
+        m = a.amax(-1).clamp(min=1)
+        return rdiv(L * x, m[..., None]).clamp(-L, L), rdiv(127 * m, torch.full_like(m, L))
+    m = rdiv(a.sum(-1), torch.full_like(a[..., 0], a.shape[-1])).clamp(min=1)       # mean |x|, rounded
+    if bits == 2:
+        c = torch.div(x, m[..., None], rounding_mode="floor").clamp(-2, 1)               # level (2c + 1) mean / 2
+        return 2 * c + 1, rdiv(127 * m, torch.full_like(m, 2))
+    return torch.where(x >= 0, 1, -1), 127 * m
+
+
+ATTN_STATS = None   # attn_cut.py sets a list: the share of far keys with p > 0, per attention call
+
+KV_MODE_TAG = {"token": "t", "channel": "c", "qjl": "q", "hadqjl": "h", "rot": "r", "res": "x", "pre": "p", "rotq": "R"}
+KV_GROUP = 32    # tokens per group of the per-channel modes (KIVI's group size)
+
+
+def signed_hadamard(d, blocks, seed, dev):
+    """blocks stacked Sylvester Hadamard matrices (d x d, +-1), each times its own random column signs: (blocks d) x d"""
+    gen = torch.Generator().manual_seed(seed)
+    H = T.hadamard(d).double().sign()
+    D = torch.where(torch.rand(blocks, d, generator=gen, dtype=torch.float64) < 0.5, -1.0, 1.0)
+    return torch.cat([H * D[i] for i in range(blocks)]).to(dev)
+
+
+def qjl_rebuild(x, m, had, seed):
+    """QJL (2406.03482): store sign(S x) (m bits) and ||x||; the query side sees x_hat = sqrt(pi / 2) / m ||x||
+    S^T sign(S x). S Gaussian (had False) or +-1 signed Hadamard blocks (had True: S q with additions only)."""
+    d = x.shape[-1]
+    if had:
+        assert m % d == 0, "--k-mode hadqjl / res: --qjl-m must be a multiple of the head width"
+        S = signed_hadamard(d, m // d, seed, x.device)
+    else:
+        S = torch.randn(m, d, generator=torch.Generator().manual_seed(seed), dtype=torch.float64).to(x.device)
+    y = torch.where(x @ S.T >= 0, 1.0, -1.0).double()
+    return (math.sqrt(math.pi / 2) / m) * x.norm(dim=-1, keepdim=True) * (y @ S)
+
+
+def kv_store(x, bits, mode="token", qjl_m=128, keep_first=False, qjl_seed=0):
+    """one side of the KV cache (b, h, t, hd) as the attention reads it (quant8's form). "token": quant_kv, exact
+    integers. The other modes are experiments that rebuild an integer x_hat and pass it through quant8 (one extra
+    int8 rounding): "channel" = quant_kv's levels with one scale per channel and group of KV_GROUP tokens (KIVI; the
+    scale of a group sees its later tokens: a slight leak, KIVI keeps the incomplete group in full precision instead);
+    "qjl" = 1 bit as QJL: sign(S x) with a fixed Gaussian S (qjl_m x hd) plus ||x||, x_hat = sqrt(pi / 2) / m ||x||
+    S^T sign(S x) (float inside: experiment only); "hadqjl" = the same with +-1 signed Hadamard blocks as S; "rot" =
+    rotate by an orthonormal signed Hadamard, quant_kv at `bits`, rotate back; "res" = 1 bit per token plus hadqjl
+    (qjl_m bits) of what it missed (TurboQuant's residual idea, 2504.19874). keep_first: position 0 stays int8 (the bos / sink token)."""
+    if mode == "token" or bits == 8:
+        q, m = quant_kv(x, bits)
+    elif mode == "channel":
+        b, h, t, d = x.shape
+        pad = (-t) % KV_GROUP
+        g = torch.cat((x, x[:, :, -1:].expand(b, h, pad, d)), 2) if pad else x
+        g = g.view(b, h, -1, KV_GROUP, d).transpose(-1, -2)                             # b, h, groups, d, tokens
+        c, sc = quant_kv(g, bits)
+        xh = rdiv(c * sc[..., None], torch.full_like(c, 127)).transpose(-1, -2).reshape(b, h, -1, d)[:, :, :t]
+        q, m = quant8(xh)
+    elif mode in ("qjl", "hadqjl"):
+        q, m = quant8(qjl_rebuild(x.double(), qjl_m, mode == "hadqjl", qjl_seed).round().long())
+    elif mode == "rot":
+        R = signed_hadamard(x.shape[-1], 1, qjl_seed, x.device) / math.sqrt(x.shape[-1])  # orthonormal
+        y = (x.double() @ R.T).round().long()
+        c, sc = quant_kv(y, bits)
+        q, m = quant8(((c * sc[..., None]).double() / 127 @ R).round().long())
+    elif mode == "res":
+        c, sc = quant_kv(x, 1)
+        x1 = rdiv(c * sc[..., None], torch.full_like(c, 127))
+        q, m = quant8((x1.double() + qjl_rebuild((x - x1).double(), qjl_m, True, qjl_seed)).round().long())
+    else:
+        raise ValueError(mode)
+    if keep_first:
+        q0, m0 = quant8(x[:, :, :1])
+        q, m = torch.cat((q0, q[:, :, 1:]), 2), torch.cat((m0, m[:, :, 1:]), 2)
+    return q, m
+
+
 def rope(x, C, S):
     x1, x2 = x[..., ::2], x[..., 1::2]
     r1 = (x1 * C - x2 * S + (1 << 13)) >> 14
@@ -192,23 +285,64 @@ def rope(x, C, S):
     return torch.stack((r1, r2), -1).flatten(-2)
 
 
-def attention(q, k, v, heads, C, S, exp_t):
+def attention(q, k, v, heads, C, S, exp_t, kv=None, tq=None):
     b, t, d = q.shape
     q, k, v = (z.view(b, t, heads, -1).transpose(1, 2) for z in (q, k, v))       # b, h, t, hd
+    kv = kv or {}
+    kpre = k
     q, k = rope(q, C[:t], S[:t]), rope(k, C[:t], S[:t])
     qq, qm = quant8(q)
-    kq, km = quant8(k)
-    vq, vm = quant8(v)
-    u = check(mm(qq, kq.transpose(-1, -2)) * km[..., None, :], 61, "scores")       # b, h, t(query), t(key)
+    if kv.get("k_mode") == "pre" and kv.get("k_bits", 8) != 8:   # experiment (KVQuant): per channel BEFORE RoPE
+        kq, km = kv_store(kpre, kv["k_bits"], "channel")
+        kq, km = quant8(rope(rdiv(kq * km[..., None], torch.full_like(kq, 127)), C[:t], S[:t]))
+        if kv.get("keep_first"):
+            q0, m0 = quant8(k[:, :, :1])
+            kq, km = torch.cat((q0, kq[:, :, 1:]), 2), torch.cat((m0, km[:, :, 1:]), 2)
+    elif kv.get("k_mode") == "rotq":     # experiment, chip form of "rot": keys stored as Hk / 8, q rotated once
+        Hs = signed_hadamard(k.shape[-1], 1, kv.get("qjl_seed", 0), k.device).long()  # +-1: additions only
+        kq, km = quant_kv(rdiv(mm(k, Hs.T), torch.full_like(k, 8)), kv.get("k_bits", 8))
+        qr = mm(qq, Hs.T)                                                            # |qr| <= 127 x 64: int16
+    else:
+        kq, km = kv_store(k, kv.get("k_bits", 8), kv.get("k_mode", "token"), kv.get("qjl_m", 128),
+                          kv.get("keep_first"), kv.get("qjl_seed", 0))
+    if kv.get("k_scale", 1.0) != 1.0:                                           # experiment: key scale times a factor
+        km = (km.double() * kv["k_scale"]).round().long()
+    vq, vm = kv_store(v, kv.get("v_bits", 8), kv.get("v_mode", "token"), kv.get("qjl_m", 128), kv.get("keep_first"))
+    if kv.get("v_scale", 1.0) != 1.0:                                           # experiment: value scale times a factor
+        vm = (vm.double() * kv["v_scale"]).round().long()
+    if kv.get("k_mode") == "rotq":       # (Hq) . (Hk / 8) / 8 = q . k: the same units as the int8 scores
+        u = rdiv(check(mm(qr, kq.transpose(-1, -2)) * km[..., None, :], 61, "scores"), torch.tensor(8, device=q.device))
+    else:
+        u = check(mm(qq, kq.transpose(-1, -2)) * km[..., None, :], 61, "scores")   # b, h, t(query), t(key)
     causal = torch.ones(t, t, dtype=torch.bool, device=q.device).tril()
+    recent = kv.get("recent", 0)
+    if recent:      # experiment (KIVI's residual): the last `recent` keys and values of every query stay int8
+        pos = torch.arange(t, device=q.device)
+        near = causal & (pos[:, None] - pos[None, :] < recent)
+        k8, km8 = quant8(k)
+        v8, vm8 = quant8(v)
+        u = torch.where(near, check(mm(qq, k8.transpose(-1, -2)) * km8[..., None, :], 61, "scores"), u)
     u = torch.where(causal, u, torch.iinfo(torch.int64).min)
     umax = u.amax(-1, keepdim=True)
     dist = torch.where(causal, umax - u, 0)
     # 16129 << 20 = 127^2 (int8 q, k) * 2^24 (Q12 x Q12) * sqrt(64) / 128 (exp table step): 64-wide heads only
-    x = check(dist * qm[..., None], 62, "score distance") // (16129 << 20)
-    p = torch.where(causal & (x < EXP_N), exp_t[x.clamp(max=EXP_N - 1)], 0)
+    if tq is None:
+        x = check(dist * qm[..., None], 62, "score distance") // (16129 << 20)
+    else:           # learned temperature: the index in 2^-10 steps, times tq (Q16), then >> 26
+        x = check(check(dist * qm[..., None], 62, "score distance") // (16129 << 10) * tq.view(1, -1, 1, 1), 62,
+                  "tempered distance") >> 26
+    # experiment (attn_cut.py): kv["p_cut"] = n drops the keys with p < p_max e^-n (exp-table index >= 128 n)
+    cut = EXP_N if kv.get("p_cut") is None else min(EXP_N, round(kv["p_cut"] * 2 ** EXP_Q))
+    p = torch.where(causal & (x < cut), exp_t[x.clamp(max=EXP_N - 1)], 0)
+    if ATTN_STATS is not None:  # attn_cut.py: keys before the last 32 positions with p > 0, of all of them
+        pos = torch.arange(t, device=q.device)
+        far = pos[:, None] - pos[None, :] >= 32
+        ATTN_STATS.append(((p > 0) & far).sum().item() / (far.sum().item() * b * heads))
     P = p.sum(-1, keepdim=True)
-    acc = mm(p * vm[..., None, :], vq)
+    if recent:
+        acc = mm(torch.where(near, 0, p) * vm[..., None, :], vq) + mm(torch.where(near, p, 0) * vm8[..., None, :], v8)
+    else:
+        acc = mm(p * vm[..., None, :], vq)
     a = rdiv(acc, P * 127)
     return a.transpose(1, 2).reshape(b, t, d)
 
@@ -222,7 +356,7 @@ def forward(P, idx):
         h, rms = norm_h(x, B["n1"])
         hq, hm = quant_in(h, B["q"], rms)                                                # q, k, v: one input
         q, k, v = (linear(hq, hm, B[n]) for n in ("q", "k", "v"))
-        a = attention(q, k, v, P["heads"], C, S, exp_t)
+        a = attention(q, k, v, P["heads"], C, S, exp_t, P.get("kv"), B.get("tq"))
         aq, am = quant_in(a, B["o"])
         x = check(x + linear(aq, am, B["o"]), 31, "residual")
         h, rms = norm_h(x, B["n2"])
@@ -361,6 +495,26 @@ def write_model(P, cfg, path):
                     f.write(struct.pack("<4i", B[n]["acts"], B[n]["had"], 0, 0))
                 f.write(pack_bits(B[n]["w"]).tobytes())
                 f.write(B[n]["m"].cpu().numpy().astype("<i4").tobytes())
+        if "tq" in P["blocks"][0]:  # trailer: the low-bit KV cache + learned temperature (tinylm.h, main() checks it)
+            kv = P["kv"]
+            f.write(struct.pack("<4id", 0x424C564B, kv["k_bits"], kv["v_bits"], kv["recent"], kv["k_scale"]))
+            f.write(torch.stack([B["tq"] for B in P["blocks"]]).cpu().numpy().astype("<i4").tobytes())
+
+
+def read_kv_trailer(path, layers, heads):
+    """the low-bit KV trailer of a model.bin (write_model), as P["kv"], or None (int8 cache)"""
+    n = 24 + 4 * layers * heads
+    with open(path, "rb") as f:
+        f.seek(0, 2)
+        if f.tell() < 32 + n:
+            return None
+        f.seek(-n, 2)
+        tr = f.read(n)
+    magic, kb, vb, recent, ks = struct.unpack("<4id", tr[:24])
+    if magic != 0x424C564B:
+        return None
+    return {"k_bits": kb, "v_bits": vb, "k_scale": ks, "recent": recent,
+            "tq": np.frombuffer(tr[24:], dtype="<i4").reshape(layers, heads)}
 
 
 def main():
@@ -368,6 +522,24 @@ def main():
     ap.add_argument("run", help="runs/<weights>_<name>_s<seed>")
     ap.add_argument("--windows", type=int, default=1024, help="validation windows of 256 tokens (same as train.py)")
     ap.add_argument("--export", action="store_true", help="write model.bin and check.bin for the C check")
+    ap.add_argument("--kv-bits", type=int, choices=[8, 4, 3, 2, 1], default=8,
+                    help="bits of the KV cache (experiment, PC only: see quant_kv); result in intsim_kv<b>.json")
+    ap.add_argument("--k-bits", type=int, choices=[8, 4, 3, 2, 1], help="keys only (overrides --kv-bits; see kv_store)")
+    ap.add_argument("--v-bits", type=int, choices=[8, 4, 3, 2, 1], help="values only (overrides --kv-bits)")
+    ap.add_argument("--k-mode", choices=["token", "channel", "qjl", "hadqjl", "rot", "res", "pre", "rotq"], default="token",
+                    help="pre = channel mode on the keys BEFORE RoPE, rotated after (KVQuant 2401.18079); rotq = "
+                         "rot as the chip does it: keys stored as H k / 8, the query rotated once (integers)")
+    ap.add_argument("--v-mode", choices=["token", "channel"], default="token")
+    ap.add_argument("--qjl-m", type=int, default=128, help="--k-mode qjl: bits per key and head")
+    ap.add_argument("--qjl-seed", type=int, default=0, help="seed of S (qjl / hadqjl / rot / res)")
+    ap.add_argument("--k-scale", type=float, default=1.0,
+                    help="multiply the stored key scale (pi / 2 = 1.5708 makes 1-bit keys unbiased for Gaussian data)")
+    ap.add_argument("--v-scale", type=float, default=1.0, help="multiply the stored value scale (as --k-scale)")
+    ap.add_argument("--kv-recent", type=int, default=0,
+                    help="the last N keys and values of every query stay int8 (KIVI's residual window), the rest at --k/v-bits")
+    ap.add_argument("--keep-first", action="store_true", help="position 0 of the KV cache stays int8")
+    ap.add_argument("--p-cut", type=float, help="attention weights p < p_max e^-n are 0 (attn_cut.py); --export then "
+                    "writes check_c<n>.bin for the C built with -DTINYLM_P_CUT=round(128 n)")
     ap.add_argument("--check-windows", type=int, default=4, help="validation windows in check.bin")
     args = ap.parse_args()
     if args.windows < 32 or args.windows % 32:
@@ -382,18 +554,40 @@ def main():
     assert a["dim"] // a["heads"] == 64 and a["dim"] % a["heads"] == 0, \
         "the integer attention scale (16129 << 20) assumes 64-wide heads"
     P = to_device(integerize(model, kind), dev)
+    kb = args.kv_bits if args.k_bits is None else args.k_bits
+    vb = args.kv_bits if args.v_bits is None else args.v_bits
+    P["kv"] = {"k_bits": kb, "v_bits": vb, "k_mode": args.k_mode, "v_mode": args.v_mode, "qjl_m": args.qjl_m,
+               "keep_first": args.keep_first, "qjl_seed": args.qjl_seed, "k_scale": args.k_scale,
+               "v_scale": args.v_scale, "recent": args.kv_recent, "p_cut": args.p_cut}
+    simple = args.k_bits is None and args.v_bits is None and args.k_mode == args.v_mode == "token" \
+        and not args.keep_first and args.k_scale == 1.0 and args.v_scale == 1.0 and not args.kv_recent
+    tag = (f"kv{args.kv_bits}" if simple else f"k{kb}{KV_MODE_TAG[args.k_mode]}" + (str(args.qjl_m) if args.k_mode in ("qjl", "hadqjl", "res")
+           else "") + (f"s{args.qjl_seed}" if args.qjl_seed else "")
+           + (f"g{args.k_scale:g}" if args.k_scale != 1.0 else "")  + f"_v{vb}{args.v_mode[0]}" + (f"g{args.v_scale:g}" if args.v_scale != 1.0 else "")
+           + ("_f" if args.keep_first else "") + (f"_r{args.kv_recent}" if args.kv_recent else ""))
+    if args.p_cut is not None:
+        tag += f"_c{args.p_cut:g}"
+    # the C: an int8 KV cache, or (a model trained with --attn-temp) 1-bit keys + 2-bit values + an int8 window
+    low_bit_c = (kb, vb) == (1, 2) and args.k_mode == args.v_mode == "token" and args.v_scale == 1.0 \
+        and not args.keep_first and args.kv_recent > 0
+    if args.export and a.get("attn_temp") and not low_bit_c:
+        ap.error("--export with --attn-temp: the C has --k-bits 1 --v-bits 2 --kv-recent N (token modes) only")
+    if args.export and not a.get("attn_temp") and \
+            ((kb, vb) != (8, 8) or args.k_scale != 1.0 or args.v_scale != 1.0 or args.kv_recent):
+        ap.error("--export: the C keeps an int8 KV cache (--kv-bits 8); low-bit only for --attn-temp models")
     val = T.load_split("val", dev)
 
     fl = T.evaluate(model, val, a["seq"], args.windows // 32, 32)
     il = int_loss(P, val, a["seq"], args.windows, 16)
     agree = float_argmax_agreement(model, P, val, a["seq"], 64, 16)
     ids = generate(P, sp, "Once upon a time", 120, a["seq"], dev)
-    res = {"run": os.path.basename(os.path.normpath(args.run)), "weights": kind, "val_windows": args.windows,
+    res = {"run": os.path.basename(os.path.normpath(args.run)), "weights": kind, "kv_bits": args.kv_bits, "kv": P["kv"], "kv_tag": tag,
+           "trained_kv": [a.get("k_bits", 8), a.get("v_bits", 8), a.get("k_scale", 1.0)], "val_windows": args.windows,
            "val_loss_float": round(fl, 4), "val_loss_integer": round(il, 4),
            "val_perplexity_float": round(math.exp(fl), 3), "val_perplexity_integer": round(math.exp(il), 3),
            "next_token_agreement_float_vs_integer": round(agree, 4), "sample_integer": sp.decode(ids[1:])}
     print(json.dumps(res, indent=2))
-    with open(os.path.join(args.run, "intsim.json"), "w") as f:
+    with open(os.path.join(args.run, "intsim.json" if tag == "kv8" else f"intsim_{tag}.json"), "w") as f:
         json.dump(res, f, indent=2)
 
     if args.export:
@@ -402,7 +596,8 @@ def main():
         w = val[torch.arange(args.check_windows, device=dev)[:, None] * a["seq"]
                 + torch.arange(a["seq"], device=dev)].long()
         z, hm = forward(P, w)
-        with open(os.path.join(args.run, "check.bin"), "wb") as f:
+        check = "check.bin" if args.p_cut is None else f"check_c{args.p_cut:g}.bin"
+        with open(os.path.join(args.run, check), "wb") as f:
             f.write(struct.pack("<2i", *w.shape))
             f.write(w.cpu().numpy().astype("<i4").tobytes())
             f.write(z.cpu().numpy().astype("<i8").tobytes())
@@ -410,7 +605,7 @@ def main():
             f.write(struct.pack("<2i", len(ids), 1 + len(sp.encode("Once upon a time"))))
             f.write(np.array(ids, dtype="<i4").tobytes())
         print(f"wrote {args.run}/model.bin ({os.path.getsize(os.path.join(args.run, 'model.bin')) / 1e6:.2f} MB)"
-              f" and check.bin")
+              f" and {check}")
 
 
 if __name__ == "__main__":
