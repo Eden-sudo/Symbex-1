@@ -1346,6 +1346,26 @@ model and almost every seed. So the 2-bit value cache is free at inference, and 
 Not explained: why coarse values help at all. A guess, not tested: the 2-bit levels (mean|v| x {-1.5, -0.5, 0.5,
 1.5}) clip the large values, which a 1-bit key's flat attention spreads over many positions.
 
+### Step 10: the winners together: ternary weights + the small caches (rule Nov 22 2026, before measuring)
+
+**Question.** Steps 5-9d each won alone: ternary weights (step 5), the learned temperature (step 6), the 1-bit key
+cache with an int8 window (step 9) and 2-bit values (step 9b), or unit keys as the fast option (step 9c). Do they
+hold together?
+
+**What.** Two runs, ternary weights, the step 4 recipe (lr 3e-3, 20000 steps), 3 seeds, validation:
+- `ternary k1trv2`: `--weights ternary --k-bits 1 --attn-temp --kv-recent 32 --v-bits 2` (cache 128.0 KB, the bytes
+  winner);
+- `ternary k1utr`: `--weights ternary --k-bits 1 --k-unit --attn-temp --kv-recent 32` (cache 140.8 KB, the fast option).
+Reference: ternary + temperature with the int8 cache, 1.8199 ± 0.0059 (step 6).
+
+Rule, written before measuring (the same "usable" line as the binary caches):
+1. A ternary cache run is usable if its mean is < +0.03 above 1.8199.
+2. If both are usable, `ternary k1trv2` is the model carried to intsim / C / chips (fewest bytes, the rule in use)
+   and `ternary k1utr` is reported as the fast option; if only one is usable, that one; if none, ternary keeps the
+   int8 cache and the binary `k1trv2` is carried instead.
+3. The chips need a ternary linear in tinylm.c (none yet): the flash cost of the weights doubles (~0.09 -> ~0.15 MB,
+   computed in step 5).
+
 ### Speed of each cache method, one at a time (Nov 21 2026; a timing, no decision rule)
 
 **Question.** Each trick of steps 7-9b changes the attention code differently. What does each one cost or save on

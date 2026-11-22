@@ -741,3 +741,8 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   Own width reproduces train.json 12 / 12. k1trv2 with unquantized values 2.0742 (+0.0022 vs its 2-bit): rule 1 ->
   gain from TRAINING. k1uctrv2 +0.0043 (rule 1, near the line). Values at 2 bits after training: free, even -0.001
   on k1tr / k1uctr. Why coarse values help: not known (guess: clipping large values; untested).
+
+## Nov 22 2026, 09:09 — step 10 started (Edén: "adelante, vamos con los ganadores")
+
+- Rule in README "Step 10" before measuring. Queue runs/logs/step10_queue.sh (PID 3365763, log step10_queue.log):
+  ternary k1trv2 x 3 seeds, then ternary k1utr x 3 seeds; ~1.5 h per run (estimate) -> ~9 h. Ends "STEP10 QUEUE DONE".
