@@ -746,3 +746,10 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
 
 - Rule in README "Step 10" before measuring. Queue runs/logs/step10_queue.sh (PID 3365763, log step10_queue.log):
   ternary k1trv2 x 3 seeds, then ternary k1utr x 3 seeds; ~1.5 h per run (estimate) -> ~9 h. Ends "STEP10 QUEUE DONE".
+
+## Nov 22 2026, 10:40 — step 10 queue relaunched from a worktree
+
+- Ternary k1trv2 s42 done: best val 1.8674 (step 17000). The other 5 runs died at once at 10:39: the main folder had
+  been switched to demo/digits-touch, whose older train.py has no --kv-heads / --vocab. Lesson: long queues run from
+  their own worktree (~/Proyectos/Symbex1_llm on exp/llm-260k, runs/ and data/tinystories symlinked to the main
+  folder). Relaunched 10:40 (queue PID 3642439, skips s42); end ~18:10 (estimate).
