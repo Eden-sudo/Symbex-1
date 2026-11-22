@@ -1,0 +1,214 @@
+{
+ "what": "intsim kv_store modes, binary_d384l8 s42-44, validation 1024 windows, no retraining; d = loss - loss(kv8)",
+ "ref_kv8": {
+  "42": 1.5318,
+  "43": 1.5311,
+  "44": 1.5292
+ },
+ "configs": {
+  "k1t_v8t": {
+   "per_seed": {
+    "42": 2.1935,
+    "43": 2.2699,
+    "44": 2.2217
+   },
+   "loss_mean": 2.2284,
+   "d_mean": 0.6977,
+   "d_sd": 0.0388,
+   "key_bits_per_dim": 1,
+   "value_bits_per_dim": 8
+  },
+  "k8t_v1t": {
+   "per_seed": {
+    "42": 1.7256,
+    "43": 1.7239,
+    "44": 1.7225
+   },
+   "loss_mean": 1.724,
+   "d_mean": 0.1933,
+   "d_sd": 0.0005,
+   "key_bits_per_dim": 8,
+   "value_bits_per_dim": 1
+  },
+  "k2t_v8t": {
+   "per_seed": {
+    "42": 1.7199,
+    "43": 1.7465,
+    "44": 1.7267
+   },
+   "loss_mean": 1.731,
+   "d_mean": 0.2003,
+   "d_sd": 0.0139,
+   "key_bits_per_dim": 2,
+   "value_bits_per_dim": 8
+  },
+  "k8t_v2t": {
+   "per_seed": {
+    "42": 1.5881,
+    "43": 1.5895,
+    "44": 1.5876
+   },
+   "loss_mean": 1.5884,
+   "d_mean": 0.0577,
+   "d_sd": 0.0012,
+   "key_bits_per_dim": 8,
+   "value_bits_per_dim": 2
+  },
+  "k4t_v8t": {
+   "per_seed": {
+    "42": 1.5391,
+    "43": 1.5389,
+    "44": 1.5378
+   },
+   "loss_mean": 1.5386,
+   "d_mean": 0.0079,
+   "d_sd": 0.0007,
+   "key_bits_per_dim": 4,
+   "value_bits_per_dim": 8
+  },
+  "k2c_v8t": {
+   "per_seed": {
+    "42": 1.7651,
+    "43": 1.7532,
+    "44": 1.7716
+   },
+   "loss_mean": 1.7633,
+   "d_mean": 0.2326,
+   "d_sd": 0.0102,
+   "key_bits_per_dim": 2,
+   "value_bits_per_dim": 8
+  },
+  "k1c_v8t": {
+   "per_seed": {
+    "42": 2.1813,
+    "43": 2.201,
+    "44": 2.1815
+   },
+   "loss_mean": 2.1879,
+   "d_mean": 0.6572,
+   "d_sd": 0.0111,
+   "key_bits_per_dim": 1,
+   "value_bits_per_dim": 8
+  },
+  "k2c_v2t": {
+   "per_seed": {
+    "42": 1.9383,
+    "43": 1.9189,
+    "44": 1.9439
+   },
+   "loss_mean": 1.9337,
+   "d_mean": 0.403,
+   "d_sd": 0.0138,
+   "key_bits_per_dim": 2,
+   "value_bits_per_dim": 2
+  },
+  "k1q64_v8t": {
+   "per_seed": {
+    "42": 1.9421,
+    "43": 1.9308,
+    "44": 1.9474
+   },
+   "loss_mean": 1.9401,
+   "d_mean": 0.4094,
+   "d_sd": 0.0093,
+   "key_bits_per_dim": 1,
+   "value_bits_per_dim": 8
+  },
+  "k1q128_v8t": {
+   "per_seed": {
+    "42": 1.6996,
+    "43": 1.6908,
+    "44": 1.6938
+   },
+   "loss_mean": 1.6947,
+   "d_mean": 0.164,
+   "d_sd": 0.0041,
+   "key_bits_per_dim": 2,
+   "value_bits_per_dim": 8
+  },
+  "k1q256_v8t": {
+   "per_seed": {
+    "42": 1.603,
+    "43": 1.5979,
+    "44": 1.5986
+   },
+   "loss_mean": 1.5998,
+   "d_mean": 0.0691,
+   "d_sd": 0.0022,
+   "key_bits_per_dim": 4,
+   "value_bits_per_dim": 8
+  },
+  "k1t_v8t_f": {
+   "per_seed": {
+    "42": 2.1949,
+    "43": 2.2713,
+    "44": 2.2239
+   },
+   "loss_mean": 2.23,
+   "d_mean": 0.6993,
+   "d_sd": 0.0388,
+   "key_bits_per_dim": 1,
+   "value_bits_per_dim": 8
+  },
+  "k1t_v1t_f": {
+   "per_seed": {
+    "42": 2.7163,
+    "43": 2.7932,
+    "44": 2.7361
+   },
+   "loss_mean": 2.7485,
+   "d_mean": 1.2178,
+   "d_sd": 0.0399,
+   "key_bits_per_dim": 1,
+   "value_bits_per_dim": 1
+  },
+  "k1q256_v1t": {
+   "per_seed": {
+    "42": 1.8272,
+    "43": 1.8217,
+    "44": 1.8268
+   },
+   "loss_mean": 1.8252,
+   "d_mean": 0.2945,
+   "d_sd": 0.0036,
+   "key_bits_per_dim": 4,
+   "value_bits_per_dim": 1
+  },
+  "k1q256_v2t": {
+   "per_seed": {
+    "42": 1.669,
+    "43": 1.6682,
+    "44": 1.6697
+   },
+   "loss_mean": 1.669,
+   "d_mean": 0.1383,
+   "d_sd": 0.0019,
+   "key_bits_per_dim": 4,
+   "value_bits_per_dim": 2
+  },
+  "k1q256_v1t_f": {
+   "per_seed": {
+    "42": 1.8262,
+    "43": 1.8212,
+    "44": 1.8258
+   },
+   "loss_mean": 1.8244,
+   "d_mean": 0.2937,
+   "d_sd": 0.0033,
+   "key_bits_per_dim": 4,
+   "value_bits_per_dim": 1
+  },
+  "k1q256_v2t_f": {
+   "per_seed": {
+    "42": 1.6684,
+    "43": 1.6682,
+    "44": 1.6692
+   },
+   "loss_mean": 1.6686,
+   "d_mean": 0.1379,
+   "d_sd": 0.0018,
+   "key_bits_per_dim": 4,
+   "value_bits_per_dim": 2
+  }
+ }
+}

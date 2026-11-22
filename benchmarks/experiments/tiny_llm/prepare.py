@@ -12,6 +12,8 @@ Splits (the benchmark rule: every choice on a validation split carved out of the
     test    the official valid file, read only by train.py --test
 The vocabulary is trained on 200,000 training stories (not val, not test). Every story starts with BOS (id 1).
 Writes tok4096.model, train.bin, val.bin, test.bin and prepare.json next to the text files.
+--vocab 512 (the llama2.c 260K shape, for chips without PSRAM): tok512.model, {train,val,test}_v512.bin and
+prepare_v512.json, same splits and same 200,000 stories; --threads limits the CPU threads (default all).
 """
 import argparse
 import json
@@ -33,8 +35,8 @@ def stories(path):
     return [s.strip() for s in text.split("<|endoftext|>") if s.strip()]
 
 
-def encode(sp, items, path):
-    ids = sp.encode(items, num_threads=os.cpu_count())
+def encode(sp, items, path, threads):
+    ids = sp.encode(items, num_threads=threads)
     total = sum(len(t) + 1 for t in ids)
     out = np.empty(total, dtype=np.uint16)
     i = 0
@@ -49,7 +51,10 @@ def encode(sp, items, path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--data", default=DATA, help="folder with train.txt and valid.txt")
+    ap.add_argument("--vocab", type=int, default=VOCAB, help="vocabulary size (see above)")
+    ap.add_argument("--threads", type=int, default=os.cpu_count(), help="CPU threads for SentencePiece")
     args = ap.parse_args()
+    vocab, suffix = args.vocab, "" if args.vocab == VOCAB else f"_v{args.vocab}"
     t0 = time.time()
     train_all = stories(os.path.join(args.data, "train.txt"))
     test = stories(os.path.join(args.data, "valid.txt"))
@@ -57,24 +62,24 @@ def main():
     train = [s for i, s in enumerate(train_all) if i % VAL_EVERY]
     print(f"stories: train {len(train):,}, val {len(val):,}, test {len(test):,} ({time.time() - t0:.0f} s)")
 
-    prefix = os.path.join(args.data, f"tok{VOCAB}")
+    prefix = os.path.join(args.data, f"tok{vocab}")
     rng = np.random.default_rng(0)
     sample = [train[i] for i in rng.choice(len(train), SP_STORIES, replace=False)]
     spm.SentencePieceTrainer.train(sentence_iterator=iter(sample), model_prefix=prefix, model_type="bpe",
-                                   vocab_size=VOCAB, character_coverage=1.0, byte_fallback=True,
+                                   vocab_size=vocab, character_coverage=1.0, byte_fallback=True,
                                    split_digits=True, allow_whitespace_only_pieces=True, normalization_rule_name="identity",
-                                   num_threads=os.cpu_count(), max_sentence_length=16384,
+                                   num_threads=args.threads, max_sentence_length=16384,
                                    unk_id=0, bos_id=1, eos_id=2, pad_id=-1, minloglevel=2)
     sp = spm.SentencePieceProcessor(model_file=prefix + ".model")
     print(f"vocabulary: {sp.get_piece_size()} tokens ({time.time() - t0:.0f} s)")
 
-    counts = {name: encode(sp, items, os.path.join(args.data, f"{name}.bin"))
+    counts = {name: encode(sp, items, os.path.join(args.data, f"{name}{suffix}.bin"), args.threads)
               for name, items in (("val", val), ("test", test), ("train", train))}
     for name, n in counts.items():
         print(f"{name}: {n:,} tokens")
-    info = {"vocab": VOCAB, "val_every": VAL_EVERY, "sp_stories": SP_STORIES,
+    info = {"vocab": vocab, "val_every": VAL_EVERY, "sp_stories": SP_STORIES,
             "stories": {"train": len(train), "val": len(val), "test": len(test)}, "tokens": counts}
-    with open(os.path.join(args.data, "prepare.json"), "w") as f:
+    with open(os.path.join(args.data, f"prepare{suffix}.json"), "w") as f:
         json.dump(info, f, indent=2)
     print(f"done in {time.time() - t0:.0f} s")
 

@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #define TINYLM_MAGIC 0x4D4C5954
+#define TINYLM_KVLB_MAGIC 0x424C564B  /* 'KVLB': the low-bit KV trailer of model.bin */
 /* Allocation hooks: FAST for the small per-token buffers (internal RAM on the chip), BIG for the KV cache (PSRAM). */
 #ifndef TINYLM_MALLOC_FAST
 #define TINYLM_MALLOC_FAST(n) malloc(n)
@@ -44,12 +45,28 @@ typedef struct {
     const uint16_t *exp_t;   /* TINYLM_EXP_N */
     const uint16_t *sig_t;   /* TINYLM_SIG_N */
     TinyBlock *blocks;       /* layers */
+    /* optional trailer of model.bin (intsim.write_model, a model trained with train.py --attn-temp --kv-recent N):
+       the low-bit KV cache. kv_recent = 0: none (int8 cache, no temperature). Else keys at 1 bit (sign, scale
+       round(127 mean|k| k_scale)), values at 2 bits (levels 2c + 1, scale mean|v| / 2), the last kv_recent keys and
+       values of every query at int8, and the score distance times tq (exp(tau) in Q16) per layer and head. */
+    int kv_recent;
+    double k_scale;
+    const int32_t *tq;       /* layers x heads */
 } TinyModel;
 
 typedef struct {
     int8_t *kq, *vq;         /* layers x heads x seq x head size (vq with TINYLM_DOT_ROWS_U8: ... x head size x seq,
                                 value + 128) */
-    int32_t *km, *vm;        /* layers x heads x seq */
+    int32_t *km, *vm;        /* layers x heads x seq (NULL, as kq / vq, with the low-bit cache) */
+    /* the low-bit cache (kv_recent > 0), per layer and head: key signs seq x head size / 8 bytes (bit k of byte g =
+       key 8g + k >= 0), values transposed head size x seq / 4 bytes (position j of row i in bits 2 (j % 4) of byte
+       j / 4: c + 2), their scales seq; the int8 window kv_recent x head size (+ scales), position j in slot
+       j % kv_recent */
+    uint8_t *kb, *vb;
+    int32_t *km1, *vm2, *km8, *vm8;
+    int8_t *k8, *v8;
+    uint8_t *vdec;           /* head size x seq + 16 (or seq x head size): one head's values as int8 for the kernels */
+    int32_t *vmj;            /* seq: their scales */
     int32_t *x, *t1, *t2, *t3; /* dim, dim, hidden, hidden scratch */
     int32_t *q, *k, *v, *a;  /* dim */
     int8_t *iq;              /* max(dim, hidden) */
