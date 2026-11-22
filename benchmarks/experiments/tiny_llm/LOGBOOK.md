@@ -734,3 +734,10 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   +0.021 vs int8 cache: usable (rule passes). Ties k1tr (paired -0.003), same speed, 140.8 vs 181.8 KB -> the fast
   option. Bytes winner stays k1trv2 (128 KB, +0.011, ~1.5x slower).
 - Next (agreed with Edén Nov 22 morning): cross test "2-bit values better than int8?" (rule in README first).
+
+## Nov 22 2026, ~09:30 — step 9d cross test (no training)
+
+- cross_eval.py (new; train.py build_model() factored out of run(), same model): 4 models x 3 seeds x values 8 / 2.
+  Own width reproduces train.json 12 / 12. k1trv2 with unquantized values 2.0742 (+0.0022 vs its 2-bit): rule 1 ->
+  gain from TRAINING. k1uctrv2 +0.0043 (rule 1, near the line). Values at 2 bits after training: free, even -0.001
+  on k1tr / k1uctr. Why coarse values help: not known (guess: clipping large values; untested).

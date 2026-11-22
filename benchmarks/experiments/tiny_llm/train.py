@@ -374,6 +374,19 @@ def sample(model, sp, prompt, seq, n_tokens, device):
 W2_ACTS = {"same": None, "1": 1, "t": "t", "2": 2}
 
 
+def build_model(args, vocab):
+    """the TinyLM of these arguments (a run's train.json "args" works too, as an argparse.Namespace)"""
+    return TinyLM(vocab, args.dim, args.layers, args.heads, args.hidden, args.seq,
+                  args.weights, args.head, tuple(args.int8_blocks), args.acts,
+                  {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
+                  tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
+                  tuple(args.a8_blocks), (args.k_bits, args.v_bits, args.k_scale), args.repeat,
+                  {"temp": args.attn_temp, "recent": args.kv_recent, "q_bits": args.q_bits,
+                   "k_unit": args.k_unit, "k_center": args.k_center, "sink": args.attn_sink,
+                   "gate": args.attn_gate}, args.kv_heads,
+                  tuple(args.int8_linears))
+
+
 def run(args, seed):
     import sentencepiece as spm
     device = "cuda"
@@ -381,15 +394,7 @@ def run(args, seed):
     gen = torch.Generator(device=device).manual_seed(seed)
     train, val = load_split("train", device, args.vocab), load_split("val", device, args.vocab)
     sp = spm.SentencePieceProcessor(model_file=os.path.join(DATA, f"tok{args.vocab}.model"))
-    model = TinyLM(sp.get_piece_size(), args.dim, args.layers, args.heads, args.hidden, args.seq,
-                   args.weights, args.head, tuple(args.int8_blocks), args.acts,
-                   {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
-                   tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
-                   tuple(args.a8_blocks), (args.k_bits, args.v_bits, args.k_scale), args.repeat,
-                   {"temp": args.attn_temp, "recent": args.kv_recent, "q_bits": args.q_bits,
-                    "k_unit": args.k_unit, "k_center": args.k_center, "sink": args.attn_sink,
-                    "gate": args.attn_gate}, args.kv_heads,
-                   tuple(args.int8_linears)).to(device)
+    model = build_model(args, sp.get_piece_size()).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)

@@ -1311,6 +1311,41 @@ longer win; its result is reported as written, and as the fastest small-cache op
 runs at the same speed (21.2 / 21.1 / 29.1 ms per token) and needs 41 KB less cache (140.8 vs 181.8 KB): it replaces
 `k1tr` as the fast option. The bytes winner stays `k1trv2` (128.0 KB, +0.011), which is ~1.5x slower.
 
+### Step 9d: why do 2-bit values beat int8 values? A cross test (rule Nov 22 2026, before measuring)
+
+**Question.** `k1trv2` (2-bit values) has a lower loss than `k1tr` (int8 values) on every seed (-0.013). Is it the
+training with 2-bit values, or the 2-bit values at inference?
+
+**What.** cross_eval.py, no training: each trained model (`k1tr`, `k1trv2`, `k1uctr`, `k1uctrv2`, 3 seeds) scored
+with int8 values and with 2-bit values, everything else as trained, on the same validation windows as train.py (the
+run's own width must reproduce its train.json loss).
+
+Rule, written before measuring (differences paired per seed, mean of 3; the threshold 0.005 is a quarter of the
+effect being explained plus the run-to-run noise of one evaluation, which is 0 here: same windows, same weights):
+1. If the 2-bit-trained model scores the same or better with int8 values (difference <= +0.005), the gain comes from
+   the TRAINING (the coarse values act during training, e.g. as noise); the 2 bits at inference add nothing.
+2. If it scores worse with int8 values (> +0.005), the model ADAPTED to the 2-bit values: the 2 bits are part of the
+   model, and int8 inference of it is not a free upgrade.
+3. The int8-trained models with 2-bit values give the price of quantizing values after training (no decision).
+
+**Result (Nov 22, 3 seeds, results/v512d64l5kv4_cross_eval.json).** Each run's own width reproduced its train.json loss
+exactly (12 / 12). "8" here is train.py's unquantized value path (bits 8 = no quantization in training), not the
+integer model's int8.
+
+| trained with | values 8 (mean) | values 2 (mean) | 8 minus 2 per seed 42 / 43 / 44 | mean |
+|---|---|---|---|---|
+| `k1tr` (8) | 2.0854 | 2.0840 | -0.0004 / +0.0015 / +0.0031 | +0.0014 |
+| `k1trv2` (2) | 2.0742 | 2.0720 | +0.0030 / +0.0021 / +0.0014 | +0.0022 |
+| `k1uctr` (8) | 2.0943 | 2.0932 | +0.0012 / +0.0020 / +0.0001 | +0.0011 |
+| `k1uctrv2` (2) | 2.1134 | 2.1091 | +0.0044 / +0.0040 / +0.0044 | +0.0043 |
+
+Answer: **rule 1** for both 2-bit-trained models (+0.0022 and +0.0043 <= 0.005): the gain of `k1trv2` comes from the
+training. Scored with unquantized values it is still 0.011 below `k1tr` (2.0742 vs 2.0854). Rule 3: 2-bit values
+cost nothing after training either: on the 1-bit-key models they are even slightly better (-0.001), on every
+model and almost every seed. So the 2-bit value cache is free at inference, and training with it adds about 0.01.
+Not explained: why coarse values help at all. A guess, not tested: the 2-bit levels (mean|v| x {-1.5, -0.5, 0.5,
+1.5}) clip the large values, which a 1-bit key's flat attention spreads over many positions.
+
 ### Speed of each cache method, one at a time (Nov 21 2026; a timing, no decision rule)
 
 **Question.** Each trick of steps 7-9b changes the attention code differently. What does each one cost or save on
