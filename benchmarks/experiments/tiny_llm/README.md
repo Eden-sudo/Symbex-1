@@ -1366,6 +1366,10 @@ Rule, written before measuring (the same "usable" line as the binary caches):
 3. The chips need a ternary linear in tinylm.c (none yet): the flash cost of the weights doubles (~0.09 -> ~0.15 MB,
    computed in step 5).
 
+**Status (Nov 22 2026).** `ternary k1trv2` seed 42 done: best validation 1.8674 (step 17000). The other five runs
+(k1trv2 seeds 43 / 44, k1utr seeds 42-44) run at night (the laptop is in use by day); no mean yet, the rule is
+applied on the 3-seed means only.
+
 ### Speed of each cache method, one at a time (Nov 21 2026; a timing, no decision rule)
 
 **Question.** Each trick of steps 7-9b changes the attention code differently. What does each one cost or save on
