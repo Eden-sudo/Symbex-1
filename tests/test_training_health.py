@@ -96,6 +96,24 @@ def _train(model, bits, batch, loss_fn, clip):
     return [w.grad if w.grad is not None else torch.zeros_like(w) for w in bits]
 
 
+def _lone(g):
+    """1-bit weights without gradient that neither a whole output channel nor a whole input column explains.
+
+    A whole output channel without gradient is its ACTIVATION saturated (|BN| > 1 over the whole batch at this large
+    learning rate), not its weights. An input tap dead for every output (a dense column, a (channel, kernel offset)
+    of a convolution) is that input constant over the batch:
+    the BatchNorm after the layer removes the batch mean of the gradient, so the column's gradient is a sum that
+    should cancel, and whether it rounds to exactly 0 or to ~1e-9 depends on the summation order, i.e. on the CPU
+    thread count (found Nov 22, 2026: the check failed with 1, 4, 6 or 16 threads). So "without gradient" is
+    |g| <= 1e-6 x max |g| of the tensor, not g == 0, and a channel or column counts as dead when its largest gradient
+    is <= 1e-4 x that maximum (the cancelled sums land at ~1e-6 of it, live columns at ~1e-1)."""
+    a = g.abs()
+    z, top = a <= 1e-6 * a.max(), 1e-4 * a.max()
+    out_dead = (a.flatten(1).amax(1) <= top).view(-1, *[1] * (g.dim() - 1))
+    in_dead = (a.amax(0, keepdim=True) <= top)
+    return z & ~out_dead & ~in_dead
+
+
 def test_binary_health_counts():
     w = [torch.tensor([0.5, -1.0, 1.2, -3.0]), torch.tensor([[0.1, -0.1]])]
     h = binary_health(w, [torch.tensor([0.5, 1.0, 1.0, -1.0]), torch.tensor([[-0.1, -0.1]])])
@@ -120,10 +138,7 @@ def test_every_recipe_keeps_its_bits_alive(resnet8, har, fomo, clip):
         h = binary_health(bits, bits0)
         beyond = torch.cat([(w.detach().abs() > 1).flatten() for w in bits])
         dead = torch.cat([(g == 0).flatten() for g in grads])
-        # a whole output channel without gradient is its ACTIVATION saturated (|BN| > 1 over the whole batch at this
-        # large learning rate), not its weights: the weight-level check counts only the rest
-        lone = torch.cat([((g == 0) & ~(g == 0).flatten(1).all(1).view(-1, *[1] * (g.dim() - 1))).flatten()
-                          for g in grads])
+        lone = torch.cat([_lone(g).flatten() for g in grads])
         assert h["flipped"] > 0, f"{name}: no bit moved in {STEPS} steps"
         if clip:
             assert h["frozen"] == 0 and h["max_abs"] <= 1.0, f"{name}: {h}"
