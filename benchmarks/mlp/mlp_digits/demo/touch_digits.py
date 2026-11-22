@@ -6,14 +6,16 @@ activations all 1 bit, test 95.56 % on scikit-learn Digits). Its C code (lib_sym
 for the PC with the library's 8-bit paths (the ones the Uno uses), so the answer on the screen is the answer the Uno
 gives. At start it is checked against the CDT's integer simulation on the 360 test images (must be 100 %).
 
-From the drawing to the network's 64 bytes, the way scikit-learn Digits was made (UCI optdigits): crop the ink, scale
-it to fit a 32x32 box (aspect kept, centered), one bit per pixel, count the ink of each 4x4 block (0-16), scale to
+From the drawing to the network's 64 bytes, the way scikit-learn Digits was made (UCI optdigits): crop the ink,
+thicken the stroke (--thicken: a max filter, so a thin line still fills half of a 4x4 block as optdigits' thick
+strokes do; 25 px raised Edén's 35 drawings from 20 to 25 right, Nov 22), scale it to fit a 32x32 box (aspect kept, centered), one bit per pixel, count the ink of each 4x4 block (0-16), scale to
 0-255. The network then keeps one bit per pixel (block >= 8 of 16): the 8x8 preview shows exactly that bit.
 
     python touch_digits.py                  # draw; the answer appears when the finger lifts
-    python touch_digits.py --score          # accuracy on the drawings saved with the keys 0-9 (samples/)
+    python touch_digits.py --score          # accuracy on the saved drawings (samples/)
 
-Keys: 0-9 save the drawing with that label (samples/<label>_<n>.png, for --score), c or Escape clears.
+Keys: 0-9 choose the digit you are going to draw (shown on screen), Enter or space saves the drawing with it
+(samples/<label>_<n>.png, for --score) and clears, c or Escape clears without saving.
 These drawings check the demo, not the network: the network's accuracy is the README's (test set, used once).
 Run from any folder; the samples/ and .build/ folders stay next to this script (gitignored).
 """
@@ -25,7 +27,7 @@ import subprocess
 import sys
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REF = os.path.join(HERE, "..", "reference")
@@ -36,6 +38,7 @@ AVR_PATHS = ["-DSYMBEX_U8_BYTEWISE", "-DSYMBEX_POPCOUNT_FORCE_LUT8", "-DSYMBEX_P
              "-DSYMBEX_PLANES_PER_NEURON"]   # lib_symbex's 8-bit paths, as on the Uno (tests/run_tests.py)
 SAMPLES = os.path.join(HERE, "samples")
 CANVAS = 400
+THICKEN = 25           # max filter size in canvas pixels (odd; 0 = off), set by --thicken
 
 
 def build():
@@ -74,6 +77,8 @@ def to_input(img):
     if box is None:
         return None
     ink = img.crop(box)
+    if THICKEN:
+        ink = ink.filter(ImageFilter.MaxFilter(THICKEN | 1))
     w, h = ink.size
     s = 32 / max(w, h)
     ink = ink.resize((max(1, round(w * s)), max(1, round(h * s))), Image.LANCZOS)
@@ -112,7 +117,9 @@ class App:
         self.view.grid(row=0, column=1, padx=8, pady=8)
         self.answer = tk.Label(self.root, text="draw a digit", font=("Helvetica", 64, "bold"), width=3)
         self.answer.grid(row=1, column=1)
-        self.info = tk.Label(self.root, text="keys 0-9: save with that label   c: clear", justify="left")
+        self.label = None
+        self.info = tk.Label(self.root, text="keys 0-9: choose the digit to draw\nEnter: save   c: clear",
+                             justify="left")
         self.info.grid(row=2, column=1, padx=8)
         tk.Button(self.root, text="Clear", font=("Helvetica", 20), command=self.clear).grid(
             row=3, column=0, sticky="ew", padx=8, pady=8)
@@ -155,24 +162,34 @@ class App:
         self.answer.config(text=str(self.predict(x)))
 
     def key(self, e):
-        if e.char.isdigit():
+        if e.char.isdigit():                                            # the digit about to be drawn
+            self.label = e.char
+            self.info.config(text=f"drawing a {self.label}\nEnter: save   c: clear   0-9: other digit")
+        elif e.keysym in ("Return", "KP_Enter", "space"):
+            if self.label is None:
+                self.info.config(text="press 0-9 first: the digit you draw\nEnter: save   c: clear")
+                return
             if self.img.getbbox() is None:
                 return
             os.makedirs(SAMPLES, exist_ok=True)
-            n = len(glob.glob(os.path.join(SAMPLES, f"{e.char}_*.png")))
-            self.img.save(os.path.join(SAMPLES, f"{e.char}_{n:03d}.png"))
+            n = len(glob.glob(os.path.join(SAMPLES, f"{self.label}_*.png")))
+            self.img.save(os.path.join(SAMPLES, f"{self.label}_{n:03d}.png"))
             total = len(glob.glob(os.path.join(SAMPLES, "*.png")))
-            self.info.config(text=f"saved as {e.char} ({total} drawings)\nkeys 0-9: save   c: clear")
+            self.info.config(text=f"saved as {self.label} ({total} drawings)\nEnter: save   c: clear   0-9: other digit")
             self.clear()
         elif e.keysym in ("c", "Escape"):
             self.clear()
 
 
 def main():
+    global THICKEN
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--score", action="store_true", help="accuracy on the saved drawings (samples/), no window")
     ap.add_argument("--pen", type=int, default=32, help="pen width in pixels of the 400x400 canvas (default 32)")
+    ap.add_argument("--thicken", type=int, default=THICKEN,
+                    help=f"stroke thickening before the reduction, max filter in canvas pixels (default {THICKEN}, 0 = off)")
     args = ap.parse_args()
+    THICKEN = args.thicken
     predict = build()
     check(predict)
     if args.score:
