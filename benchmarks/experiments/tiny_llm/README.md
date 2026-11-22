@@ -1277,6 +1277,18 @@ Rules, written before measuring:
 `k1uctrv2` passes rule 1 on the mean (+0.0148 < 0.02), so its cache goes from 141 to 87 KB. One seed (44) costs +0.038.
 Against the int8 cache (2.0613) it is +0.048, outside the "usable" line of 0.03, as `k1uctr` already was (+0.033).
 
+### Step 9c: unit keys without the center (rule Nov 22 2026, before measuring)
+
+**Question.** The speed table shows the center as the slow part of `k1uctr` (+190-230 us per head), and step 9 found
+that the center adds nothing once the window and the temperature are there. Does the pure sign of the key (1 byte per
+head and position, no per-token scale, no center) with the window and the temperature stay usable?
+
+**What.** `k1utr`: `--k-bits 1 --k-unit --attn-temp --kv-recent 32`, values int8, same recipe, 3 seeds, validation.
+Cache 140.8 KB (computed), attention as fast as `k1tr` (timed: 21.2 / 21.1 / 29.1 ms per token).
+
+Rule, written before measuring: `k1utr` replaces `k1tr` as the winner if it is usable (< +0.03 against the int8 cache
+2.0613): under the rule in use it then has the fewest bytes. Otherwise `k1tr` stays.
+
 ### Speed of each cache method, one at a time (Nov 21 2026; a timing, no decision rule)
 
 **Question.** Each trick of steps 7-9b changes the attention code differently. What does each one cost or save on

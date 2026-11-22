@@ -716,3 +716,5 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
 - Nov 21 13:40: step 9b k1uctrv2 done, 3 seeds: 2.1091 ± 0.0133 vs k1uctr 2.0943 (+0.0148, paired +0.005 / +0.001 /
   +0.038): passes rule 1 on the mean, cache 87 KB; +0.048 vs the int8 cache (not usable under 0.03, like k1uctr).
   Queue paused at Edén's request (GPU needed); k1trv2 3 seeds left: relaunch step9b_queue.sh (skips done runs).
+- Nov 22 00:23: queue resumed (night_queue_1122.sh): k1trv2 3 seeds, then step 9c k1utr (unit keys, no center, window +
+  temp; rule in README before measuring). ~9 h.
