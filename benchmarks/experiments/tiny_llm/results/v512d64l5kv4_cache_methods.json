@@ -219,7 +219,7 @@
    }
   },
   {
-   "method": "k1u + window + temp (no center)",
+   "method": "k1utr (step 9c)",
    "key": "u",
    "value": "i8",
    "window": 32,
@@ -275,9 +275,9 @@
    "window": 32,
    "temperature": true,
    "center": false,
-   "val_loss": null,
-   "val_sd": null,
-   "vs_int8_cache": null,
+   "val_loss": 2.072,
+   "val_sd": 0.004,
+   "vs_int8_cache": 0.0107,
    "kv_ram_bytes": 128000,
    "flash_data_bytes": 184,
    "ops": [

@@ -1,7 +1,7 @@
 """
 cache_methods_table.py -- one table of the 260K's KV cache methods: accuracy, cache RAM, speed and flash cost.
 
-Gathers what steps 6-9b measured (README "Step 6" / "Step 9" / "Step 9b", "Speed of each cache method") and adds
+Gathers what steps 6-9c measured (README "Step 6" / "Step 9" / "Step 9b" / "Step 9c", "Speed of each cache method") and adds
 two things computed here:
     KV RAM      bytes of the cache at ctx 512, 20 key / value heads of width 8 (5 layers x 4), c/tinylm.c's layout:
                 int8 8 bytes + int32 scale per position; 1 bit 1 + 4; unit 1 bit 1; 2 bits 2 + 4; window slot 8 + 4
@@ -61,7 +61,7 @@ METHODS = [
     ("k1tr", ("k1", "k1tr"), "1", "i8", 1, 1, 0, ("s_k1_win", "sm_temp", "v_i8")),
     ("k1ctr", ("k1", "k1ctr"), "1", "i8", 1, 1, 1, None),
     ("k1uctr", ("k1", "k1uctr"), "u", "i8", 1, 1, 1, ("s_k1uc_win", "sm_temp", "v_i8")),
-    ("k1u + window + temp (no center)", (None, None), "u", "i8", 1, 1, 0, ("s_k1u_win", "sm_temp", "v_i8")),
+    ("k1utr (step 9c)", ("u", "k1utr"), "u", "i8", 1, 1, 0, ("s_k1u_win", "sm_temp", "v_i8")),
     ("k2c (step 7)", ("k2c", None), "2", "i8", 0, 0, 1, None),
     ("k1trv2 (step 9b)", ("v2", "k1trv2"), "1", "2", 1, 1, 0, ("s_k1_win", "sm_temp", "v2_win")),
     ("k1uctrv2 (step 9b)", ("v2", "k1uctrv2"), "u", "2", 1, 1, 1, ("s_k1uc_win", "sm_temp", "v2_win")),
@@ -74,6 +74,8 @@ def losses():
     t = json.load(open(os.path.join(r, "v512d64l5kv4_temp.json")))["runs"]["binary"]
     v2p = os.path.join(r, "v512d64l5kv4_v2_train.json")
     v2 = json.load(open(v2p))["runs"] if os.path.exists(v2p) else {}
+    up = os.path.join(r, "v512d64l5kv4_k1utr_train.json")
+    v2.update(json.load(open(up))["runs"] if os.path.exists(up) else {})
     out = {"base": k1["baseline_int8_cache"], "temp": {"mean": t["mean"], "sd": t["sd"]}, "k2c": k1["k2c_step7"]}
     return out, k1["runs"], v2
 
@@ -127,7 +129,7 @@ def main():
     for name, (src, run), k, v, win, temp, center, ops in METHODS:
         if src in ("k1",):
             lo = k1runs.get(run)
-        elif src == "v2":
+        elif src in ("v2", "u"):
             lo = v2runs.get(run)
         elif src:
             lo = loss_fixed[src]

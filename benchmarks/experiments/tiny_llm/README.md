@@ -1268,14 +1268,22 @@ Rules, written before measuring:
 2. A run whose loss rises by more than the larger sd beyond rule 1 goes back to int8 values. The cost is then
    reported as the price of short sums: fan-in 8 against 64 at 15.7 M (section 4 of SYNTHESIS.md).
 
-**Result so far (Nov 21; `k1trv2` paused, not run yet).** results/v512d64l5kv4_v2_train.json.
+**Result (Nov 21-22, 3 seeds each).** results/v512d64l5kv4_v2_train.json.
 
 | run | seed 42 / 43 / 44 | mean ± sd | int8-value twin | difference (paired per seed) |
 |---|---|---|---|---|
+| `k1trv2` | 2.0728 / 2.0677 / 2.0756 | 2.0720 ± 0.0040 | `k1tr` 2.0854 ± 0.0070 | -0.0134 (-0.0048 / -0.0234 / -0.0119) |
 | `k1uctrv2` | 2.1217 / 2.0952 / 2.1105 | 2.1091 ± 0.0133 | `k1uctr` 2.0943 ± 0.0219 | +0.0148 (+0.0054 / +0.0012 / +0.0379) |
 
 `k1uctrv2` passes rule 1 on the mean (+0.0148 < 0.02), so its cache goes from 141 to 87 KB. One seed (44) costs +0.038.
 Against the int8 cache (2.0613) it is +0.048, outside the "usable" line of 0.03, as `k1uctr` already was (+0.033).
+
+`k1trv2` passes rule 1 too, and its loss is LOWER than its int8-value twin on all 3 seeds (-0.013 on the mean,
+about 2 sd of `k1tr`). Against the int8 cache it is +0.011: usable, at 128 KB (from 182 KB). Under the ranking rule
+in use (usable, then fewest bytes) **`k1trv2` is the new winner**. Its price is speed: 31.8 / 33.7 / 40.6 ms per
+token against `k1tr`'s 21.3 / 21.1 / 29.2 (the 2-bit values with the current decoding; a byte table is listed below
+as an idea). Why 2-bit values train better than int8 ones here is not known; one possibility is that the coarse
+values act as noise / regularization during training (not tested).
 
 ### Step 9c: unit keys without the center (rule Nov 22 2026, before measuring)
 
@@ -1288,6 +1296,10 @@ Cache 140.8 KB (computed), attention as fast as `k1tr` (timed: 21.2 / 21.1 / 29.
 
 Rule, written before measuring: `k1utr` replaces `k1tr` as the winner if it is usable (< +0.03 against the int8 cache
 2.0613): under the rule in use it then has the fewest bytes. Otherwise `k1tr` stays.
+
+Note (Nov 22, after `k1trv2` finished, before `k1utr` finished): this rule was written when `k1tr` was the
+winner. `k1trv2` (128.0 KB) now has fewer bytes than `k1utr` (140.8 KB), so under the bytes rule `k1utr` can no
+longer win; its result is reported as written, and as the fastest small-cache option if usable.
 
 ### Speed of each cache method, one at a time (Nov 21 2026; a timing, no decision rule)
 
@@ -1358,12 +1370,12 @@ cache_methods_table.py gathers each method's validation loss (3 seeds), cache RA
 | + temperature | 2.0510 (-0.010) | 245.8 KB | 29.8 / 27.6 / 36.3 | 160 B | +147 / +124 / +150 B |
 | `k1` | 2.8593 (+0.798) | 174.1 KB | 18.1 / 17.0 / 20.7 | 24 B | +110 / +104 / +84 B |
 | `k1c` | 2.1415 (+0.080) | 174.1 KB | 25.8 / 26.4 / 30.6 | 664 B | +281 / +312 / +340 B |
-| **`k1tr`** | **2.0854 (+0.024)** | **181.8 KB** | **21.3 / 21.1** / 29.2 | 184 B | +345 / +310 / +338 B |
+| `k1tr` | 2.0854 (+0.024) | 181.8 KB | **21.3 / 21.1** / 29.2 | 184 B | +345 / +310 / +338 B |
 | `k1ctr` | 2.0915 (+0.030) | 181.8 KB | not timed | 824 B | not timed |
 | `k1uctr` | 2.0943 (+0.033) | 140.8 KB | 28.4 / 29.3 / 38.2 | 824 B | +511 / +508 / +592 B |
-| unit keys + window + temp, no center | not trained | 140.8 KB | 21.2 / 21.1 / 29.1 | 184 B | +323 / +300 / +338 B |
+| `k1utr` (step 9c) | running | 140.8 KB | 21.2 / 21.1 / 29.1 | 184 B | +323 / +300 / +338 B |
 | `k2c` (step 7) | 2.1101 (+0.049) | 184.3 KB | not timed | 664 B | not timed |
-| `k1trv2` (step 9b) | running | 128.0 KB | 31.8 / 33.7 / 40.6 | 184 B | +474 / +442 / +580 B |
+| **`k1trv2`** (step 9b) | **2.0720 (+0.011)** | **128.0 KB** | 31.8 / 33.7 / 40.6 | 184 B | +474 / +442 / +580 B |
 | `k1uctrv2` (step 9b) | 2.1091 (+0.048) | 87.0 KB | 38.9 / 42.0 / 49.6 | 824 B | +640 / +640 / +834 B |
 
 The methods:
@@ -1379,9 +1391,10 @@ The methods:
 - **v2:** the value at 2 bits.
 
 Ranking rule in use (README "KV cache", 15.7 M): a method is usable if it costs < +0.03 against the int8 cache; among
-the usable ones, the fewest bytes win. Speed was never part of that rule. Under it, **`k1tr` wins** (181.8 KB,
-+0.024). It is also the fastest usable method on the ESP32 (1.28x) and the M33 (1.14x). On Hazard3 the int8 cache
-is still faster (28.3 vs 29.2 ms) because of the temperature's divisions. `k1uctr` (+0.033) misses the 0.03 line.
+the usable ones, the fewest bytes win. Speed was never part of that rule. Under it, **`k1trv2` wins** (128.0 KB,
++0.011, step 9b, Nov 22); before it, `k1tr` (181.8 KB, +0.024), which stays
+the fastest usable method on the ESP32 (1.28x) and the M33 (1.14x); `k1trv2` is slower than the int8 cache on all
+three cores (2-bit decoding). On Hazard3 the int8 cache is also faster than `k1tr` (28.3 vs 29.2 ms) because of the temperature's divisions. `k1uctr` (+0.033) misses the 0.03 line.
 
 ### The comparison point on the chip: the same 260K in fp32 with llama2.c (rule Nov 20 2026, before measuring)
 

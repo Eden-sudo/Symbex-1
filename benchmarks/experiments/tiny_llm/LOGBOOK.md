@@ -718,3 +718,12 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   Queue paused at Edén's request (GPU needed); k1trv2 3 seeds left: relaunch step9b_queue.sh (skips done runs).
 - Nov 22 00:23: queue resumed (night_queue_1122.sh): k1trv2 3 seeds, then step 9c k1utr (unit keys, no center, window +
   temp; rule in README before measuring). ~9 h.
+
+## Nov 22 2026, 04:50 — step 9b done: k1trv2 wins on bytes
+
+- k1trv2 (k1tr + 2-bit values), 3 seeds, validation: 2.0728 / 2.0677 / 2.0756 = 2.0720 ± 0.0040. Paired vs k1tr
+  -0.0048 / -0.0234 / -0.0119 (lower on every seed). Rule 1 passes. +0.011 vs the int8 cache: usable at 128 KB ->
+  new winner under the bytes rule (was k1tr 181.8 KB). Slower: 31.8 / 33.7 / 40.6 ms per token vs 21.3 / 21.1 / 29.2.
+- Why 2-bit values beat int8 values in training is not known (regularization? not tested).
+- Step 9c premise changed: k1utr (140.8 KB) cannot win on bytes any more; reported as written.
+- k1utr s42 started 04:48 (queue PID 1794355), s43 / s44 after.
