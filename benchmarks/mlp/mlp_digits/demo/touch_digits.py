@@ -13,6 +13,10 @@ strokes do; 25 px raised Edén's 35 drawings from 20 to 25 right, Nov 22), scale
 
     python touch_digits.py                  # draw; the answer appears when the finger lifts
     python touch_digits.py --score          # accuracy on the saved drawings (samples/)
+    python touch_digits.py --port /dev/ttyUSB1   # the Uno answers each drawing (PC answer shown next to it)
+
+--port: the Uno must hold chip_test.py's AVR firmware with the same model (tools/chip_test.py <folder with the XNOR
+header as model_symbex.h> --board uno --port ...): it reads 0xA5 + the 64 bytes and answers "R:class,us,...".
 
 Keys: 0-9 choose the digit you are going to draw (shown on screen), Enter or space saves the drawing with it
 (samples/<label>_<n>.png, for --score) and clears, c or Escape clears without saving.
@@ -73,6 +77,31 @@ def check(predict, model=REF):
         sys.exit("[X] not exact: the demo would not show what the Uno answers")
 
 
+class Uno:
+    """the Uno with chip_test.py's AVR firmware (model_test_avr.cpp): 0xA5 + 64 bytes -> 'R:class,total_us,...'"""
+    def __init__(self, port):
+        import serial
+        import time
+        self.s = serial.Serial(port, 115200, timeout=3)     # opening the port resets the Uno (DTR)
+        t0 = time.time()
+        while b"SYMBEX ready" not in self.s.readline():
+            if time.time() - t0 > 8:
+                sys.exit(f"[X] no 'SYMBEX ready' from {port}: flash the model with tools/chip_test.py --board uno")
+        self.s.reset_input_buffer()
+        print(f"[*] Uno ready on {port}")
+
+    def __call__(self, x):
+        """(class, microseconds) the Uno answers for one 64-byte input"""
+        self.s.write(b"\xa5" + bytes(np.asarray(x, dtype=np.uint8)))
+        while True:
+            line = self.s.readline().decode(errors="replace").strip()
+            if not line:
+                sys.exit("[X] the Uno did not answer")
+            if line.startswith("R:"):
+                f = line[2:].split(",")
+                return int(f[0]), int(f[1])
+
+
 def to_input(img):
     """drawing (PIL 'L', ink = 255) -> the 64 uint8 pixels of a scikit-learn Digits image, or None if empty"""
     box = img.getbbox()
@@ -108,9 +137,9 @@ def score(predict):
 
 
 class App:
-    def __init__(self, predict, pen):
+    def __init__(self, predict, pen, uno=None):
         import tkinter as tk
-        self.predict, self.pen = predict, pen
+        self.predict, self.pen, self.uno = predict, pen, uno
         self.root = tk.Tk()
         self.root.title("SYMBEX-1: a 1-bit network reads your digit (Arduino Uno model)")
         self.canvas = tk.Canvas(self.root, width=CANVAS, height=CANVAS, bg="white", cursor="pencil")
@@ -161,7 +190,14 @@ class App:
             if v >= 128:                                                # the bit the network keeps
                 r, c = divmod(i, 8)
                 self.view.create_rectangle(c * 20, r * 20, c * 20 + 19, r * 20 + 19, fill="white", width=0)
-        self.answer.config(text=str(self.predict(x)))
+        pc = self.predict(x)
+        if self.uno is None:
+            self.answer.config(text=str(pc))
+            return
+        c, us = self.uno(x)
+        self.answer.config(text=str(c), fg="black" if c == pc else "red")
+        self.root.title(f"SYMBEX-1: the Arduino Uno read {c} in {us / 1000:.2f} ms (PC: {pc}"
+                        f"{', equal' if c == pc else ', DIFFERENT'})")
 
     def key(self, e):
         if e.char.isdigit():                                            # the digit about to be drawn
@@ -193,6 +229,7 @@ def main():
     ap.add_argument("--model", choices=sorted(MODELS), default="reference",
                     help="reference: the benchmark's model; demo: the same network trained on augmented drawings "
                          "(augment_data.py + symbex_demo.toml)")
+    ap.add_argument("--port", help="serial port of the Uno (it answers each drawing; flash it first with chip_test.py)")
     args = ap.parse_args()
     THICKEN = args.thicken
     predict = build(MODELS[args.model])
@@ -200,7 +237,7 @@ def main():
     if args.score:
         score(predict)
     else:
-        App(predict, args.pen).root.mainloop()
+        App(predict, args.pen, Uno(args.port) if args.port else None).root.mainloop()
 
 
 if __name__ == "__main__":
