@@ -1,0 +1,47 @@
+{
+ "what": "260K step 10: ternary weights + small caches (README Step 10), lr 3e-3, 20000 steps, validation, 3 seeds; reference ternary + temperature, int8 cache 1.8199 +- 0.0059 (step 6); rule: usable if mean < 1.8199 + 0.03",
+ "runs": {
+  "ternary_k1trv2": {
+   "val_loss": [
+    1.8674,
+    1.8687,
+    1.8609
+   ],
+   "mean": 1.8657,
+   "sd": 0.0042,
+   "delta_vs_ref": 0.0458,
+   "usable": false,
+   "best_step": [
+    17000,
+    20000,
+    18500
+   ],
+   "minutes": [
+    89.49,
+    89.19,
+    88.81
+   ]
+  },
+  "ternary_k1utr": {
+   "val_loss": [
+    1.8638,
+    1.8609,
+    1.8653
+   ],
+   "mean": 1.8633,
+   "sd": 0.0022,
+   "delta_vs_ref": 0.0434,
+   "usable": false,
+   "best_step": [
+    18000,
+    19500,
+    18500
+   ],
+   "minutes": [
+    83.13,
+    82.09,
+    80.89
+   ]
+  }
+ }
+}

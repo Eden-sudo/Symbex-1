@@ -1366,9 +1366,22 @@ Rule, written before measuring (the same "usable" line as the binary caches):
 3. The chips need a ternary linear in tinylm.c (none yet): the flash cost of the weights doubles (~0.09 -> ~0.15 MB,
    computed in step 5).
 
-**Status (Nov 22 2026).** `ternary k1trv2` seed 42 done: best validation 1.8674 (step 17000). The other five runs
-(k1trv2 seeds 43 / 44, k1utr seeds 42-44) run at night (the laptop is in use by day); no mean yet, the rule is
-applied on the 3-seed means only.
+**Result** (Nov 23 2026, [`results/v512d64l5kv4_step10_train.json`](results/v512d64l5kv4_step10_train.json)):
+
+| run | validation loss (s42 / s43 / s44) | mean ± sd | vs 1.8199 | rule 1 (< +0.03) |
+|---|---|---|---|---|
+| `ternary k1trv2` | 1.8674 / 1.8687 / 1.8609 | 1.8657 ± 0.0042 | +0.0458 | fails |
+| `ternary k1utr` | 1.8638 / 1.8609 / 1.8653 | 1.8633 ± 0.0022 | +0.0434 | fails |
+
+For comparison, the same caches on binary weights (steps 9b / 9c) cost +0.021 (`k1trv2` 2.0720) and +0.031
+(`k1utr` 2.0822) over the binary + temperature reference 2.0510.
+
+**Answer.** Neither run is usable (rule 1), so rule 2 applies: **ternary keeps the int8 cache, and binary `k1trv2`
+is the model carried to intsim / C / chips**. The small caches cost the ternary model about twice what they cost
+the binary one (+0.043-0.046 vs +0.021-0.031). In absolute terms, ternary with a small cache is still 0.21 below
+binary with the same cache (1.8657 vs 2.0720). That is a bytes question the rule does not settle: ternary weights
+double the flash of the weights (step 5). Not explained: why the better model loses more to the same cache. A
+guess, not tested: sharper attention in the ternary model leans more on the exact keys.
 
 ### Speed of each cache method, one at a time (Nov 21 2026; a timing, no decision rule)
 

@@ -753,3 +753,10 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   been switched to demo/digits-touch, whose older train.py has no --kv-heads / --vocab. Lesson: long queues run from
   their own worktree (~/Proyectos/Symbex1_llm on exp/llm-260k, runs/ and data/tinystories symlinked to the main
   folder). Relaunched 10:40 (queue PID 3642439, skips s42); end ~18:10 (estimate).
+
+## Nov 23 2026, 07:44 — step 10 done (night queue, relaunched 00:39)
+
+- ternary k1trv2 1.8657 ± 0.0042 (+0.046), ternary k1utr 1.8633 ± 0.0022 (+0.043) vs 1.8199: both fail rule 1
+  (< +0.03). Rule 2: ternary keeps the int8 cache, binary k1trv2 (2.0720, +0.021) goes to intsim / C / chips.
+  Small caches cost ternary ~2x what they cost binary; ternary + small cache still 0.21 below binary + small cache
+  (more weight bytes: not covered by the rule). results/v512d64l5kv4_step10_train.json.
