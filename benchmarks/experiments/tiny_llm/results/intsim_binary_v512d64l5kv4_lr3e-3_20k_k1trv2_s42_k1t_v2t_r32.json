@@ -1,0 +1,31 @@
+{
+  "run": "binary_v512d64l5kv4_lr3e-3_20k_k1trv2_s42",
+  "weights": "binary",
+  "kv_bits": 8,
+  "kv": {
+    "k_bits": 1,
+    "v_bits": 2,
+    "k_mode": "token",
+    "v_mode": "token",
+    "qjl_m": 128,
+    "keep_first": false,
+    "qjl_seed": 0,
+    "k_scale": 1.0,
+    "v_scale": 1.0,
+    "recent": 32,
+    "p_cut": null
+  },
+  "kv_tag": "k1t_v2t_r32",
+  "trained_kv": [
+    1,
+    2,
+    1.0
+  ],
+  "val_windows": 1024,
+  "val_loss_float": 2.0842,
+  "val_loss_integer": 2.0846,
+  "val_perplexity_float": 8.038,
+  "val_perplexity_integer": 8.041,
+  "next_token_agreement_float_vs_integer": 0.9729,
+  "sample_integer": "Once upon a time, in a small, boy named Tim. He loved to play with his friends. One day, a little boy named Tim went to the park. He saw a big boy. He was very happy. He wanted to play with his toys. He was very happy. He wanted to help his friends. He was very happy. He wanted to play with his toys. He was very happy. He was very happy. He wanted to help his friends"
+}

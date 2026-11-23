@@ -760,3 +760,13 @@ Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses b
   (< +0.03). Rule 2: ternary keeps the int8 cache, binary k1trv2 (2.0720, +0.021) goes to intsim / C / chips.
   Small caches cost ternary ~2x what they cost binary; ternary + small cache still 0.21 below binary + small cache
   (more weight bytes: not covered by the rule). results/v512d64l5kv4_step10_train.json.
+
+## Nov 23 2026, ~11:00 — step 11: binary k1trv2 in intsim / C / chips (Edén: "si adelante")
+
+- First intsim runs had no cache flags (simulated the int8 cache: +0.04); renamed intsim_wrong_kv8.json, rerun with
+  --k-bits 1 --v-bits 2 --kv-recent 32: +0.0004 / +0.0010 / +0.0003. intsim does not warn when the flags differ
+  from the trained cache (to fix).
+- tinylm.c low-bit cache: any head width up to 64 (att_d), GQA (store per key head, score per query head),
+  seq <= 1024. PC exact 3 seeds x 3 kernels (ASan + UBSan); old 260K int8 and 15.7 M low-bit still exact.
+- Chips, 3 seeds each, all exact: ESP32 35.88 vs 40.15 tok/s, 184 vs 72 KB free; M33 27.75 vs 31.84, 347 vs 235;
+  Hazard3 29.22 vs 35.38, 340 vs 228. main.cpp fail("step") now built and run on the boards.

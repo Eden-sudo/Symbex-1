@@ -318,13 +318,13 @@ static int32_t mean_abs(const int32_t *x, int n) {   /* rdiv(sum |x|, n), >= 1 *
     return m < 1 ? 1 : (int32_t)m;
 }
 
-/* store position t (key kh after RoPE, value vh) and the scores u_j of query qq: int8 keys of the window (t - j <
-   kv_recent), sign keys before it: qq . sign = 2 * (sum of qq where the key bit is 1) - sum qq, 8 lookups in the
-   subset sums of qq (s->lut: free between q k v and o) */
-static void low_bit_scores(const TinyModel *m, TinyState *s, int l, int h, int t, const int8_t *qq,
-                           const int32_t *kh, const int32_t *vh, int64_t *u, int64_t *umax) {
+/* store position t of key / value head hk (key kh after RoPE, value vh). Grouped-query attention: the cache holds
+   the kv_heads heads once; intsim repeats each one for its heads / kv_heads query heads before quantizing per
+   token, which gives the same integers. */
+static void low_bit_store(const TinyModel *m, TinyState *s, int l, int hk, int t, const int32_t *kh,
+                          const int32_t *vh) {
     const int hd = m->dim / m->heads, N = m->kv_recent, slot = t % N;
-    const long lh = (long)l * m->heads + h;
+    const long lh = (long)l * m->kv_heads + hk;
     uint8_t *kb = s->kb + lh * m->seq * (hd / 8), *vb = s->vb + lh * hd * (m->seq / 4);
     int32_t *km1 = s->km1 + lh * m->seq, *vm2 = s->vm2 + lh * m->seq;
     int8_t *k8 = s->k8 + lh * N * hd, *v8 = s->v8 + lh * N * hd;
@@ -356,6 +356,19 @@ static void low_bit_scores(const TinyModel *m, TinyState *s, int l, int h, int t
     vm8[slot] = quant8(vh, hd, v8 + (long)slot * hd);
 #endif
     TINYLM_PROF(8);
+}
+
+/* the scores u_j of query qq on key head hk: int8 keys of the window (t - j < kv_recent), sign keys before it:
+   qq . sign = 2 * (sum of qq where the key bit is 1) - sum qq, hd / 8 lookups in the subset sums of qq (s->lut:
+   free between q k v and o) */
+static void low_bit_scores(const TinyModel *m, TinyState *s, int l, int hk, int t, const int8_t *qq, int64_t *u,
+                           int64_t *umax) {
+    const int hd = m->dim / m->heads, N = m->kv_recent;
+    const long lh = (long)l * m->kv_heads + hk;
+    const uint8_t *kb = s->kb + lh * m->seq * (hd / 8);
+    const int32_t *km1 = s->km1 + lh * m->seq;
+    const int8_t *k8 = s->k8 + lh * N * hd;
+    const int32_t *km8 = s->km8 + lh * N;
 
     const int nw = t + 1 < N ? t + 1 : N;        /* filled window slots */
 #ifdef TINYLM_DOT_ROWS
@@ -399,9 +412,9 @@ static void low_bit_scores(const TinyModel *m, TinyState *s, int l, int h, int t
    Only the positions with p != 0 (the cut, TINYLM_P_CUT): s->p, s->vmj and s->vdec are packed to the n positions
    kept (returned), the others add 0 to the sums, so the result is the same integers. Transposed (U8): by groups of
    4 positions (one byte of the 2-bit cache) with some p != 0; plain: position by position. */
-static int low_bit_values(const TinyModel *m, TinyState *s, int l, int h, int t) {
+static int low_bit_values(const TinyModel *m, TinyState *s, int l, int hk, int t) {
     const int hd = m->dim / m->heads, N = m->kv_recent;
-    const long lh = (long)l * m->heads + h;
+    const long lh = (long)l * m->kv_heads + hk;
     const uint8_t *vb = s->vb + lh * hd * (m->seq / 4);
     const int32_t *vm2 = s->vm2 + lh * m->seq, *vm8 = s->vm8 + lh * N;
     const int8_t *v8 = s->v8 + lh * N * hd;
@@ -420,7 +433,7 @@ static int low_bit_values(const TinyModel *m, TinyState *s, int l, int h, int t)
     /* groups g < gf hold 4 positions before the window: kept if one has p != 0 (kg); then the tail 4 gf..t as
        before (the partial group, then the window) */
     const int gf = j0 / 4, s0 = j0 % N, n1 = t - j0 + 1 < N - s0 ? t - j0 + 1 : N - s0;
-    uint8_t kg[(258 + 3) / 4];                      /* seq <= 258: tinylm_load */
+    uint8_t kg[256];                                /* seq <= 1024: tinylm_load */
     int ng = 0;
     for (int g = 0; g < gf; g++) {
         const uint16_t *pg = p + 4 * g;
@@ -491,7 +504,13 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
         run_linear(&B->k, s, hm, s->k);
         run_linear(&B->v, s, hm, s->v);
         TINYLM_PROF(1);
-        if (!m->kv_recent)      /* the int8 cache: position t of every cached head (grouped-query: kv_heads of them) */
+        if (m->kv_recent)       /* the low-bit cache: position t of every cached head */
+            for (int g = 0; g < m->kv_heads; g++) {
+                int32_t *kh = s->k + g * hd;
+                rope(kh, C, S, hd);
+                low_bit_store(m, s, l, g, t, kh, s->v + g * hd);
+            }
+        else                    /* the int8 cache: position t of every cached head (grouped-query: kv_heads of them) */
             for (int g = 0; g < m->kv_heads; g++) {
                 int32_t *kh = s->k + g * hd;
                 rope(kh, C, S, hd);
@@ -518,11 +537,9 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             int64_t umax = INT64_MIN;
             int8_t *vqh;
             int32_t *vmh;
-            if (m->kv_recent) {     /* kv_heads == heads (tinylm_load) */
-                int32_t *kh = s->k + h * hd;
-                rope(kh, C, S, hd);
+            if (m->kv_recent) {     /* key head h / grp (stored above) */
                 vqh = (int8_t *)s->vdec; vmh = s->vmj;
-                low_bit_scores(m, s, l, h, t, qq, kh, s->v + h * hd, u, &umax);
+                low_bit_scores(m, s, l, h / grp, t, qq, u, &umax);
             } else {
             /* the cache of head h's key / value head: positions 0..seq-1 one after another (read in order) */
             const int g = h / grp;
@@ -548,18 +565,19 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             TINYLM_PROF(9);
             int64_t P = 0;
             if (m->tq) {
-                /* learned temperature: x = (floor(n / (16129 << 10)) * tq) >> 26 (intsim.attention); p = 0 from
-                   x >= 2048, i.e. floor(n >> 10 / 16129) >= lim = ceil(2^37 / tq): below it n >> 10 < 2^48
-                   (tq >= 8: tinylm_load) and the division takes two 32-bit steps */
+                /* learned temperature: x = (floor(n / (att_d << 10)) * tq) >> 26 (intsim.attention); p = 0 from
+                   x >= 2048, i.e. floor(n >> 10 / att_d) >= lim = ceil(2^37 / tq): below it n >> 10 < 2^48 (tq >= 8,
+                   att_d < 2^14: tinylm_load) and the division takes two 32-bit steps */
                 const uint64_t tq = (uint64_t)m->tq[l * m->heads + h];
-                const uint64_t cut = ((((uint64_t)1 << 37) + tq - 1) / tq) * 16129u;
+                const uint32_t ad = (uint32_t)m->att_d;
+                const uint64_t cut = ((((uint64_t)1 << 37) + tq - 1) / tq) * ad;
                 for (int j = 0; j <= t; j++) {
                     const uint64_t n10 = (uint64_t)((umax - u[j]) * qm) >> 10;
                     uint32_t xi = TINYLM_EXP_N;
                     if (n10 < cut) {
-                        const uint32_t a = (uint32_t)(n10 >> 16), q1 = a / 16129u;
-                        const uint32_t lo = ((a - q1 * 16129u) << 16) | (uint32_t)(n10 & 0xFFFF);
-                        const uint64_t x0 = ((uint64_t)q1 << 16) + lo / 16129u;
+                        const uint32_t a = (uint32_t)(n10 >> 16), q1 = a / ad;
+                        const uint32_t lo = ((a - q1 * ad) << 16) | (uint32_t)(n10 & 0xFFFF);
+                        const uint64_t x0 = ((uint64_t)q1 << 16) + lo / ad;
                         xi = (uint32_t)((x0 * tq) >> 26);
                     }
                     s->p[j] = xi < TINYLM_P_CUT ? m->exp_t[xi] : 0;
@@ -578,7 +596,7 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             }
             TINYLM_PROF(10);
             /* the positions the values read: 0..t, or (low-bit cache) the n kept by low_bit_values, packed */
-            const int nv = m->kv_recent ? low_bit_values(m, s, l, h, t) : t + 1;   /* counted with the values */
+            const int nv = m->kv_recent ? low_bit_values(m, s, l, h / grp, t) : t + 1;   /* counted with the values */
             int64_t acc[256];
 #ifdef TINYLM_DOT_ROWS_U8
             /* acc_i = sum_j pv_j vq_ji, pv_j = p_j vm_j < 2^47 (p < 2^16, vm < 2^31), as row products of the transposed
@@ -871,10 +889,10 @@ int tinylm_load(TinyModel *m, const uint8_t *buf, long size) {
         int32_t f[4];
         memcpy(f, tr, 16);
         memcpy(&m->k_scale, tr + 16, 8);
-        /* the low-bit cache: 64-wide heads (the tempered division), no grouped-query attention, seq <= 258 (its
-           buffers) */
+        /* the low-bit cache: heads up to 64 wide (att_d < 2^14: the tempered division), grouped-query attention,
+           seq <= 1024 (the value groups of low_bit_values) */
         if (f[0] != TINYLM_KVLB_MAGIC || f[1] != 1 || f[2] != 2 || f[3] < 1 || f[3] > m->seq || m->seq % 4 ||
-            !(m->k_scale > 0 && m->k_scale < 64) || hd != 64 || m->kv_heads != m->heads || m->seq > 258)
+            !(m->k_scale > 0 && m->k_scale < 64) || m->att_d >= 16384 || m->seq > 1024)
             return -1;
         m->kv_recent = f[3];
         m->tq = (const int32_t *)take(&p, end, 4L * m->layers * m->heads);
@@ -894,7 +912,7 @@ int tinylm_state_init(TinyState *s, const TinyModel *m) {
     const int scr = big > 2 * m->seq ? big : 2 * m->seq;
     memset(s, 0, sizeof(*s));
     if (m->kv_recent) {     /* the low-bit cache (tinylm.h) instead of the int8 one */
-        const long lh = (long)m->layers * m->heads, N = m->kv_recent;
+        const long lh = (long)m->layers * m->kv_heads, N = m->kv_recent;
         s->kb = TINYLM_MALLOC_BIG(lh * m->seq * hd / 8); s->vb = TINYLM_MALLOC_BIG(lh * hd * m->seq / 4);
         s->km1 = TINYLM_MALLOC_BIG(4 * lh * m->seq); s->vm2 = TINYLM_MALLOC_BIG(4 * lh * m->seq);
         s->k8 = TINYLM_MALLOC_BIG(lh * N * hd + 16); s->v8 = TINYLM_MALLOC_BIG(lh * N * hd);

@@ -810,7 +810,7 @@ for 64-wide heads, the same integers as before; 5702 for 8-wide), grouped-query 
 value heads; model.bin's heads field = kv_heads << 16 | heads, old files unchanged), a hidden width that is not a
 multiple of 8 (172: the last table group counts the missing inputs as 0), and contexts past 258 tokens (the int32
 value sums run over blocks of 256 keys; the attention scratch is sized by the context, not by `hidden`). The low-bit
-cache keeps its limits (64-wide heads, no GQA, 258 tokens). Validation, 1024 windows of 512 tokens; the C on 4
+cache keeps its limits (64-wide heads, no GQA, 258 tokens; lifted Nov 23, step 11). Validation, 1024 windows of 512 tokens; the C on 4
 windows (2048 tokens, every one of the 512 outputs) + a 120-token greedy story, 3 kernels (lut8, lib_symbex,
 lib_symbex + the row-product hooks), built with ASan + UBSan.
 
@@ -1382,6 +1382,37 @@ the binary one (+0.043-0.046 vs +0.021-0.031). In absolute terms, ternary with a
 binary with the same cache (1.8657 vs 2.0720). That is a bytes question the rule does not settle: ternary weights
 double the flash of the weights (step 5). Not explained: why the better model loses more to the same cache. A
 guess, not tested: sharper attention in the ternary model leans more on the exact keys.
+
+### Step 11: binary `k1trv2` in the integer model, the C and the chips (Nov 23 2026)
+
+**Question.** Step 10 carried binary `k1trv2` (1-bit keys + 2-bit values + int8 window of 32 + temperature, 128.0 KB
+of cache instead of 245.8 KB) to the chips. Is it exact there, and what does it cost in speed and give in RAM?
+
+**What.** intsim.py with the cache the model was trained with (`--k-bits 1 --v-bits 2 --kv-recent 32`, 1024
+windows), 3 seeds. c/tinylm.c: the low-bit cache now takes heads up to 64 wide (the tempered division uses `att_d`,
+5702 for 8-wide heads; `att_d < 2^14` keeps its two 32-bit steps), grouped-query attention (the cache holds the 4
+key / value heads once, as intsim, which repeats each head before quantizing per token: the same integers) and
+contexts up to 1024 (was 258). The C on the PC: 4 windows (2048 tokens) + the story, 3 kernels, ASan + UBSan. The
+chips: chip_run.py, weights in flash, cache in internal RAM, 3 seeds per core; the int8-cache numbers are step 3's.
+
+**Result.** Integer model vs float: +0.0004 / +0.0010 / +0.0003 (2.0846 / 2.0783 / 2.0841;
+results/intsim_binary_v512d64l5kv4_lr3e-3_20k_k1trv2_s4*_k1t_v2t_r32.json). The C on the PC: 2048 / 2048 tokens equal and the same story,
+3 seeds x 3 kernels; the old models (260K int8 cache, 15.7 M low-bit cache) still exact with the new C. Chips
+(results/chip_<board>_binary_v512d64l5kv4_lr3e-3_20k_k1trv2_s4*.json), every run 1024 / 1024 tokens and the story
+120 / 120 equal:
+
+| board | tokens/s, int8 cache | tokens/s, `k1trv2` | ms / token at position 511, int8 / `k1trv2` (s42) | free RAM after load, int8 / `k1trv2` |
+|---|---|---|---|---|
+| classic ESP32, 240 MHz | 40.15 ± 0.06 | 35.88 ± 0.08 (0.89x) | 49.1 / 53.8 | 72 / **184 KB** |
+| Pico 2 Cortex-M33, 150 MHz | 31.84 ± 0.06 | 27.75 ± 0.09 (0.87x) | 54.1 / 66.4 | 235 / **347 KB** |
+| Pico 2 Hazard3, 150 MHz | 35.38 ± 0.88 | 29.22 ± 0.10 (0.83x) | 54.1 / 67.5 | 228 / **340 KB** |
+
+model.bin 93,304 bytes (int8 cache 93,120: the trailer with the temperatures).
+
+**Answer.** Exact on every core. `k1trv2` frees 112 KB of RAM on every board (the computed 117.8 KB less the
+buffers it adds) for +0.021 of validation loss, and is 11-17 % slower (2-bit value decoding, as the attention
+timing of Nov 21 said). It is the memory option, not the speed one: on the classic ESP32 it leaves 184 KB, enough
+(estimate, not tried) for the weights in RAM or a longer context.
 
 ### Speed of each cache method, one at a time (Nov 21 2026; a timing, no decision rule)
 

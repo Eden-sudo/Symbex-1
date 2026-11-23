@@ -1,0 +1,31 @@
+{
+  "run": "binary_v512d64l5kv4_lr3e-3_20k_k1trv2_s43",
+  "weights": "binary",
+  "kv_bits": 8,
+  "kv": {
+    "k_bits": 1,
+    "v_bits": 2,
+    "k_mode": "token",
+    "v_mode": "token",
+    "qjl_m": 128,
+    "keep_first": false,
+    "qjl_seed": 0,
+    "k_scale": 1.0,
+    "v_scale": 1.0,
+    "recent": 32,
+    "p_cut": null
+  },
+  "kv_tag": "k1t_v2t_r32",
+  "trained_kv": [
+    1,
+    2,
+    1.0
+  ],
+  "val_windows": 1024,
+  "val_loss_float": 2.0773,
+  "val_loss_integer": 2.0783,
+  "val_perplexity_float": 7.983,
+  "val_perplexity_integer": 7.991,
+  "next_token_agreement_float_vs_integer": 0.9728,
+  "sample_integer": "Once upon a time, there was a little girl named Spot. Spot was very scared. He liked to play with his friends. One day, Sue saw a big, but then, something unexpected happened. The ball was very happy. The ball was very happy. The ball was very happy. The ball was very happy. The bird was very happy. The bird was very happy. The bird was very happy. The"
+}

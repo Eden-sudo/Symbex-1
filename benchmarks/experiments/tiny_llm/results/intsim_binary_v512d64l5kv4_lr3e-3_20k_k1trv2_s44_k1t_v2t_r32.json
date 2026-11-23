@@ -1,0 +1,31 @@
+{
+  "run": "binary_v512d64l5kv4_lr3e-3_20k_k1trv2_s44",
+  "weights": "binary",
+  "kv_bits": 8,
+  "kv": {
+    "k_bits": 1,
+    "v_bits": 2,
+    "k_mode": "token",
+    "v_mode": "token",
+    "qjl_m": 128,
+    "keep_first": false,
+    "qjl_seed": 0,
+    "k_scale": 1.0,
+    "v_scale": 1.0,
+    "recent": 32,
+    "p_cut": null
+  },
+  "kv_tag": "k1t_v2t_r32",
+  "trained_kv": [
+    1,
+    2,
+    1.0
+  ],
+  "val_windows": 1024,
+  "val_loss_float": 2.0838,
+  "val_loss_integer": 2.0841,
+  "val_perplexity_float": 8.035,
+  "val_perplexity_integer": 8.037,
+  "next_token_agreement_float_vs_integer": 0.9755,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She had a big bird. She had a big bird. She had an idea. She had an idea. She was very happy and had an idea. She was very happy. She had an idea. She was very happy and sulldenly and she was very happy. She had an idea. She was very happy and surprised. She was very happy. She was very"
+}
