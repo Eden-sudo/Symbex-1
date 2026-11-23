@@ -67,7 +67,7 @@ void setup() {
         s.pos = 0;
         for (int t = 0; t < CHECK_TOKENS; t++) {
             uint32_t a = micros();
-            tinylm_step(&m, &s, check_tokens[w][t], z, &hm);
+            if (tinylm_step(&m, &s, check_tokens[w][t], z, &hm) < 0) fail("step");
             uint32_t us = micros() - a;
             Serial.printf("H:%d,%d,%d,%lu\n", w, t, out_hash(z, m.vocab, hm) == check_hash[w][t], (unsigned long)us);
         }
@@ -79,6 +79,7 @@ void setup() {
         uint32_t a = micros();
         int tok = tinylm_step(&m, &s, i < GEN_PROMPT ? gen_ids[i] : next, z, &hm);
         uint32_t us = micros() - a;
+        if (tok < 0) fail("step");
         next = tok;
         if (i + 1 >= GEN_PROMPT) Serial.printf("G:%d,%d,%lu\n", tok, tok == gen_ids[i + 1], (unsigned long)us);
     }

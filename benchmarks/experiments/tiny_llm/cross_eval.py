@@ -31,7 +31,7 @@ def main():
     for run in args.runs:
         name = os.path.basename(os.path.normpath(run))
         tj = json.load(open(os.path.join(run, "train.json")))
-        a = argparse.Namespace(**tj["args"])
+        a = T.run_args(tj["args"])
         if a.vocab not in vals:
             vals[a.vocab] = T.load_split("val", dev, a.vocab)
         sd = torch.load(os.path.join(run, "model.pt"), map_location=dev)["model"]

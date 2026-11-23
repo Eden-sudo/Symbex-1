@@ -245,7 +245,8 @@ class Block(nn.Module):
         """Causal fused attention, q, k after rope (b, heads, t, hd), with --attn-sink / --attn-gate; h = block input"""
         if self.sink is None:
             a = F.scaled_dot_product_attention(q, k, v, is_causal=True)
-        else:                                  # a zero key and value in front; the mask gives its logit = sink
+        else:                                  # a zero key and value in front; its logit is sink * sqrt(hd) (the mask
+                                               # is added after SDPA's 1 / sqrt(hd)): 0 at the start = softmax + 1
             b, n, t, hd = q.shape
             z = q.new_zeros(b, n, 1, hd)
             i = torch.arange(t, device=q.device)
@@ -375,7 +376,7 @@ W2_ACTS = {"same": None, "1": 1, "t": "t", "2": 2}
 
 
 def build_model(args, vocab):
-    """the TinyLM of these arguments (a run's train.json "args" works too, as an argparse.Namespace)"""
+    """the TinyLM of these arguments (a run's train.json "args" too, through run_args)"""
     return TinyLM(vocab, args.dim, args.layers, args.heads, args.hidden, args.seq,
                   args.weights, args.head, tuple(args.int8_blocks), args.acts,
                   {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
@@ -483,7 +484,7 @@ def run(args, seed):
     print(f"  sample: {res['sample'][:300]}")
 
 
-def main():
+def parser():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--weights", choices=["fp32", "ternary", "binary"], required=True)
     ap.add_argument("--seeds", type=int, nargs="+", default=[42])
@@ -542,7 +543,16 @@ def main():
     ap.add_argument("--eval-batches", type=int, default=40, help="validation windows = this x --batch")
     ap.add_argument("--no-compile", dest="compile", action="store_false")
     ap.add_argument("--test", action="store_true", help="also score the test split (once, final numbers only)")
-    args = ap.parse_args()
+    return ap
+
+
+def run_args(d):
+    """a run's train.json "args" as an argparse.Namespace, flags added after that run filled with their defaults"""
+    return argparse.Namespace(**{**{a.dest: a.default for a in parser()._actions if a.dest != "help"}, **d})
+
+
+def main():
+    args = parser().parse_args()
     for seed in args.seeds:
         run(args, seed)
 
