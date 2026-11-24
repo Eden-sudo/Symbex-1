@@ -396,26 +396,34 @@ def run(args, seed):
     os.makedirs(out, exist_ok=True)
     print(f"{name}: {n_all / 1e6:.2f} M parameters, {n_lin / 1e6:.2f} M in the quantized linear layers")
 
+    micro = args.microbatch or args.batch
+    if args.batch % micro:
+        raise ValueError("[TRAIN]: --batch must be a multiple of --microbatch")
     hist, best, t0 = [], float("inf"), time.time()
     for step in range(1, args.steps + 1):
         lr = args.lr * min(1.0, step / args.warmup) * (
             0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * min(1.0, step / args.steps))))
         for g in opt.param_groups:
             g["lr"] = lr
-        x, y = batch(train, args.batch, args.seq, gen)
-        with autocast(device):
-            logits = step_fn(x)
-        loss = F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), y.reshape(-1))
-        if teacher is not None:
-            with torch.no_grad(), autocast(device):
-                t_logits = teacher(x)
-            t = args.distill_t
-            kl = F.kl_div(F.log_softmax(logits.float().reshape(-1, logits.shape[-1]) / t, -1),
-                          F.log_softmax(t_logits.float().reshape(-1, t_logits.shape[-1]) / t, -1),
-                          log_target=True, reduction="batchmean") * t * t
-            loss = (1 - args.distill_alpha) * loss + args.distill_alpha * kl
+        x_all, y_all = batch(train, args.batch, args.seq, gen)
         opt.zero_grad(set_to_none=True)
-        loss.backward()
+        loss_sum = 0.0
+        for x, y in zip(x_all.split(micro), y_all.split(micro)):
+            with autocast(device):
+                logits = step_fn(x)
+            loss = F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), y.reshape(-1))
+            if teacher is not None:
+                with torch.no_grad(), autocast(device):
+                    t_logits = teacher(x)
+                t = args.distill_t
+                kl = F.kl_div(F.log_softmax(logits.float().reshape(-1, logits.shape[-1]) / t, -1),
+                              F.log_softmax(t_logits.float().reshape(-1, t_logits.shape[-1]) / t, -1),
+                              log_target=True, reduction="batchmean") * t * t
+                loss = (1 - args.distill_alpha) * loss + args.distill_alpha * kl
+            # equal-size chunks: the mean of the chunk means is the full-batch mean, so the gradient is unchanged
+            (loss * (x.shape[0] / args.batch)).backward()
+            loss_sum += loss.item() * x.shape[0]
+        loss = torch.tensor(loss_sum / args.batch)
         if args.clip_groups:
             for group in clip_groups:
                 torch.nn.utils.clip_grad_norm_(group, 1.0)
@@ -423,7 +431,7 @@ def run(args, seed):
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
         if step % args.eval_every == 0 or step == args.steps:
-            vl = evaluate(model, val, args.seq, args.eval_batches, args.batch)
+            vl = evaluate(model, val, args.seq, args.eval_batches * args.batch // micro, micro)
             hist.append({"step": step, "train_loss": round(loss.item(), 4), "val_loss": round(vl, 4),
                          "minutes": round((time.time() - t0) / 60, 2)})
             print(f"  step {step:6d}  train {loss.item():.3f}  val {vl:.3f}  ({(time.time() - t0) / 60:.1f} min)",
@@ -443,7 +451,7 @@ def run(args, seed):
            "minutes": round((time.time() - t0) / 60, 2), "history": hist,
            "sample": sample(model, sp, "Once upon a time", args.seq, 200, device)}
     if args.test:
-        tl = evaluate(model, load_split("test", device), args.seq, 10 ** 9, args.batch)
+        tl = evaluate(model, load_split("test", device), args.seq, 10 ** 9, micro)
         res.update(test_loss=round(tl, 4), test_perplexity=round(math.exp(tl), 3))
     with open(os.path.join(out, "train.json"), "w") as f:
         json.dump(res, f, indent=2)
@@ -493,6 +501,9 @@ def main():
     ap.add_argument("--hidden", type=int, default=1024)
     ap.add_argument("--seq", type=int, default=256)
     ap.add_argument("--batch", type=int, default=128)
+    ap.add_argument("--microbatch", type=int, default=0,
+                    help="split each --batch into chunks of this size and accumulate gradients (same update, less "
+                         "memory; 0 = the whole batch at once)")
     ap.add_argument("--steps", type=int, default=10000)
     ap.add_argument("--warmup", type=int, default=500)
     ap.add_argument("--lr", type=float, default=1.5e-3)
