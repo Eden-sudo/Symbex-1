@@ -102,6 +102,9 @@ def main():
     ap.add_argument("--port", default="/dev/ttyACM0")
     ap.add_argument("--windows", type=int, default=2, help="validation windows of 256 tokens checked on the chip")
     ap.add_argument("--no-upload", dest="upload", action="store_false")
+    ap.add_argument("--before", choices=("default_reset", "usb_reset"), default="default_reset",
+                    help="esptool reset before writing model.bin; usb_reset for boards wired to the S3's own USB port "
+                         "(USB-Serial/JTAG), where the default reset leaves no serial data")
     ap.add_argument("--linear", choices=("lut8", "symbex"), default="lut8",
                     help="1-bit linear layers: lut8 (tinylm.c's table) or symbex (lib_symbex's 8-bit x 1-bit kernel)")
     ap.add_argument("--p-cut", type=float, help="attention weights p < p_max e^-n are 0 (README 'Reading the cache'): "
@@ -139,7 +142,7 @@ def main():
                        capture_output=True, env=env)
         print("writing model.bin to the model partition...")
         subprocess.run(["pio", "pkg", "exec", "-p", "tool-esptoolpy", "--", "esptool.py", "--port", args.port,
-                        "write_flash", hex(MODEL_OFFSET), os.path.abspath(os.path.join(run, "model.bin"))],
+                        "--before", args.before, "write_flash", hex(MODEL_OFFSET), os.path.abspath(os.path.join(run, "model.bin"))],
                        check=True, capture_output=True, cwd="/tmp")
         time.sleep(2)
 
