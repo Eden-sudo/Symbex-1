@@ -35,6 +35,7 @@ import json
 import math
 import os
 import struct
+import sys
 
 import numpy as np
 import torch
@@ -542,6 +543,16 @@ def read_kv_trailer(path, layers, heads):
             "tq": np.frombuffer(tr[24:], dtype="<i4").reshape(layers, heads)}
 
 
+def kv_mismatch(a, kb, vb, k_scale, recent):
+    """The cache settings of this run that differ from the model's training (train.py --k-bits / --v-bits / --k-scale /
+    --kv-recent): the integer cache takes them from the command line only, so a model trained with a low-bit cache
+    and simulated with the defaults gives a loss that is not the model's (a run once wrote intsim_wrong_kv8.json)."""
+    trained = {"k-bits": a.get("k_bits", 8), "v-bits": a.get("v_bits", 8), "k-scale": a.get("k_scale", 1.0),
+               "kv-recent": a.get("kv_recent", 0)}
+    now = {"k-bits": kb, "v-bits": vb, "k-scale": k_scale, "kv-recent": recent}
+    return [f"--{k} {now[k]:g} (trained {trained[k]:g})" for k in trained if now[k] != trained[k]]
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("run", help="runs/<weights>_<name>_s<seed>")
@@ -581,6 +592,9 @@ def main():
     P = to_device(integerize(model, kind), dev)
     kb = args.kv_bits if args.k_bits is None else args.k_bits
     vb = args.kv_bits if args.v_bits is None else args.v_bits
+    diff = kv_mismatch(a, kb, vb, args.k_scale, args.kv_recent)
+    if diff:      # allowed (the no-training cache studies do it on purpose), never silent
+        print("WARNING: cache differs from training: " + ", ".join(diff), file=sys.stderr)
     P["kv"] = {"k_bits": kb, "v_bits": vb, "k_mode": args.k_mode, "v_mode": args.v_mode, "qjl_m": args.qjl_m,
                "keep_first": args.keep_first, "qjl_seed": args.qjl_seed, "k_scale": args.k_scale,
                "v_scale": args.v_scale, "recent": args.kv_recent, "p_cut": args.p_cut}
@@ -607,7 +621,8 @@ def main():
     agree = float_argmax_agreement(model, P, val, a["seq"], 64, 16)
     ids = generate(P, sp, "Once upon a time", 120, a["seq"], dev)
     res = {"run": os.path.basename(os.path.normpath(args.run)), "weights": kind, "kv_bits": args.kv_bits, "kv": P["kv"], "kv_tag": tag,
-           "trained_kv": [a.get("k_bits", 8), a.get("v_bits", 8), a.get("k_scale", 1.0)], "val_windows": args.windows,
+           "trained_kv": [a.get("k_bits", 8), a.get("v_bits", 8), a.get("k_scale", 1.0)],
+           "trained_kv_recent": a.get("kv_recent", 0), "cache_differs_from_training": diff, "val_windows": args.windows,
            "val_loss_float": round(fl, 4), "val_loss_integer": round(il, 4),
            "val_perplexity_float": round(math.exp(fl), 3), "val_perplexity_integer": round(math.exp(il), 3),
            "next_token_agreement_float_vs_integer": round(agree, 4), "sample_integer": sp.decode(ids[1:])}
