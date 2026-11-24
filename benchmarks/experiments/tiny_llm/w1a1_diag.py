@@ -31,7 +31,7 @@ import os
 import torch
 import torch.nn.functional as F
 
-from train import DATA, HERE, QLinear, TinyLM, batch, load_split
+from train import DATA, HERE, QLinear, TinyLM, batch, load_split, pick_device
 
 POINTS = {"q": "attn_in", "o": "o_in", "w1": "ffn_in", "w2": "w2_in"}
 
@@ -93,7 +93,7 @@ def main():
     ap.add_argument("--seeds", type=int, nargs="+", default=[42, 43, 44])
     ap.add_argument("--windows", type=int, default=16, help="validation windows of 256 tokens")
     args = ap.parse_args()
-    device = "cuda"
+    device = pick_device(allow_mps=True)
     val, train = load_split("val", device), load_split("train", device)
     out = {"windows": args.windows, "models": {}}
     for kind, name in (("w1a1", "binary_d384l8_a1"), ("w1a8", "binary_d384l8")):

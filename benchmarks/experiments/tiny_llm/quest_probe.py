@@ -37,7 +37,7 @@ assert src.count(line) == 1
 src = src.replace(line, hook + line)
 ns = dict(I.__dict__); ns.update(ST=ST, CUTS=CUTS); exec(src, ns); I.attention = ns["attention"]
 torch.backends.cuda.matmul.allow_tf32 = False
-dev = "cuda"
+dev = T.pick_device(allow_mps=False)
 sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, "tok4096.model"))
 val = T.load_split("val", dev)
 run = sys.argv[1]

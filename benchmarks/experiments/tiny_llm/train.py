@@ -47,6 +47,9 @@ w / scale to -1, 0, 1, binary takes the sign) and 8-bit inputs (absmax per token
 straight-through estimator. The token embedding (tied to the output layer), the norms and attention's softmax stay in
 floating point here: an int8 embedding and the integer attention are for the chip stage.
 
+Device: CUDA, then Apple's GPU (MPS), then CPU. CUDA keeps bfloat16 autocast and torch.compile; MPS runs eagerly
+and MPS/CPU use float32 without autocast. Integer simulation and check data use CUDA or CPU, never MPS.
+
 Choices on the validation split only (train.py keeps the checkpoint with the lowest validation loss); --test reads the
 test split once, for the final numbers. Writes runs/<weights>_<name>_s<seed>/{model.pt, train.json}: the loss history,
 the best validation loss and perplexity, the parameter counts, the time and a sample story.
@@ -56,6 +59,7 @@ import json
 import math
 import os
 import time
+from contextlib import nullcontext
 
 import numpy as np
 import torch
@@ -65,6 +69,22 @@ import torch.utils.checkpoint
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "..", "..", "data", "tinystories")
+
+
+def pick_device(allow_mps: bool):
+    """Prefer CUDA; integer/float64 callers must pass allow_mps=False for an exact CPU fallback."""
+    if torch.cuda.is_available():
+        return "cuda"
+    if allow_mps and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+def autocast(device):
+    """Keep CUDA's bfloat16 recipe; no mixed precision or bfloat16 requirement on MPS/CPU."""
+    if torch.device(device).type == "cuda":
+        return torch.autocast("cuda", dtype=torch.bfloat16)
+    return nullcontext()
 
 
 # ---- quantization --------------------------------------------------------------------------------------------------
@@ -300,7 +320,7 @@ def evaluate(model, data, seq, n_batches, bsz):
         rows = torch.arange(i, min(i + bsz, usable), device=data.device)
         idx = rows[:, None] * seq + torch.arange(seq + 1, device=data.device)
         w = data[idx].long()
-        with torch.autocast("cuda", dtype=torch.bfloat16):
+        with autocast(data.device):
             logits = model(w[:, :-1])
         total += F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), w[:, 1:].reshape(-1),
                                  reduction="sum").item()
@@ -330,7 +350,7 @@ W2_ACTS = {"same": None, "1": 1, "t": "t", "2": 2}
 
 def run(args, seed):
     import sentencepiece as spm
-    device = "cuda"
+    device = pick_device(allow_mps=True)
     torch.manual_seed(seed)
     gen = torch.Generator(device=device).manual_seed(seed)
     train, val = load_split("train", device), load_split("val", device)
@@ -365,8 +385,9 @@ def run(args, seed):
     decay = [p for p in model.parameters() if p.dim() >= 2]
     rest = [p for p in model.parameters() if p.dim() < 2]
     opt = torch.optim.AdamW([{"params": decay, "weight_decay": args.wd}, {"params": rest, "weight_decay": 0.0}],
-                            lr=args.lr, betas=(0.9, 0.95), fused=True)
-    step_fn = torch.compile(model) if args.compile else model
+                            lr=args.lr, betas=(0.9, 0.95), fused=device == "cuda")
+    # Inductor's Metal backend fails on this model; keep MPS eager, even with the default --compile.
+    step_fn = torch.compile(model) if args.compile and device != "mps" else model
     in_blocks = {id(p) for blk in model.blocks for p in blk.parameters()}
     clip_groups = [list(blk.parameters()) for blk in model.blocks] + [
         [p for p in model.parameters() if id(p) not in in_blocks]]
@@ -382,11 +403,11 @@ def run(args, seed):
         for g in opt.param_groups:
             g["lr"] = lr
         x, y = batch(train, args.batch, args.seq, gen)
-        with torch.autocast("cuda", dtype=torch.bfloat16):
+        with autocast(device):
             logits = step_fn(x)
         loss = F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), y.reshape(-1))
         if teacher is not None:
-            with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+            with torch.no_grad(), autocast(device):
                 t_logits = teacher(x)
             t = args.distill_t
             kl = F.kl_div(F.log_softmax(logits.float().reshape(-1, logits.shape[-1]) / t, -1),
@@ -412,7 +433,7 @@ def run(args, seed):
                 torch.save({"model": model.state_dict(), "step": step, "args": vars(args)},
                            os.path.join(out, "model.pt"))
 
-    ckpt = torch.load(os.path.join(out, "model.pt"))
+    ckpt = torch.load(os.path.join(out, "model.pt"), map_location=device)
     model.load_state_dict(ckpt["model"])
     res = {"weights": args.weights, "seed": seed, "args": vars(args),
            "parameters": n_all, "quantized_linear_parameters": n_lin,

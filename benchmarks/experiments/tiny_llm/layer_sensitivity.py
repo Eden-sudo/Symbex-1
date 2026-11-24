@@ -186,7 +186,7 @@ def main():
     ap.add_argument("--top", type=int, default=10)
     ap.add_argument("--out", default=os.path.join(HERE, "results", "layer_sensitivity.json"))
     args = ap.parse_args()
-    device = "cuda"
+    device = T.pick_device(allow_mps=True)
     res = [run_seed(s, args, device) for s in args.seeds]
     summary(res, args)
     with open(args.out, "w") as f:

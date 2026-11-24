@@ -129,7 +129,7 @@ def main():
     args = ap.parse_args()
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
-    dev = "cuda"
+    dev = T.pick_device(allow_mps=False)
     sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, "tok4096.model"))
     model, a = I.load_model(args.run, sp.get_piece_size(), dev)
     P = I.to_device(I.integerize(model, a["weights"]), dev)

@@ -15,7 +15,7 @@ import sys
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from train import HERE, TinyLM, W2_ACTS, evaluate, load_split  # noqa: E402
+from train import HERE, TinyLM, W2_ACTS, evaluate, load_split, pick_device  # noqa: E402
 
 GROUPS = {"qkv": ("q", "k", "v"), "o": ("o",), "w13": ("w1", "w3"), "w2": ("w2",)}
 
@@ -39,7 +39,7 @@ def main():
     ap.add_argument("--to", type=int, choices=(1, 8), required=True, help="precision set on the chosen inputs")
     ap.add_argument("--batches", type=int, default=20, help="validation batches of 32 windows")
     args = ap.parse_args()
-    dev = "cuda"
+    dev = pick_device(allow_mps=True)
     model, seq = load(args.run, dev)
     val = load_split("val", dev)
     layers = {(bi, g): [getattr(b, n) for n in names] for bi, b in enumerate(model.blocks)
