@@ -298,15 +298,23 @@ class TinyLM(nn.Module):
 
 # ---- data, evaluation, sampling ------------------------------------------------------------------------------------
 
-def load_split(name, device):
-    arr = np.fromfile(os.path.join(DATA, f"{name}.bin"), dtype=np.uint16)
-    return torch.from_numpy(arr.astype(np.int16)).to(device)
+def data_device(device):
+    """CUDA keeps the splits on the GPU; MPS/CPU read them from disk so the 1 GB corpus never sits in memory."""
+    return device if torch.device(device).type == "cuda" else "cpu"
 
 
-def batch(data, n, seq, gen):
+def load_split(name, device, from_disk=False):
+    """from_disk reads the split lazily on the CPU (token ids < 4096 read as the same int16 values, never copied)."""
+    path = os.path.join(DATA, f"{name}.bin")
+    if from_disk:
+        return torch.from_numpy(np.memmap(path, dtype=np.int16, mode="c"))
+    return torch.from_numpy(np.fromfile(path, dtype=np.uint16).astype(np.int16)).to(device)
+
+
+def batch(data, n, seq, gen, device=None):
     start = torch.randint(0, len(data) - seq - 1, (n,), device=data.device, generator=gen)
     idx = start[:, None] + torch.arange(seq + 1, device=data.device)
-    w = data[idx].long()
+    w = data[idx].long().to(device or data.device)
     return w[:, :-1], w[:, 1:]
 
 
@@ -314,13 +322,14 @@ def batch(data, n, seq, gen):
 def evaluate(model, data, seq, n_batches, bsz):
     """Mean loss over fixed, non-overlapping windows from the start of the split (the same windows every time)."""
     model.eval()
+    device = next(model.parameters()).device
     usable = min(n_batches * bsz, (len(data) - 1) // seq)
     total, count = 0.0, 0
     for i in range(0, usable, bsz):
         rows = torch.arange(i, min(i + bsz, usable), device=data.device)
         idx = rows[:, None] * seq + torch.arange(seq + 1, device=data.device)
-        w = data[idx].long()
-        with autocast(data.device):
+        w = data[idx].long().to(device)
+        with autocast(device):
             logits = model(w[:, :-1])
         total += F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), w[:, 1:].reshape(-1),
                                  reduction="sum").item()
@@ -352,8 +361,9 @@ def run(args, seed):
     import sentencepiece as spm
     device = pick_device(allow_mps=True)
     torch.manual_seed(seed)
-    gen = torch.Generator(device=device).manual_seed(seed)
-    train, val = load_split("train", device), load_split("val", device)
+    gen = torch.Generator(device=data_device(device)).manual_seed(seed)
+    from_disk = data_device(device) == "cpu"
+    train, val = load_split("train", device, from_disk), load_split("val", device, from_disk)
     sp = spm.SentencePieceProcessor(model_file=os.path.join(DATA, "tok4096.model"))
     model = TinyLM(sp.get_piece_size(), args.dim, args.layers, args.heads, args.hidden, args.seq,
                    args.weights, args.head, tuple(args.int8_blocks), args.acts,
@@ -405,7 +415,7 @@ def run(args, seed):
             0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * min(1.0, step / args.steps))))
         for g in opt.param_groups:
             g["lr"] = lr
-        x_all, y_all = batch(train, args.batch, args.seq, gen)
+        x_all, y_all = batch(train, args.batch, args.seq, gen, device)
         opt.zero_grad(set_to_none=True)
         loss_sum = 0.0
         for x, y in zip(x_all.split(micro), y_all.split(micro)):
@@ -451,7 +461,7 @@ def run(args, seed):
            "minutes": round((time.time() - t0) / 60, 2), "history": hist,
            "sample": sample(model, sp, "Once upon a time", args.seq, 200, device)}
     if args.test:
-        tl = evaluate(model, load_split("test", device), args.seq, 10 ** 9, micro)
+        tl = evaluate(model, load_split("test", device, from_disk), args.seq, 10 ** 9, micro)
         res.update(test_loss=round(tl, 4), test_perplexity=round(math.exp(tl), 3))
     with open(os.path.join(out, "train.json"), "w") as f:
         json.dump(res, f, indent=2)
