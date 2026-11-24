@@ -36,7 +36,8 @@ void setup() {
     for (long i = 0; i < MODEL_BYTES; i++) sum = sum * 31u + model_bin[i];
     if (sum != MODEL_SUM) fail("model_data.h differs from the exported checkpoint");
     /* run.c exits on a failed calloc (the board restarts with no line): check the total first. A fragmented heap
-       can still refuse one large block (the KV cache) with enough bytes free in total. */
+       can still refuse one large block (the KV cache) with enough bytes free in total, and the count leaves out the
+       malloc headers (ESP32: 160 bytes on Arduino 2.0.17, 1640 on 3.3, #210). */
     long need = l2c_state_bytes(model_bin, GEN_IDS);
     if (need > (long)free_ram()) {
         static char why[96];

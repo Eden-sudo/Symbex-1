@@ -79,10 +79,18 @@ def write_model_data(run, path, name="model.bin"):
         f.write("\n".join(lines))
 
 
+def pio_platform(proj, env):
+    """the platform (name@version) platformio.ini pins for this env: the toolchain is part of a timing result"""
+    import configparser
+    c = configparser.ConfigParser(inline_comment_prefixes=(";",))
+    c.read(os.path.join(proj, "platformio.ini"))
+    return c.get(f"env:{env}", "platform", fallback=c.get("env", "platform", fallback=None))
+
+
 def write_check_data(run, windows, path, p_cut=None):
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
-    dev = "cuda"
+    dev = "cuda" if torch.cuda.is_available() else "cpu"    # the integer reference is exact on either
     vocab = torch.load(os.path.join(run, "model.pt"), map_location="cpu")["args"].get("vocab", 4096)
     sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, f"tok{vocab}.model"))
     model, a = I.load_model(run, sp.get_piece_size(), dev)
@@ -176,9 +184,13 @@ def main():
 
     hashes, gen, info, prof = [], [], {}, {}
     with open_port(args.port, 115200, RESET[args.board]) as s:
-        t0 = time.time()
+        t0 = last = time.time()
         while True:
             line = read_line(s)
+            if line:
+                last = time.time()
+            elif time.time() - last > 300:
+                raise RuntimeError("chip: no line from the board for 5 minutes (serial link or firmware stuck)")
             if not line:
                 s.write(b"\x55")
             elif line.startswith("ERROR"):
@@ -264,7 +276,7 @@ def main():
                                                                               " linear, PIE s8 dot (output, scores)")
               if s3 else " linear, plain C (output, scores, values)")),
            "model_in": "psram" if s3 else "flash",
-           "kv_cache": kv or "int8", "p_cut_nats": args.p_cut, "fine_prof": args.fine_prof, "dcache_autoload": args.autoload, "dcache_autoload_kv_bytes": info.get("autoload_kv_bytes"), "kv_cache_in": "psram" if s3 else "internal ram", "cpu_mhz": BOARD_MHZ[args.board], "ready": info.get("tinylm"), "loaded": info.get("loaded"),
+           "kv_cache": kv or "int8", "p_cut_nats": args.p_cut, "fine_prof": args.fine_prof, "dcache_autoload": args.autoload, "dcache_autoload_kv_bytes": info.get("autoload_kv_bytes"), "kv_cache_in": "psram" if s3 else "internal ram", "cpu_mhz": BOARD_MHZ[args.board], "platform": pio_platform(proj, "s3" if s3 else args.board), "ready": info.get("tinylm"), "loaded": info.get("loaded"),
            "check_tokens": len(hashes), "check_equal": int(sum(h[2] for h in hashes)),
            "equal_percent": round(100 * sum(h[2] for h in hashes) / max(1, len(hashes)), 3),
            "story_tokens": len(gen), "story_equal": int(sum(g[1] for g in gen)),

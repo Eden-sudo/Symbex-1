@@ -28,7 +28,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "tools"))
 import intsim as I  # noqa: E402
 import train as T  # noqa: E402
-from chip_run import BOARD_NAMES, PROMPT, RESET, model_sum, write_model_data  # noqa: E402
+from chip_run import BOARD_NAMES, PROMPT, RESET, model_sum, pio_platform, write_model_data  # noqa: E402
 from compiler_core.chip.core import BOARD_MHZ, open_port, read_line  # noqa: E402
 
 PROJ = os.path.join(HERE, "chip_l2c")
@@ -119,9 +119,13 @@ def main():
 
     gen, info = [], {}
     with open_port(args.port, 115200, RESET[args.board]) as s:
-        t0 = time.time()
+        t0 = last = time.time()
         while True:
             line = read_line(s)
+            if line:
+                last = time.time()
+            elif time.time() - last > 300:
+                raise RuntimeError("chip: no line from the board for 5 minutes (serial link or firmware stuck)")
             if not line:
                 s.write(b"\x55")
             elif line.startswith("ERROR"):
@@ -156,7 +160,7 @@ def main():
     res = {"run": os.path.basename(run), "board": BOARD_NAMES[args.board],
            "kernel": "llama2.c run.c fp32 (commit 350e04f, unchanged, plain C, -O2)", "model_in": "flash",
            "model_bytes": len(data), "kv_cache": "fp32", "kv_cache_in": "internal ram",
-           "context": len(ids), "cpu_mhz": BOARD_MHZ[args.board], "ready": info.get("l2c"), "loaded": info.get("loaded"),
+           "context": len(ids), "cpu_mhz": BOARD_MHZ[args.board], "platform": pio_platform(PROJ, args.board), "ready": info.get("l2c"), "loaded": info.get("loaded"),
            "pc_vs_torch_equal": torch_equal, "story_tokens": len(gen), "story_equal": int(sum(oks)),
            "first_diverging_story_token": first_diff,
            "ms_per_token_story_mean": round(us.mean() / 1000, 3), "tokens_per_second_story": round(1e6 / us.mean(), 3),

@@ -432,7 +432,7 @@ def float_argmax_agreement(model, P, data, seq, n_windows, bsz):
     for i in range(0, n_windows, bsz):
         rows = torch.arange(i, i + bsz, device=data.device)
         w = data[rows[:, None] * seq + torch.arange(seq, device=data.device)].long()
-        with torch.autocast("cuda", dtype=torch.bfloat16):
+        with torch.autocast(data.device.type, dtype=torch.bfloat16):
             fa = model(w).argmax(-1)
         z, _ = forward(P, w)
         agree += (z.argmax(-1) == fa).sum().item()
@@ -583,7 +583,7 @@ def main():
         ap.error("--windows must be a multiple of 32 (float and integer losses use the same windows)")
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
-    dev = "cuda"
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
     vocab = torch.load(os.path.join(args.run, "model.pt"), map_location="cpu")["args"].get("vocab", 4096)
     sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, f"tok{vocab}.model"))
     model, a = load_model(args.run, sp.get_piece_size(), dev)

@@ -880,6 +880,13 @@ the first to the last token. The story runs 125 positions, so its speed is above
 (seed 42 34.8, 43 36.4, 44 34.9 tokens/s, same code) is code layout under the XIP cache, as seen before with
 SYMBEX on this core.
 
+**Reproduced on a second classic ESP32 (Abraham, #210, Nov 24):** the same 9 runs exact (3432 / 3432 outputs and
+story tokens). The speed depends on the Arduino core: with espressif32 8.0.0 (Arduino 3.3, ESP-IDF 5.5) the binary
+model gives 39.52 ± 0.04 tokens/s (window mean +6 %, +10 % at position 511, 37 KB less free RAM), run.c 6.71 (5.89x);
+rebuilt with the Arduino 2.0.17 / IDF 4.4 core, seed 42 gives our numbers back (40.60, run.c 6.48). Since then the
+platformio.ini files pin `espressif32@7.1.3` (Arduino 2.0.17, the core of every result here) and
+`raspberrypi@1.20.0`, and chip_run.py / chip_fp32.py write the platform into the result JSON.
+
 Tokens per second of the story, per seed (each run's JSON, `tokens_per_second_story`):
 
 | chip | seed 42 | seed 43 | seed 44 | mean ± sd |
