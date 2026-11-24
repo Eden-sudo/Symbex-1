@@ -13,6 +13,7 @@ go into the details.
 | [Results](results.md) | Every benchmark in one place: speed, flash, accuracy and energy against INT8, with the charts |
 | [Methodology](methodology.md) | The measurement standard: what is compared against what (INT8, INT4 / INT2, another binary engine), the checklist every benchmark follows, how to repeat it |
 | [The vertical engine](vertical.md) | Counting 128 windows at once: ResNet-8 in 10.4 ms on the ESP32-S3 (7.7 / 6.4 ms with the optional compact / prepared modes; 6.0 ms with the int8 stem), the formula and the inference logic |
+| [Hardware-aware CDT (design)](hardware-aware.md) | Proposal: a profile measured on any chip (or the PC / a Raspberry Pi) decides the int8 edges and the engine; the middle stays binary |
 
 The diagrams are written in [Mermaid](https://mermaid.js.org/) inside the pages (GitHub draws them). Charts live in
 [`assets/`](../assets/) and are generated from the result files of the benchmarks, so they can always be re-created.
