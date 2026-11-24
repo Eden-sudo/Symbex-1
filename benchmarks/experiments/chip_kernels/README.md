@@ -277,3 +277,113 @@ python dense_vertical_bench.py --host                               # the exactn
 python dense_vertical_bench.py --port /dev/ttyACM0                  # ESP32-S3; --weights ram
 python dense_vertical_bench.py --board esp32 --port /dev/ttyUSB0    # pico2_arm / pico2_riscv /dev/ttyACM1
 ```
+
+## A KV cache below 8 bits: time on the chip (`kv_attn_bench.py`, Nov 18)
+
+**Question.** ../tiny_llm measures the loss of a 4, 3, 2 or 1-bit KV cache on the PC. What does it cost or save
+in time on each chip, where the cache has to be unpacked before the int8 loops?
+
+**What.** One attention head of one decoding step: 256 cached positions × 64 values, the cache packed at its width
+(4 bits: 2 per byte; 3 bits: 10 per 32-bit word; 2 bits: 4 per byte; 1 bit: 8 per byte), unpacked into int8 rows
+(lookup tables, 32-bit stores; shifts for 3 bits), then tinylm.c's loops: scores = query · keys (plain C, and
+`symbex_s8_dot_rows` PIE on the S3), values = tinylm.c's weight-halves loop (plain C). Cache in internal RAM; on
+the S3 also in PSRAM as tiny_llm keeps it (48 copies = 8 layers × 6 heads, so the data cache cannot hold them).
+Every run checked against numpy (256 scores, 64 sums): **exact on all 4 cores**. Best of 7, µs per head.
+
+**Result** (`results/kv_attn_bench_<board>.json`):
+
+| bits | KB / head | ESP32 scores + values | M33 | Hazard3 | S3 scores PIE, PSRAM | S3 scores PIE, RAM |
+|---|---|---|---|---|---|---|
+| 8 | 16 | 629 + 910 = 1539 | 669 + 607 = 1276 | 788 + 720 = 1508 | 277 | 47 |
+| 4 | 8 | 852 + 1132 = 1984 (1.29×) | 1879 (1.47×) | 2221 (1.47×) | 327 (1.18×) | 235 |
+| 3 | 7 | 3054 (1.98×) | 3311 (2.59×) | 3341 (2.21×) | 874 (3.16×) | 797 |
+| 2 | 4 | 749 + 1030 = 1779 (1.16×) | 1660 (1.30×) | 1892 (1.25×) | **194 (0.70×)** | 150 |
+| 1 | 2 | (K1 + V2) 1779 (1.16×) | 1674 (1.31×) | 1878 (1.25×) | **172 (0.62×)** | 150 |
+
+(× = time / time at 8 bits; below 1 = faster.) The unpacking adds the same time to scores and values
+(scores 1-bit on the ESP32: 749 = 629 + unpack 120).
+
+**Answer.** On the boards without PSRAM (ESP32, Pico 2) a smaller KV costs time: +16-31 % at 2 bits, +29-47 % at
+4 bits, 2-2.6× at 3 bits (its shift unpacking is slow; a table version is not written). What it buys there is
+room: the cache is 2-8× smaller, the difference between a model that fits and one that does not. On the S3, where
+the cache sits in PSRAM, the 2 and 1-bit keys make the PIE scores faster (0.70× / 0.62×: fewer PSRAM bytes beat the
+unpacking); 4 bits is slower (1.18×: its unpacking costs more than the bytes it saves).
+
+- Per token on the S3 (48 heads, ESTIMATE from these per-head times): scores 13.3 ms at int8, 9.3 at K2, 8.2 at K1,
+  of a ~105 ms token: ~4-5 % at most. tiny_llm's S3 values run on a PIE kernel with a transposed cache, not on the
+  plain C loop timed here: the S3 values column is left out.
+- Unpack-then-int8 is the simple way. A 1-bit key could skip it (masked sums, lib_symbex's u8 × 1-bit row), and
+  the 4-bit one could unpack inside the PIE loop: both not written.
+
+### The key variants of ../tiny_llm "Why keys break" on the chip (Nov 18, second run)
+
+**Question.** The PC found three ways to keep low-bit keys usable: a recent int8 window (N = 32), keys rotated by a
+Hadamard (the chip form `--k-mode rotq`: the query rotated once, keys never rebuilt) and keys per channel before RoPE
+(`pre`: RoPE on every read). What does each cost on the chip?
+
+**What.** Same bench, same head, new ops (all exact against numpy on all 4 cores): `scores_win32` / `values_win32`
+(2-bit cache, last 32 positions read from the int8 cache), `fwht_q` (H (D q), int16), `scores_rotq` (fwht_q + int16
+query × 2-bit keys, plain C), `scores_pre` (3-bit codes × int16 scale per channel and group of 32, RoPE with Q14
+cos / sin tables on every read, plain C; the int8 requantization of intsim is not timed). µs per head, RAM (S3:
+PSRAM, 48 copies), all columns from this run.
+
+| keys | ESP32 | M33 | Hazard3 | S3 PIE, PSRAM | S3 plain C, PSRAM |
+|---|---|---|---|---|---|
+| int8 | 966 | 670 | 788 | 277 | 1007 |
+| K2 | 1085 | 862 | 1007 | 194 | 979 |
+| K2 + window 32 | 1072 | 1001 | 954 | 204 | 980 |
+| K2 rotq (fwht_q included) | 1040 (fwht 18) | 937 (21) | 1012 (21) | no PIE kernel | 929 (16 in RAM) |
+| K3 | 1723 | 1687 | 1726 | 874 | 1660 |
+| K3 pre (RoPE on read) | 3612 (2.1× K3) | 10316 (6.1×) | 10528 (6.1×) | no PIE kernel | 4819 (2.9×) |
+
+Values, V2 + window 32 vs V2: ESP32 1011 vs 1016, M33 761 vs 778, Hazard3 901 vs 942, S3 plain PSRAM 1008 vs 992.
+
+**Answer.** The window costs little: -5 to +5 % vs plain K2, +16 % on the M33. rotq costs about what
+plain K2 costs: the query rotation is 16-21 µs per head, ~2 % of the scores. Together they make the PC winner (K2
+rot × 1.3 + V2 × 1.2 + N 32, 0.64 MB) cost about the same as a plain 2-bit cache. `pre` is expensive: 2.1-2.9× the
+3-bit scores on the ESP32 / S3, 6× on the Pico 2.
+
+- ESTIMATE, not measured: the Pico 2's 6× may come from its cos / sin tables (32 KB, const in flash) against the
+  16 KB XIP cache. A recurrence or tables in RAM is not tested.
+- The S3 has no PIE kernel for rotq (int16 query × int8 codes) or pre. Plain C rotq ≈ plain C K2, so a PIE rotq near
+  K2's 194 µs is an ESTIMATE.
+- The classic ESP32's plain int8 scores take 966 µs in this firmware vs 629 in the first run (table above), with the
+  same C loop. The time is the same to the cycle on a rerun, and making the loop inline did not change it, so it comes
+  from the firmware build or layout (not understood). Compare within one run only. The other boards moved ±3 %.
+
+```
+python kv_attn_bench.py --board s3 --port /dev/ttyACM0
+python kv_attn_bench.py --board esp32 --port /dev/ttyUSB0         # pico2_arm / pico2_riscv /dev/ttyACM1
+```
+
+## Attention in bits: sign scores and bucketed values (`bit_attn_bench.py`, Nov 19)
+
+**Question:** ../tiny_llm "Attention in bits" trains a model with sign queries and keys: a score becomes
+h = popcount(q XOR k) and a weight one entry of a 65-entry table; the 2-bit values can be summed per h first
+(buckets). What does that cost on the chip, next to tinylm's int8 attention?
+
+**What:** one head of one decoding step, 256 positions x 64, plain C on every board (no PIE), internal RAM, random
+data, every op checked against numpy (h, weights, the 64 sums, the denominator). The int8 softmax is not timed.
+
+**Result** (µs per head, best of 7, all exact; ESP32 boards at 240 MHz, Pico 2 at 150 MHz):
+
+| op | S3 | ESP32 | M33 | Hazard3 |
+|---|---|---|---|---|
+| int8 scores | 828.9 | 965.4 | 669.4 | 785.9 |
+| bit scores, `__builtin_popcount` | 101.4 | 160.1 | 134.1 | 35.1 |
+| bit scores, SWAR popcount | **49.2** | **52.4** | **77.2** | 37.0 |
+| int8 values | 558.5 | 627.8 | 668.8 | 1004.2 |
+| 2-bit values x weight | 672.4 | 759.8 | 863.6 | 1231.5 |
+| 2-bit values by buckets | 659.0 | 754.3 | 944.8 | 1191.3 |
+
+**Answer:** the scores are 8.7-22x faster in bits (Hazard3 has a popcount instruction; on the others the SWAR
+popcount beats the compiler's). The values are not: 2-bit values cost 1.2-1.3x the int8 ones (the unpacking), and
+buckets save nothing (0.96-1.09x): the 256 x 64 additions stay, only the multiplications go, and these chips
+multiply in one cycle. Per head, scores + values: S3 1387 -> 708 µs (1.96x), ESP32 1593 -> 806 (1.98x), M33 1338 ->
+941 (1.42x), Hazard3 1790 -> 1226 (1.46x). Cache per position and head 128 -> 24 bytes (5.3x less). The values are
+the next kernel to write (bit planes, PIE).
+
+```
+python bit_attn_bench.py --board s3 --port /dev/ttyACM0
+python bit_attn_bench.py --board esp32 --port /dev/ttyUSB0        # pico2_arm / pico2_riscv /dev/ttyACM1
+```

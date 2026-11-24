@@ -3,6 +3,7 @@
  * every final max equal, token by token, on the validation windows of check.bin; then the greedy story.
  *
  *     gcc -O2 -Wall -Wextra -o check_pc check_pc.c tinylm.c && ./check_pc ../runs/binary_d384l8_s42
+ *     (a cut: -DTINYLM_P_CUT=768 and ./check_pc <run> check_c6.bin, from intsim.py --export --p-cut 6)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,12 +25,12 @@ static uint8_t *read_file(const char *path, long *size) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 2) { fprintf(stderr, "usage: %s <run folder>\n", argv[0]); return 2; }
+    if (argc < 2) { fprintf(stderr, "usage: %s <run folder> [check file, default check.bin]\n", argv[0]); return 2; }
     char path[1024];
     long msize, csize;
     snprintf(path, sizeof path, "%s/model.bin", argv[1]);
     uint8_t *mb = read_file(path, &msize);
-    snprintf(path, sizeof path, "%s/check.bin", argv[1]);
+    snprintf(path, sizeof path, "%s/%s", argv[1], argc > 2 ? argv[2] : "check.bin");
     uint8_t *cb = read_file(path, &csize);
     TinyModel m;
     TinyState s;

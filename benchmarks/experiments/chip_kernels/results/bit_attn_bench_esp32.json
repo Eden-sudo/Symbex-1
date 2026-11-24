@@ -1,0 +1,51 @@
+{
+ "board": "esp32",
+ "head_dim": 64,
+ "positions": 256,
+ "table_tau": 0.25,
+ "reps": "best of 7",
+ "unit": "cycles",
+ "date": "2026-11-19",
+ "bytes_per_position": {
+  "int8_kv": 128,
+  "bits_k_2bit_v": 24
+ },
+ "rows": [
+  {
+   "op": "i8_scores",
+   "cycles": 231705,
+   "us": 965.44,
+   "equal_numpy": true
+  },
+  {
+   "op": "i8_values",
+   "cycles": 150677,
+   "us": 627.82,
+   "equal_numpy": true
+  },
+  {
+   "op": "bit_scores",
+   "cycles": 38427,
+   "us": 160.11,
+   "equal_numpy": true
+  },
+  {
+   "op": "bit_scores_swar",
+   "cycles": 12582,
+   "us": 52.42,
+   "equal_numpy": true
+  },
+  {
+   "op": "bit_values",
+   "cycles": 182363,
+   "us": 759.85,
+   "equal_numpy": true
+  },
+  {
+   "op": "bit_values_bkt",
+   "cycles": 181041,
+   "us": 754.34,
+   "equal_numpy": true
+  }
+ ]
+}

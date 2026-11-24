@@ -1,0 +1,35 @@
+{
+ "date": "2026-11-19",
+ "what": "intsim of T2 (train.py --k-bits 1 --v-bits 2 --k-scale 1.5708 --attn-temp --kv-recent 32): integer model, same KV at inference, validation 1024 windows; d vs the base binary_d384l8 integer KV8 of the same seed",
+ "ref_kv8": {
+  "42": 1.5318,
+  "43": 1.5311,
+  "44": 1.5292
+ },
+ "runs": {
+  "42": {
+   "val_loss_float": 1.543,
+   "val_loss_integer": 1.5432,
+   "next_token_agreement_float_vs_integer": 0.9819
+  },
+  "43": {
+   "val_loss_float": 1.5442,
+   "val_loss_integer": 1.5445,
+   "next_token_agreement_float_vs_integer": 0.982
+  },
+  "44": {
+   "val_loss_float": 1.5445,
+   "val_loss_integer": 1.5446,
+   "next_token_agreement_float_vs_integer": 0.9833
+  }
+ },
+ "d": [
+  0.0114,
+  0.0134,
+  0.0154
+ ],
+ "d_mean": 0.0134,
+ "d_sd": 0.002,
+ "kv_bytes_computed": 552960,
+ "kv_bytes_note": "kv_modes3.json formula: per 64-value vector bits x 8 B + int32 scale 4 B; K1 12 B + V2 20 B per head and token, the 32 recent tokens int8 (136 B); 8 layers x 6 heads x 256 tokens; int8 1.67 MB"
+}

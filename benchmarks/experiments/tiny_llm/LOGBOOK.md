@@ -396,3 +396,202 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   One-shot rel. error 0.366 -> 0.362 (fp32 weights). Queue: seeds 42 43 44, one at a time, ESTIMATE ~35 min each.
 - Nov 18 result: binary_rc val 1.5138 / 1.5100 / 1.5078 = 1.5105 +- 0.0030 vs binary 1.5224 (paired -0.011 to -0.012
   every seed). Rule passes (threshold 1.5194). ~23 min per seed. Next: intsim + C for the column scale.
+
+## Nov 18 2026 -- KV cache at 1 / 2 / 4 bits (rule in README first)
+
+- Edén: we never tried a KV below int8. intsim.py --kv-bits (quant_kv, kept in quant8's code x m / 127 form).
+  Unit check on random ints: rel. squared error 4b 0.005, 2b 0.068, 1b 0.276. Order asked: 1 bit, then 2.
+- Result: d vs kv8 = 4b +0.0098, 2b +0.386, 1b +1.214 (3 seeds, ~1 min per run). 4 bits usable, 2 / 1 need training.
+- Reading (Nov 18, PDFs read: QJL 2406.03482, KIVI 2402.02750, AsymKV 2410.13212, BitNet a4.8 2411.04965,
+  HashAttention 2412.14468, H1B-KV 2510.05529; abstract only: Hamming Attention Distillation 2502.01770):
+  keys hurt more than values (AsymKV, KIVI); KIVI 2 bits = K per channel + V per token + recent tokens full;
+  QJL = K as sign(S k) + ||k||, query NOT quantized, unbiased, no training (int8 q x 1-bit k = our u8 x 1-bit kernel);
+  BitNet a4.8 (1.58-bit model) KV 3 bits absmax, bos token at 4 bits, ~no loss; H1B-KV 1-bit key sketch + XNOR/
+  popcount + 4-bit V, needs fine-tuning, sketch 256 bits for d 128 (= 2 bits/dim), single-author 5 pages: weak;
+  HashAttention: 32-bit signatures + XOR/popcount only pick top-k tokens (speed, not memory). No MCU low-bit KV found.
+  Cheap next checks (PC, no training): K vs V split; K per channel at 2 bits; QJL-style 1-bit K; first token at 8 bits.
+- kv_store modes (channel / qjl / keep_first) added; unit check on Gaussian ints + 1 outlier channel: score corr K1 token 0.81, K2 token 0.95, K2 channel 0.94, QJL m 64/128/256 0.65/0.77/0.84 (random data only). Rule (phase 1 + 2) in README.
+- Phase 1 done (d vs kv8 1.5307): K1 +0.697, V1 +0.193, K2 +0.200, V2 +0.057; K2 chan +0.233, K1 chan +0.657, K2c V2
+  +0.403; QJL m64 / 128 / 256 +0.410 / +0.163 / +0.069; first token int8: nothing (K1 +0.699, K1 V1 +1.218).
+  QJL bits per key and head: m / 64 per dim -> m 256 = 4 bits per dim: compare by bytes. Phase 2 as fixed + one
+  control ADDED NOW (after phase 1, not in the rule): K4 V8 per token (same bytes as QJL 256).
+- Phase 2: QJL256 V1 +0.295, V2 +0.138, first token nothing; control K4 V8 +0.008. Verdicts in README; results/kv_modes.json. Next (Edén decides): QAT with the KV quantized.
+
+## Nov 18 2026 -- the 1-bit key: how QJL works and what we change (analysis, rule in README first)
+
+- QJL in short: store y = sign(S k) (m bits) and ||k||; the query stays unquantized and the score is
+  sqrt(pi/2) / m ||k|| <S q, y>. Unbiased; noise ~ 1 / sqrt(m) (more bits per key = less noise, no other knob).
+  Why it beat plain 1 bit: sign(k) per channel throws away the magnitudes inside k; sign(S k) spreads every channel
+  over all m bits, so an outlier channel cannot dominate. Why int4 still wins at 4 bits / dim: QJL's error falls as
+  1 / sqrt(m), int4's falls ~ 4x per extra bit.
+- Who already changed it (reading): TurboQuant (2504.19874) = random rotation + scalar quantization per coordinate
+  + 1-bit QJL of the residual (3.5 bits neutral on Llama-3.1-8B, their figure); PolarQuant (2502.02617) = rotation +
+  polar coordinates; H1B-KV = 1-bit sketch + XNOR / popcount but fine-tuned; HashAttention = learned bits, top-k only.
+  Nobody found with a +-1 (Hadamard) S on a microcontroller.
+- Our changes: (1) hadqjl = S from signed Hadamard blocks (+-1): S q is additions only, integer, and S q (int8) x
+  sign bits = lib_symbex's u8 x 1-bit row (ESTIMATE: no new kernel); m = 64 is a pure rotation's signs (orthogonal
+  rows), m = 128 two independent rotations. (2) rot = orthonormal signed Hadamard, then plain per-token 1 / 2 bits,
+  rotate back (TurboQuant's first stage). (3) res = 1 bit per token + hadqjl 64 of the residual (TurboQuant's full
+  idea, 2 bits / dim). Plus an S check: Gaussian QJL 64 with S seeds 1 and 2.
+- Unit check (random ints, 1 outlier channel; score correlation, NOT the metric): Gaussian QJL 64 0.65, hadqjl 64
+  0.71, 128 0.80; rot 1 bit 0.71, 2 bits 0.89 (plain 2 bits 0.95: on Gaussian data rotation cannot help); res 64 0.87.
+  Signed Hadamard / 8 orthonormal (checked).
+- Result (results/kv_modes2.json, V8): hadqjl 64 +0.198 (Gaussian QJL 64 +0.409 / +0.407 / +0.435 over S seeds 0-2:
+  fragile, mean +0.417); rot 1 bit +0.376; rot 2 bits +0.076, hadqjl 128 +0.084, res 64 +0.090 (QJL 128 +0.164).
+  Discovery: hadqjl 64 and rot 1 bit store the SAME bits sign(R k); only the scale differs, by pi / 2 (QJL unbiased
+  vs mean|y| least squares). So most of the gap may be a temperature bias: a shrunk key flattens the softmax.
+  Gaussian S rows are not orthogonal at m = d (extra noise): that is the other half of hadqjl's gain over QJL.
+  Next check (rule in README first): --k-scale pi / 2 on rot 1 bit and on plain K1 per token.
+- k-scale result: K1 per token x pi / 2 +0.244 ± 0.008 (was +0.698); rot 1 bit x pi / 2 +0.203 = hadqjl 64 +0.198:
+  the pi / 2 explanation holds. ~2/3 of the 1-bit key damage is a temperature (scale) bias, fixed by one integer
+  multiply. Remaining: rotation -0.046. Ideas (not measured): tune the factor on val (also for K2 / V1 / V2 / rot 2),
+  or learn it in QAT (it is a free parameter there anyway: the QAT should start from it).
+
+## Nov 18 2026 -- QAT with the KV quantized: K1 x pi / 2 + V2 (rule in README first)
+
+- Why (Edén asked for the goal again): Obed's plan (PR #2, docs/llm_1bit_embedded.md) sizes 15M / 30M / 110M / 200M;
+  the KV, not the weights, is what stops the next size (computed: 15M on a 4 MB PSRAM 4.4 -> 3.4 MB; 30M on the S3
+  ~9.3 -> ~5.5 MB with K1 / V2). Speed on the S3 only ~+5-8 % (ESTIMATE).
+- train.py quant_kv (K after rope, V; per token and head; STE identity); --k-bits / --v-bits / --k-scale. intsim
+  records "trained_kv". Level check train vs intsim on random ints: K1 equal, V2 / K4 differ on ~1e-4 of the values
+  (rounded integer mean: a value at a level edge). Smoke run 40 steps + intsim OK (removed).
+- Queue: runs/logs/qat_kv_queue.sh -> qat_kv_queue.log (no-training reference, 3 trainings ~25 min each, intsim).
+- Result (results/kv_qat.json): no training K1 x pi/2 V2 +0.367 ± 0.015; QAT +0.321 ± 0.022 (helps by 0.046 vs
+  2 sd 0.044: barely); > 0.10 -> KV stays int8 for K1 / V2. Train float val 1.825-1.865 = intsim: real limit of this
+  KV, not a mismatch. QAT models with KV int8: loss 10-17 (they depend on the quantized KV). 22.3 min per seed.
+- My byte error (chat + rule text): K1 / V2 = 0.29 MB + 0.10 MB scales = 0.39 MB, not 0.59 MB (= K4 / V2). Corrected
+  in the README result.
+- Meaning: 1-bit keys lose information, not only scale; QAT does not bring them back. Usable now: KV4 without
+  training (+0.0098, 0.79 MB). Not measured: K4 V2 (ESTIMATE ~+0.07 if additive), K2 V2 or rotated-key QAT.
+
+## Nov 18 2026 -- why keys break: diagnosis before more tests (questions written before measuring)
+
+- Edén's lead: "softmax amplifies any key error exponentially". Papers read (search snippets + abstracts, full PDFs
+  not yet): KIVI 2402.02750 (keys have fixed outlier CHANNELS, values do not; per-token keys ~5x the score error of
+  per-channel), KVQuant 2401.18079 (outlier channels clearer BEFORE RoPE: quantize keys pre-RoPE per channel), HeadQ
+  2605.03562 (measure key error as score error modulo a per-query shift: softmax ignores shifts), 2605.26266 (Jensen
+  bias: zero-mean score noise sigma inflates a key's expected weight by e^(sigma^2 / 2), so noisy keys "steal"
+  attention), AnTKV 2506.19505 (a few anchor tokens carry most of the damage).
+- kv_diag.py (measurement only, no new model, validation windows): per layer and head
+  D1 outlier channels in K (pre / post RoPE), Q and V: max channel RMS / median channel RMS, same top channels
+     across windows?
+  D2 score error delta = s_quant - s_int8 (logit units) per config: slope vs s_int8 (temperature bias), per-query
+     shift (harmless), residual noise sigma; share of delta from the top-4 channels.
+  D3 softmax damage KL(p8 || pq) vs the small-noise prediction 1/2 Var_p8(delta - shift). KL ~ prediction = error
+     enters quadratically (not "exponentially"); KL >> prediction = large-error regime / Jensen.
+  D4 Jensen: correlation of a key's noise variance with its weight gain log(pq / p8); damage share of position 0
+     (sink), the top-1 key, the recent 32.
+- Questions: (1) are there outlier key channels here? (2) is the K3 / K2 damage bias, shift or noise? (3) does the
+  exponential matter (KL vs prediction)? (4) where does it land? Then tests chosen from the answers (rule first).
+- Result (results/kv_modes3.json, README "Why keys break" + the section above it): K4 pre +0.0010, K3 pre +0.0054
+  (per token +0.0079 / +0.048); K2 pre +0.140 (scale bias dominates at 2 bits). Factors from s42: K2 x 1.4, K2 rot x 1.3,
+  V2 x 1.2 help (> 2 sd), K1 x 1.75 does not. Recent int8 window N 32 + K2 rot x 1.3 + V2 x 1.2: +0.0079, 0.64 MB
+  (computed) -> fewest bytes among usable: goes to C by the rule. K3 pre V3 N 16 +0.0029 at 0.80 MB.
+- kv8 script bug: `grep -o '[0-9.]*'` on "K2 1.4," also caught the "2" of "K2" -> the K2 pre runs FAILED; fixed with
+  sed, rerun (logs deleted first).
+- Next: chip cost (kv_attn_bench.py): window (two read paths), rotated keys (q rotated once), RoPE on read (pre).
+- Done after: rotq (chip form of rot, integers) 3 seeds d +0.0079 ± 0.0002 = rot; kv_attn_bench window / rotq / pre on
+  4 cores, exact (chip_kernels README). Window ~free, rotq = plain K2, pre 2-6x slower.
+
+## Nov 18 2026 -- ideas queued (Edén), not started
+
+Order agreed: (1) repeated blocks (running) -> (2) the ideas below -> GQA + sliding window -> 260K -> combine -> test
+once -> C / PIE inference on the S3.
+
+**Train K without its large channels + a softmax built for bits (Edén: "do they fit together?" -> yes: both need
+retraining and both live in train.py / intsim / C, which must stay exact).**
+- Why: kv_diag says the K error comes from how K is stored (outlier channels 3-10x, temperature bias at 1-2 bits),
+  not from the softmax (KL = 1/2 Var, quadratic). So the softmax change is for memory / simplicity, the K change for
+  accuracy. More channels does NOT fix it (outliers stay, every channel adds noise, KV grows): ESTIMATE, not measured.
+- K side: QK-norm (RMSNorm on q and k per head, OLMo 2 / Gemma 3); clipped softmax / gated attention (Bondarenko 2023,
+  "Quantizable Transformers": outliers from heads that learn a no-op; measured on activations, not on K).
+- Softmax side: base 2 with a learned temperature (Softermax 2021: 2^(s - max), exp of an integer = an exact shift, no
+  2048-entry table, 4 KB less: matters for the 260K on ESP32 / Pico); normalization by the nearest power of 2 (no
+  division); sigmoid attention (Apple 2024: no max, no sum). Measured cost today on the S3: softmax 2.0 + division
+  1.6 = 3.6 of 105 ms per token (~3 %): speed gain at most ~3 %.
+- Plan: 2 x 2 (base done / QK-norm / base-2 softmax / both), 1 seed screening (~33 min each), 3 seeds for those that
+  pass. Rule (to write in the README before running): base loss not worse by > 0.03, and K2 per token WITHOUT rotation
+  d < 0.03 (today 0.200). kv_diag D1 on the new models (do the outliers go away?).
+- Weak points: K outliers may come from RoPE's low-frequency channels (then QK-norm helps little); sigmoid / power-of-2
+  normalization change the attention and may cost loss on a model this small.
+
+**Other ideas on the list:** GQA (2 KV heads for 6 query heads: KV / 3, int8 1.67 -> 0.56 MB, with K2 / V2 ~0.2 MB,
+computed); sliding-window attention (KV stops growing; intsim first, then retrain); 260K shape (dim 64, 5 layers, 8
+heads, ctx 512, vocab 512: prepare.py --vocab 512 running on the CPU); PIE kernels for 2-bit values and rotq (the
+only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 us firmware shift (not understood).
+
+## Nov 19 2026 -- attention in bits (rule in README first, eaf9f9c)
+
+- Idea (Edén's whiteboard): q, k as signs -> score = 64 - 2h, h = popcount(XOR); weight = 2^(-τ(h - hmin)), a
+  65-entry table; values summed per h (buckets), 65 multiplications. KV 1.57 MB -> ~0.2 MB (computed).
+- Literature: pieces exist (BinaryAttention CVPR 2026 learnable bias vs flat softmax; HAD; BiBERT; QJL / H1B-KV 1-bit
+  K with 4-bit V; Softermax base 2; Ji 2021 few levels; 2605.01910 gather-and-add; EcoFormer). NOT found: buckets per
+  Hamming distance, a generative LLM trained so and run exact on an MCU.
+- Correction (said in the chat before): QK-norm before the sign does nothing (the sign does not see the scale).
+  Options for the lost |k|: a rotation before the sign, or store mean|k| (T1 does).
+- train.py: --attn-temp, --kv-recent N, --q-bits 1, --k-unit; attention by hand, checkpointed (did not fit 12 GB
+  without it: OOM). 400-step check: base 2.643 vs all options 2.655; ~1.8x slower per step (ESTIMATE ~40 min a run).
+- Night queue (runs/logs/attn_queue.sh, log attn_queue.log): T1-T4 seed 42, then seeds 43 / 44 for the best that
+  passes (d < 0.10). Old QAT K1/V2 to beat for τ: 1.826.
+- Chips the same night (chip_kernels/bit_attn_bench.py, one head, exact on 4 cores, chip_kernels README):
+  scores 8.7-22x faster (SWAR popcount 49-77 µs vs int8 669-965 µs), 2-bit values 1.2-1.3x SLOWER than int8
+  (unpacking), buckets no gain (one-cycle multiply). Scores + values 1.42-1.98x per head. Next kernel: values as bit
+  planes (masked adds or PIE), not started.
+- Weak points: the float loss is not the integer loss (old QAT +0.02 in integers); random data on the chip (the
+  number of used h depends on the model: with trained heads maybe fewer buckets).
+- Night result (results/attn_bits.json, README): T2 (K1 V2 τ + recent 32) 1.5354 ± 0.0008, d +0.013 (usable in
+  float, 3 seeds); T1 +0.070; pure bits T3 +3.00 (τ stuck at ~1: did not learn), T4 +0.55. Temperatures go DOWN.
+  Next: T2 in intsim (integer); why T3 does not learn (gradient through two signs? τ lr?) only if Edén wants.
+- intsim of T2 (intsim.py reads exp(τ) as Q16 on the exp-table index; base re-run unchanged 1.5318): integer d
+  +0.0134 ± 0.0020 (3 seeds), float -> integer +0.0002: usable. KV 0.55 MB computed (my "~0.2 MB" forgot the int32
+  scales and the int8 window). Vs the no-retraining best K2 rot + V2 + N32 (+0.0079, 0.64 MB): 14 % fewer bytes,
+  more loss. Next: the C (T2 scores = int8 q masked by k bits; values 2-bit) + chip times; window cost dominates.
+- T2 on the S3 (README "On the ESP32-S3"): model.bin trailer ('KVLB'), tinylm.c low-bit path (sign keys + lut8
+  subset sums, 2-bit values transposed + decoded for the PIE u8 kernel, int8 ring of 32, tempered index), check_pc
+  exact (plain and -DTINYLM_DOT_ROWS_C, ASan/UBSan clean), chip exact 100 %. First chip run "failed": chip_run.py
+  built its reference with the int8 KV (fixed: it reads the trailer). 7.56 vs 8.47 tokens/s (base re-run, same
+  firmware), PSRAM -1.07 MB (KV 1.67 -> 0.60 MB), internal -17 KB. Values decode +12 ms; PSRAM -> internal copy
+  first: no gain (reverted). Saves memory, not time, on a SIMD chip.
+- Reading the cache (README "Reading the cache"): p-cut rule written first; attn_cut.py 3 seeds -> n = 6 (base and
+  T2 +0.0002, 41-43 % of far keys read). quest_probe.py: Quest page bound useless on 1-bit keys (0-6.5 % skipped vs
+  32-46 % oracle). C: -DTINYLM_P_CUT + group-of-4 skipping in low_bit_values (format unchanged), exact PC (8 builds,
+  ASan/UBSan) and S3 (512 / 512 + story). S3 seed 42: T2 values 25.1 -> 20.4 ms, position 255 178.1 -> 164.4 ms,
+  story 7.56 -> 7.64 tok/s; base 8.47 -> 8.48 (its int8 cache is untouched). Small gain; grows with context.
+- **Correction (measured, Nov 19):** I had said the T2 value time was the 2-bit decoding (an assumption, never
+  measured). chip_run.py --fine-prof (-DTINYLM_FINE_PROF, cycle counter marks inside the attention, cost ~0: 140.36
+  vs 140.29 ms) on the S3, T2 + cut 6, values 20.4 ms per token: **10.4 ms plain-C "wide" fallback**, decode 2-bit
+  3.6, PIE products 3.0, window copy 1.6, weight bytes 1.2, pack 0.6. Scores 9.2: subset table 4.0, far keys 3.5,
+  int8 window 1.7. Cause: in 26 % of T2's head steps p x vm2 >= 2^32 (PC count, same integers), so the U8 path
+  dropped to the int64 loop; the base never does (its weights always fit 4 bytes). Fix: the weights split into up
+  to 6 bytes (sum <= 2^63 checked), every head on the PIE. PC exact (8 builds, ASan/UBSan). Lesson: profile on the
+  chip before naming the cost.
+- **Nov 19, the fix measured on the S3 (seed 42, exact 100 %, story 120 / 120 everywhere):** 6-byte split writing
+  only the bytes the largest weight needs (a first version always wrote 6 and slowed the base 8.47 -> 8.40; fixed
+  with a first pass over the 32-bit halves). T2 7.56 -> 7.87 tokens/s, with the cut 6: **7.94** (values 25.1 ->
+  11.7 ms, position 255 178.1 -> 142.9 ms, below the base's 148.1); base 8.47 / 8.48 with the cut (unchanged).
+  The first firmware's files are kept as `*_wide.json`. Token profile: weights 84 of 132 ms -> the attention has
+  little left; the next big gain must come from fewer weight bytes (repeated blocks, 260K), not the cache.
+- **Nov 19, PSRAM reads overlapped with the compute (branch exp/llm-autoload):** question: do the 1-bit linears
+  wait on PSRAM (40 MB/s vs 61 sequential, 69 in internal RAM, psram_bw_bench)? Quick check
+  ../chip_kernels/psram_prefetch_bench.py (S3, PSRAM 80 MHz, 32 fresh copies per layer, best of 7, outputs hashed vs
+  the plain kernel: exact in every variant): plain 39.7-41.9 MB/s; manual data cache preload of the next 4 KB block
+  (ROM Cache_Start_DCache_Preload) 51.8-57.8 (bigger blocks worse: 16 KB 34.6-48.7); cache autoload on a miss (ROM
+  Cache_Config_DCache_Autoload, size 0..3) 48.4 -> 55.8-56.7 at size 3; memcpy then compute 31.8-33.2 and GDMA double
+  buffering (esp_async_memcpy) 22-28: both worse. Autoload is one call at start, so first: chip_run.py --autoload 3
+  (-DTINYLM_AUTOLOAD, region 0 = the model buffer). A first try over the whole external data range rebooted the board
+  in a loop (it maps the flash too): not saved. Base model, seed 42, exact 100 % (512 / 512 + story 120 / 120):
+  128.4 -> 114.2 ms per token, **8.47 -> 9.63 tokens/s**; linears 55.8 -> 43.7 ms (qkv 14.3 -> 11.2, o 5.2 -> 4.2,
+  w1_w3 24.8 -> 19.3, w2 11.5 -> 9.1), head 28.0 -> 26.2, attention unchanged (the KV cache was not in the region).
+  My estimate was -19 ms; measured -12. One seed, one run: a ranking. The ROM cache functions say "do not call in
+  your SDK application": they work on this Arduino core (IDF 4.4), may change with another ESP-IDF.
+  Next: --autoload-kv (region 1 = the state's PSRAM range), T2 + cut, then int4 head, then seeds 43 / 44.
+  Queue Nov 19 (runs/logs/autoload_queue.sh, seed 42, all exact 100 % + story 120 / 120), ms per token / tokens/s:
+  base 128.4 / 8.47 -> autoload 114.2 / 9.62 -> + KV region 114.5 / 9.49; T2 + cut 6 131.6 / 7.94 -> 118.0 / 8.90 ->
+  + KV 116.6 / 8.99; int4 head 115.5 / 9.53 -> **101.6 / 10.96** -> + KV 102.0 / 10.78. The KV region moves the
+  attention by +-1.5 ms both ways (noise level): the model region alone is the choice. Linears -12 ms in every model,
+  head -1.3 to -1.8. Next: seeds 43 / 44 for the int4 head and the base with --autoload 3.
+  Seeds 43 / 44 (runs/logs/autoload_seeds.sh), 3 seeds, all exact 100 % + story 120 / 120: int4 head 9.52 ± 0.01 ->
+  **10.96 ± 0.00** tokens/s (115.6 -> 101.6 ms), int8 head 8.48 ± 0.00 -> 9.62 ± 0.00 (128.5 -> 114.2 ms). README
+  section "Reading the weights while computing". Classic ESP32 question (Edén): this model does not fit (no PSRAM,
+  346 KB heap; KV 0.60-1.67 MB); the 260K model is the line there. My chat figure "~160 KB int8 KV" for 260K was
+  with GQA (4 KV heads); with 8 heads, seq 512, 5 layers, d 64: 5 x 512 x 64 x 2 = 328 KB int8 (computed).
