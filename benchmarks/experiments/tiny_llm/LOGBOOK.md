@@ -388,6 +388,15 @@ Night summary (3 seeds x 10,000 steps, best validation loss; results/w1a1_night.
   (int4 14.68, int8 28.0); 10.13 ± 0.00 tokens/s (int4 9.52, int8 8.48)**. Internal RAM free 234 KB, PSRAM free
   4.22 MB (int4 3.82). Trade-off: +6 % speed and -0.39 MB vs int4 for +0.034 loss (int2 +0.049 vs int4 +0.015).
 
+## Nov 18 2026 -- row x column scales (binary_rc), rule in README first
+
+- Distillation (rule 77b3443 on exp/llm-distill) stopped by Edén at step 500: our fp32 teachers are not trained long
+  enough; distillation only with a well-trained external teacher. Not run.
+- train.py --weights binary_rc (computed rank-1 row x column scale + learned column gain). Smoke 20 steps OK.
+  One-shot rel. error 0.366 -> 0.362 (fp32 weights). Queue: seeds 42 43 44, one at a time, ESTIMATE ~35 min each.
+- Nov 18 result: binary_rc val 1.5138 / 1.5100 / 1.5078 = 1.5105 +- 0.0030 vs binary 1.5224 (paired -0.011 to -0.012
+  every seed). Rule passes (threshold 1.5194). ~23 min per seed. Next: intsim + C for the column scale.
+
 ## Nov 18 2026 -- KV cache at 1 / 2 / 4 bits (rule in README first)
 
 - Edén: we never tried a KV below int8. intsim.py --kv-bits (quant_kv, kept in quant8's code x m / 127 form).

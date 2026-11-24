@@ -79,6 +79,7 @@ def load_model(run, vocab, dev):
     """The trained float model of runs/<run> (train.py's options that have an integer model) and its args."""
     ck = torch.load(os.path.join(run, "model.pt"), map_location=dev)
     a = ck["args"]
+    assert a["weights"] != "binary_rc", "--weights binary_rc has no integer model yet"   # every caller (chip_run too)
     assert a.get("head", "fp32") in ("fp32", "int4", "int2") and not a.get("int8_blocks"), \
         "--head binary / --int8-blocks runs have no integer model yet"
     assert not a.get("learn_thr") and a.get("w2_acts", "same") == "same" and a.get("ffn_act", "silu") == "silu", \

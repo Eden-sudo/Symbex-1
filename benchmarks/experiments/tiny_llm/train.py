@@ -38,6 +38,10 @@ last N keys / values of each query stay unquantized, as intsim.py --kv-recent), 
 sign x mean|q|), --k-unit (1-bit keys without the per-token mean|k|: the score is then an integer Hamming count
 times one factor per query, see the README's bucket form). These run attention by hand (no fused kernel).
 
+--weights binary_rc: 1-bit weights with a row x column scale (sign(w) x a_row x b_col, b = mean |w| of the column,
+a = the least-squares row scale; the rank-1 of |w|), times a learned gain per column (OneBit's h, init 1, no weight
+decay). Not in intsim.py / the C yet.
+
 Quantized runs: every linear layer of the blocks has quantized weights (scale = mean |w| of the row; ternary rounds
 w / scale to -1, 0, 1, binary takes the sign) and 8-bit inputs (absmax per token, 127 levels), both through the
 straight-through estimator. The token embedding (tied to the output layer), the norms and attention's softmax stay in
@@ -71,6 +75,10 @@ def ste(x, q):
 
 def quant_weight(w, kind):
     scale = w.abs().mean(dim=1, keepdim=True).clamp(min=1e-5)
+    if kind == "binary_rc":  # 1 bit with a row x column scale: |w| ~ a b^T, b = mean |w| per column, a = least squares
+        b = w.abs().mean(dim=0, keepdim=True).clamp(min=1e-5)
+        a = ((w.abs() * b).sum(dim=1, keepdim=True) / (b * b).sum()).clamp(min=1e-5)
+        return ste(w, torch.where(w >= 0, 1.0, -1.0) * a * b)
     if kind == "ternary":
         return ste(w, (w / scale).round().clamp(-1, 1) * scale)
     if kind == "int8":
@@ -138,6 +146,8 @@ class QLinear(nn.Linear):
         self.act_opts = dict(act_opts or {})
         learn_thr = self.act_opts.pop("learn_thr", False)
         self.thr = nn.Parameter(torch.zeros(n_in)) if acts != 8 and learn_thr else None
+        # binary_rc: a learned gain per input column on top of the computed column scale (OneBit's h, init 1)
+        self.col = nn.Parameter(torch.ones(n_in)) if kind == "binary_rc" else None
 
     def forward(self, x):
         if self.kind == "fp32":
@@ -145,7 +155,8 @@ class QLinear(nn.Linear):
         if self.had_blk:
             x = (x.reshape(*x.shape[:-1], -1, self.had_blk) @ self.had.to(x.dtype)).reshape(x.shape)
         xq = quant_act8(x) if self.acts == 8 else quant_act_low(x, self.acts, thr=self.thr, **self.act_opts)
-        return F.linear(xq, quant_weight(self.weight, self.kind))
+        wq = quant_weight(self.weight, self.kind)
+        return F.linear(xq, wq if self.col is None else wq * self.col)
 
 
 # ---- model ---------------------------------------------------------------------------------------------------------
@@ -421,7 +432,7 @@ def run(args, seed):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--weights", choices=["fp32", "ternary", "binary"], required=True)
+    ap.add_argument("--weights", choices=["fp32", "ternary", "binary", "binary_rc"], required=True)
     ap.add_argument("--seeds", type=int, nargs="+", default=[42])
     ap.add_argument("--head", choices=["fp32", "binary", "int4", "int2"], default="fp32", help="output layer weights (see above)")
     ap.add_argument("--int8-blocks", type=int, nargs="*", default=[], help="blocks with int8 weights (see above)")

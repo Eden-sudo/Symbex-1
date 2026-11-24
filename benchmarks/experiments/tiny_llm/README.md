@@ -200,6 +200,28 @@ Yes: the 1-bit model writes stories with dialogue and a plot, the integer versio
 exact). It costs perplexity against fp32 (4.58 vs 3.67): the binary model
 repeats itself more. Ternary sits between the two at twice the weight memory.
 
+## Row x column scales on the 1-bit weights (rule Nov 18 2026, before training)
+
+**Question:** binary W1A8 keeps one scale per row (mean |w|). Does a scale per row AND per input column (the rank-1
+of |w|, as OneBit) close part of the gap to ternary, with the weights still 1 bit?
+
+**What:** `train.py --weights binary_rc`: sign(w) x a_row x b_col x g_col (b = mean |w| of the column, a = the
+least-squares row scale, g = a learned gain per column, init 1, no weight decay), same recipe as the binary base,
+labels only, 10,000 steps, 3 seeds (42, 43, 44), validation only. Extra memory: one scale per input column per matrix
+(+20 KB as int8-ish, ESTIMATE; the 1-bit weights unchanged). One shot, on trained weights: relative squared error
+0.366 -> 0.362 (fp32 model), 0.471 -> 0.464 (binary model): little to gain without training.
+
+**Rule:** base val loss binary 1.5224 +- 0.0026, ternary 1.4251 +- 0.0026. binary_rc helps if its mean < 1.5224 -
+max(0.0026, its sd). If it helps, the next step is its integer model and C (the column scale goes on the input
+before the 8-bit quantization); if not, row scales stay.
+
+**Result (val loss, 3 seeds, `results/train_binary_rc_d384l8_s*.json`):** binary_rc 1.5105 +- 0.0030 (1.5138, 1.5100,
+1.5078) vs binary 1.5224 +- 0.0026; paired per seed -0.0114 / -0.0119 / -0.0122. Threshold 1.5224 - 0.0030 = 1.5194:
+passes. Ternary (1.4251) stays far ahead: binary_rc closes about 1/8 of the binary -> ternary gap.
+
+**Answer:** yes, a small but steady gain with the weights still 1 bit. Next: its integer model (intsim) and C, then
+the extra memory and speed measured on the S3 (the +20 KB above is an ESTIMATE).
+
 ## KV cache below 8 bits (rule Nov 18 2026, before measuring)
 
 **Question:** the KV cache is int8 (1.5 MB for 256 tokens here; ~328 KB for a 260K-size model with 512 tokens,
