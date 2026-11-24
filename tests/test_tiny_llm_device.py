@@ -47,3 +47,23 @@ def test_cuda_autocast_unchanged(train, monkeypatch, device):
     with train.autocast(device):
         pass
     autocast.assert_called_once_with("cuda", dtype=torch.bfloat16)
+
+
+@pytest.mark.parametrize("device, expected", [("cuda", "cuda"), ("cuda:1", "cuda:1"), ("mps", "cpu"), ("cpu", "cpu")])
+def test_data_device_keeps_splits_off_mps(train, device, expected):
+    assert train.data_device(device) == expected
+
+
+def test_split_from_disk_matches_in_memory_and_batches_move_to_device(train, tmp_path, monkeypatch):
+    tokens = (torch.arange(5000) * 7 % 4096).numpy().astype("uint16")
+    tokens.tofile(tmp_path / "val.bin")
+    monkeypatch.setattr(train, "DATA", str(tmp_path))
+    in_memory = train.load_split("val", "cpu")
+    from_disk = train.load_split("val", "cpu", from_disk=True)
+    assert from_disk.dtype == in_memory.dtype == torch.int16
+    assert torch.equal(from_disk, in_memory)
+    gen_a, gen_b = (torch.Generator().manual_seed(0) for _ in range(2))
+    xa, ya = train.batch(in_memory, 4, 16, gen_a)
+    xb, yb = train.batch(from_disk, 4, 16, gen_b, torch.device("cpu"))
+    assert torch.equal(xa, xb) and torch.equal(ya, yb) and xb.dtype == torch.int64
+    assert torch.equal(xb[:, 1:], yb[:, :-1])

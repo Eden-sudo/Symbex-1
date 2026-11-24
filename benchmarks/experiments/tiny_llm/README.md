@@ -33,6 +33,19 @@ python chip_run.py runs/binary_d384l8_s42 --port /dev/ttyACM0                   
 python chip_run.py runs/binary_d384l8_s42 --port /dev/ttyACM0 --linear symbex   # linear layers on lib_symbex
 ```
 
+Without CUDA (Apple Silicon or CPU) `train.py` trains on MPS or the CPU; `intsim.py` and `chip_run.py` stay on the CPU
+so the integers are exact. On MPS the corpus is read from disk, not copied into memory, and `--microbatch` splits each
+batch into chunks with the same update, so the full recipe stays near 2.7 GB:
+
+```
+PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.25 PYTORCH_MPS_LOW_WATERMARK_RATIO=0.2 \
+  python train.py --weights binary --batch 128 --microbatch 16 --seeds 42 --no-compile
+python chip_run.py runs/binary_d384l8_s42 --port /dev/cu.usbmodem1101 --linear symbex --before usb_reset
+```
+
+`--before usb_reset` is for boards wired through the S3's own USB port (USB-Serial/JTAG), where esptool's default
+reset leaves no serial data when `model.bin` is written.
+
 - **Chip (`chip/`, `chip_run.py`):** ESP32-S3 N16R8 at 240 MHz. `model.bin` goes to a flash partition and is copied
   into PSRAM at start; the KV cache is in PSRAM, the per-token buffers in internal RAM. The firmware checks every
   token of 2 validation windows (a hash of the 4096 scores and the final max, against `intsim.py`) and the greedy

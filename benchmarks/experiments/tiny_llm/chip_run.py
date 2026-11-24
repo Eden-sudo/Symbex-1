@@ -138,6 +138,8 @@ def main():
         if args.p_cut is not None:
             flags.append(f"-DTINYLM_P_CUT={min(2048, round(args.p_cut * 128))}")
         env = dict(os.environ, PLATFORMIO_BUILD_FLAGS=" ".join(flags))
+        if args.before == "usb_reset":  # the flasher stub gets no serial data over USB-Serial/JTAG
+            env["PLATFORMIO_UPLOAD_FLAGS"] = "--no-stub"
         subprocess.run(["pio", "run", "-d", proj, "-t", "upload", "--upload-port", args.port], check=True,
                        capture_output=True, env=env)
         print("writing model.bin to the model partition...")
