@@ -20,6 +20,16 @@ int l2c_init(const void *model, int cap) {
     return p->seq_len;
 }
 
+long l2c_state_bytes(const void *model, int cap) {
+    Config p;
+    memcpy(&p, model, sizeof(Config));
+    long vocab = abs(p.vocab_size), seq = (cap > 0 && cap < p.seq_len) ? cap : p.seq_len;
+    long kv_dim = (long)p.dim * p.n_kv_heads / p.n_heads;
+    /* the ten callocs of malloc_run_state: x, xb, xb2, q (dim), hb, hb2 (hidden), key / value cache, att, logits */
+    long floats = 4L * p.dim + 2L * p.hidden_dim + 2L * p.n_layers * seq * kv_dim + (long)p.n_heads * seq + vocab;
+    return floats * (long)sizeof(float);
+}
+
 int l2c_step(int token, int pos) {
     float *logits = forward(&l2c, token, pos);
     return sample_argmax(logits, l2c.config.vocab_size);

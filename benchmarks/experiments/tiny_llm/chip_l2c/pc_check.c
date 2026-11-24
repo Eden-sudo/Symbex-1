@@ -14,6 +14,7 @@ int main(int argc, char **argv) {
     if (fread(buf, 1, n, f) != (size_t)n) { fprintf(stderr, "short read\n"); return 1; }
     fclose(f);
     int n_new = atoi(argv[2]), n_prompt = argc - 3;
+    fprintf(stderr, "run state: %ld bytes\n", l2c_state_bytes(buf, n_prompt + n_new));
     l2c_init(buf, n_prompt + n_new);
     int next = 0;
     for (int i = 0; i < n_prompt + n_new - 1; i++) {

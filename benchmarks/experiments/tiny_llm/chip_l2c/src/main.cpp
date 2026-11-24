@@ -35,8 +35,16 @@ void setup() {
     uint32_t sum = 0;
     for (long i = 0; i < MODEL_BYTES; i++) sum = sum * 31u + model_bin[i];
     if (sum != MODEL_SUM) fail("model_data.h differs from the exported checkpoint");
+    /* run.c exits on a failed calloc (the board restarts with no line): check the total first. A fragmented heap
+       can still refuse one large block (the KV cache) with enough bytes free in total. */
+    long need = l2c_state_bytes(model_bin, GEN_IDS);
+    if (need > (long)free_ram()) {
+        static char why[96];
+        snprintf(why, sizeof why, "run.c needs %ld bytes of RAM, %u free", need, free_ram());
+        fail(why);
+    }
     uint32_t t0 = micros();
-    int ctx = l2c_init(model_bin, GEN_IDS);         /* run.c exits on a failed calloc: no line after this one */
+    int ctx = l2c_init(model_bin, GEN_IDS);
     Serial.printf("LOADED %d bytes, context %d, in %lu ms | ram free %u\n", (int)MODEL_BYTES, ctx,
                   (unsigned long)(micros() - t0) / 1000, free_ram());
     int next = 0;
