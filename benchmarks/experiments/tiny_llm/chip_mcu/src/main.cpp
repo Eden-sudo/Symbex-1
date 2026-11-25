@@ -11,6 +11,7 @@
 
 extern "C" {
 #include "../../c/tinylm.h"
+#include "../../c/board_core.h"
 }
 #include "check_data.h"
 #include "model_data.h"
@@ -43,6 +44,7 @@ void setup() {
     Serial.printf("ID:%u\n", (unsigned)CHECK_ID);       /* which run and reference set this firmware holds */
     Serial.printf("BOARD:%s\n", BOARD_NAME);
     Serial.println("LINEAR:lut8");
+    print_board_core();
     Serial.printf("TINYLM ready | cpu %u MHz | ram %u bytes free\n", (unsigned)(F_CPU / 1000000), free_ram());
 
     const uint8_t *buf = model_bin;

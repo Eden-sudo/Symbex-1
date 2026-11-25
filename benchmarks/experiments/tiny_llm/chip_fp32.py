@@ -138,6 +138,9 @@ def main():
                 if line[6:] != args.board:
                     raise RuntimeError(f"the board runs the {line[6:]} firmware, not {args.board}")
                 info["board"] = True
+            elif line.startswith("CORE:"):
+                print("  core on the board: " + line[5:])
+                info["core"] = line[5:]
             elif line.startswith("L2C ready") or line.startswith("LOADED"):
                 print("  " + line)
                 info[line.split()[0].lower()] = line
@@ -160,7 +163,7 @@ def main():
     res = {"run": os.path.basename(run), "board": BOARD_NAMES[args.board],
            "kernel": "llama2.c run.c fp32 (commit 350e04f, unchanged, plain C, -O2)", "model_in": "flash",
            "model_bytes": len(data), "kv_cache": "fp32", "kv_cache_in": "internal ram",
-           "context": len(ids), "cpu_mhz": BOARD_MHZ[args.board], "platform": pio_platform(PROJ, args.board), "ready": info.get("l2c"), "loaded": info.get("loaded"),
+           "context": len(ids), "cpu_mhz": BOARD_MHZ[args.board], "platform": pio_platform(PROJ, args.board), "core_on_board": info.get("core"), "ready": info.get("l2c"), "loaded": info.get("loaded"),
            "pc_vs_torch_equal": torch_equal, "story_tokens": len(gen), "story_equal": int(sum(oks)),
            "first_diverging_story_token": first_diff,
            "ms_per_token_story_mean": round(us.mean() / 1000, 3), "tokens_per_second_story": round(1e6 / us.mean(), 3),

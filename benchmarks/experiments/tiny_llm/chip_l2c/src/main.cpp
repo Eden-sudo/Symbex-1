@@ -7,6 +7,7 @@
 #include <Arduino.h>
 
 #include "l2c_mcu.h"
+#include "../../c/board_core.h"
 #include "gen_data.h"
 #include "model_data.h"
 
@@ -31,6 +32,7 @@ void setup() {
     while (Serial.read() != 0x55) delay(10);
     Serial.printf("ID:%u\n", (unsigned)GEN_ID);
     Serial.printf("BOARD:%s\n", BOARD_NAME);
+    print_board_core();
     Serial.printf("L2C ready | cpu %u MHz | ram %u bytes free\n", (unsigned)(F_CPU / 1000000), free_ram());
     uint32_t sum = 0;
     for (long i = 0; i < MODEL_BYTES; i++) sum = sum * 31u + model_bin[i];

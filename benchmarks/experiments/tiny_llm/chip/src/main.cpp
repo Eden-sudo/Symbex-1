@@ -16,6 +16,7 @@
 
 extern "C" {
 #include "../../c/tinylm.h"
+#include "../../c/board_core.h"
 }
 #include "check_data.h"
 
@@ -52,6 +53,7 @@ void setup() {
 #ifdef TINYLM_REPEAT_PROBE
     Serial.printf("REPEAT:%d\n", TINYLM_REPEAT_PROBE);   /* timing only: the outputs differ from intsim.py */
 #endif
+    print_board_core();
     Serial.printf("TINYLM ready | cpu %d MHz | psram %u bytes free\n", getCpuFrequencyMhz(),
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 

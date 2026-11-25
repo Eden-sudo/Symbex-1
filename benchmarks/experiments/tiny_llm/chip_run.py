@@ -219,6 +219,9 @@ def main():
             elif line.startswith("RAM:"):
                 print("  " + line)
                 info["ram"] = line
+            elif line.startswith("CORE:"):
+                print("  core on the board: " + line[5:])
+                info["core"] = line[5:]
             elif line.startswith("TINYLM ready") or line.startswith("LOADED"):
                 print("  " + line)
                 info[line.split()[0].lower()] = line
@@ -276,7 +279,7 @@ def main():
                                                                               " linear, PIE s8 dot (output, scores)")
               if s3 else " linear, plain C (output, scores, values)")),
            "model_in": "psram" if s3 else "flash",
-           "kv_cache": kv or "int8", "p_cut_nats": args.p_cut, "fine_prof": args.fine_prof, "dcache_autoload": args.autoload, "dcache_autoload_kv_bytes": info.get("autoload_kv_bytes"), "kv_cache_in": "psram" if s3 else "internal ram", "cpu_mhz": BOARD_MHZ[args.board], "platform": pio_platform(proj, "s3" if s3 else args.board), "ready": info.get("tinylm"), "loaded": info.get("loaded"),
+           "kv_cache": kv or "int8", "p_cut_nats": args.p_cut, "fine_prof": args.fine_prof, "dcache_autoload": args.autoload, "dcache_autoload_kv_bytes": info.get("autoload_kv_bytes"), "kv_cache_in": "psram" if s3 else "internal ram", "cpu_mhz": BOARD_MHZ[args.board], "platform": pio_platform(proj, "s3" if s3 else args.board), "core_on_board": info.get("core"), "ready": info.get("tinylm"), "loaded": info.get("loaded"),
            "check_tokens": len(hashes), "check_equal": int(sum(h[2] for h in hashes)),
            "equal_percent": round(100 * sum(h[2] for h in hashes) / max(1, len(hashes)), 3),
            "story_tokens": len(gen), "story_equal": int(sum(g[1] for g in gen)),
