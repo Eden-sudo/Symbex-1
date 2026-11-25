@@ -1,0 +1,86 @@
+{
+ "old_nodistill_s42": {
+  "val": 87.6,
+  "constant_pct": [
+   3.90625,
+   62.6953125
+  ]
+ },
+ "old_nodistill_s43": {
+  "val": 87.81666666666666,
+  "constant_pct": [
+   6.25,
+   62.5
+  ]
+ },
+ "old_nodistill_s44": {
+  "val": 88.21666666666667,
+  "constant_pct": [
+   7.8125,
+   62.5
+  ]
+ },
+ "old_distill_s42": {
+  "val": 87.36666666666666,
+  "constant_pct": [
+   3.90625,
+   59.765625
+  ]
+ },
+ "old_distill_s43": {
+  "val": 87.45,
+  "constant_pct": [
+   6.25,
+   59.9609375
+  ]
+ },
+ "old_distill_s44": {
+  "val": 87.03333333333333,
+  "constant_pct": [
+   7.8125,
+   60.15625
+  ]
+ },
+ "fixed_nodistill_s42": {
+  "val": 87.63333333333334,
+  "constant_pct": [
+   3.90625,
+   8.3984375
+  ]
+ },
+ "fixed_nodistill_s43": {
+  "val": 88.33333333333333,
+  "constant_pct": [
+   6.25,
+   10.15625
+  ]
+ },
+ "fixed_nodistill_s44": {
+  "val": 87.75,
+  "constant_pct": [
+   7.8125,
+   9.1796875
+  ]
+ },
+ "fixed_distill_s42": {
+  "val": 87.98333333333333,
+  "constant_pct": [
+   3.90625,
+   6.8359375
+  ]
+ },
+ "fixed_distill_s43": {
+  "val": 87.81666666666666,
+  "constant_pct": [
+   6.25,
+   8.3984375
+  ]
+ },
+ "fixed_distill_s44": {
+  "val": 87.5,
+  "constant_pct": [
+   7.8125,
+   8.0078125
+  ]
+ }
+}

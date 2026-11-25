@@ -117,38 +117,53 @@ def apply_plan(model, plan, first=None, keep_first_input=True, primera=None, man
 def init_thresholds(model, calibration):
     """Sets each RSign.beta to the per-channel median of the input it receives on `calibration` (real samples),
     moved halfway to the next larger value of that channel (no sample exactly on the threshold).
-    Returns the number of thresholds set. Run it right after apply_plan / apply_method."""
-    captured, hooks = {}, []
+    Returns the number of thresholds set. Run it right after apply_plan / apply_method.
+    The thresholds are set ONE LAYER AT A TIME, in the order the forward pass reaches them: each one is measured on
+    the input it gets with the earlier thresholds already in place. (Measuring them all in one pass, as earlier
+    versions did, gave every later layer the input of a network whose thresholds were all still 0: after a ReLU that
+    input is all +1, the layer's outputs are constant per channel, and those channels started -- and stayed -- dead:
+    63 % of the 512 units of the Fashion MLP 784-128-512-10, found Nov 25, 2026.)"""
+    order, hooks = [], []
 
-    def store(mod, inputs):
-        captured.setdefault(mod, inputs[0].detach())          # returns None: the input is not modified
+    def note(mod, inputs):
+        if mod not in order:
+            order.append(mod)
 
     for m in model.modules():
         if isinstance(m, RSign):
-            hooks.append(m.register_forward_pre_hook(store))
+            hooks.append(m.register_forward_pre_hook(note))
     was_training = model.training
     model.eval()
     model(calibration)
-    model.train(was_training)
     for h in hooks:
         h.remove()
-    for mod, x in captured.items():
-        c = x.shape[1]
-        values = x.movedim(1, 0).reshape(c, -1)
-        median = values.median(dim=1).values
-        # midpoint between the median and the next larger value of that channel: a threshold placed exactly ON
-        # a data value creates exact ties, and with discrete inputs (e.g. the +-1 sums of a binary layer) a
-        # whole group of samples sits on the boundary, where float rounding decides the bit.
-        # If nothing is above the median (e.g. a channel that is always 0 after a ReLU), use the midpoint with the
-        # next SMALLER value instead; if the channel is constant, a threshold 1 below it (always +1, no tie).
-        larger = torch.where(values > median[:, None], values, torch.full_like(values, float("inf")))
-        smaller = torch.where(values < median[:, None], values, torch.full_like(values, float("-inf")))
-        next_value = larger.min(dim=1).values
-        prev_value = smaller.max(dim=1).values
-        beta = torch.where(~torch.isinf(next_value), (median + next_value) / 2,
-                           torch.where(~torch.isinf(prev_value), (median + prev_value) / 2, median - 1.0))
-        mod.beta.copy_(beta.view_as(mod.beta))
-    return len(captured)
+    for mod in order:
+        captured = {}
+        hook = mod.register_forward_pre_hook(lambda m, inputs: captured.setdefault(m, inputs[0].detach()))
+        model(calibration)
+        hook.remove()
+        _set_beta(mod, captured[mod])
+    model.train(was_training)
+    return len(order)
+
+
+def _set_beta(mod, x):
+    """the threshold of init_thresholds for one RSign, from the input x it receives"""
+    c = x.shape[1]
+    values = x.movedim(1, 0).reshape(c, -1)
+    median = values.median(dim=1).values
+    # midpoint between the median and the next larger value of that channel: a threshold placed exactly ON
+    # a data value creates exact ties, and with discrete inputs (e.g. the +-1 sums of a binary layer) a
+    # whole group of samples sits on the boundary, where float rounding decides the bit.
+    # If nothing is above the median (e.g. a channel that is always 0 after a ReLU), use the midpoint with the
+    # next SMALLER value instead; if the channel is constant, a threshold 1 below it (always +1, no tie).
+    larger = torch.where(values > median[:, None], values, torch.full_like(values, float("inf")))
+    smaller = torch.where(values < median[:, None], values, torch.full_like(values, float("-inf")))
+    next_value = larger.min(dim=1).values
+    prev_value = smaller.max(dim=1).values
+    beta = torch.where(~torch.isinf(next_value), (median + next_value) / 2,
+                       torch.where(~torch.isinf(prev_value), (median + prev_value) / 2, median - 1.0))
+    mod.beta.copy_(beta.view_as(mod.beta))
 
 
 @torch.no_grad()
