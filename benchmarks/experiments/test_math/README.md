@@ -370,6 +370,26 @@ threshold `beta` of RSign (compiler_core/methods/base.py) is ≤ 0 in 3.9 / 62.5
 1, and the straight-through gradient then no longer moves that channel: it dies DURING binary training (calibration
 places every beta between the median and the next value, above 0 for a live channel).
 
+**Pruned header on the chip** (prune.py writes runs/pruned/{full,pruned}_<d>_s<seed>/model_symbex.h with the
+CDT's own exporter; the classifier offset becomes K always-1 neurons in the last hidden layer, K = 51-99, so the
+library needs no change; C on the PC 100 % equal to the simulation, 9 / 9 networks). ESP32 classic, seed 42, weights
+in flash, standard engine, lut16, 1000 validation images (`chip_test.py --no-int8`), equal to the simulation 100 %
+on all 6 runs, same accuracy before and after:
+
+| MLP (seed 42) | hidden widths after | model data in flash (header arrays) | latency ESP32 | model buffers (RAM) |
+|---|---|---|---|---|
+| 2 layers | 128-512 -> 123-242 | 27.9 -> 20.6 KB | 3.38 -> 2.29 ms (1.47x) | 3.09 -> 2.04 KB |
+| 3 layers | 128-512-512 -> 127-160-298 | 64.8 -> 31.1 KB | 11.00 -> 3.99 ms (2.76x) | 3.09 -> 2.26 KB |
+| 7 layers | 128-512x6 -> 125-195-216-177-139-72-160 | 212.3 -> 47.7 KB | 32.08 -> 8.38 ms (3.83x) | 3.09 -> 1.94 KB |
+
+Total RAM on the chip stays ~67-68 KB: it is dominated by the 64 KB lut16 popcount table, which does not depend on
+the model (`--popcount swar` removes it). Without the K bias neurons (a per-class integer bias in the C classifier,
+not written) the flash would be 19.3 / 27.9 / 45.3 KB (computed). The flash numbers are the exporter's count of the
+header arrays; the app image shrank more (191.2 -> 173.6 KB, 217.6 -> 190.8 KB, esptool), not understood. In flash the
+time also depends on the flash cache: the same 784 -> 128 first layer takes 2.43 ms in the 2-layer net and 3.77 ms
+in the 3-layer one, so part of the gain is a smaller model in the cache (not separated). One seed: a ranking, not a
+result.
+
 **Answer.** Yes: they are dead weight, removed with no change at all. And they are not a property of binary MLPs but
 of the plain dense recipe: binary training drives the 512-wide layers' beta to ≤ 0 and kills 60-70 % of them, so the
 Fashion MLP 784-128-512-10 really computes with ~190 live neurons in its second layer. This is the same family of

@@ -22,6 +22,7 @@ import torch
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import damage as D                                                                            # noqa: E402
+from compiler_core.export.dense import INT32_MIN                                              # noqa: E402
 
 
 def forward(layers, x_u8, offset=None):
@@ -91,6 +92,37 @@ def prune(layers, on, off):
     return new, offset, saved
 
 
+def bias_neurons(layers, offset):
+    """the classifier offset as K always-1 neurons appended to the last hidden layer (no new C code): every offset
+    is a sum of +-1 over the removed neurons, so all have the parity of their count; K = the smallest value >= max
+    |offset| with that parity, and class j gets (K + offset_j) / 2 weights +1 and the rest -1 on those K inputs"""
+    new = [dict(d) for d in layers]
+    hid, cls = new[-2], new[-1]
+    k = int(np.abs(offset).max())
+    if (k - int(offset[0])) % 2:
+        k += 1
+    assert all((k + int(o)) % 2 == 0 for o in offset)
+    hid["signs"] = np.concatenate([hid["signs"], np.ones((k, hid["signs"].shape[1]), hid["signs"].dtype)])
+    hid["threshold"] = np.concatenate([np.asarray(hid["threshold"]), np.full(k, INT32_MIN, np.asarray(hid["threshold"]).dtype)])
+    cols = np.array([[1] * ((k + int(o)) // 2) + [-1] * ((k - int(o)) // 2) for o in offset], cls["signs"].dtype)
+    cls["signs"] = np.concatenate([cls["signs"], cols.reshape(len(offset), k)], axis=1)
+    return new, k
+
+
+def export(layers, out_dir, xv, yv):
+    """model_symbex.h + validation files of the pruned net (chip_test.py reads them), C checked on the PC"""
+    from compiler_core.export import dense
+    os.makedirs(out_dir, exist_ok=True)
+    pred = dense.simulate(layers, xv)
+    header = os.path.join(out_dir, "model_symbex.h")
+    dense.write_header(layers, header)
+    equal, total, msg = dense.validate_c(header, os.path.join(D.BENCH, "..", "Symbex1_PIO", "lib", "lib_symbex"), xv, pred)
+    dense.save_validation(out_dir, xv, yv, pred)
+    buffers = int(next(l.split()[2] for l in open(header) if "_BYTES_BUFFERS" in l))
+    return dict(header=os.path.relpath(header, HERE), flash_bytes=dense.flash_bytes(layers), ram_buffers=buffers,
+                c_exactness=None if equal is None else 100 * equal / total, c_note=msg, pred=pred)
+
+
 def study(seed, depth):
     layers, xv, yv, ref = D.load_mlp(seed, depth)[:4]
     _, lv = forward(layers, xv)
@@ -101,6 +133,12 @@ def study(seed, depth):
     _, lp = forward(new, xv, offset)
     p1 = lp.argmax(1)
     on_v, off_v = constant_masks(layers, xv)
+    biased, k = bias_neurons(new, offset)
+    assert (forward(biased, xv)[1] == lp).all(), "the bias neurons do not reproduce the classifier offset"
+    tag = f"{f'd{depth}' if depth else 'd2'}_s{seed}"
+    before = export(layers, os.path.join(HERE, "runs", "pruned", f"full_{tag}"), xv, yv)
+    after = export(biased, os.path.join(HERE, "runs", "pruned", f"pruned_{tag}"), xv, yv)
+    assert (before.pop("pred") == p0).all() and (after.pop("pred") == p1).all()
     hidden = [len(m) for m in on]
     total_bits = sum(d["signs"].size for d in layers)
     sentinel = [int((np.abs(np.asarray(d["threshold"], dtype=np.float64)) >= 2 ** 31).sum()) for d in layers[:-1]]
@@ -108,7 +146,9 @@ def study(seed, depth):
                 constant_validation=[int((a | b).sum()) for a, b in zip(on_v, off_v)],
                 acc_before=100 * float((p0 == yv).mean()), acc_after=100 * float((p1 == yv).mean()),
                 changed=100 * float((p0 != p1).mean()), logits_equal=100 * float((lv == lp).all(1).mean()),
-                weight_bits=total_bits, weight_bits_saved=saved)
+                weight_bits=total_bits, weight_bits_saved=saved, bias_neurons=k,
+                widths=[d["signs"].shape[0] for d in biased[:-1]], export_full=before, export_pruned=after,
+                flash_bytes_no_bias_neurons=int(__import__("compiler_core.export.dense", fromlist=["x"]).flash_bytes(new)))
 
 
 def main():
@@ -124,6 +164,10 @@ def main():
         print(f"  {key}: removed {sum(r['removed'])}/{sum(r['hidden'])} {r['removed']} (threshold +-2^31 {r['sentinel']}, constant on validation "
               f"{r['constant_validation']}), acc {r['acc_before']:.2f} -> {r['acc_after']:.2f}, changed "
               f"{r['changed']:.3f}%, logits equal {r['logits_equal']:.2f}%, weight bits -{100 * r['weight_bits_saved'] / r['weight_bits']:.1f}%")
+        f, q = r["export_full"], r["export_pruned"]
+        print(f"     header: widths {r['widths']} (+{r['bias_neurons']} bias neurons), flash {f['flash_bytes']} -> "
+              f"{q['flash_bytes']} B, buffers {f['ram_buffers']} -> {q['ram_buffers']} B, C exact {f['c_exactness']} / "
+              f"{q['c_exactness']} % {q['c_note']}")
     if args.out:
         old = json.load(open(args.out)) if os.path.exists(args.out) else {}
         old.update(res)

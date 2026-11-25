@@ -21,7 +21,27 @@
   "changed": 0.0,
   "logits_equal": 100.0,
   "weight_bits": 171008,
-  "weight_bits_saved": 49173
+  "weight_bits_saved": 49173,
+  "bias_neurons": 51,
+  "widths": [
+   123,
+   242
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_d2_s42/model_symbex.h",
+   "flash_bytes": 27936,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_d2_s42/model_symbex.h",
+   "flash_bytes": 20556,
+   "ram_buffers": 2088,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 19332
  },
  "mlp_s43": {
   "hidden": [
@@ -45,7 +65,27 @@
   "changed": 0.0,
   "logits_equal": 100.0,
   "weight_bits": 171008,
-  "weight_bits_saved": 51968
+  "weight_bits_saved": 51968,
+  "bias_neurons": 52,
+  "widths": [
+   120,
+   244
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_d2_s43/model_symbex.h",
+   "flash_bytes": 27936,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_d2_s43/model_symbex.h",
+   "flash_bytes": 20256,
+   "ram_buffers": 2096,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 19008
  },
  "mlp_s44": {
   "hidden": [
@@ -69,7 +109,27 @@
   "changed": 0.0,
   "logits_equal": 100.0,
   "weight_bits": 171008,
-  "weight_bits_saved": 53920
+  "weight_bits_saved": 53920,
+  "bias_neurons": 52,
+  "widths": [
+   118,
+   244
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_d2_s44/model_symbex.h",
+   "flash_bytes": 27936,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_d2_s44/model_symbex.h",
+   "flash_bytes": 20024,
+   "ram_buffers": 2096,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 18776
  },
  "mlp_d3_s42": {
   "hidden": [
@@ -97,7 +157,28 @@
   "changed": 0.0,
   "logits_equal": 100.0,
   "weight_bits": 433152,
-  "weight_bits_saved": 275864
+  "weight_bits_saved": 275864,
+  "bias_neurons": 78,
+  "widths": [
+   127,
+   160,
+   298
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_d3_s42/model_symbex.h",
+   "flash_bytes": 64800,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_d3_s42/model_symbex.h",
+   "flash_bytes": 31132,
+   "ram_buffers": 2312,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 27852
  },
  "mlp_d3_s43": {
   "hidden": [
@@ -125,7 +206,28 @@
   "changed": 0.0,
   "logits_equal": 100.0,
   "weight_bits": 433152,
-  "weight_bits_saved": 278871
+  "weight_bits_saved": 278871,
+  "bias_neurons": 77,
+  "widths": [
+   124,
+   159,
+   298
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_d3_s43/model_symbex.h",
+   "flash_bytes": 64800,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_d3_s43/model_symbex.h",
+   "flash_bytes": 30760,
+   "ram_buffers": 2312,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 27520
  },
  "mlp_d3_s44": {
   "hidden": [
@@ -153,7 +255,28 @@
   "changed": 0.0,
   "logits_equal": 100.0,
   "weight_bits": 433152,
-  "weight_bits_saved": 279040
+  "weight_bits_saved": 279040,
+  "bias_neurons": 72,
+  "widths": [
+   124,
+   159,
+   292
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_d3_s44/model_symbex.h",
+   "flash_bytes": 64800,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_d3_s44/model_symbex.h",
+   "flash_bytes": 30520,
+   "ram_buffers": 2288,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 27480
  },
  "mlp_d7_s42": {
   "hidden": [
@@ -197,7 +320,32 @@
   "changed": 0.0,
   "logits_equal": 100.0,
   "weight_bits": 1481728,
-  "weight_bits_saved": 1238732
+  "weight_bits_saved": 1238732,
+  "bias_neurons": 91,
+  "widths": [
+   125,
+   195,
+   216,
+   177,
+   139,
+   72,
+   160
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_d7_s42/model_symbex.h",
+   "flash_bytes": 212256,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_d7_s42/model_symbex.h",
+   "flash_bytes": 47660,
+   "ram_buffers": 1984,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 45316
  },
  "mlp_d7_s43": {
   "hidden": [
@@ -241,7 +389,32 @@
   "changed": 0.0,
   "logits_equal": 100.0,
   "weight_bits": 1481728,
-  "weight_bits_saved": 1239753
+  "weight_bits_saved": 1239753,
+  "bias_neurons": 82,
+  "widths": [
+   122,
+   199,
+   217,
+   178,
+   138,
+   72,
+   152
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_d7_s43/model_symbex.h",
+   "flash_bytes": 212256,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_d7_s43/model_symbex.h",
+   "flash_bytes": 47256,
+   "ram_buffers": 1988,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 45128
  },
  "mlp_d7_s44": {
   "hidden": [
@@ -285,6 +458,286 @@
   "changed": 0.0,
   "logits_equal": 100.0,
   "weight_bits": 1481728,
-  "weight_bits_saved": 1242107
+  "weight_bits_saved": 1242107,
+  "bias_neurons": 99,
+  "widths": [
+   121,
+   196,
+   217,
+   177,
+   140,
+   70,
+   168
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_d7_s44/model_symbex.h",
+   "flash_bytes": 212256,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_d7_s44/model_symbex.h",
+   "flash_bytes": 47412,
+   "ram_buffers": 1988,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 44876
+ },
+ "chip_esp32_s42": {
+  "full_d2": {
+   "board": "esp32",
+   "hal": "generic: lut16 (64 KB table in RAM)",
+   "weights": "flash",
+   "engine": "standard",
+   "n": 1000,
+   "equal_simulation": 100.0,
+   "accuracy": 88.7,
+   "median_ms": 3.379,
+   "min_ms": 3.372,
+   "layers": [
+    {
+     "step": "layer 0: 784 -> 128 (uint8 x 1 bit, AND) + thresholds",
+     "median_ms": 2.43
+    },
+    {
+     "step": "layer 1: 128 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 0.897
+    },
+    {
+     "step": "layer 2: 512 -> 10 (1 bit x 1 bit, AND) + argmax",
+     "median_ms": 0.059
+    }
+   ],
+   "ram": {
+    "buffers": 3168,
+    "input_bytes": 784,
+    "popcount_table": 65540,
+    "stack_used": 544,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 70036
+   }
+  },
+  "pruned_d2": {
+   "board": "esp32",
+   "hal": "generic: lut16 (64 KB table in RAM)",
+   "weights": "flash",
+   "engine": "standard",
+   "n": 1000,
+   "equal_simulation": 100.0,
+   "accuracy": 88.7,
+   "median_ms": 2.294,
+   "min_ms": 2.29,
+   "layers": [
+    {
+     "step": "layer 0: 784 -> 123 (uint8 x 1 bit, AND) + thresholds",
+     "median_ms": 2.054
+    },
+    {
+     "step": "layer 1: 123 -> 242 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 0.21
+    },
+    {
+     "step": "layer 2: 242 -> 10 (1 bit x 1 bit, AND) + argmax",
+     "median_ms": 0.04
+    }
+   ],
+   "ram": {
+    "buffers": 2088,
+    "input_bytes": 784,
+    "popcount_table": 65540,
+    "stack_used": 544,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 68956
+   }
+  },
+  "full_d3": {
+   "board": "esp32",
+   "hal": "generic: lut16 (64 KB table in RAM)",
+   "weights": "flash",
+   "engine": "standard",
+   "n": 1000,
+   "equal_simulation": 100.0,
+   "accuracy": 88.0,
+   "median_ms": 10.998,
+   "min_ms": 10.994,
+   "layers": [
+    {
+     "step": "layer 0: 784 -> 128 (uint8 x 1 bit, AND) + thresholds",
+     "median_ms": 3.767
+    },
+    {
+     "step": "layer 1: 128 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 1.806
+    },
+    {
+     "step": "layer 2: 512 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.235
+    },
+    {
+     "step": "layer 3: 512 -> 10 (1 bit x 1 bit, AND) + argmax",
+     "median_ms": 0.187
+    }
+   ],
+   "ram": {
+    "buffers": 3168,
+    "input_bytes": 784,
+    "popcount_table": 65540,
+    "stack_used": 512,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 70004
+   }
+  },
+  "pruned_d3": {
+   "board": "esp32",
+   "hal": "generic: lut16 (64 KB table in RAM)",
+   "weights": "flash",
+   "engine": "standard",
+   "n": 1000,
+   "equal_simulation": 100.0,
+   "accuracy": 88.0,
+   "median_ms": 3.987,
+   "min_ms": 3.982,
+   "layers": [
+    {
+     "step": "layer 0: 784 -> 127 (uint8 x 1 bit, AND) + thresholds",
+     "median_ms": 2.748
+    },
+    {
+     "step": "layer 1: 127 -> 160 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 0.293
+    },
+    {
+     "step": "layer 2: 160 -> 298 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 0.904
+    },
+    {
+     "step": "layer 3: 298 -> 10 (1 bit x 1 bit, AND) + argmax",
+     "median_ms": 0.045
+    }
+   ],
+   "ram": {
+    "buffers": 2312,
+    "input_bytes": 784,
+    "popcount_table": 65540,
+    "stack_used": 512,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 69148
+   }
+  },
+  "full_d7": {
+   "board": "esp32",
+   "hal": "generic: lut16 (64 KB table in RAM)",
+   "weights": "flash",
+   "engine": "standard",
+   "n": 1000,
+   "equal_simulation": 100.0,
+   "accuracy": 87.4,
+   "median_ms": 32.083,
+   "min_ms": 32.067,
+   "layers": [
+    {
+     "step": "layer 0: 784 -> 128 (uint8 x 1 bit, AND) + thresholds",
+     "median_ms": 3.755
+    },
+    {
+     "step": "layer 1: 128 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 1.821
+    },
+    {
+     "step": "layer 2: 512 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.24
+    },
+    {
+     "step": "layer 3: 512 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.272
+    },
+    {
+     "step": "layer 4: 512 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.264
+    },
+    {
+     "step": "layer 5: 512 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.281
+    },
+    {
+     "step": "layer 6: 512 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.268
+    },
+    {
+     "step": "layer 7: 512 -> 10 (1 bit x 1 bit, AND) + argmax",
+     "median_ms": 0.179
+    }
+   ],
+   "ram": {
+    "buffers": 3168,
+    "input_bytes": 784,
+    "popcount_table": 65540,
+    "stack_used": 512,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 70004
+   }
+  },
+  "pruned_d7": {
+   "board": "esp32",
+   "hal": "generic: lut16 (64 KB table in RAM)",
+   "weights": "flash",
+   "engine": "standard",
+   "n": 1000,
+   "equal_simulation": 100.0,
+   "accuracy": 87.4,
+   "median_ms": 8.3755,
+   "min_ms": 8.366,
+   "layers": [
+    {
+     "step": "layer 0: 784 -> 125 (uint8 x 1 bit, AND) + thresholds",
+     "median_ms": 3.683
+    },
+    {
+     "step": "layer 1: 125 -> 195 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 0.626
+    },
+    {
+     "step": "layer 2: 195 -> 216 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 1.241
+    },
+    {
+     "step": "layer 3: 216 -> 177 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 0.901
+    },
+    {
+     "step": "layer 4: 177 -> 139 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 0.823
+    },
+    {
+     "step": "layer 5: 139 -> 72 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 0.453
+    },
+    {
+     "step": "layer 6: 72 -> 160 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 0.561
+    },
+    {
+     "step": "layer 7: 160 -> 10 (1 bit x 1 bit, AND) + argmax",
+     "median_ms": 0.097
+    }
+   ],
+   "ram": {
+    "buffers": 1984,
+    "input_bytes": 784,
+    "popcount_table": 65540,
+    "stack_used": 512,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 68820
+   }
+  },
+  "note": "ESP32 (classic, 240 MHz), seed 42, weights in flash, 1000 validation images, chip_test.py; app image (esptool, uncompressed): d2 191168 -> 173648 B, d3 217616 -> 190832 B, d7 ? -> 200992 B"
  }
 }
