@@ -281,3 +281,51 @@ python damage.py ecg --nets m --seeds 42 43 44 --int8 --out results/damage.json
 python spread.py har --nets max --seeds 42 43 44 --out results/spread.json      # also: ecg --nets m, resnet8,
 python spread.py mlp --depth 7 --seeds 42 43 44 --out results/spread.json      # mlp, mlp --depth 3
 ```
+
+## 6. Why do the binary convolution's sums sit closer to the threshold? (`near.py`, rule Nov 25, 2026, before measuring)
+
+**Question.** Section 5 found that a reached sum flips 2-4x more often in a binary convolution than in the MLP,
+following the share of neurons near their threshold. Two things set that share. The **spread** of the sum: a neuron
+that adds n terms of ±1 has values on a grid of step 2; the wider its spread σ, the less often it lands next to T. And
+the **placement** of the threshold: in the middle of the values (bits half +1, half −1) or out in a tail (the bit
+almost always the same). For a bell-shaped sum, near ≈ 4·φ(μ/σ)/σ, with μ = mean of z − T and φ the normal density.
+Which of the two makes the difference? And is the spread set by the number of terms (σ = c·√n, c = 1 for
+independent terms) or by how correlated they are (c)?
+
+**What.** Every binary layer that reads bits (as section 5), clean pass, validation, 3 seeds, networks of section 5.
+Per neuron (an output channel of a convolution, all its positions; a unit of the MLP): n = its nonzero weights, μ
+and σ of z − T, near = share of z − T in [−2, 1]. Per network: means over the neurons of its layers. Check: predicted
+near (4·φ(μ/σ)/σ per neuron) against measured near.
+
+**Rule** (means over 3 seeds; conv = mean of ResNet-8, HAR max, ECG m; MLP = mean of the three MLPs):
+1. If predicted near is within 1.5x of measured near in every network, the bell model holds and rule 2 applies;
+   otherwise only the measured near is reported.
+2. Split the conv / MLP ratio of near into spread (σ_MLP / σ_conv) and placement (φ_conv / φ_MLP): the larger factor
+   is the cause. If spread: the larger of √n_MLP / √n_conv and c_MLP / c_conv says whether it is the number of terms or
+   their correlation.
+
+**Result** (results/near.json, means ± sd over 3 seeds; σ, √n, c geometric means over the neurons that move):
+
+| network | near | predicted | constant neurons | near among moving | σ | √n | c | mean φ(μ/σ) |
+|---|---|---|---|---|---|---|---|---|
+| MLP 2 layers | 2.81 ± 0.04 % | 3.22 % | 46.0 ± 1.9 % | 5.21 ± 0.25 % | 15.5 | 11.3 | 1.37 | 0.181 |
+| MLP 3 layers | 2.30 ± 0.04 % | 2.75 % | 50.5 ± 1.1 % | 4.64 ± 0.06 % | 16.4 | 16.2 | 1.01 | 0.196 |
+| MLP 7 layers | 1.39 ± 0.03 % | 1.79 % | 60.0 ± 0.5 % | 3.47 ± 0.10 % | 21.8 | 19.4 | 1.12 | 0.217 |
+| HAR max | 3.73 ± 0.18 % | 3.91 % | 0 % | 3.73 % | 35.2 | 21.9 | 1.61 | 0.329 |
+| ECG m | 6.06 ± 0.92 % | 5.93 % | 0 % | 6.06 % | 19.8 | 14.3 | 1.39 | 0.289 |
+| ResNet-8 | 4.01 ± 0.05 % | 4.16 % | 0 % | 4.01 % | 22.4 | 17.0 | 1.32 | 0.229 |
+
+1. Predicted / measured near: 0.98-1.29 per network (0.86-1.32 per seed), within 1.5x: the bell model holds.
+2. Near, conv / MLP: 4.60 / 2.17 = 2.12. Spread σ_MLP / σ_conv = 17.9 / 25.8 = 0.69 (the convolutions' sums are
+   WIDER: this factor works against); placement φ_conv / φ_MLP = 0.282 / 0.198 = 1.43. By the rule, placement is the
+   cause. But the two factors multiply to 0.99, not 2.12: the bell split covers only the neurons that move. The rest
+   is the **constant neurons**: in the MLPs 46-60 % of the hidden neurons give the same bit on every validation sample
+   (their threshold lies outside the range of their sum, the extreme case of placement); the convolutions have none.
+   Among the neurons that move, conv 4.60 % vs MLP 4.44 %: a tie.
+
+**Answer.** The sums of a binary convolution do not sit closer to the threshold than the MLP's: among neurons that
+move, the share is the same (~4.5 %), because the convolutions' wider sums (σ 1.4x) are offset by thresholds placed
+nearer the middle (φ 1.4x). The MLP looks more robust because about half its hidden neurons never change: they
+cannot be flipped, and they dilute the share. Per neuron that moves, a binary MLP is as fragile as a convolution.
+Not measured: whether those constant neurons are also constant on the training data, and whether removing them
+changes accuracy (if not, they are dead weight in flash and time; an ESTIMATE until measured).
