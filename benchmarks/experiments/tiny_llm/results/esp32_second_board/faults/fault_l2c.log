@@ -1,0 +1,24 @@
+== fault l2c  2026-11-24T17:24:53-05:00  commit 8169461
+-- step 1: data files for runs/fp32_v512d64l5kv4_lr3e-3_20k_s42 (the board stops on the ID check, expected)
+RuntimeError: the board was built for another run (run without --no-upload)
+6:#define GEN_IDS 512
+-- step 2: build + flash
+========================= [SUCCESS] Took 10.57 seconds =========================
+esp32          SUCCESS   00:00:10.574
+flash try 1: 4/4 verified
+-- step 3: read the board with the unmodified chip_fp32.py (regenerates the header; the firmware keeps the fault)
+    ~~~~^^
+  File "benchmarks/experiments/tiny_llm/chip_fp32.py", line 128, in main
+    raise RuntimeError(line)
+RuntimeError: ERROR: run.c needs 676192 bytes of RAM, 331472 free
+EXIT 1
+-- raw serial after a reset (12 s)
+    ID:3728255912
+    BOARD:esp32
+    L2C ready | cpu 240 MHz | ram 331472 bytes free
+    ERROR: run.c needs 676192 bytes of RAM, 331472 free
+    ERROR: run.c needs 676192 bytes of RAM, 331472 free
+    ERROR: run.c needs 676192 bytes of RAM, 331472 free
+    ERROR: run.c needs 676192 bytes of RAM, 331472 free
+    ERROR: run.c needs 676192 bytes of RAM, 331472 free
+    ERROR: run.c needs 676192 bytes of RAM, 331472 free

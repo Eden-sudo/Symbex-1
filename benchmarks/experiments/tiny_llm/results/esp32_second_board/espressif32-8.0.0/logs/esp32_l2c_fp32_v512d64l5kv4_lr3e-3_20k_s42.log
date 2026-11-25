@@ -1,0 +1,42 @@
+== fp32_v512d64l5kv4_lr3e-3_20k_s42  2026-11-24T18:25:41-05:00  commit 8169461
+-- step 1: data files
+    raise RuntimeError("the board was built for another run (run without --no-upload)")
+RuntimeError: the board was built for another run (run without --no-upload)
+-- step 2: build (pio), flash at 115200 (esptool; pio's 460800 fails on this CP2102)
+RAM:   [=         ]   6.8% (used 22348 bytes from 327680 bytes)
+Flash: [====      ]  42.5% (used 1337212 bytes from 3145728 bytes)
+========================= [SUCCESS] Took 14.06 seconds =========================
+esp32          SUCCESS   00:00:14.064
+flash try 1: 3/4 verified
+flash try 2: 4/4 verified
+-- step 2b: throwaway open + reset + drain (the first open after an upload floods)
+drained 8304 bytes
+-- step 3: board
+run.c on the PC vs PyTorch: 120/120 story tokens equal
+Once upon a time, there was a little girl named Lily. She loved to play with her toys. One day, she found a big box in her room. She was very excited to play with her toys.
+Lily's mom said, "Lily, you can have a big box of toys. We can make a big toy." Lily was very happy. She played with her toys and had lots of fun. She
+  L2C ready | cpu 240 MHz | ram 331472 bytes free
+  LOADED 1056540 bytes, context 127, in 0 ms | ram free 158760
+, there was a little girl named Lily. She loved to play with her toys. One day, she found a big box in her room. She was very excited to play with her toys.
+Lily's mom said, "Lily, you can have a big box of toys. We can make a big toy." Lily was very happy. She played with her toys and had lots of fun. She
+{
+  "run": "fp32_v512d64l5kv4_lr3e-3_20k_s42",
+  "board": "esp32 (classic, no PSRAM)",
+  "kernel": "llama2.c run.c fp32 (commit 350e04f, unchanged, plain C, -O2)",
+  "model_in": "flash",
+  "model_bytes": 1056540,
+  "kv_cache": "fp32",
+  "kv_cache_in": "internal ram",
+  "context": 127,
+  "cpu_mhz": 240,
+  "ready": "L2C ready | cpu 240 MHz | ram 331472 bytes free",
+  "loaded": "LOADED 1056540 bytes, context 127, in 0 ms | ram free 158760",
+  "pc_vs_torch_equal": 120,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "first_diverging_story_token": null,
+  "ms_per_token_story_mean": 149.087,
+  "tokens_per_second_story": 6.707
+}
+wrote benchmarks/experiments/tiny_llm/results/chip_esp32_l2c_fp32_v512d64l5kv4_lr3e-3_20k_s42.json
+EXIT 0
