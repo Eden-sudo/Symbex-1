@@ -452,9 +452,23 @@ One bit (section 5, first transition): flip chance of a reached sum 1.4 -> **3.8
   convolutions (3.0-7.6 % vs 3.7-6.1 %); its smaller share came only from its constant units.
 - **Section 7** (dead weight): the dead units were the bug. With the fix 6-8 % of the units are constant (most in the
   first layer and the last hidden layer), removed with logits 100 % equal; the pruned chip table above is for the
-  OLD networks.
+  OLD networks, the one below for the fixed ones.
 - **Accuracy, a side result:** the deeper MLPs gain once alive (7 layers +0.98, larger than the sd; 3 layers +0.60,
   within the sd 0.93); with dead units depth did not help, now it does a little.
+
+**Fixed networks on the chip** (same setup as section 7: ESP32 classic, seed 42, weights in flash, standard engine,
+lut16, 1000 validation images, `chip_test.py --no-int8`; key `fixinit_chip_esp32_s42` in results/prune.json). Equal
+to the simulation 100 % on all 6 runs, same accuracy before and after pruning (88.1 / 89.2 / 88.4 %):
+
+| MLP (seed 42) | hidden widths after | model data in flash (header arrays) | latency ESP32 | model buffers (RAM) |
+|---|---|---|---|---|
+| 2 layers | 128-512 -> 123-488 | 27.9 -> 26.8 KB | 3.38 -> 3.11 ms (1.09x) | 3.09 -> 3.00 KB |
+| 3 layers | 128-512-512 -> 127-483-490 | 64.8 -> 62.4 KB | 10.99 -> 10.65 ms (1.03x) | 3.09 -> 3.01 KB |
+| 7 layers | 128-512x6 -> 125-483-490-494-486-486-448 | 212.3 -> 200.0 KB | 32.07 -> 30.26 ms (1.06x) | 3.09 -> 3.02 KB |
+
+With the units alive pruning saves 3-6 % of the time and 4-6 % of the flash (section 7's 1.47-3.83x came from the
+bug). The full networks run as fast as the old ones (3.38 / 11.00 / 32.08 ms): same shapes, same work. One seed: a
+ranking, not a result.
 
 So the MLP is not "naturally robust": its binary layers amplify a changed bit like the convolutions do. Its
 predictions still move 4-5x less than the convolutional networks', and that gap is not explained yet (likely the

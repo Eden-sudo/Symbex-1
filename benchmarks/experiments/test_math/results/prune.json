@@ -1225,5 +1225,260 @@
    "c_note": ""
   },
   "flash_bytes_no_bias_neurons": 196348
+ },
+ "fixinit_chip_esp32_s42": {
+  "full_d2": {
+   "board": "esp32",
+   "hal": "generic: lut16 (64 KB table in RAM)",
+   "weights": "flash",
+   "engine": "standard",
+   "n": 1000,
+   "equal_simulation": 100.0,
+   "accuracy": 88.1,
+   "median_ms": 3.377,
+   "min_ms": 3.369,
+   "layers": [
+    {
+     "step": "layer 0: 784 -> 128 (uint8 x 1 bit, AND) + thresholds",
+     "median_ms": 2.43
+    },
+    {
+     "step": "layer 1: 128 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 0.895
+    },
+    {
+     "step": "layer 2: 512 -> 10 (1 bit x 1 bit, AND) + argmax",
+     "median_ms": 0.059
+    }
+   ],
+   "ram": {
+    "buffers": 3168,
+    "input_bytes": 784,
+    "popcount_table": 65540,
+    "stack_used": 544,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 70036
+   }
+  },
+  "pruned_d2": {
+   "board": "esp32",
+   "hal": "generic: lut16 (64 KB table in RAM)",
+   "weights": "flash",
+   "engine": "standard",
+   "n": 1000,
+   "equal_simulation": 100.0,
+   "accuracy": 88.1,
+   "median_ms": 3.105,
+   "min_ms": 3.097,
+   "layers": [
+    {
+     "step": "layer 0: 784 -> 123 (uint8 x 1 bit, AND) + thresholds",
+     "median_ms": 2.255
+    },
+    {
+     "step": "layer 1: 123 -> 488 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 0.802
+    },
+    {
+     "step": "layer 2: 488 -> 10 (1 bit x 1 bit, AND) + argmax",
+     "median_ms": 0.0565
+    }
+   ],
+   "ram": {
+    "buffers": 3072,
+    "input_bytes": 784,
+    "popcount_table": 65540,
+    "stack_used": 544,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 69940
+   }
+  },
+  "full_d3": {
+   "board": "esp32",
+   "hal": "generic: lut16 (64 KB table in RAM)",
+   "weights": "flash",
+   "engine": "standard",
+   "n": 1000,
+   "equal_simulation": 100.0,
+   "accuracy": 89.2,
+   "median_ms": 10.994,
+   "min_ms": 10.99,
+   "layers": [
+    {
+     "step": "layer 0: 784 -> 128 (uint8 x 1 bit, AND) + thresholds",
+     "median_ms": 3.767
+    },
+    {
+     "step": "layer 1: 128 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 1.804
+    },
+    {
+     "step": "layer 2: 512 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.234
+    },
+    {
+     "step": "layer 3: 512 -> 10 (1 bit x 1 bit, AND) + argmax",
+     "median_ms": 0.187
+    }
+   ],
+   "ram": {
+    "buffers": 3168,
+    "input_bytes": 784,
+    "popcount_table": 65540,
+    "stack_used": 512,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 70004
+   }
+  },
+  "pruned_d3": {
+   "board": "esp32",
+   "hal": "generic: lut16 (64 KB table in RAM)",
+   "weights": "flash",
+   "engine": "standard",
+   "n": 1000,
+   "equal_simulation": 100.0,
+   "accuracy": 89.2,
+   "median_ms": 10.647,
+   "min_ms": 10.643,
+   "layers": [
+    {
+     "step": "layer 0: 784 -> 127 (uint8 x 1 bit, AND) + thresholds",
+     "median_ms": 3.734
+    },
+    {
+     "step": "layer 1: 127 -> 483 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 1.716
+    },
+    {
+     "step": "layer 2: 483 -> 490 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.008
+    },
+    {
+     "step": "layer 3: 490 -> 10 (1 bit x 1 bit, AND) + argmax",
+     "median_ms": 0.1875
+    }
+   ],
+   "ram": {
+    "buffers": 3080,
+    "input_bytes": 784,
+    "popcount_table": 65540,
+    "stack_used": 512,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 69916
+   }
+  },
+  "full_d7": {
+   "board": "esp32",
+   "hal": "generic: lut16 (64 KB table in RAM)",
+   "weights": "flash",
+   "engine": "standard",
+   "n": 1000,
+   "equal_simulation": 100.0,
+   "accuracy": 88.4,
+   "median_ms": 32.073,
+   "min_ms": 32.058,
+   "layers": [
+    {
+     "step": "layer 0: 784 -> 128 (uint8 x 1 bit, AND) + thresholds",
+     "median_ms": 3.755
+    },
+    {
+     "step": "layer 1: 128 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 1.819
+    },
+    {
+     "step": "layer 2: 512 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.238
+    },
+    {
+     "step": "layer 3: 512 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.27
+    },
+    {
+     "step": "layer 4: 512 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.262
+    },
+    {
+     "step": "layer 5: 512 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.279
+    },
+    {
+     "step": "layer 6: 512 -> 512 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.267
+    },
+    {
+     "step": "layer 7: 512 -> 10 (1 bit x 1 bit, AND) + argmax",
+     "median_ms": 0.179
+    }
+   ],
+   "ram": {
+    "buffers": 3168,
+    "input_bytes": 784,
+    "popcount_table": 65540,
+    "stack_used": 512,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 70004
+   }
+  },
+  "pruned_d7": {
+   "board": "esp32",
+   "hal": "generic: lut16 (64 KB table in RAM)",
+   "weights": "flash",
+   "engine": "standard",
+   "n": 1000,
+   "equal_simulation": 100.0,
+   "accuracy": 88.4,
+   "median_ms": 30.262,
+   "min_ms": 30.255,
+   "layers": [
+    {
+     "step": "layer 0: 784 -> 125 (uint8 x 1 bit, AND) + thresholds",
+     "median_ms": 3.679
+    },
+    {
+     "step": "layer 1: 125 -> 483 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 1.691
+    },
+    {
+     "step": "layer 2: 483 -> 490 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.018
+    },
+    {
+     "step": "layer 3: 490 -> 494 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.076
+    },
+    {
+     "step": "layer 4: 494 -> 486 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 5.002
+    },
+    {
+     "step": "layer 5: 486 -> 486 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 4.9925
+    },
+    {
+     "step": "layer 6: 486 -> 448 (1 bit x 1 bit, AND) + thresholds",
+     "median_ms": 4.622
+    },
+    {
+     "step": "layer 7: 448 -> 10 (1 bit x 1 bit, AND) + argmax",
+     "median_ms": 0.175
+    }
+   ],
+   "ram": {
+    "buffers": 3096,
+    "input_bytes": 784,
+    "popcount_table": 65540,
+    "stack_used": 512,
+    "weights_in_ram": 0,
+    "code_in_ram": 0,
+    "total": 69932
+   }
+  },
+  "note": "ESP32 (classic, 240 MHz), seed 42, weights in flash, standard engine, lut16, 1000 validation images, chip_test.py --no-int8; networks trained with the fixed CDT start calibration (PR #218)."
  }
 }
