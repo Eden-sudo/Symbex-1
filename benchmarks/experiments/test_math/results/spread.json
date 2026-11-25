@@ -1,0 +1,722 @@
+{
+ "har_max_s42": [
+  {
+   "reach": 433.6723868954758,
+   "flip_chance": 0.01437972449253674,
+   "amplification": 1.424336973478939,
+   "near": 2.824917874763771,
+   "bits_in": 4384,
+   "bits_pre": 3936,
+   "bits_out": 960,
+   "pool_keep": 0.22840226817878584,
+   "size_ratio": 4.566666666666666,
+   "share_growth": 6.504472178887155
+  },
+  {
+   "reach": 256.532501300052,
+   "flip_chance": 0.022194878697457187,
+   "amplification": 1.8382735309412377,
+   "near": 4.422005005200208,
+   "bits_in": 960,
+   "bits_pre": 512,
+   "bits_out": 128,
+   "pool_keep": 0.3228605352086949,
+   "size_ratio": 7.5,
+   "share_growth": 13.787051482059283
+  }
+ ],
+ "har_max_s43": [
+  {
+   "reach": 433.6723868954758,
+   "flip_chance": 0.014885748820075975,
+   "amplification": 1.422256890275611,
+   "near": 2.9573540665203844,
+   "bits_in": 4384,
+   "bits_pre": 3936,
+   "bits_out": 960,
+   "pool_keep": 0.22031577251490253,
+   "size_ratio": 4.566666666666666,
+   "share_growth": 6.4949731322586235
+  },
+  {
+   "reach": 256.532501300052,
+   "flip_chance": 0.0245443046185781,
+   "amplification": 1.938117524700988,
+   "near": 4.898860016900676,
+   "bits_in": 960,
+   "bits_pre": 512,
+   "bits_out": 128,
+   "pool_keep": 0.30781301618764456,
+   "size_ratio": 7.5,
+   "share_growth": 14.53588143525741
+  }
+ ],
+ "har_max_s44": [
+  {
+   "reach": 433.6723868954758,
+   "flip_chance": 0.012554679406008979,
+   "amplification": 1.3218928757150286,
+   "near": 2.5509821205856364,
+   "bits_in": 4384,
+   "bits_pre": 3936,
+   "bits_out": 960,
+   "pool_keep": 0.24278892072588348,
+   "size_ratio": 4.566666666666666,
+   "share_growth": 6.036644132431963
+  },
+  {
+   "reach": 256.532501300052,
+   "flip_chance": 0.02365642838609237,
+   "amplification": 1.8101924076963078,
+   "near": 4.704664749089964,
+   "bits_in": 960,
+   "bits_pre": 512,
+   "bits_out": 128,
+   "pool_keep": 0.29828620394173094,
+   "size_ratio": 7.5,
+   "share_growth": 13.576443057722308
+  }
+ ],
+ "ecg_m_s42": [
+  {
+   "reach": 278.8780408163265,
+   "flip_chance": 0.025945069690327657,
+   "amplification": 2.035265306122449,
+   "near": 5.1311203231292515,
+   "bits_in": 3968,
+   "bits_pre": 7680,
+   "bits_out": 1920,
+   "pool_keep": 0.2812884300784115,
+   "size_ratio": 2.066666666666667,
+   "share_growth": 4.206214965986395
+  },
+  {
+   "reach": 250.2713469387755,
+   "flip_chance": 0.027024382352020208,
+   "amplification": 1.9667755102040816,
+   "near": 5.374411302982732,
+   "bits_in": 1920,
+   "bits_pre": 1664,
+   "bits_out": 416,
+   "pool_keep": 0.2907956355911746,
+   "size_ratio": 4.615384615384615,
+   "share_growth": 9.077425431711147
+  }
+ ],
+ "ecg_m_s43": [
+  {
+   "reach": 278.8780408163265,
+   "flip_chance": 0.04139619513291744,
+   "amplification": 3.0835102040816325,
+   "near": 8.244291028911565,
+   "bits_in": 3968,
+   "bits_pre": 7680,
+   "bits_out": 1920,
+   "pool_keep": 0.2670980059397539,
+   "size_ratio": 2.066666666666667,
+   "share_growth": 6.372587755102041
+  },
+  {
+   "reach": 250.2713469387755,
+   "flip_chance": 0.029753501831807697,
+   "amplification": 2.0568163265306123,
+   "near": 5.885091248037677,
+   "bits_in": 1920,
+   "bits_pre": 1664,
+   "bits_out": 416,
+   "pool_keep": 0.2762143851609862,
+   "size_ratio": 4.615384615384615,
+   "share_growth": 9.492998430141288
+  }
+ ],
+ "ecg_m_s44": [
+  {
+   "reach": 278.8780408163265,
+   "flip_chance": 0.028230027257910413,
+   "amplification": 1.979265306122449,
+   "near": 5.537510629251701,
+   "bits_in": 3968,
+   "bits_pre": 7680,
+   "bits_out": 1920,
+   "pool_keep": 0.2514075963542477,
+   "size_ratio": 2.066666666666667,
+   "share_growth": 4.090481632653061
+  },
+  {
+   "reach": 250.2713469387755,
+   "flip_chance": 0.03095578872107466,
+   "amplification": 2.5101224489795917,
+   "near": 6.184679160125588,
+   "bits_in": 1920,
+   "bits_pre": 1664,
+   "bits_out": 416,
+   "pool_keep": 0.32399768189241873,
+   "size_ratio": 4.615384615384615,
+   "share_growth": 11.585180533751961
+  }
+ ],
+ "resnet8_s42": [
+  {
+   "reach": 137.864,
+   "flip_chance": 0.028774734520977195,
+   "amplification": 3.6315,
+   "near": 5.740670776367187,
+   "bits_in": 16384,
+   "bits_pre": 16384,
+   "bits_out": 16384,
+   "pool_keep": 0.915427275018906,
+   "size_ratio": 1.0,
+   "share_growth": 3.6315
+  },
+  {
+   "reach": 138.416,
+   "flip_chance": 0.02705612067969021,
+   "amplification": 3.1985,
+   "near": 5.354595947265625,
+   "bits_in": 16384,
+   "bits_pre": 16384,
+   "bits_out": 16384,
+   "pool_keep": 0.8540720961281709,
+   "size_ratio": 1.0,
+   "share_growth": 3.1985
+  },
+  {
+   "reach": 69.12,
+   "flip_chance": 0.023893229166666665,
+   "amplification": 1.864,
+   "near": 4.662664794921875,
+   "bits_in": 16384,
+   "bits_pre": 8192,
+   "bits_out": 8192,
+   "pool_keep": 1.128670905237663,
+   "size_ratio": 2.0,
+   "share_growth": 3.728
+  },
+  {
+   "reach": 264.352,
+   "flip_chance": 0.023177430093209054,
+   "amplification": 5.169,
+   "near": 4.6427734375,
+   "bits_in": 8192,
+   "bits_pre": 8192,
+   "bits_out": 8192,
+   "pool_keep": 0.8436428921168598,
+   "size_ratio": 1.0,
+   "share_growth": 5.169
+  },
+  {
+   "reach": 130.048,
+   "flip_chance": 0.015501968503937008,
+   "amplification": 2.2985,
+   "near": 3.047412109375,
+   "bits_in": 8192,
+   "bits_pre": 4096,
+   "bits_out": 4096,
+   "pool_keep": 1.1401289682539684,
+   "size_ratio": 2.0,
+   "share_growth": 4.597
+  },
+  {
+   "reach": 482.4,
+   "flip_chance": 0.017657545605306798,
+   "amplification": 7.7815,
+   "near": 3.52532958984375,
+   "bits_in": 4096,
+   "bits_pre": 4096,
+   "bits_out": 4096,
+   "pool_keep": 0.9135360413242547,
+   "size_ratio": 1.0,
+   "share_growth": 7.7815
+  }
+ ],
+ "resnet8_s43": [
+  {
+   "reach": 137.864,
+   "flip_chance": 0.030439418557418906,
+   "amplification": 3.858,
+   "near": 6.0000732421875,
+   "bits_in": 16384,
+   "bits_pre": 16384,
+   "bits_out": 16384,
+   "pool_keep": 0.9193375431907541,
+   "size_ratio": 1.0,
+   "share_growth": 3.858
+  },
+  {
+   "reach": 138.416,
+   "flip_chance": 0.025105479135360074,
+   "amplification": 2.758,
+   "near": 4.9655517578125,
+   "bits_in": 16384,
+   "bits_pre": 16384,
+   "bits_out": 16384,
+   "pool_keep": 0.7936690647482014,
+   "size_ratio": 1.0,
+   "share_growth": 2.758
+  },
+  {
+   "reach": 69.12,
+   "flip_chance": 0.021788194444444443,
+   "amplification": 1.6825,
+   "near": 4.3885009765625,
+   "bits_in": 16384,
+   "bits_pre": 8192,
+   "bits_out": 8192,
+   "pool_keep": 1.1171978751660028,
+   "size_ratio": 2.0,
+   "share_growth": 3.365
+  },
+  {
+   "reach": 264.352,
+   "flip_chance": 0.02250030262680063,
+   "amplification": 4.978,
+   "near": 4.39481201171875,
+   "bits_in": 8192,
+   "bits_pre": 8192,
+   "bits_out": 8192,
+   "pool_keep": 0.8369199731002018,
+   "size_ratio": 1.0,
+   "share_growth": 4.978
+  },
+  {
+   "reach": 130.048,
+   "flip_chance": 0.015417384350393701,
+   "amplification": 2.2975,
+   "near": 3.0741455078125,
+   "bits_in": 8192,
+   "bits_pre": 4096,
+   "bits_out": 4096,
+   "pool_keep": 1.1458852867830425,
+   "size_ratio": 2.0,
+   "share_growth": 4.595
+  },
+  {
+   "reach": 482.4,
+   "flip_chance": 0.017943615257048094,
+   "amplification": 8.108,
+   "near": 3.64002685546875,
+   "bits_in": 4096,
+   "bits_pre": 4096,
+   "bits_out": 4096,
+   "pool_keep": 0.9366913123844732,
+   "size_ratio": 1.0,
+   "share_growth": 8.108
+  }
+ ],
+ "resnet8_s44": [
+  {
+   "reach": 137.864,
+   "flip_chance": 0.03230357453722509,
+   "amplification": 3.617,
+   "near": 6.30135498046875,
+   "bits_in": 16384,
+   "bits_pre": 16384,
+   "bits_out": 16384,
+   "pool_keep": 0.8121702032109577,
+   "size_ratio": 1.0,
+   "share_growth": 3.617
+  },
+  {
+   "reach": 138.416,
+   "flip_chance": 0.031434227256964514,
+   "amplification": 3.297,
+   "near": 6.254595947265625,
+   "bits_in": 16384,
+   "bits_pre": 16384,
+   "bits_out": 16384,
+   "pool_keep": 0.7577568375086188,
+   "size_ratio": 1.0,
+   "share_growth": 3.297
+  },
+  {
+   "reach": 69.12,
+   "flip_chance": 0.02308304398148148,
+   "amplification": 1.729,
+   "near": 4.541558837890625,
+   "bits_in": 16384,
+   "bits_pre": 8192,
+   "bits_out": 8192,
+   "pool_keep": 1.0836728298339078,
+   "size_ratio": 2.0,
+   "share_growth": 3.458
+  },
+  {
+   "reach": 264.352,
+   "flip_chance": 0.023351440503570995,
+   "amplification": 5.13,
+   "near": 4.66412353515625,
+   "bits_in": 8192,
+   "bits_pre": 8192,
+   "bits_out": 8192,
+   "pool_keep": 0.8310383930017821,
+   "size_ratio": 1.0,
+   "share_growth": 5.13
+  },
+  {
+   "reach": 130.048,
+   "flip_chance": 0.015117495078740157,
+   "amplification": 2.2115,
+   "near": 3.0615234375,
+   "bits_in": 8192,
+   "bits_pre": 4096,
+   "bits_out": 4096,
+   "pool_keep": 1.1248728382502544,
+   "size_ratio": 2.0,
+   "share_growth": 4.423
+  },
+  {
+   "reach": 482.4,
+   "flip_chance": 0.017250207296849087,
+   "amplification": 7.7995,
+   "near": 3.4054931640625,
+   "bits_in": 4096,
+   "bits_pre": 4096,
+   "bits_out": 4096,
+   "pool_keep": 0.9372709247130928,
+   "size_ratio": 1.0,
+   "share_growth": 7.7995
+  }
+ ],
+ "mlp_s42": [
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0138076171875,
+   "amplification": 7.0695,
+   "near": 2.76240234375,
+   "bits_in": 128,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 0.25,
+   "share_growth": 1.767375
+  }
+ ],
+ "mlp_s43": [
+  {
+   "reach": 512.0,
+   "flip_chance": 0.014265625,
+   "amplification": 7.304,
+   "near": 2.83916015625,
+   "bits_in": 128,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 0.25,
+   "share_growth": 1.826
+  }
+ ],
+ "mlp_s44": [
+  {
+   "reach": 512.0,
+   "flip_chance": 0.014087890625,
+   "amplification": 7.213,
+   "near": 2.81962890625,
+   "bits_in": 128,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 0.25,
+   "share_growth": 1.80325
+  }
+ ],
+ "mlp_d3_s42": [
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0102001953125,
+   "amplification": 5.2225,
+   "near": 2.03134765625,
+   "bits_in": 128,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 0.25,
+   "share_growth": 1.305625
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.013173828125,
+   "amplification": 6.745,
+   "near": 2.6240234375,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 6.745
+  }
+ ],
+ "mlp_d3_s43": [
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0102119140625,
+   "amplification": 5.2285,
+   "near": 2.02041015625,
+   "bits_in": 128,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 0.25,
+   "share_growth": 1.307125
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0125751953125,
+   "amplification": 6.4385,
+   "near": 2.5048828125,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 6.4385
+  }
+ ],
+ "mlp_d3_s44": [
+  {
+   "reach": 512.0,
+   "flip_chance": 0.010400390625,
+   "amplification": 5.325,
+   "near": 2.06494140625,
+   "bits_in": 128,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 0.25,
+   "share_growth": 1.33125
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0127568359375,
+   "amplification": 6.5315,
+   "near": 2.548828125,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 6.5315
+  }
+ ],
+ "mlp_d7_s42": [
+  {
+   "reach": 512.0,
+   "flip_chance": 0.01328125,
+   "amplification": 6.8,
+   "near": 2.63974609375,
+   "bits_in": 128,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 0.25,
+   "share_growth": 1.7
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0095126953125,
+   "amplification": 4.8705,
+   "near": 1.89951171875,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 4.8705
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0065927734375,
+   "amplification": 3.3755,
+   "near": 1.3025390625,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 3.3755
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.00521484375,
+   "amplification": 2.67,
+   "near": 1.03935546875,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 2.67
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0030234375,
+   "amplification": 1.548,
+   "near": 0.6001953125,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 1.548
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0042958984375,
+   "amplification": 2.1995,
+   "near": 0.86953125,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 2.1995
+  }
+ ],
+ "mlp_d7_s43": [
+  {
+   "reach": 512.0,
+   "flip_chance": 0.01397265625,
+   "amplification": 7.154,
+   "near": 2.79658203125,
+   "bits_in": 128,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 0.25,
+   "share_growth": 1.7885
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0095947265625,
+   "amplification": 4.9125,
+   "near": 1.921875,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 4.9125
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0064521484375,
+   "amplification": 3.3035,
+   "near": 1.277734375,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 3.3035
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.005046875,
+   "amplification": 2.584,
+   "near": 1.00654296875,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 2.584
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0027607421875,
+   "amplification": 1.4135,
+   "near": 0.54775390625,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 1.4135
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.00320703125,
+   "amplification": 1.642,
+   "near": 0.6306640625,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 1.642
+  }
+ ],
+ "mlp_d7_s44": [
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0135810546875,
+   "amplification": 6.9535,
+   "near": 2.725,
+   "bits_in": 128,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 0.25,
+   "share_growth": 1.738375
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0101416015625,
+   "amplification": 5.1925,
+   "near": 2.0140625,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 5.1925
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0066494140625,
+   "amplification": 3.4045,
+   "near": 1.31796875,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 3.4045
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0050693359375,
+   "amplification": 2.5955,
+   "near": 1.008984375,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 2.5955
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.00281640625,
+   "amplification": 1.442,
+   "near": 0.56796875,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 1.442
+  },
+  {
+   "reach": 512.0,
+   "flip_chance": 0.0042900390625,
+   "amplification": 2.1965,
+   "near": 0.84052734375,
+   "bits_in": 512,
+   "bits_pre": 512,
+   "bits_out": 512,
+   "pool_keep": 1.0,
+   "size_ratio": 1.0,
+   "share_growth": 2.1965
+  }
+ ]
+}

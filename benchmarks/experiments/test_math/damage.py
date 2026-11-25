@@ -129,6 +129,45 @@ def trace_mlp(layers, x_u8, flip):
             return bits, ((raw * d["scale"][None, :] + (1 << (sh - 1))) >> sh) + d["shift"][None, :]
 
 
+def tflite_trace(tfl, x_u8):
+    """the INT8 interpreter (plain kernels, the chip's input table) returning the real-valued output of every
+    convolution (after its max pool, when one follows) and the classes"""
+    try:
+        from ai_edge_litert.interpreter import Interpreter, OpResolverType
+    except ImportError:
+        from tensorflow.lite.python.interpreter import Interpreter, OpResolverType
+    sys.path.insert(0, os.path.join(BENCH, "conv1d", "har_ultracompact"))
+    from har_tflite import input_table
+    it = Interpreter(model_content=tfl, num_threads=1, experimental_preserve_all_tensors=True,
+                     experimental_op_resolver_type=OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES)
+    it.allocate_tensors()
+    ops = [o for o in it._get_ops_details() if o["op_name"] != "DELEGATE"]
+    outs = []
+    for o in ops:
+        if o["op_name"] == "CONV_2D":
+            t = int(o["outputs"][0])
+            pool = [q for q in ops if q["op_name"] == "MAX_POOL_2D" and int(q["inputs"][0]) == t]
+            outs.append(int(pool[0]["outputs"][0]) if pool else t)
+    det = {d["index"]: d for d in it.get_tensor_details()}
+    inp, out = it.get_input_details()[0], it.get_output_details()[0]
+    table = input_table(*inp["quantization"])
+    acts, pred = [[] for _ in outs], []
+    for x in x_u8:
+        it.set_tensor(inp["index"], table[x].reshape(inp["shape"]))
+        it.invoke()
+        for j, t in enumerate(outs):
+            sc, zp = det[t]["quantization"]
+            acts[j].append((it.get_tensor(t).astype(np.float64).ravel() - zp) * sc)
+        pred.append(int(np.argmax(it.get_tensor(out["index"])[0])))
+    return [np.stack(a) for a in acts], np.array(pred)
+
+
+def rel_error(a0, a1):
+    """per-layer relative error |changed - clean| / |clean| over the whole split (for +-1 bits: 2 sqrt(share))"""
+    return [float(np.linalg.norm(u.astype(np.float64) - v) / max(np.linalg.norm(u.astype(np.float64)), 1e-12))
+            for u, v in zip(a0, a1)]
+
+
 def margin(logits):
     s = np.sort(np.asarray(logits, dtype=np.float64), 1)
     return s[:, -1] - s[:, -2]
@@ -142,10 +181,12 @@ def compare(trace, x, y, lo, hi):
     out = {"accuracy": 100 * float(right.mean()), "layers": len(b0)}
     for name, xs, fl in (("input", noisy(x, 1, lo, hi), Flipper(0)), ("inside", x, Flipper(FLIP))):
         b1, l1 = trace(xs, fl)
+        pm = lambda b: [np.where(u, 1.0, -1.0) for u in b]
+        rel = rel_error(pm(b0), pm(b1))
         ch = l1.argmax(1) != p0
         mm, ms = float(np.median(m0[ch])) if ch.any() else None, float(np.median(m0[~ch]))
         out[name] = dict(
-            bits_changed=[100 * float((u != v).mean()) for u, v in zip(b0, b1)],
+            bits_changed=[100 * float((u != v).mean()) for u, v in zip(b0, b1)], rel_error=rel,
             moved=100 * float(ch.mean()), moved_right=100 * float(ch[right].mean()),
             moved_wrong=100 * float(ch[~right].mean()) if (~right).any() else None,
             margin_moved=mm, margin_still=ms, margin_ratio=(mm / ms) if mm is not None and ms > 0 else None)
@@ -197,7 +238,7 @@ def study_resnet8(seeds):
     return out
 
 
-def study_1d(bench, nets, seeds):
+def study_1d(bench, nets, seeds, int8=False):
     folder = os.path.join(BENCH, "conv1d", "har_ultracompact" if bench == "har" else "ecg_mitbih")
     sys.path.insert(0, folder)
     if bench == "har":
@@ -220,31 +261,48 @@ def study_1d(bench, nets, seeds):
                 if split == "validation":
                     assert (p0 == ref).all(), "the clean pass is not the CDT simulation"
                 show(f"{bench} {arch} s{seed} {split[:5]}", res[split])
+            if int8:                                     # the same +-1 inputs through the INT8 model (section 5)
+                tfl = open(os.path.join(folder, "models", f"{bench}_int8_{arch}_s{seed}{sfx}.tflite"), "rb").read()
+                u8 = lambda x: (np.asarray(x).astype(np.int16) + 128).astype(np.uint8).reshape(len(x), -1)
+                a0, p0 = tflite_trace(tfl, u8(xv))
+                a1, p1 = tflite_trace(tfl, u8(noisy(xv, 1, -128, 127)))
+                res["int8"] = dict(accuracy=100 * float((p0 == yv).mean()), rel_error=rel_error(a0, a1),
+                                   moved=100 * float((p0 != p1).mean()))
+                print(f"  {bench} {arch} s{seed} valid input  relative error by layer: binary "
+                      + " ".join(f"{v:.3f}" for v in res["validation"]["input"]["rel_error"])
+                      + " | int8 " + " ".join(f"{v:.3f}" for v in res["int8"]["rel_error"])
+                      + f" | int8 moved {res['int8']['moved']:.1f}%")
             out[f"{bench}_{arch}_s{seed}"] = res
     return out
 
 
-def study_mlp(seeds, depth=None):
+def load_mlp(seed, depth=None):
+    """(folded layers, validation u8, labels, CDT predictions, training u8, labels) of one MLP run"""
     import cdt
     from compiler_core.export import dense
     folder = os.path.join(BENCH, "mlp", "mlp_fashion")
     sys.path.insert(0, folder)
     import model as M
     import deep_mlp
+    run = deep_mlp.run_dir(depth, seed) if depth else os.path.join(folder, "runs", "sizing", f"h128_512_s{seed}_nodistill")
+    cfg = tomllib.load(open(os.path.join(run, "config_used.toml"), "rb"))
+    xs, u8t, yt, train = _cdt_train_u8(cfg, TRAIN_SAMPLES, folder)
+    plan = json.load(open(os.path.join(run, "train.json")))["plan"]
+    est = {"rows": [{"name": next(iter(plan))}]}               # load_trained reads only the first layer's name
+    base = getattr(deep_mlp if depth else M, cfg["model"]["definition"].split(":")[1])()
+    model = cdt.load_trained(base, train, est, cfg, run)["model"]
+    layers = dense.fold(dense.analyze(model, xs[:2]), cfg["data"]["mean"], cfg["data"]["std"])
+    xv = np.fromfile(os.path.join(run, "validation_x.u8"), np.uint8).reshape(-1, u8t.shape[1])
+    yv = np.fromfile(os.path.join(run, "validation_y.u8"), np.uint8)
+    ref = np.fromfile(os.path.join(run, "validation_sim.u8"), np.uint8)
+    return layers, xv, yv, ref, u8t, yt
+
+
+def study_mlp(seeds, depth=None):
     out = {}
     for seed in seeds:
-        run = deep_mlp.run_dir(depth, seed) if depth else os.path.join(folder, "runs", "sizing", f"h128_512_s{seed}_nodistill")
         tag = f"mlp_d{depth}" if depth else "mlp"
-        cfg = tomllib.load(open(os.path.join(run, "config_used.toml"), "rb"))
-        xs, u8t, yt, train = _cdt_train_u8(cfg, TRAIN_SAMPLES, folder)
-        plan = json.load(open(os.path.join(run, "train.json")))["plan"]
-        est = {"rows": [{"name": next(iter(plan))}]}           # load_trained reads only the first layer's name
-        base = getattr(deep_mlp if depth else M, cfg["model"]["definition"].split(":")[1])()
-        model = cdt.load_trained(base, train, est, cfg, run)["model"]
-        layers = dense.fold(dense.analyze(model, xs[:2]), cfg["data"]["mean"], cfg["data"]["std"])
-        xv = np.fromfile(os.path.join(run, "validation_x.u8"), np.uint8).reshape(-1, u8t.shape[1])
-        yv = np.fromfile(os.path.join(run, "validation_y.u8"), np.uint8)
-        ref = np.fromfile(os.path.join(run, "validation_sim.u8"), np.uint8)
+        layers, xv, yv, ref, u8t, yt = load_mlp(seed, depth)
 
         def trace(x, flip):
             return trace_mlp(layers, x, flip)
@@ -263,6 +321,7 @@ def main():
     ap.add_argument("bench", choices=("resnet8", "har", "ecg", "mlp"))
     ap.add_argument("--nets", nargs="+", default=[], help="har: min max max5 max10; ecg: s m l")
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
+    ap.add_argument("--int8", action="store_true", help="har / ecg: also the TFLite INT8 model of the same net and seed")
     ap.add_argument("--depth", type=int, help="mlp: the DeepMLP_<n> runs of deep_mlp.py instead of the 784-128-512-10")
     ap.add_argument("--out", help="JSON to add these results to (e.g. results/damage.json)")
     args = ap.parse_args()
@@ -273,7 +332,7 @@ def main():
     else:
         if not args.nets:
             ap.error(f"{args.bench}: --nets is required")
-        res = study_1d(args.bench, args.nets, args.seeds)
+        res = study_1d(args.bench, args.nets, args.seeds, args.int8)
     if args.out:
         old = json.load(open(args.out)) if os.path.exists(args.out) else {}
         old.update(res)

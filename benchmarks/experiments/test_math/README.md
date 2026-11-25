@@ -199,3 +199,85 @@ python deep_mlp.py --depths 3 7 --seeds 42 43 44
 python damage.py mlp --depth 3 --seeds 42 43 44 --out results/damage.json
 python damage.py mlp --depth 7 --seeds 42 43 44 --out results/damage.json
 ```
+
+## 5. Is it the convolution, or the binary convolution? And how does one bit spread? (rule Nov 25, 2026, before measuring)
+
+**Questions.** (a) Section 4 found that the damage grows through the binary convolutions. Does it grow through the
+INT8 convolutions of the same network too? (b) Why does it grow? A changed bit reaches some neurons of the next
+layer (its **reach**: the sums that read it) and each of those flips only if its sum was close to the threshold
+(**flip chance**). In an MLP one bit reaches every neuron of the next layer, but each sum has hundreds of terms; in a
+convolution it reaches only the windows that cover it. Which of the two factors makes the convolution amplify?
+
+**What.**
+- (a) `damage.py --int8`: HAR max and ECG m, the TFLite INT8 model of the same net and seed (the section 2
+  control), ±1 step on every 8-bit input, as section 3. Measure per layer (output of each convolution, after its
+  pool) the relative error ‖changed − clean‖ / ‖clean‖, and the same measure for the binary network (for ±1 bits it
+  is 2·√(share of changed bits)). Growth = last layer / first.
+- (b) `spread.py`: one random bit of the output of binary layer l flipped per sample (validation, 3 seeds), the
+  next binary layer run once. Per transition l -> l+1: reach = sums of layer l+1 that change, flip chance = share of
+  those whose output bit flips, amplification = changed bits that layer l+2 reads (after the pool / OR) per flipped
+  bit, share growth = amplification × bits of layer l / bits of layer l+1. Also the share of layer l+1 neurons with
+  z − T in [−2, 1] (a ±2 step can flip them) on the clean pass.
+  Networks: ResNet-8 base, HAR max, ECG m, MLP 2, 3 and 7 binary layers.
+
+**Rule** (means over 3 seeds, validation):
+1. (a) If the INT8 growth is above 2 and at least half the binary growth on the same net, the convolution amplifies
+   whatever its arithmetic; if it is below 2, the amplification is a property of the binary convolution.
+2. (b) Share growth above 1 grows the damage as sections 3-4 measure it. If the convolutions' mean share growth per
+   transition is above 1 and the MLPs' below 1 (or clearly lower), the per-layer spread explains section 4. Then the
+   factor with the largest conv / MLP ratio is the mechanism: share growth = reach x flip chance x pool keep (bits
+   left after the pool / OR) x size ratio (bits of layer l / bits of layer l+1).
+
+   *Correction before the 3-seed run:* the first version of rule 2 used the amplification (changed bits per flipped
+   bit) against 1. A one-seed check (HAR max and the 2-layer MLP, seed 42) showed it does not measure what sections 3-4
+   measure: the MLP's amplification is 7.1 and HAR's 1.4-1.8, but sections 3-4 count the share of changed bits, and the
+   MLP's next layer has 4x more bits (128 -> 512). Rule 2 now uses the share growth, written before the full run.
+
+**Result** (mean ± sd over 3 seeds, validation; data: `results/damage.json` key `int8`, `results/spread.json`):
+
+(a) Relative error per layer, ±1 on every input, the same inputs through both networks:
+
+| Network | Binary: first → last layer | Binary growth | INT8: first → last layer | INT8 growth |
+|---|---|---|---|---|
+| HAR max | 0.13 → 0.47 | **3.69 ± 0.08** | 0.030 → 0.026 | **0.85 ± 0.06** |
+| ECG m | 0.21 → 0.53 | **2.56 ± 0.27** | 0.06 → 0.07 | **1.23 ± 0.15** |
+
+(b) One bit flipped, per transition l -> l+1 (mean over the transitions of each network):
+
+| Network | Share growth | Reach (sums) | Flip chance | Pool / OR keep | Size ratio | Near threshold |
+|---|---|---|---|---|---|---|
+| HAR max | 10.2 (6.3, 14.0) | 345 | 1.9 % | 0.27 | 6.0 | 3.7 % |
+| ECG m | 7.5 (4.9, 10.1) | 265 | 3.1 % | 0.28 | 3.3 | 6.1 % |
+| ResNet-8 base | 4.6 (3.1-7.9) | 204 | 2.3 % | 0.95 | 1.33 | 4.5 % |
+| MLP 2 layers | 1.8 | 512 | 1.4 % | 1 | 0.25 | 2.8 % |
+| MLP 3 layers | 3.9 (1.3, 6.6) | 512 | 1.2 % | 1 | 0.63 | 2.3 % |
+| MLP 7 layers | 2.7 (1.5-5.0) | 512 | 0.7 % (1.4 → 0.3) | 1 | 0.88 | 1.4 % (2.7 → 0.6) |
+
+**Answer.**
+1. (a) INT8 does not amplify: its error stays the same from the first to the last convolution (0.85x, 1.23x), while
+   the binary one grows 2.6-3.7x on the same nets and inputs. By the rule, the amplification is a property of the
+   **binary** convolution, not of the convolution.
+2. (b) Rule 2 is **not met**: one flipped bit grows the share of damage in the MLPs too (1.8-3.9x per transition),
+   not below 1. The convolutions grow it more (4.6-10.2x), but the one-bit spread alone does not explain why the
+   7-layer MLP's real damage fades (section 4) while its one-bit growth stays above 1. When many bits change together
+   (sections 3-4) the growth per transition is lower than one bit predicts in every network (e.g. HAR 3.5-3.9x
+   measured vs 6.3-14x).
+   Factor by factor (descriptive, since the rule's condition failed):
+   - **Reach does not make the difference:** a bit reaches *fewer* sums in a convolution (69-482) than in the MLP
+     (all 512). The idea that the convolution spreads one bit wider is not what we see.
+   - **Flip chance does:** a reached sum flips 2-4x more often in a convolution (1.9-3.1 % vs 0.7-1.4 %), and it
+     follows the share of neurons close to their threshold (3.7-6.1 % vs 1.4-2.8 %). The same cause as the ties of
+     section 1: the convolutional sums sit closer to the threshold.
+   - In the 1D nets the pools keep 27-28 % of the changed bits but shrink the layer 3-6x, so the damage concentrates.
+   - In the 7-layer MLP the deeper layers have fewer neurons near the threshold (2.7 % -> 0.6 %): that is why its
+     damage fades.
+
+Not measured: why the binary convolution's sums sit closer to the threshold than the MLP's (and than INT8, whose
+outputs are not thresholded); and how many changed bits interact (one bit vs several at once).
+
+```
+python damage.py har --nets max --seeds 42 43 44 --int8 --out results/damage.json
+python damage.py ecg --nets m --seeds 42 43 44 --int8 --out results/damage.json
+python spread.py har --nets max --seeds 42 43 44 --out results/spread.json      # also: ecg --nets m, resnet8,
+python spread.py mlp --depth 7 --seeds 42 43 44 --out results/spread.json      # mlp, mlp --depth 3
+```
