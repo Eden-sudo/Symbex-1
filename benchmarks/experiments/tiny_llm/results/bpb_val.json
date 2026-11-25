@@ -1,0 +1,168 @@
+{
+ "split": "val",
+ "seq": 256,
+ "windows": {
+  "5120": {
+   "tokens": 1310720,
+   "bytes": 5237775,
+   "bytes_per_token": 3.9961
+  },
+  "1024": {
+   "tokens": 262144,
+   "bytes": 1046203,
+   "bytes_per_token": 3.9909
+  }
+ },
+ "results": {
+  "train_fp32_d384l8_s42.json": {
+   "val_loss": {
+    "nats_per_token": 1.2975,
+    "bits_per_byte": 0.4684
+   }
+  },
+  "train_fp32_d384l8_s43.json": {
+   "val_loss": {
+    "nats_per_token": 1.3017,
+    "bits_per_byte": 0.4699
+   }
+  },
+  "train_fp32_d384l8_s44.json": {
+   "val_loss": {
+    "nats_per_token": 1.3007,
+    "bits_per_byte": 0.4696
+   }
+  },
+  "train_ternary_d384l8_s42.json": {
+   "val_loss": {
+    "nats_per_token": 1.4227,
+    "bits_per_byte": 0.5136
+   }
+  },
+  "train_ternary_d384l8_s43.json": {
+   "val_loss": {
+    "nats_per_token": 1.4248,
+    "bits_per_byte": 0.5144
+   }
+  },
+  "train_ternary_d384l8_s44.json": {
+   "val_loss": {
+    "nats_per_token": 1.4278,
+    "bits_per_byte": 0.5155
+   }
+  },
+  "train_binary_d384l8_s42.json": {
+   "val_loss": {
+    "nats_per_token": 1.5252,
+    "bits_per_byte": 0.5506
+   }
+  },
+  "train_binary_d384l8_s43.json": {
+   "val_loss": {
+    "nats_per_token": 1.5219,
+    "bits_per_byte": 0.5494
+   }
+  },
+  "train_binary_d384l8_s44.json": {
+   "val_loss": {
+    "nats_per_token": 1.52,
+    "bits_per_byte": 0.5488
+   }
+  },
+  "train_binary_d384l8_head4_s42.json": {
+   "val_loss": {
+    "nats_per_token": 1.5373,
+    "bits_per_byte": 0.555
+   }
+  },
+  "train_binary_d384l8_head4_s43.json": {
+   "val_loss": {
+    "nats_per_token": 1.5408,
+    "bits_per_byte": 0.5563
+   }
+  },
+  "train_binary_d384l8_head4_s44.json": {
+   "val_loss": {
+    "nats_per_token": 1.5347,
+    "bits_per_byte": 0.5541
+   }
+  },
+  "train_binary_d768l8_head4_s42.json": {
+   "val_loss": {
+    "nats_per_token": 1.5695,
+    "bits_per_byte": 0.5666
+   }
+  },
+  "train_binary_d768l8_head4_s43.json": {
+   "val_loss": {
+    "nats_per_token": 1.5717,
+    "bits_per_byte": 0.5674
+   }
+  },
+  "train_binary_d768l8_head4_s44.json": {
+   "val_loss": {
+    "nats_per_token": 1.5679,
+    "bits_per_byte": 0.5661
+   }
+  },
+  "intsim_binary_d384l8_head4_s42.json": {
+   "val_loss_float": {
+    "nats_per_token": 1.546,
+    "bits_per_byte": 0.5589
+   },
+   "val_loss_integer": {
+    "nats_per_token": 1.546,
+    "bits_per_byte": 0.5589
+   }
+  },
+  "intsim_binary_d384l8_head4_s43.json": {
+   "val_loss_float": {
+    "nats_per_token": 1.5486,
+    "bits_per_byte": 0.5598
+   },
+   "val_loss_integer": {
+    "nats_per_token": 1.5486,
+    "bits_per_byte": 0.5598
+   }
+  },
+  "intsim_binary_d384l8_head4_s44.json": {
+   "val_loss_float": {
+    "nats_per_token": 1.5432,
+    "bits_per_byte": 0.5579
+   },
+   "val_loss_integer": {
+    "nats_per_token": 1.543,
+    "bits_per_byte": 0.5578
+   }
+  },
+  "intsim_binary_d768l8_head4_s42.json": {
+   "val_loss_float": {
+    "nats_per_token": 1.5759,
+    "bits_per_byte": 0.5697
+   },
+   "val_loss_integer": {
+    "nats_per_token": 1.576,
+    "bits_per_byte": 0.5697
+   }
+  },
+  "intsim_binary_d768l8_head4_s43.json": {
+   "val_loss_float": {
+    "nats_per_token": 1.5822,
+    "bits_per_byte": 0.572
+   },
+   "val_loss_integer": {
+    "nats_per_token": 1.5822,
+    "bits_per_byte": 0.572
+   }
+  },
+  "intsim_binary_d768l8_head4_s44.json": {
+   "val_loss_float": {
+    "nats_per_token": 1.5764,
+    "bits_per_byte": 0.5699
+   },
+   "val_loss_integer": {
+    "nats_per_token": 1.5764,
+    "bits_per_byte": 0.5699
+   }
+  }
+ }
+}

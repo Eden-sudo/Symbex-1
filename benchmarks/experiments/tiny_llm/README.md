@@ -180,6 +180,46 @@ float output layer of the same seed), then intsim, C and the ESP32-S3 for each s
 - **int4 is the choice:** half the time of the output layer for a sixth of the 1-bit layer's cost. int2 is 6 % faster
   and 0.39 MB smaller again, for three times int4's cost in loss: an option when speed or flash matter most.
 
+### A narrower FFN: hidden 768 with the int4 output layer
+
+The FFN is read every token, so a narrower one is faster. `train.py --hidden 768 --head int4` (13.4M parameters,
+`model.bin` 2.45 MB) with the int4 row's recipe, trained on Apple Silicon (MPS, `--microbatch 16`), 3 seeds,
+validation; board runs on a second ESP32-S3 N16R8 (an ESP32-S3-CAM) with `--autoload 3`
+([`results/train_binary_d768l8_head4_s*.json`](results/), [`results/intsim_binary_d768l8_head4_s*.json`](results/),
+[`results/chip_s3_binary_d768l8_head4_s*_symbex_al3.json`](results/)):
+
+| FFN hidden | Validation loss | Integer model | Tokens per second (story) | Board check |
+|---|---|---|---|---|
+| 1024 (int4 row above, `--autoload 3`) | 1.5376 ± 0.0031 | 1.5459 ± 0.0028 | 10.96 ± 0.00 | exact |
+| **768** | 1.5697 ± 0.0019 | 1.5782 ± 0.0035 | **12.18 ± 0.00** | exact, 512 / 512 and 120 / 120 on every seed |
+
+- 11 % faster and 15 % fewer parameters for +0.032 loss (perplexity 4.80 vs 4.65), well outside the spread between
+  seeds: a different speed / quality point, not a free gain.
+- The two boards agree: the 15.7M shape with the int8 output layer (a short smoke training, same compute) runs at
+  9.635 tokens/s on the second board ([`results/chip_s3_binary_smoke_s42_symbex_al3.json`](results/)) vs 9.625 on the
+  first ([`results/chip_s3_binary_d384l8_s42_symbex_al3.json`](results/)).
+- The 1024 row was trained on CUDA (bf16), the 768 row on MPS (fp32): part of the gap may be the backend. Not
+  measured; a 1024 run on MPS would separate it.
+- With the attention cache autoload too (`--autoload-kv`), seed 42 runs at 11.95 tokens/s
+  ([`results/chip_s3_binary_d768l8_head4_s42_symbex_al3kv.json`](results/)).
+
+**Bits per byte of text** (`bpb.py`, [`results/bpb_val.json`](results/bpb_val.json)): the same validation windows,
+loss / ln 2 x tokens / bytes (3.996 bytes per token over the 5,120 windows; the byte count equals the decoded text's),
+so models with other tokenizers compare on one scale. 3 seeds:
+
+| Model | Bits per byte |
+|---|---|
+| fp32 | 0.4693 ± 0.0008 |
+| ternary | 0.5145 ± 0.0010 |
+| binary, int8 output layer | 0.5496 ± 0.0009 |
+| binary, int4 output layer (hidden 1024) | 0.5551 ± 0.0011 (integer model 0.5588 ± 0.0010) |
+| binary, int4 output layer, hidden 768 | 0.5667 ± 0.0007 (integer model 0.5705 ± 0.0013) |
+
+For scale only (other held-out text, other tokenizer, not checked by us): the
+[bytes-per-token](https://alikup-ai.github.io/bytes-per-token/report.html) project reports 0.625 bits per byte for
+its best 4-bit model (8.6M parameters) at ~81 tokens/s on an ESP32-S3 N16R8, with both cores and a two-stage output
+layer.
+
 ### 1-bit activations (W1A1) on the chip
 
 The 1-bit activations were made to train (`w1a1_diag.py`, `damage_map.py`, `hadamard_probe.py`; LOGBOOK.md): the
