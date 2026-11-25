@@ -19,10 +19,10 @@
   "story_equal": 120,
   "ms_per_token_check_mean": 92.335,
   "ms_per_token_at_position": {
-    "0": 73.144,
-    "63": 81.159,
-    "127": 91.111,
-    "255": 111.634
+    "0": 73.15,
+    "63": 81.165,
+    "127": 91.113,
+    "255": 111.631
   },
   "ms_per_token_story_mean": 82.107,
   "tokens_per_second_story": 12.179,
@@ -31,8 +31,8 @@
     "qkv": 11.015,
     "attention_values": 13.009,
     "o": 4.16,
-    "w1_w3": 14.398,
-    "swiglu": 4.443,
+    "w1_w3": 14.399,
+    "swiglu": 4.442,
     "w2": 6.943,
     "output_head": 13.123,
     "attention_rope_cache": 9.64,
