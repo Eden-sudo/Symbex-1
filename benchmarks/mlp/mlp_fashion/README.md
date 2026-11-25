@@ -295,9 +295,22 @@ CDT's test numbers of the new runs are not read); section 1's table keeps the ol
 - **Distillation gains 0.4-1.3 points on every row** (4 / 5 pass the rule; ternary x1 gains +1.28 but its old sd is
   1.41). The old start hurt distillation most, as in section 3b.
 - **Labels only: the wider binary networks gain** (x1.5 +0.63, x2 +0.39, both > sd); x1 and ternary do not.
-- **Per byte against INT2: not decided here.** The INT rows (`earlier/fashion_int4.py`) have no validation number:
-  their per-epoch accuracy is on the test images, so they cannot be compared with these validation numbers. Section
-  1's table keeps the old test numbers.
+- **Per byte against INT2: INT2 still wins, by less.** The INT rows had no validation number (their per-epoch
+  accuracy was on the test images), so `earlier/fashion_int4.py --val-split` (new) retrained them, same recipe,
+  scored on the same CDT validation split only (results/lowbit/int*_e15[_nodistill]_valsplit.json; the integer model
+  agrees with fake-quant within 0.05 points):
+
+| Model | Weights KB | Val, distillation | Val, labels only |
+|---|---|---|---|
+| SYMBEX 1 bit x2, fixed start | 65.3 | 88.17 +- 0.23 | 89.00 +- 0.19 |
+| ternary x1, fixed start | 57.3 | 88.13 +- 0.32 | 88.58 +- 0.40 |
+| INT2 QAT x1 | 57.3 | 89.17 +- 0.04 | 89.66 +- 0.20 |
+| INT4 QAT x1 | 114.6 | 89.22 +- 0.18 | 90.19 +- 0.18 |
+| INT8 QAT x1 | 229.2 | 89.13 +- 0.06 | 90.28 +- 0.08 |
+
+  INT2 (57.3 KB) stays above SYMBEX x2 (65.3 KB): labels only by 0.66 (was 1.05 with the old start), distillation by
+  1.00 (was 1.39). Section 1's conclusion holds; the fix narrows the gap by ~0.4 points. Section 1's table keeps the
+  old test numbers.
 
 
 ## Earlier results (previous FP32 model and library)

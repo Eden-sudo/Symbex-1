@@ -4,6 +4,7 @@ fashion_int4.py -- mlp_fashion benchmark, low-bit integer baselines (INT4 and IN
     python fashion_int4.py                       # INT4 and INT2: PTQ + QAT (5 epochs), seed 42
     python fashion_int4.py --bits 4 --epochs 15  # only INT4, QAT with as many epochs as the SYMBEX CDT
     python fashion_int4.py --seeds 3             # QAT with seeds 42, 43, 44 (PTQ has no seed)
+    python fashion_int4.py --bits 2 --epochs 15 --seeds 3 --val-split   # QAT scored on the CDT validation split only
 
 Run from benchmarks/mlp/mlp_fashion/ with the main environment (.venv, PyTorch CPU is enough). Nothing here uses
 the SYMBEX library or the CDT: it answers "how good is an ordinary INT4 / INT2 model of the SAME network?",
@@ -217,7 +218,7 @@ def levels_used(layers, qmax):
 # ---------------------------------------------------------------------------------------------------
 # 4. Quantization-aware fine-tuning
 # ---------------------------------------------------------------------------------------------------
-def train_qat(model, teacher, x_tr, y_tr, x_te, y_te, epochs, seed, batch=256, distill=True):
+def train_qat(model, teacher, x_tr, y_tr, x_te, y_te, epochs, seed, batch=256, distill=True, eval_name="test"):
     import torch
     import torch.nn.functional as F
     torch.manual_seed(seed)
@@ -245,7 +246,7 @@ def train_qat(model, teacher, x_tr, y_tr, x_te, y_te, epochs, seed, batch=256, d
         sched.step()
         acc = 100 * float((predict_fq(model, x_te) == y_te).mean())
         history.append([ep, total / len(xt), acc])
-        print(f"      QAT epoch {ep + 1}/{epochs} | loss {total / len(xt):.4f} | test (fake-quant) {acc:.2f}%")
+        print(f"      QAT epoch {ep + 1}/{epochs} | loss {total / len(xt):.4f} | {eval_name} (fake-quant) {acc:.2f}%")
     return history
 
 
@@ -296,6 +297,10 @@ def main():
     ap.add_argument("--shape", default="256-128",
                     help="hidden widths h1-h2 of the FP32 model (its own models/fashion_mlp_<h1>_<h2>.pth, as in "
                          "fashion_sizing.py); other than 256-128, results and models get _h<h1>_<h2>")
+    ap.add_argument("--val-split", action="store_true",
+                    help="QAT only, scored on the CDT validation split (carved out of the training images, as the "
+                         "SYMBEX runs' per-epoch Val) and never on the test set; no PTQ, the saved integer models are "
+                         "not touched; results get _valsplit")
     args = ap.parse_args()
     h1, h2 = (int(v) for v in args.shape.split("-"))
     shape_tag = "" if (h1, h2) == (256, 128) else f"_h{h1}_{h2}"
@@ -320,6 +325,10 @@ def main():
     acc_fp32 = 100 * float((pred_fp32[:len(y_val)] == y_val).mean())
     print(f"[*] FP32 folded: {acc_fp32:.2f}% ({len(y_val)} images) | {acc_fp32_10k:.2f}% (10k) | {fp32_path}")
     os.makedirs(os.path.join("results", "lowbit"), exist_ok=True)
+
+    if args.val_split:
+        run_val_split(args, layers, teacher, x_tr, y_tr, tr, x_calib, shape_tag)
+        return
 
     for bits in args.bits:
         qmax = 2 ** (bits - 1) - 1
@@ -360,6 +369,42 @@ def main():
         res["shape"] = f"784-{h1}-{h2}-10"
         json.dump(res, open(path, "w"), indent=1)
         print(f"    -> {path} ({res['segundos']} s)")
+
+
+def run_val_split(args, layers, teacher, x_tr, y_tr, tr, x_calib, shape_tag):
+    """--val-split: QAT trained on the CDT training images and scored on the CDT validation split only (fake-quant
+    per epoch, as the CDT's Val column, plus the integer model at the end); the test set is never evaluated."""
+    from model import split_indices
+    keep, val = (np.array(i) for i in split_indices(len(x_tr)))
+    x_vs, y_vs = x_tr[val], y_tr[val]
+    x_vs_u8 = tr.data.numpy().reshape(-1, 784)[val].astype(np.uint8)
+    for bits in args.bits:
+        qmax = 2 ** (bits - 1) - 1
+        t0 = time.time()
+        print(f"\n[*] INT{bits} QAT, validation split only ({len(val)} images, test not scored)")
+        seeds = []
+        for k in range(args.seeds):
+            seed = 42 + k
+            m = build_model(layers, bits, [scale_mse(W, qmax) for W, _, _ in layers])
+            calibrate(m, x_calib)
+            history = train_qat(m, teacher, x_tr[keep], y_tr[keep], x_vs, y_vs, args.epochs, seed,
+                                distill=not args.no_distill, eval_name="val")
+            layers_q = export_integer(m)
+            acc_int = 100 * float((predict_integer(layers_q, x_vs_u8) == y_vs).mean())
+            seeds.append(dict(seed=seed, val_last=history[-1][2], val_integer=acc_int, history=history,
+                              **model_bytes(layers_q, bits)))
+            print(f"    qat s{seed}: val (fake-quant, last epoch) {history[-1][2]:.2f}% | integer {acc_int:.2f}%")
+        last = [s_["val_last"] for s_ in seeds]
+        res = dict(bits=bits, distill=not args.no_distill, epochs=args.epochs,
+                   train_images=len(keep), val_images=len(val), seeds=seeds,
+                   val_last_mean=float(np.mean(last)),
+                   val_last_std=float(np.std(last, ddof=1)) if len(last) > 1 else None,
+                   seconds=round(time.time() - t0, 1))
+        res["shape"] = "784-" + "-".join(str(n) for n in (layers[0][0].shape[0], layers[1][0].shape[0])) + "-10"
+        path = (f"results/lowbit/int{bits}_e{args.epochs}{shape_tag}{'_nodistill' if args.no_distill else ''}"
+                f"_valsplit.json")
+        json.dump(res, open(path, "w"), indent=1)
+        print(f"    -> {path} ({res['seconds']} s)")
 
 
 if __name__ == "__main__":
