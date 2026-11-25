@@ -282,7 +282,22 @@ epoch (old runs, distillation / labels only: x1 86.36 +- 0.11 / 87.88 +- 0.38, x
 A row **gains** if its new mean beats the old one by more than the larger sd. The test set is not scored again (the
 CDT's test numbers of the new runs are not read); section 1's table keeps the old test numbers.
 
-**Result:** running.
+**Result** (validation, 3 seeds; results/lowbit/lowbit_initfix.json; every export exact 100 %, C vs integer simulation):
+
+| Model | Val, distillation: before -> fixed | Val, labels only: before -> fixed |
+|---|---|---|
+| SYMBEX 1 bit x1 | 86.36 +- 0.11 -> **87.46 +- 0.34** (+1.11) | 87.88 +- 0.38 -> 88.08 +- 0.23 (+0.20) |
+| SYMBEX 1 bit x1.5 | 87.23 +- 0.18 -> **87.84 +- 0.21** (+0.61) | 88.17 +- 0.24 -> **88.79 +- 0.24** (+0.63) |
+| SYMBEX 1 bit x2 | 87.78 +- 0.30 -> **88.17 +- 0.23** (+0.39) | 88.61 +- 0.30 -> **89.00 +- 0.19** (+0.39) |
+| ternary x1 | 86.86 +- 1.41 -> 88.13 +- 0.32 (+1.28) | 88.55 +- 0.19 -> 88.58 +- 0.40 (+0.03) |
+| ternary x1.5 | 87.20 +- 0.09 -> **88.44 +- 0.23** (+1.24) | 88.81 +- 0.15 -> 88.88 +- 0.04 (+0.07) |
+
+- **Distillation gains 0.4-1.3 points on every row** (4 / 5 pass the rule; ternary x1 gains +1.28 but its old sd is
+  1.41). The old start hurt distillation most, as in section 3b.
+- **Labels only: the wider binary networks gain** (x1.5 +0.63, x2 +0.39, both > sd); x1 and ternary do not.
+- **Per byte against INT2: not decided here.** The INT rows (`earlier/fashion_int4.py`) have no validation number:
+  their per-epoch accuracy is on the test images, so they cannot be compared with these validation numbers. Section
+  1's table keeps the old test numbers.
 
 
 ## Earlier results (previous FP32 model and library)
