@@ -391,10 +391,33 @@ in the 3-layer one, so part of the gain is a smaller model in the cache (not sep
 result.
 
 **Answer.** Yes: they are dead weight, removed with no change at all. And they are not a property of binary MLPs but
-of the plain dense recipe: binary training drives the 512-wide layers' beta to ≤ 0 and kills 60-70 % of them, so the
+of the plain dense recipe: the 512-wide layers' beta ends ≤ 0 and 60-70 % of them are dead (correction, section 8:
+they die BEFORE training, in the CDT's start calibration, not during training), so the
 Fashion MLP 784-128-512-10 really computes with ~190 live neurons in its second layer. This is the same family of
 problem as the frozen latent weights of PR #47, and binary_health does not see it (it checks weights, not beta).
 Consequences, NOT measured: (1) a recipe that keeps beta > 0 or binarizes before the ReLU might give back that
 capacity, and the MLP's accuracy cost (87.5 vs INT8 89.8 %) might shrink; (2) pruning would cut flash and time of the
 512 layers by the saved share (a count of weight bits, not a measurement on a chip); (3) the MLP's lower fragility in
 sections 2-6 is partly these dead neurons. Each needs its own rule and, (1), GPU training.
+
+## 8. The MLP results again, with the CDT's start calibration fixed (rule Nov 25, 2026, before measuring)
+
+**Why.** Section 7's dead neurons were a CDT bug, not a training effect: `init_thresholds` measured every threshold
+in one pass while all were still 0, so after the ReLU every later layer saw an all-+1 input and its units started
+constant (PR #218 fixes it: one layer at a time; Fashion 784-128-512-10: dead units ~61 -> ~8 %, validation labels
+only 87.88 -> 87.91, no gain). Sections 3, 4, 5, 6 and 7 measured MLPs with those dead units. The convolutional
+networks are not affected (0 % constant units; they do not train through `init_thresholds`), so sections 1-2 and
+every conv row stand.
+
+**What.** The same three MLPs (2, 3, 7 binary layers), same FP32 models and recipe, seeds 42-44, retrained with the
+fixed CDT (`deep_mlp.py --fixed-init`; the 2-layer runs are mlp_fashion/runs/initfix), then the same scripts with
+`--fixed-init` (keys `fixinit_*` in the same JSONs, old keys kept): `damage.py` (sections 3-4), `spread.py` (5),
+`near.py` (6), `prune.py` (7, PC only, no chip run).
+
+**Rule.** Each section's own rule is applied again to the new numbers, unchanged. A section's answer stands if its
+rule gives the same answer; otherwise the new answer replaces it and the old one is kept, marked "with the dead
+units". In particular: section 4 (depth) and section 3's "convolutions change >= 4x more predictions than the MLP
+inside 1 %" are checked again with the deep MLPs alive.
+
+**Result.** Running.
+

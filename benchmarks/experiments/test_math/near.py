@@ -30,6 +30,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import damage as D                                                                            # noqa: E402
+import deep_mlp                                                                            # noqa: E402
 import spread as S                                                                            # noqa: E402
 import tie_rule as R                                                                          # noqa: E402
 
@@ -97,7 +98,10 @@ def main():
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
     ap.add_argument("--depth", type=int, help="mlp: the DeepMLP_<n> runs of deep_mlp.py")
     ap.add_argument("--out", help="JSON to add these results to (e.g. results/near.json)")
+    ap.add_argument("--fixed-init", action="store_true", help="mlp: the runs of the fixed init_thresholds (section 8)")
     args = ap.parse_args()
+    if args.fixed_init:
+        deep_mlp.use_fixed_init()
     res = {}
     for seed in args.seeds:
         if args.bench == "resnet8":
@@ -106,7 +110,7 @@ def main():
                       [(b["conv"]["w"], b["conv"]["thr"]) for b in net["blocks"]], xv)]
         elif args.bench == "mlp":
             layers, xv = D.load_mlp(seed, args.depth)[:2]
-            tag = f"mlp_d{args.depth}" if args.depth else "mlp"
+            tag = deep_mlp.mlp_tag(args.depth)
             items = [(f"{tag}_s{seed}", lambda x, l=layers: S.first_mlp(l, x), S.stages_mlp(layers),
                       [(d["signs"], d["threshold"]) for d in layers[1:] if not d["last"]], xv)]
         else:

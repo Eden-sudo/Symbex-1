@@ -49,8 +49,24 @@ def __getattr__(name):
     raise AttributeError(f"module 'deep_mlp' has no attribute {name!r}")
 
 
+FIXED_INIT = False      # --fixed-init: the runs trained with init_thresholds one layer at a time (PR #218), apart
+
+
+def use_fixed_init():
+    """read / write the runs trained with the fixed init_thresholds (section 8): runs/deep_mlp_fixinit, the 2-layer
+    MLP's mlp_fashion/runs/initfix, result keys prefixed fixinit_"""
+    global FIXED_INIT
+    FIXED_INIT = True
+
+
+def mlp_tag(depth):
+    """the result key of an MLP: mlp / mlp_d<n>, fixinit_ in front with --fixed-init"""
+    tag = f"mlp_d{depth}" if depth else "mlp"
+    return "fixinit_" + tag if FIXED_INIT else tag
+
+
 def run_dir(depth, seed):
-    return os.path.join(HERE, "runs", "deep_mlp", f"d{depth}_s{seed}")
+    return os.path.join(HERE, "runs", "deep_mlp_fixinit" if FIXED_INIT else "deep_mlp", f"d{depth}_s{seed}")
 
 
 def fp32(depth):
@@ -98,7 +114,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--depths", nargs="+", type=int, default=[3, 7], help="binary layers (the MLP of section 3 has 2)")
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
+    ap.add_argument("--fixed-init", action="store_true",
+                    help="train into runs/deep_mlp_fixinit (the CDT with init_thresholds one layer at a time, PR #218)")
     args = ap.parse_args()
+    if args.fixed_init:
+        use_fixed_init()
     for d in args.depths:
         for s in args.seeds:
             run(d, s)

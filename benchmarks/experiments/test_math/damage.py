@@ -284,7 +284,8 @@ def load_mlp(seed, depth=None):
     sys.path.insert(0, folder)
     import model as M
     import deep_mlp
-    run = deep_mlp.run_dir(depth, seed) if depth else os.path.join(folder, "runs", "sizing", f"h128_512_s{seed}_nodistill")
+    two = os.path.join(folder, "runs", "initfix" if deep_mlp.FIXED_INIT else "sizing", f"h128_512_s{seed}_nodistill")
+    run = deep_mlp.run_dir(depth, seed) if depth else two
     cfg = tomllib.load(open(os.path.join(run, "config_used.toml"), "rb"))
     xs, u8t, yt, train = _cdt_train_u8(cfg, TRAIN_SAMPLES, folder)
     plan = json.load(open(os.path.join(run, "train.json")))["plan"]
@@ -301,7 +302,8 @@ def load_mlp(seed, depth=None):
 def study_mlp(seeds, depth=None):
     out = {}
     for seed in seeds:
-        tag = f"mlp_d{depth}" if depth else "mlp"
+        import deep_mlp
+        tag = deep_mlp.mlp_tag(depth)
         layers, xv, yv, ref, u8t, yt = load_mlp(seed, depth)
 
         def trace(x, flip):
@@ -323,8 +325,12 @@ def main():
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
     ap.add_argument("--int8", action="store_true", help="har / ecg: also the TFLite INT8 model of the same net and seed")
     ap.add_argument("--depth", type=int, help="mlp: the DeepMLP_<n> runs of deep_mlp.py instead of the 784-128-512-10")
+    ap.add_argument("--fixed-init", action="store_true", help="mlp: the runs of the fixed init_thresholds (section 8)")
     ap.add_argument("--out", help="JSON to add these results to (e.g. results/damage.json)")
     args = ap.parse_args()
+    if args.fixed_init:
+        import deep_mlp
+        deep_mlp.use_fixed_init()
     if args.bench == "resnet8":
         res = study_resnet8(args.seeds)
     elif args.bench == "mlp":

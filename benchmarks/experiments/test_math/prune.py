@@ -22,6 +22,7 @@ import torch
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import damage as D                                                                            # noqa: E402
+import deep_mlp                                                                            # noqa: E402
 from compiler_core.export.dense import INT32_MIN                                              # noqa: E402
 
 
@@ -48,7 +49,8 @@ def train_u8(seed, depth):
     import deep_mlp
     from compiler_core.export.dense import to_uint8
     folder = os.path.join(D.BENCH, "mlp", "mlp_fashion")
-    run = deep_mlp.run_dir(depth, seed) if depth else os.path.join(folder, "runs", "sizing", f"h128_512_s{seed}_nodistill")
+    two = os.path.join(folder, "runs", "initfix" if deep_mlp.FIXED_INIT else "sizing", f"h128_512_s{seed}_nodistill")
+    run = deep_mlp.run_dir(depth, seed) if depth else two
     cfg = tomllib.load(open(os.path.join(run, "config_used.toml"), "rb"))
     cwd = os.getcwd()
     os.chdir(folder)
@@ -135,7 +137,7 @@ def study(seed, depth):
     on_v, off_v = constant_masks(layers, xv)
     biased, k = bias_neurons(new, offset)
     assert (forward(biased, xv)[1] == lp).all(), "the bias neurons do not reproduce the classifier offset"
-    tag = f"{f'd{depth}' if depth else 'd2'}_s{seed}"
+    tag = ("fixinit_" if deep_mlp.FIXED_INIT else "") + f"{f'd{depth}' if depth else 'd2'}_s{seed}"
     before = export(layers, os.path.join(HERE, "runs", "pruned", f"full_{tag}"), xv, yv)
     after = export(biased, os.path.join(HERE, "runs", "pruned", f"pruned_{tag}"), xv, yv)
     assert (before.pop("pred") == p0).all() and (after.pop("pred") == p1).all()
@@ -156,10 +158,13 @@ def main():
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
     ap.add_argument("--depth", type=int, help="the DeepMLP_<n> runs of deep_mlp.py (default: the 2-layer MLP)")
     ap.add_argument("--out", help="JSON to add these results to (e.g. results/prune.json)")
+    ap.add_argument("--fixed-init", action="store_true", help="the runs of the fixed init_thresholds (section 8)")
     args = ap.parse_args()
+    if args.fixed_init:
+        deep_mlp.use_fixed_init()
     res = {}
     for seed in args.seeds:
-        key = f"{f'mlp_d{args.depth}' if args.depth else 'mlp'}_s{seed}"
+        key = f"{deep_mlp.mlp_tag(args.depth)}_s{seed}"
         r = res[key] = study(seed, args.depth)
         print(f"  {key}: removed {sum(r['removed'])}/{sum(r['hidden'])} {r['removed']} (threshold +-2^31 {r['sentinel']}, constant on validation "
               f"{r['constant_validation']}), acc {r['acc_before']:.2f} -> {r['acc_after']:.2f}, changed "

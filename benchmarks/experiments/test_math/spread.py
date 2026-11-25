@@ -31,6 +31,7 @@ import torch.nn.functional as F
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import damage as D                                                                            # noqa: E402
+import deep_mlp                                                                            # noqa: E402
 import tie_rule as R                                                                          # noqa: E402
 
 BATCH = 250
@@ -151,7 +152,10 @@ def main():
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
     ap.add_argument("--depth", type=int, help="mlp: the DeepMLP_<n> runs of deep_mlp.py")
     ap.add_argument("--out", help="JSON to add these results to (e.g. results/spread.json)")
+    ap.add_argument("--fixed-init", action="store_true", help="mlp: the runs of the fixed init_thresholds (section 8)")
     args = ap.parse_args()
+    if args.fixed_init:
+        deep_mlp.use_fixed_init()
     res = {}
     for seed in args.seeds:
         if args.bench == "resnet8":
@@ -160,7 +164,7 @@ def main():
             items = [(f"resnet8_s{seed}", lambda x, n=net: first_resnet8(n, x), stages_resnet8(net), xv)]
         elif args.bench == "mlp":
             layers, xv = D.load_mlp(seed, args.depth)[:2]
-            tag = f"mlp_d{args.depth}" if args.depth else "mlp"
+            tag = deep_mlp.mlp_tag(args.depth)
             items = [(f"{tag}_s{seed}", lambda x, l=layers: first_mlp(l, x), stages_mlp(layers), xv)]
         else:
             if not args.nets:
