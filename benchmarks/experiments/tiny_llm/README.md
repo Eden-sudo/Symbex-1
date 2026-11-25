@@ -1443,6 +1443,36 @@ buffers it adds) for +0.021 of validation loss, and is 11-17 % slower (2-bit val
 timing of Nov 21 said). It is the memory option, not the speed one: on the classic ESP32 it leaves 184 KB, enough
 (estimate, not tried) for the weights in RAM or a longer context.
 
+### Step 12: is the fp32 260K just under-trained? (rule Nov 24 2026, before measuring)
+
+**Question.** At 260K the plain 4-bit key cache costs fp32 1.68 nats but binary 0.100 (17x less, step 7b). One
+explanation is that binary weights make the keys robust; another is that the fp32 260K is under-trained (its loss
+still falls at 20000 steps) and its keys are not settled yet. More training separates the two.
+
+**What.** fp32 and binary, the same shape and lr 3e-3, 80000 steps (4x, ~5 passes over the training tokens; best
+checkpoint on validation as always), seeds 42, 43, 44; then `k_anatomy.py` with the step 7b settings (256 validation
+windows, 64 calibration windows). The test split is not read.
+
+**Rule.** The ratio fp32 / binary of the plain 4-bit key rise (mean over 3 seeds) is compared at 80000 steps with
+17x at 20000 steps. If it stays above 5x, "binary weights make the key cache robust" stands at 260K. If it falls
+below 2x, the 17x was under-training and the claim is withdrawn from SYNTHESIS. In between: reported as partly
+under-training, the claim weakened.
+
+**Result** (3 seeds, validation, results/v512d64l5kv4_80k_k_anatomy.json):
+
+| | fp32 20k | fp32 80k | binary 20k | binary 80k |
+|---|---|---|---|---|
+| val loss (best checkpoint) | 1.2709 ± 0.0087 | 1.2255 ± 0.0031 | 2.0613 ± 0.0086 | 2.0247 ± 0.0077 |
+| plain 4-bit key rise | 1.6817 ± 0.1141 | 2.1844 ± 0.0822 | 0.1002 ± 0.0149 | 0.0955 ± 0.0048 |
+| centered 4-bit key rise | 0.0561 ± 0.0069 | 0.0611 ± 0.0031 | 0.0093 ± 0.0027 | 0.0079 ± 0.0004 |
+
+Ratio fp32 / binary of the plain 4-bit rise: 16.8x at 20000 steps, **22.9x at 80000** (> 5x): the claim stands at
+260K. More training made the fp32 keys more fragile, not less: their shared mean grows (mean_share 0.90-0.96 by
+layer vs binary 0.49-0.85) and so do the outlier channels (4.4-5.4 vs 2.3-3.7). Both models gain ~0.04-0.05 nats
+from the longer run; the fp32 / binary loss gap stays ~0.80. Not tested here: why the binary keys absorb the error
+(one candidate, unmeasured: the binary attention is flatter, entropy 4.6 vs 2.3 in layer 0, so a small key error moves
+it less); the ratio still shrinks at d128 / d256 (SYNTHESIS sec. 1).
+
 ### Speed of each cache method, one at a time (Nov 21 2026; a timing, no decision rule)
 
 **Question.** Each trick of steps 7-9b changes the attention code differently. What does each one cost or save on
