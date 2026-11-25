@@ -270,6 +270,21 @@ results/sizing/init_thresholds.json; every export exact 100 %, C vs integer simu
 - Test not scored again (the table above keeps the test numbers of the old start).
 
 
+### 3c. The low-bit study with the fixed start (Nov 25, 2026)
+
+**Question.** Section 1's SYMBEX and ternary rows (784-256-128-10 and wider) have two binary layers, so the old start
+left their second layer partly dead too (the CDT runs `init_thresholds` for both methods). Does the fix change them?
+
+**Rule (written before training).** Same FP32 model (sha256 d74f32d3...), same recipe as section 1 (15 epochs, seeds
+42-44, both distillation and labels only), only the threshold start changes. Metric: validation accuracy of the last
+epoch (old runs, distillation / labels only: x1 86.36 +- 0.11 / 87.88 +- 0.38, x1.5 87.23 +- 0.18 / 88.17 +- 0.24, x2
+87.78 +- 0.30 / 88.61 +- 0.30, ternary x1 86.86 +- 1.41 / 88.55 +- 0.19, ternary x1.5 87.20 +- 0.09 / 88.81 +- 0.15).
+A row **gains** if its new mean beats the old one by more than the larger sd. The test set is not scored again (the
+CDT's test numbers of the new runs are not read); section 1's table keeps the old test numbers.
+
+**Result:** running.
+
+
 ## Earlier results (previous FP32 model and library)
 
 These were measured before the fixed validation split, with the earlier FP32 model (5 epochs, 88.17 % on test,
