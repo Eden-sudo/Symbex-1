@@ -1,0 +1,20 @@
+{
+  "run": "fp32_v512d64l5kv4_lr3e-3_20k_s42",
+  "board": "esp32 (classic, no PSRAM)",
+  "kernel": "llama2.c run.c fp32 (commit 350e04f, unchanged, plain C, -O2)",
+  "model_in": "flash",
+  "model_bytes": 1056540,
+  "kv_cache": "fp32",
+  "kv_cache_in": "internal ram",
+  "context": 127,
+  "cpu_mhz": 240,
+  "ready": "L2C ready | cpu 240 MHz | ram 351308 bytes free",
+  "loaded": "LOADED 1056540 bytes, context 127, in 0 ms | ram free 180076",
+  "pc_vs_torch_equal": 120,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "first_diverging_story_token": null,
+  "ms_per_token_story_mean": 154.234,
+  "tokens_per_second_story": 6.484,
+  "story": "Once upon a time, there was a little girl named Lily. She loved to play with her toys. One day, she found a big box in her room. She was very excited to play with her toys.\nLily's mom said, \"Lily, you can have a big box of toys. We can make a big toy.\" Lily was very happy. She played with her toys and had lots of fun. She"
+}

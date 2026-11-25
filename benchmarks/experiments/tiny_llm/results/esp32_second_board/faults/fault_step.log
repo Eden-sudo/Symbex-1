@@ -1,0 +1,30 @@
+== fault step  2026-11-24T17:27:34-05:00  commit 8169461
+-- step 1: data files for runs/binary_v512d64l5kv4_s42 (the board stops on the ID check, expected)
+RuntimeError: the board was built for another run or reference set (run without --no-upload)
+check_tokens[0][0..7] before: ['1', '356', '340', '370', '293', '261', '399', '403']
+check_tokens[0][0..7] after:  ['1', '356', '340', '370', '293', '512', '399', '403']
+-- step 2: build + flash
+========================= [SUCCESS] Took 7.86 seconds =========================
+esp32          SUCCESS   00:00:07.862
+flash try 1: 4/4 verified
+-- step 3: read the board with the unmodified chip_run.py (regenerates the header; the firmware keeps the fault)
+    ~~~~^^
+  File "benchmarks/experiments/tiny_llm/chip_run.py", line 185, in main
+    raise RuntimeError(line)
+RuntimeError: ERROR: step
+EXIT 1
+-- raw serial after a reset (12 s)
+    ID:1574210655
+    BOARD:esp32
+    LINEAR:lut8
+    TINYLM ready | cpu 240 MHz | ram 331076 bytes free
+    LOADED 93120 bytes in 14 ms | ram free 34420
+    H:0,0,1,19608
+    H:0,1,1,20257
+    H:0,2,1,20403
+    H:0,3,1,20524
+    H:0,4,1,20684
+    ERROR: step
+    ERROR: step
+    ERROR: step
+    ERROR: step

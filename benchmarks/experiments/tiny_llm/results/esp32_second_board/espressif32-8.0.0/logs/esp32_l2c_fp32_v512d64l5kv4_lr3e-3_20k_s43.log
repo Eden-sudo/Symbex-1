@@ -1,0 +1,44 @@
+== fp32_v512d64l5kv4_lr3e-3_20k_s43  2026-11-24T17:06:17-05:00  commit 8169461
+-- step 1: data files
+Once upon a time, there was a little girl named Lily. She loved to play with her toys. One day, she found a big box in her room. It was a big, red ball. Lily was very happy.
+Lily went to the box and saw a big box. She wanted to play with it. She put the ball in the box and put it in her bag. Then, she saw a big box. The box was
+-- step 2: build (pio), flash at 115200 (esptool; pio's 460800 fails on this CP2102)
+RAM:   [=         ]   6.8% (used 22348 bytes from 327680 bytes)
+Flash: [====      ]  42.5% (used 1337212 bytes from 3145728 bytes)
+========================= [SUCCESS] Took 10.88 seconds =========================
+esp32          SUCCESS   00:00:10.878
+Hash of data verified.
+Hash of data verified.
+Hash of data verified.
+Hash of data verified.
+-- step 2b: throwaway open + reset + drain (the first open after an upload floods)
+drained 10416 bytes
+-- step 3: board
+run.c on the PC vs PyTorch: 120/120 story tokens equal
+Once upon a time, there was a little girl named Lily. She loved to play with her toys. One day, she found a big box in her room. It was a big, red ball. Lily was very happy.
+Lily went to the box and saw a big box. She wanted to play with it. She put the ball in the box and put it in her bag. Then, she saw a big box. The box was
+  L2C ready | cpu 240 MHz | ram 331472 bytes free
+  LOADED 1056540 bytes, context 127, in 0 ms | ram free 158760
+, there was a little girl named Lily. She loved to play with her toys. One day, she found a big box in her room. It was a big, red ball. Lily was very happy.
+Lily went to the box and saw a big box. She wanted to play with it. She put the ball in the box and put it in her bag. Then, she saw a big box. The box was
+{
+  "run": "fp32_v512d64l5kv4_lr3e-3_20k_s43",
+  "board": "esp32 (classic, no PSRAM)",
+  "kernel": "llama2.c run.c fp32 (commit 350e04f, unchanged, plain C, -O2)",
+  "model_in": "flash",
+  "model_bytes": 1056540,
+  "kv_cache": "fp32",
+  "kv_cache_in": "internal ram",
+  "context": 127,
+  "cpu_mhz": 240,
+  "ready": "L2C ready | cpu 240 MHz | ram 331472 bytes free",
+  "loaded": "LOADED 1056540 bytes, context 127, in 0 ms | ram free 158760",
+  "pc_vs_torch_equal": 120,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "first_diverging_story_token": null,
+  "ms_per_token_story_mean": 149.081,
+  "tokens_per_second_story": 6.708
+}
+wrote benchmarks/experiments/tiny_llm/results/chip_esp32_l2c_fp32_v512d64l5kv4_lr3e-3_20k_s43.json
+EXIT 0

@@ -1,0 +1,59 @@
+== binary_v512d64l5kv4_lr3e-3_20k_k1trv2_s43  2026-11-24T16:56:19-05:00  commit 8169461
+-- step 1: data files
+                       "--no-upload)")
+RuntimeError: the board was built for another run or reference set (run without --no-upload)
+-- step 2: build (pio), flash at 115200 (esptool; pio's 460800 fails on this CP2102)
+RAM:   [=         ]   7.0% (used 22836 bytes from 327680 bytes)
+Flash: [===       ]  29.5% (used 386476 bytes from 1310720 bytes)
+========================= [SUCCESS] Took 8.09 seconds =========================
+esp32          SUCCESS   00:00:08.094
+Hash of data verified.
+Hash of data verified.
+Hash of data verified.
+Hash of data verified.
+-- step 2b: throwaway open + reset + drain (the first open after an upload floods)
+drained 10416 bytes
+-- step 3: board
+  TINYLM ready | cpu 240 MHz | ram 331076 bytes free
+  LOADED 93304 bytes in 14 ms | ram free 155164
+  window 0: 512/512 tokens equal, 42.3 ms per token
+  window 1: 512/512 tokens equal, 42.5 ms per token
+, there was a little girl named Spot. Spot was very scared. He liked to play with his friends. One day, Sue saw a big, but then, something unexpected happened. The ball was very happy. The ball was very happy. The ball was very happy. The ball was very happy. The bird was very happy. The bird was very happy. The bird was very happy. The
+{
+  "run": "binary_v512d64l5kv4_lr3e-3_20k_k1trv2_s43",
+  "board": "esp32 (classic, no PSRAM)",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": {
+    "k_bits": 1,
+    "v_bits": 2,
+    "k_scale": 1.0,
+    "recent": 32
+  },
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | ram 331076 bytes free",
+  "loaded": "LOADED 93304 bytes in 14 ms | ram free 155164",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 42.369,
+  "ms_per_token_at_position": {
+    "0": 21.235,
+    "63": 27.942,
+    "127": 31.987,
+    "255": 41.958,
+    "511": 56.042
+  },
+  "ms_per_token_story_mean": 28.282,
+  "tokens_per_second_story": 35.359,
+  "ms_per_token_by_part": {}
+}
+wrote benchmarks/experiments/tiny_llm/results/chip_esp32_binary_v512d64l5kv4_lr3e-3_20k_k1trv2_s43.json
+EXIT 0
