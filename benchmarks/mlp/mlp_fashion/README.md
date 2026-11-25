@@ -240,6 +240,36 @@ The binary network costs 2.3 points against INT8 of the same shape, and is 28x f
   measures every shape instead of predicting it from a per-weight cost: the prediction gave 1.71 ms for 784-128-512.
 - Both recipes agree on the ranking except at x2, where distillation is unstable (sd 0.70).
 
+### 3b. Thresholds calibrated one layer at a time (Nov 25, 2026)
+
+**Question.** Does the network lose accuracy to a bug in its starting thresholds? `init_thresholds` (the CDT, run
+once before training) measured every threshold in ONE pass, while all of them were still 0. After a ReLU that makes
+every input of the second layer +1, so its outputs were constant per unit and those units started dead: 63 % of the
+512 units of 784-128-512-10 (seed 42), and training did not bring them back (benchmarks/experiments/test_math,
+section 7: they can be removed with the logits 100 % equal). The fix calibrates the thresholds one layer at a time.
+
+**Rule (written before training).** Same shape, same FP32 model (sha256 86a2c405...), same recipe (15 epochs, seeds
+42-44, both labels only and distillation); only the threshold start changes. Metric: validation accuracy of the last
+epoch (the "Val" column above: labels only 87.88 +- 0.31, distillation 87.28 +- 0.21). The fix **gains** if its mean
+beats the old one by more than the larger sd; otherwise it is a correct fix with no accuracy gain. The test set is not
+scored again here. Also counted: the share of constant (dead) units after training.
+
+**Result** (validation, 3 seeds; constant = second-layer units whose bit never changes on the 54,000 training images;
+results/sizing/init_thresholds.json; every export exact 100 %, C vs integer simulation):
+
+| 784-128-512-10 | Val, labels only | Val, distillation | Constant units, 2nd layer |
+|---|---|---|---|
+| Thresholds in one pass (before) | 87.88 +- 0.31 | 87.28 +- 0.22 | 60-63 % |
+| **One layer at a time** | 87.91 +- 0.38 | **87.77 +- 0.25** | **7.7-9.2 %** |
+
+- **The fix works:** dead units fall from ~61 % to ~8 %.
+- **Labels only: no gain** (+0.03, within the spread). The live ~200 units were already enough for this task.
+- **Distillation: +0.49, larger than the sd** -> passes the rule. It now ties the labels-only recipe instead of
+  losing 0.6 points to it.
+- The first layer keeps its 4-8 % constant units: it reads pixels, so the bug never touched it.
+- Test not scored again (the table above keeps the test numbers of the old start).
+
+
 ## Earlier results (previous FP32 model and library)
 
 These were measured before the fixed validation split, with the earlier FP32 model (5 epochs, 88.17 % on test,
