@@ -89,3 +89,64 @@ python fragility.py resnet8 --seeds 42 43 44 --out results/fragility.json
 python fragility.py har --nets min max5 max10 max --seeds 42 43 44 --out results/fragility.json
 python fragility.py ecg --nets s m l --seeds 42 43 44 --out results/fragility.json
 ```
+
+## 3. Where does the fragility live: inside the network or at its output? (`damage.py`, rule Nov 25, 2026, before measuring)
+
+**Question.** Section 2 found the binary network 1.6-12x more fragile than its control, and fragility tied to how
+well it fits its data. Two places can cause it: the damage grows layer by layer (propagation), or it stays small
+inside and only the output has little margin between the two top classes. And is it a property of the
+convolutions? The MLP ties 20-30x less often (section 1).
+
+**What.** Only binary networks, in the CDT's exact integer simulation (the clean predictions checked equal to it),
+seeds 42, 43, 44; validation and training data, the test set never read. Networks: ResNet-8 base (CDT `w1_base`),
+HAR max, ECG m (the section 2 runs) and, as the non-convolutional control, the Fashion MLP 784-128-512-10 (labels
+only, the sized model of the mlp_fashion README). Two perturbations:
+- **input**: ±1 step on every 8-bit input value, as in section 2;
+- **inside**: 1 % of the first binary layer's output bits flipped at random, the same share for every network
+  (it does not depend on how the input is read, so the MLP and the convolutions compare directly).
+
+Measured: the share of bits that change in each binary layer, the predictions that change, and the output margin
+(top logit minus the second, before the perturbation) of the samples that change and of those that do not.
+
+**Rule** (means over 3 seeds, validation):
+1. Propagation, input noise: share of changed bits in the last binary layer / in the first. Above 2: the damage
+   grows; below 0.5: it fades; in between: it stays.
+2. Margin: median margin of the predictions that change / of those that do not. Below 0.5: a small output margin
+   decides which samples move.
+3. Convolutions vs MLP, inside perturbation: if the MLP's changed predictions are less than half of the smallest
+   convolutional network's, the architecture matters; otherwise it does not.
+
+**Result** (mean ± sd over 3 seeds, validation; data: `results/damage.json`):
+
+| Network | Binary layers | Changed bits, first → last layer (input ±1) | Last / first | Predictions changed: input ±1 / inside 1 % | Margin, changed / unchanged |
+|---|---|---|---|---|---|
+| ResNet-8 base | 7 | 2.58 → 14.35 % | **5.6 ± 0.2** | 18.5 / 17.9 % | 0.22 |
+| HAR max | 3 | 0.40 → 5.47 % | **13.6 ± 0.6** | 13.0 / 16.9 % | 0.16 |
+| ECG m | 3 | 1.14 → 7.17 % | **6.6 ± 1.4** | 14.0 / 15.1 % | 0.26 |
+| MLP 784-128-512-10 | 2 | 0.25 → 0.40 % | **1.6 ± 0.0** | 0.9 / **3.3** % | 0.09 |
+
+With 1 % of the first layer flipped, last / first is 13.5 (ResNet-8), 7.7 (HAR), 8.3 (ECG) and 1.14 (MLP). On
+training data the bits change exactly as much as on validation in every network, but the predictions that change
+fall where the network fits its data: HAR max 13.0 -> 5.9 %, ECG m 14.0 -> 2.7 %, MLP the same (0.9 %), and
+ResNet-8 the same (18.5 -> 17.6 %, it fits only 73 % of its training data).
+
+**Answer.**
+1. Propagation: in the three convolutional networks the damage **grows**, 5.6-13.6x from the first to the last
+   binary layer. In the MLP it stays (1.6x).
+2. Margin: in every network the predictions that change had 4-11x less margin than those that did not (ratio
+   0.09-0.26). The margin decides which samples move; training data move less because the network gave them more
+   margin, not because less damage reaches the output.
+3. Convolutions vs MLP: the same 1 % inside changes 3.3 % of the MLP's predictions and 15-18 % of the convolutional
+   networks': less than half, so by the rule the architecture matters.
+
+Limit: the MLP also has fewer binary layers (2 against 3 and 7), so this does not separate "convolution" from
+"depth". HAR and ECG have 3 layers and already grow 7-14x, which points at the convolution (a neuron that sums a
+few bits of a small window, section 1) more than at depth; a deeper MLP or a 2-layer convolutional network would
+separate the two.
+
+```
+python damage.py resnet8 --seeds 42 43 44 --out results/damage.json
+python damage.py har --nets max --seeds 42 43 44 --out results/damage.json
+python damage.py ecg --nets m --seeds 42 43 44 --out results/damage.json
+python damage.py mlp --seeds 42 43 44 --out results/damage.json
+```
