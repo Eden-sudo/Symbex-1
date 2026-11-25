@@ -739,5 +739,491 @@
    }
   },
   "note": "ESP32 (classic, 240 MHz), seed 42, weights in flash, 1000 validation images, chip_test.py; app image (esptool, uncompressed): d2 191168 -> 173648 B, d3 217616 -> 190832 B, d7 ? -> 200992 B"
+ },
+ "fixinit_mlp_s42": {
+  "hidden": [
+   128,
+   512
+  ],
+  "removed": [
+   5,
+   42
+  ],
+  "sentinel": [
+   5,
+   22
+  ],
+  "constant_validation": [
+   5,
+   43
+  ],
+  "acc_before": 88.2,
+  "acc_after": 88.2,
+  "changed": 0.0,
+  "logits_equal": 100.0,
+  "weight_bits": 171008,
+  "weight_bits_saved": 12066,
+  "bias_neurons": 18,
+  "widths": [
+   123,
+   488
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_fixinit_d2_s42/model_symbex.h",
+   "flash_bytes": 27936,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_fixinit_d2_s42/model_symbex.h",
+   "flash_bytes": 26780,
+   "ram_buffers": 3072,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 26348
+ },
+ "fixinit_mlp_s43": {
+  "hidden": [
+   128,
+   512
+  ],
+  "removed": [
+   8,
+   51
+  ],
+  "sentinel": [
+   8,
+   35
+  ],
+  "constant_validation": [
+   8,
+   52
+  ],
+  "acc_before": 88.6,
+  "acc_after": 88.6,
+  "changed": 0.0,
+  "logits_equal": 100.0,
+  "weight_bits": 171008,
+  "weight_bits_saved": 16998,
+  "bias_neurons": 21,
+  "widths": [
+   120,
+   482
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_fixinit_d2_s43/model_symbex.h",
+   "flash_bytes": 27936,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_fixinit_d2_s43/model_symbex.h",
+   "flash_bytes": 26288,
+   "ram_buffers": 3048,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 25784
+ },
+ "fixinit_mlp_s44": {
+  "hidden": [
+   128,
+   512
+  ],
+  "removed": [
+   10,
+   46
+  ],
+  "sentinel": [
+   10,
+   31
+  ],
+  "constant_validation": [
+   10,
+   49
+  ],
+  "acc_before": 88.5,
+  "acc_after": 88.5,
+  "changed": 0.0,
+  "logits_equal": 100.0,
+  "weight_bits": 171008,
+  "weight_bits_saved": 18848,
+  "bias_neurons": 18,
+  "widths": [
+   118,
+   484
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_fixinit_d2_s44/model_symbex.h",
+   "flash_bytes": 27936,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_fixinit_d2_s44/model_symbex.h",
+   "flash_bytes": 26104,
+   "ram_buffers": 3056,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 25672
+ },
+ "fixinit_mlp_d3_s42": {
+  "hidden": [
+   128,
+   512,
+   512
+  ],
+  "removed": [
+   1,
+   29,
+   48
+  ],
+  "sentinel": [
+   1,
+   24,
+   48
+  ],
+  "constant_validation": [
+   1,
+   30,
+   49
+  ],
+  "acc_before": 89.60000000000001,
+  "acc_after": 89.60000000000001,
+  "changed": 0.0,
+  "logits_equal": 100.0,
+  "weight_bits": 433152,
+  "weight_bits_saved": 43491,
+  "bias_neurons": 26,
+  "widths": [
+   127,
+   483,
+   490
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_fixinit_d3_s42/model_symbex.h",
+   "flash_bytes": 64800,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_fixinit_d3_s42/model_symbex.h",
+   "flash_bytes": 62404,
+   "ram_buffers": 3080,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 60532
+ },
+ "fixinit_mlp_d3_s43": {
+  "hidden": [
+   128,
+   512,
+   512
+  ],
+  "removed": [
+   4,
+   23,
+   40
+  ],
+  "sentinel": [
+   4,
+   22,
+   40
+  ],
+  "constant_validation": [
+   4,
+   24,
+   40
+  ],
+  "acc_before": 89.25,
+  "acc_after": 89.25,
+  "changed": 0.0,
+  "logits_equal": 100.0,
+  "weight_bits": 433152,
+  "weight_bits_saved": 39772,
+  "bias_neurons": 30,
+  "widths": [
+   124,
+   489,
+   502
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_fixinit_d3_s43/model_symbex.h",
+   "flash_bytes": 64800,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_fixinit_d3_s43/model_symbex.h",
+   "flash_bytes": 63064,
+   "ram_buffers": 3128,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 60904
+ },
+ "fixinit_mlp_d3_s44": {
+  "hidden": [
+   128,
+   512,
+   512
+  ],
+  "removed": [
+   4,
+   27,
+   40
+  ],
+  "sentinel": [
+   4,
+   26,
+   40
+  ],
+  "constant_validation": [
+   4,
+   27,
+   40
+  ],
+  "acc_before": 87.85,
+  "acc_after": 87.85,
+  "changed": 0.0,
+  "logits_equal": 100.0,
+  "weight_bits": 433152,
+  "weight_bits_saved": 42156,
+  "bias_neurons": 26,
+  "widths": [
+   124,
+   485,
+   498
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_fixinit_d3_s44/model_symbex.h",
+   "flash_bytes": 64800,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_fixinit_d3_s44/model_symbex.h",
+   "flash_bytes": 62680,
+   "ram_buffers": 3112,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 60808
+ },
+ "fixinit_mlp_d7_s42": {
+  "hidden": [
+   128,
+   512,
+   512,
+   512,
+   512,
+   512,
+   512
+  ],
+  "removed": [
+   3,
+   29,
+   22,
+   18,
+   26,
+   26,
+   108
+  ],
+  "sentinel": [
+   3,
+   27,
+   22,
+   18,
+   26,
+   26,
+   108
+  ],
+  "constant_validation": [
+   3,
+   29,
+   22,
+   18,
+   26,
+   26,
+   108
+  ],
+  "acc_before": 88.6,
+  "acc_after": 88.6,
+  "changed": 0.0,
+  "logits_equal": 100.0,
+  "weight_bits": 1481728,
+  "weight_bits_saved": 167959,
+  "bias_neurons": 44,
+  "widths": [
+   125,
+   483,
+   490,
+   494,
+   486,
+   486,
+   448
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_fixinit_d7_s42/model_symbex.h",
+   "flash_bytes": 212256,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_fixinit_d7_s42/model_symbex.h",
+   "flash_bytes": 199980,
+   "ram_buffers": 3096,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 196812
+ },
+ "fixinit_mlp_d7_s43": {
+  "hidden": [
+   128,
+   512,
+   512,
+   512,
+   512,
+   512,
+   512
+  ],
+  "removed": [
+   6,
+   28,
+   23,
+   27,
+   19,
+   21,
+   106
+  ],
+  "sentinel": [
+   6,
+   26,
+   23,
+   27,
+   19,
+   21,
+   106
+  ],
+  "constant_validation": [
+   6,
+   28,
+   23,
+   27,
+   19,
+   21,
+   106
+  ],
+  "acc_before": 89.05,
+  "acc_after": 89.05,
+  "changed": 0.0,
+  "logits_equal": 100.0,
+  "weight_bits": 1481728,
+  "weight_bits_saved": 168617,
+  "bias_neurons": 48,
+  "widths": [
+   122,
+   484,
+   489,
+   485,
+   493,
+   491,
+   454
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_fixinit_d7_s43/model_symbex.h",
+   "flash_bytes": 212256,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_fixinit_d7_s43/model_symbex.h",
+   "flash_bytes": 200232,
+   "ram_buffers": 3092,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 196776
+ },
+ "fixinit_mlp_d7_s44": {
+  "hidden": [
+   128,
+   512,
+   512,
+   512,
+   512,
+   512,
+   512
+  ],
+  "removed": [
+   7,
+   26,
+   20,
+   21,
+   24,
+   15,
+   121
+  ],
+  "sentinel": [
+   7,
+   25,
+   20,
+   21,
+   24,
+   15,
+   121
+  ],
+  "constant_validation": [
+   7,
+   26,
+   20,
+   21,
+   24,
+   15,
+   121
+  ],
+  "acc_before": 89.14999999999999,
+  "acc_after": 89.14999999999999,
+  "changed": 0.0,
+  "logits_equal": 100.0,
+  "weight_bits": 1481728,
+  "weight_bits_saved": 166993,
+  "bias_neurons": 53,
+  "widths": [
+   121,
+   486,
+   492,
+   491,
+   488,
+   497,
+   444
+  ],
+  "export_full": {
+   "header": "runs/pruned/full_fixinit_d7_s44/model_symbex.h",
+   "flash_bytes": 212256,
+   "ram_buffers": 3168,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "export_pruned": {
+   "header": "runs/pruned/pruned_fixinit_d7_s44/model_symbex.h",
+   "flash_bytes": 200164,
+   "ram_buffers": 3108,
+   "c_exactness": 100.0,
+   "c_note": ""
+  },
+  "flash_bytes_no_bias_neurons": 196348
  }
 }

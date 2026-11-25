@@ -419,5 +419,52 @@ rule gives the same answer; otherwise the new answer replaces it and the old one
 units". In particular: section 4 (depth) and section 3's "convolutions change >= 4x more predictions than the MLP
 inside 1 %" are checked again with the deep MLPs alive.
 
-**Result.** Running.
+**Result** (mean ± sd over 3 seeds, validation; keys `fixinit_*` in results/damage, spread, near, prune.json; every
+MLP exact, compiled C = simulation 100 %):
+
+| MLP | Binary layers | Val accuracy | Dead units (removable) | Changed bits last / first (input ±1) | Largest / first | Predictions changed: input ±1 / inside 1 % | Near threshold |
+|---|---|---|---|---|---|---|---|
+| 784-128-512-10, before | 2 | 88.27 ± 0.35 | 51.2 % | 1.60 ± 0.02 | 1.60 | 0.9 / 3.3 % | 2.81 % |
+| **fixed** | 2 | 88.43 ± 0.21 | **8.4 %** | **4.16 ± 0.14** | 4.16 | 1.3 / 3.3 % | **7.55 %** |
+| 784-128-512-512-10, before | 3 | 88.30 ± 0.35 | 56.2 % | 2.61 ± 0.09 | 2.61 | 1.4 / 3.9 % | 2.30 % |
+| **fixed** | 3 | 88.90 ± 0.93 | **6.2 %** | **6.32 ± 0.15** | 6.32 | 1.7 / 3.7 % | 5.58 % |
+| 784-128-512 x 6-10, before | 7 | 87.95 ± 0.36 | 69.0 % | 0.78 ± 0.11 | 2.29 | 1.7 / 4.2 % | 1.39 % |
+| **fixed** | 7 | **88.93 ± 0.29** | **7.2 %** | **4.19 ± 0.15** | 6.19 | 1.6 / 3.1 % | 3.04 % |
+| HAR max / ECG m (section 3) | 3 | 68.6 / 65.6 | 0 % | 13.6 / 6.6 | — | 13.0-14.0 / 15.1-16.9 % | 3.73 / 6.06 % |
+| ResNet-8 base (section 3) | 7 | 70.9 | 0 % | 5.6 | — | 18.5 / 17.9 % | 4.01 % |
+
+One bit (section 5, first transition): flip chance of a reached sum 1.4 -> **3.8 %** (2 layers), 1.0 -> 4.0 % (3),
+1.4 -> 4.5 % (7), against 1.4-3.2 % in the convolutions; share growth 1.8 -> 4.8x, 1.3 -> 5.1x, 1.7 -> 5.7x
+(convolutions 3.7-6.3x).
+
+**Answer** (each section's rule applied again):
+- **Section 3** (damage at the output or inside): stands. Inside 1 % the convolutions still change 4-5x more
+  predictions (3.1-3.7 % vs 15.1-18.5 %).
+- **Section 4** (convolution or depth), rule 1: **changed.** The 2-layer MLP's damage now grows 4.2x (was 1.6), the
+  3-layer 6.3x (at the convolutional range, >= 5.6), the 7-layer 4.2x (peak 6.2x, no longer fading to 0.8x). By the
+  rule this is still "in between" (only the 3-layer one reaches 5.6), but the old reading "the growth comes mainly
+  from the convolution" was the dead units: **binary layers amplify bit damage in an MLP too**, about as much as in
+  ResNet-8. Rule 2 stands: at equal depth the convolutional networks still change 4-5x more predictions.
+- **Section 5**, factor (b): **changed.** With its units alive the MLP's sums flip as often as the convolutions'
+  (3.8-4.5 % vs 1.4-3.2 %), so "flip chance makes the difference" was the dead units. What still separates them is
+  the end: the same bit damage moves far fewer MLP predictions (its output margins are wider; not measured further).
+- **Section 6** (near the threshold): changed. The live MLP sits as near or nearer the threshold than the
+  convolutions (3.0-7.6 % vs 3.7-6.1 %); its smaller share came only from its constant units.
+- **Section 7** (dead weight): the dead units were the bug. With the fix 6-8 % of the units are constant (most in the
+  first layer and the last hidden layer), removed with logits 100 % equal; the pruned chip table above is for the
+  OLD networks.
+- **Accuracy, a side result:** the deeper MLPs gain once alive (7 layers +0.98, larger than the sd; 3 layers +0.60,
+  within the sd 0.93); with dead units depth did not help, now it does a little.
+
+So the MLP is not "naturally robust": its binary layers amplify a changed bit like the convolutions do. Its
+predictions still move 4-5x less than the convolutional networks', and that gap is not explained yet (likely the
+classifier's margins on a task the MLP fits better; not measured).
+
+```
+python deep_mlp.py --depths 3 7 --seeds 42 43 44 --fixed-init
+python damage.py mlp [--depth 3|7] --seeds 42 43 44 --fixed-init --out results/damage.json
+python spread.py mlp [--depth 3|7] --seeds 42 43 44 --fixed-init --out results/spread.json
+python near.py mlp [--depth 3|7] --seeds 42 43 44 --fixed-init --out results/near.json
+python prune.py [--depth 3|7] --seeds 42 43 44 --fixed-init --out results/prune.json
+```
 
