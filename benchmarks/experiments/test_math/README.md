@@ -304,28 +304,77 @@ near (4·φ(μ/σ)/σ per neuron) against measured near.
    is the cause. If spread: the larger of √n_MLP / √n_conv and c_MLP / c_conv says whether it is the number of terms or
    their correlation.
 
-**Result** (results/near.json, means ± sd over 3 seeds; σ, √n, c geometric means over the neurons that move):
+**Result** (results/near.json, means ± sd over 3 seeds; σ, √n, c geometric means and φ a mean over the neurons whose
+bit moves; "constant" = hidden neurons of these layers whose bit never changes on validation):
 
 | network | near | predicted | constant neurons | near among moving | σ | √n | c | mean φ(μ/σ) |
 |---|---|---|---|---|---|---|---|---|
-| MLP 2 layers | 2.81 ± 0.04 % | 3.22 % | 46.0 ± 1.9 % | 5.21 ± 0.25 % | 15.5 | 11.3 | 1.37 | 0.181 |
-| MLP 3 layers | 2.30 ± 0.04 % | 2.75 % | 50.5 ± 1.1 % | 4.64 ± 0.06 % | 16.4 | 16.2 | 1.01 | 0.196 |
-| MLP 7 layers | 1.39 ± 0.03 % | 1.79 % | 60.0 ± 0.5 % | 3.47 ± 0.10 % | 21.8 | 19.4 | 1.12 | 0.217 |
-| HAR max | 3.73 ± 0.18 % | 3.91 % | 0 % | 3.73 % | 35.2 | 21.9 | 1.61 | 0.329 |
+| MLP 2 layers | 2.81 ± 0.04 % | 3.22 % | 62.6 ± 0.1 % | 7.50 ± 0.09 % | 11.9 | 11.3 | 1.06 | 0.262 |
+| MLP 3 layers | 2.30 ± 0.03 % | 2.75 % | 63.1 ± 0.1 % | 6.22 ± 0.09 % | 13.8 | 16.9 | 0.82 | 0.263 |
+| MLP 7 layers | 1.39 ± 0.03 % | 1.80 % | 71.7 ± 0.1 % | 4.91 ± 0.10 % | 19.8 | 19.3 | 1.02 | 0.307 |
+| HAR max | 3.73 ± 0.18 % | 3.91 % | 0 % | 3.73 % | 35.3 | 21.9 | 1.61 | 0.329 |
 | ECG m | 6.06 ± 0.92 % | 5.93 % | 0 % | 6.06 % | 19.8 | 14.3 | 1.39 | 0.289 |
 | ResNet-8 | 4.01 ± 0.05 % | 4.16 % | 0 % | 4.01 % | 22.4 | 17.0 | 1.32 | 0.229 |
 
-1. Predicted / measured near: 0.98-1.29 per network (0.86-1.32 per seed), within 1.5x: the bell model holds.
-2. Near, conv / MLP: 4.60 / 2.17 = 2.12. Spread σ_MLP / σ_conv = 17.9 / 25.8 = 0.69 (the convolutions' sums are
-   WIDER: this factor works against); placement φ_conv / φ_MLP = 0.282 / 0.198 = 1.43. By the rule, placement is the
-   cause. But the two factors multiply to 0.99, not 2.12: the bell split covers only the neurons that move. The rest
-   is the **constant neurons**: in the MLPs 46-60 % of the hidden neurons give the same bit on every validation sample
-   (their threshold lies outside the range of their sum, the extreme case of placement); the convolutions have none.
-   Among the neurons that move, conv 4.60 % vs MLP 4.44 %: a tie.
+Correction (Nov 25): the first version (commit 1017de5) of this table took the moments of
+z − T; the CDT gives a dead neuron a threshold of ±2^31, and E[z²] − μ² then lost all precision, so about a third of
+the dead neurons were counted as "moving" with a meaningless σ. The moments are now taken on the raw sum (small
+integers, exact). near and predicted did not change; the constant share and the split below did.
 
-**Answer.** The sums of a binary convolution do not sit closer to the threshold than the MLP's: among neurons that
-move, the share is the same (~4.5 %), because the convolutions' wider sums (σ 1.4x) are offset by thresholds placed
-nearer the middle (φ 1.4x). The MLP looks more robust because about half its hidden neurons never change: they
-cannot be flipped, and they dilute the share. Per neuron that moves, a binary MLP is as fragile as a convolution.
-Not measured: whether those constant neurons are also constant on the training data, and whether removing them
-changes accuracy (if not, they are dead weight in flash and time; an ESTIMATE until measured).
+1. Predicted / measured near: 0.98-1.29 per network (0.86-1.32 per seed), within 1.5x: the bell model holds.
+2. Near, conv / MLP: 4.60 / 2.17 = 2.12. Spread σ_MLP / σ_conv = 15.2 / 25.8 = 0.59 and placement φ_conv / φ_MLP =
+   0.282 / 0.277 = 1.02: neither factor makes the convolutions' sums nearer (the rule's "larger factor" is placement,
+   at 1.02, i.e. no effect). Among the neurons that move, the MLP's sums are NEARER the threshold (6.21 % vs 4.60 %,
+   ratio 0.74 ≈ 0.59 x 1.02 x the rest), because they are narrower (c ≈ 1: independent terms; conv c 1.3-1.6). The
+   whole 2.12 comes from the **constant neurons**: 63-72 % of the MLPs' 512-wide hidden neurons give the same bit on
+   every sample; the convolutions have none (2.12 / 0.74 = 2.9 ≈ 1 / (1 − 0.66)).
+
+**Answer.** The binary convolution's sums are not nearer the threshold: per neuron that moves, the MLP's are nearer
+(its sums are narrower). The MLP looks robust only because about two thirds of its hidden neurons never change, so
+they can neither flip nor pass a flip on. Section 7 asks what those neurons are.
+
+## 7. Are the MLP's constant neurons dead weight? (`prune.py`, rule Nov 25, 2026, before measuring)
+
+**Question.** Section 6 found 46-60 % of the binary MLPs' hidden neurons giving the same bit on every validation
+sample. If they are constant on the training data too, they can be removed: their bit is a fixed ±1, so its weight
+moves into the next layer's threshold (raw − s·c; for the classifier, a fixed integer offset per class on its sum).
+Does that change the accuracy?
+
+**What.** The three MLPs of section 4 (2, 3 and 7 binary layers), 3 seeds. A hidden neuron (every hidden layer,
+the first included) is constant if its bit is the same on the WHOLE CDT training split. Remove them all, fold their
+bits as above, run the exact integer network on validation. Count: neurons removed, validation accuracy before /
+after, predictions that change, and the weight bits saved (computed: the neuron's row of weights plus its column in
+the next layer; thresholds not counted).
+
+**Rule.** Constant on training data = dead weight if, in every seed, removing them changes validation accuracy by
+less than 0.1 points and changes fewer than 0.5 % of predictions. Otherwise report how much they carry. Flash and
+speed on a chip are not measured here: the bits saved are a count, not a flash measurement.
+
+**Result** (results/prune.json, 3 seeds; hidden = all hidden neurons, the 128-wide first layer included):
+
+| MLP | removed (constant on train) | of them threshold ±2^31 | validation accuracy before = after | predictions changed | logits equal | weight bits saved |
+|---|---|---|---|---|---|---|
+| 2 layers (128-512) | 51.3 % (326-330 / 640) | 325-330 | 88.27 ± 0.35 % | 0 % | 100 % | 28.8-31.5 % |
+| 3 layers | 56.2 % (645-649 / 1152) | 643-648 | 88.30 ± 0.35 % | 0 % | 100 % | 63.7-64.4 % |
+| 7 layers | 69.0 % (2204-2210 / 3200) | 2202-2205 | 87.95 ± 0.36 % | 0 % | 100 % | 83.6-83.8 % |
+
+The rule passes in every seed: the pruned network gives the same integer logits on every validation sample. Almost
+all removed neurons (all but 0-5 per network) are ones the exporter already marks as always 1 (threshold −2^31:
+`_threshold` in compiler_core/export/dense.py, "ReLU(z) >= 0 >= beta"): they are constant on any input, so removing
+those is exact everywhere, not only on these data.
+
+Where they come from (seed 42, FP32 starting model vs trained binary model): the FP32 MLPs have NO dead ReLU unit
+(0 % of units always 0 on 10000 training samples, every layer). In the binary model the learned binarization
+threshold `beta` of RSign (compiler_core/methods/base.py) is ≤ 0 in 3.9 / 62.5 % of the 128 / 512 channels (2 layers),
+0.8 / 68.8 / 56.6 % (3 layers), 2.3-86.5 % growing with depth (7 layers). After a ReLU, beta ≤ 0 makes the bit always
+1, and the straight-through gradient then no longer moves that channel: it dies DURING binary training (calibration
+places every beta between the median and the next value, above 0 for a live channel).
+
+**Answer.** Yes: they are dead weight, removed with no change at all. And they are not a property of binary MLPs but
+of the plain dense recipe: binary training drives the 512-wide layers' beta to ≤ 0 and kills 60-70 % of them, so the
+Fashion MLP 784-128-512-10 really computes with ~190 live neurons in its second layer. This is the same family of
+problem as the frozen latent weights of PR #47, and binary_health does not see it (it checks weights, not beta).
+Consequences, NOT measured: (1) a recipe that keeps beta > 0 or binarizes before the ReLU might give back that
+capacity, and the MLP's accuracy cost (87.5 vs INT8 89.8 %) might shrink; (2) pruning would cut flash and time of the
+512 layers by the saved share (a count of weight bits, not a measurement on a chip); (3) the MLP's lower fragility in
+sections 2-6 is partly these dead neurons. Each needs its own rule and, (1), GPU training.

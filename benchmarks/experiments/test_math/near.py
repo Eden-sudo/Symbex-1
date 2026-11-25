@@ -9,8 +9,9 @@ its positions, or a dense unit):
     c          sigma / sqrt(n): 1 for independent +-1 terms, larger when they move together
     near       share of z - T in [-2, 1] (measured)
     pred       4 * phi(mu / sigma) / sigma: the bell-curve share (z - T steps by 2, so 2 grid points in [-2, 1])
-Per network: means over the neurons of its layers; sigma, sqrt(n), c and phi over the neurons that move (a constant
-neuron, sigma 0, counts in near / pred as itself and is reported apart); sigma, sqrt(n), c as geometric means.
+Per network: means over the neurons of its layers; sigma, sqrt(n), c and phi over the neurons whose bit moves on the
+data (a constant neuron counts in near / pred and is reported apart; the CDT gives dead neurons a threshold of
++-2^31, so the moments are taken on the raw sum, never on z - T); sigma, sqrt(n), c as geometric means.
 Exact integer simulation of the CDT (as damage.py / spread.py), test never read.
 
     python near.py resnet8 --seeds 42 43 44 --out results/near.json
@@ -43,10 +44,12 @@ def near_stats(first, stages, weights, x):
     for i in range(0, len(x), S.BATCH):
         h = first(x[i:i + S.BATCH])
         for j, f in enumerate(stages):
-            _, z, h = f(h)
-            z = z.numpy()
+            raw, z, h = f(h)
+            raw, z = raw.numpy(), z.numpy()
             axes = (0,) + tuple(range(2, z.ndim))                            # samples and positions
-            part = np.array([z.sum(axes), (z * z).sum(axes), ((z >= -2) & (z <= 1)).sum(axes)])
+            # moments of the raw sum (small integers: exact), not of z - T (dead neurons carry T = +-2^31)
+            part = np.array([raw.sum(axes), (raw * raw).sum(axes), ((z >= -2) & (z <= 1)).sum(axes),
+                             (z >= 0).sum(axes)])
             cnt = z.size // z.shape[1]
             if acc[j] is None:
                 acc[j] = [part, cnt]
@@ -54,14 +57,15 @@ def near_stats(first, stages, weights, x):
                 acc[j][0] += part
                 acc[j][1] += cnt
     layers = []
-    for (part, cnt), w in zip(acc, weights):
+    for (part, cnt), (w, thr) in zip(acc, weights):
         w = np.asarray(w)
         n = (w != 0).reshape(w.shape[0], -1).sum(1).astype(np.float64)
-        mu = part[0] / cnt
-        sigma = np.sqrt(np.maximum(part[1] / cnt - mu * mu, 0))
-        live = sigma > 1e-6                                                  # constant neurons: their own share
-        sig = np.where(live, sigma, 1.0)
-        pred = np.where(live, 4 * _phi(mu / sig) / sig, ((mu >= -2) & (mu <= 1)).astype(np.float64))
+        mean_raw = part[0] / cnt
+        sigma = np.sqrt(np.maximum(part[1] / cnt - mean_raw * mean_raw, 0))
+        mu = mean_raw - np.asarray(thr, dtype=np.float64)
+        live = (part[3] > 0) & (part[3] < cnt)                               # the bit moves on these samples
+        sig = np.where(sigma > 0, sigma, 1.0)
+        pred = np.where(sigma > 0, 4 * _phi(mu / sig) / sig, ((mu >= -2) & (mu <= 1)).astype(np.float64))
         layers.append(dict(n=n, mu=mu, sigma=sig, near=part[2] / cnt, pred=pred, live=live))
     return layers
 
@@ -99,12 +103,12 @@ def main():
         if args.bench == "resnet8":
             net, xv = R.load_resnet8(os.path.join(D.BENCH, "conv2d", "cnn_cifar_resnet8", "runs", f"w1_base_s{seed}"))[:2]
             items = [(f"resnet8_s{seed}", lambda x, n=net: S.first_resnet8(n, x), S.stages_resnet8(net),
-                      [b["conv"]["w"] for b in net["blocks"]], xv)]
+                      [(b["conv"]["w"], b["conv"]["thr"]) for b in net["blocks"]], xv)]
         elif args.bench == "mlp":
             layers, xv = D.load_mlp(seed, args.depth)[:2]
             tag = f"mlp_d{args.depth}" if args.depth else "mlp"
             items = [(f"{tag}_s{seed}", lambda x, l=layers: S.first_mlp(l, x), S.stages_mlp(layers),
-                      [d["signs"] for d in layers[1:] if not d["last"]], xv)]
+                      [(d["signs"], d["threshold"]) for d in layers[1:] if not d["last"]], xv)]
         else:
             if not args.nets:
                 ap.error(f"{args.bench}: --nets is required")
@@ -114,7 +118,7 @@ def main():
                 sfx = "" if args.bench == "har" else "_rr"
                 net, xv = R.load_1d(args.bench, os.path.join(folder, "runs", f"{arch}_binary_e100_s{seed}{sfx}"))[:2]
                 items.append((f"{args.bench}_{arch}_s{seed}", lambda x, n=net: S.first_1d(n, x), S.stages_1d(net),
-                              [c["w"] for c in net["layers"][1:]], xv))
+                              [(c["w"], c["thr"]) for c in net["layers"][1:]], xv))
         for key, first, stages, weights, xv in items:
             res[key] = summary(near_stats(first, stages, weights, xv))
             show(key, res[key])
