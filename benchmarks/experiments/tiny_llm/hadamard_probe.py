@@ -2,7 +2,7 @@
     python hadamard_probe.py binary_a1p_k1_s42 binary_d384l8_s42   (run folders under runs/)"""
 import sys, torch, torch.nn.functional as F
 sys.path.insert(0, ".")
-from train import TinyLM, W2_ACTS, hadamard, load_split
+from train import TinyLM, W2_ACTS, hadamard, load_split, pick_device
 
 def cos1(x):
     s = x.abs().mean(-1, keepdim=True)
@@ -12,7 +12,7 @@ def rot(x, blk):
     H = hadamard(blk).to(x)
     return (x.view(*x.shape[:-1], -1, blk) @ H).reshape(x.shape)
 
-dev = "cuda"
+dev = pick_device(allow_mps=True)
 for run in sys.argv[1:]:
     ck = torch.load(f"runs/{run}/model.pt", map_location=dev, weights_only=False); a = ck["args"]
     m = TinyLM(4096, a["dim"], a["layers"], a["heads"], a["hidden"], a["seq"], a["weights"], a.get("head", "fp32"),

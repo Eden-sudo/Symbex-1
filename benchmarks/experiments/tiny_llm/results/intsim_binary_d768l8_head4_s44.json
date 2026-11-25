@@ -1,0 +1,31 @@
+{
+  "run": "binary_d768l8_head4_s44",
+  "weights": "binary",
+  "kv_bits": 8,
+  "kv": {
+    "k_bits": 8,
+    "v_bits": 8,
+    "k_mode": "token",
+    "v_mode": "token",
+    "qjl_m": 128,
+    "keep_first": false,
+    "qjl_seed": 0,
+    "k_scale": 1.0,
+    "v_scale": 1.0,
+    "recent": 0,
+    "p_cut": null
+  },
+  "kv_tag": "kv8",
+  "trained_kv": [
+    8,
+    8,
+    1.0
+  ],
+  "val_windows": 1024,
+  "val_loss_float": 1.5764,
+  "val_loss_integer": 1.5764,
+  "val_perplexity_float": 4.837,
+  "val_perplexity_integer": 4.838,
+  "next_token_agreement_float_vs_integer": 0.989,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She had a big, red ball. Lily loved to play with her ball every day. She would throw it, kick it, and even bounce it high in the air.\nOne day, Lily saw a big, unknown dog in the park. The dog was very big and had a big smile. Lily wanted to play with the dog, but she was scared. She did not know what to do.\nLily asked her mom, \"Can I play with the unknown dog?\" Her mom said, \"Yes, but be careful.\" Lily and her mom played"
+}

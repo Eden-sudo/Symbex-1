@@ -857,8 +857,11 @@ int tinylm_state_init(TinyState *s, const TinyModel *m) {
     long kv = (long)m->layers * m->seq * m->dim, kvm = (long)m->layers * m->seq * m->heads;
     int big = m->hidden > m->dim ? m->hidden : m->dim;
     if (m->hidden < 2 * m->seq) return -1;  /* t2 doubles as the int64 score buffer */
+    int t1_size = big;
 #ifdef TINYLM_DOT_ROWS_U8
-    if (big < 4 * m->seq) return -1;        /* t1 (4 big bytes) holds the 6 byte vectors of the attention weights */
+    /* Attention scratch must not constrain the FFN width. Keep the previous
+       conservative capacity (4*seq int32) even when hidden is pruned. */
+    if (t1_size < 4 * m->seq) t1_size = 4 * m->seq;
 #endif
     memset(s, 0, sizeof(*s));
     const int hd = m->dim / m->heads;
@@ -878,7 +881,7 @@ int tinylm_state_init(TinyState *s, const TinyModel *m) {
     if (!s->kq || !s->vq || !s->km || !s->vm) return -1;
     }
     s->x = TINYLM_MALLOC_FAST(4L * m->dim);
-    s->t1 = TINYLM_MALLOC_FAST(4L * big); s->t2 = TINYLM_MALLOC_FAST(4L * big); s->t3 = TINYLM_MALLOC_FAST(4L * big);
+    s->t1 = TINYLM_MALLOC_FAST(4L * t1_size); s->t2 = TINYLM_MALLOC_FAST(4L * big); s->t3 = TINYLM_MALLOC_FAST(4L * big);
     s->q = TINYLM_MALLOC_FAST(4L * m->dim); s->k = TINYLM_MALLOC_FAST(4L * m->dim);
     s->v = TINYLM_MALLOC_FAST(4L * m->dim); s->a = TINYLM_MALLOC_FAST(4L * m->dim);
     s->iq = TINYLM_MALLOC_FAST(big); s->p = TINYLM_MALLOC_FAST(2L * m->seq);

@@ -31,8 +31,9 @@ token IDs. GQA expands whole K/V heads into ordinary multi-head matrices, with
 the original query-head count. This preserves float inference but increases
 storage; replicated KV parameters can diverge during fine-tuning.
 
-Stock `train.py` and `intsim.py` command-line entry points use CUDA and the
-project's prepared `tok4096.model`/token splits. **Do not use those assets with
+Stock `train.py` selects CUDA, then MPS, then CPU; `intsim.py` uses CUDA or CPU,
+never MPS. MPS training runs eagerly; bfloat16 autocast is used only on CUDA.
+Both entry points use the project's prepared `tok4096.model`/token splits. **Do not use those assets with
 an imported vocabulary merely because its size matches.** This importer does
 not change those entry points, supply a tokenizer, or prepare data. Integer
 attention also assumes **64-wide heads**; `import.json` records whether that

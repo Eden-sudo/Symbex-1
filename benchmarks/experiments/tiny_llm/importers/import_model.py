@@ -48,7 +48,7 @@ def import_model(src, out_dir, weights="binary"):
                     tokenizer="not included; supply the source tokenizer and preserve token IDs",
                     integer_attention_compatible=config["dim"] // config["n_heads"] == 64,
                     notes=["Binary initialization is lossy and requires fine-tuning.",
-                           "Stock script entry points require CUDA and matching prepared data/tokenizer.",
+                           "Stock scripts require matching prepared data/tokenizer; training uses CUDA/MPS/CPU, integer simulation CUDA/CPU.",
                            "model.pt loads via train.TinyLM.load_state_dict or intsim.load_model on CPU."])
     out.mkdir(parents=True, exist_ok=False)
     mapping.torch.save({"model": model.state_dict(), "step": 0, "args": args}, out / "model.pt")

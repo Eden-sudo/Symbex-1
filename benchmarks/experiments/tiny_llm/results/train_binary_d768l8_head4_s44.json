@@ -1,0 +1,180 @@
+{
+  "weights": "binary",
+  "seed": 44,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      44
+    ],
+    "head": "int4",
+    "int8_blocks": [],
+    "acts": 8,
+    "ste": "identity",
+    "ste_k": 2.0,
+    "learn_thr": false,
+    "a8_inputs": [],
+    "a8_blocks": [],
+    "w2_acts": "same",
+    "hadamard": [],
+    "ffn_act": "silu",
+    "k_bits": 8,
+    "v_bits": 8,
+    "k_scale": 1.0,
+    "attn_temp": false,
+    "kv_recent": 0,
+    "q_bits": 8,
+    "k_unit": false,
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "d768l8_head4",
+    "dim": 384,
+    "layers": 8,
+    "repeat": 1,
+    "heads": 6,
+    "hidden": 768,
+    "seq": 256,
+    "batch": 128,
+    "microbatch": 16,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": false,
+    "test": false
+  },
+  "parameters": 13375872,
+  "quantized_linear_parameters": 11796480,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.5679,
+  "val_perplexity": 4.797,
+  "minutes": 243.33,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.2828,
+      "val_loss": 2.3222,
+      "minutes": 12.02
+    },
+    {
+      "step": 1000,
+      "train_loss": 2.0543,
+      "val_loss": 2.0162,
+      "minutes": 24.73
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.9177,
+      "val_loss": 1.9063,
+      "minutes": 36.97
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.8288,
+      "val_loss": 1.8394,
+      "minutes": 49.17
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.7623,
+      "val_loss": 1.7961,
+      "minutes": 61.33
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.7708,
+      "val_loss": 1.7657,
+      "minutes": 73.45
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.7243,
+      "val_loss": 1.7363,
+      "minutes": 85.57
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.668,
+      "val_loss": 1.716,
+      "minutes": 97.67
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.6719,
+      "val_loss": 1.696,
+      "minutes": 109.79
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.6528,
+      "val_loss": 1.6752,
+      "minutes": 121.89
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.6504,
+      "val_loss": 1.6589,
+      "minutes": 134.23
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.6296,
+      "val_loss": 1.6453,
+      "minutes": 146.35
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.6173,
+      "val_loss": 1.6322,
+      "minutes": 158.47
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.6296,
+      "val_loss": 1.6172,
+      "minutes": 170.59
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.6097,
+      "val_loss": 1.6048,
+      "minutes": 182.72
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.569,
+      "val_loss": 1.5927,
+      "minutes": 194.84
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.5704,
+      "val_loss": 1.5818,
+      "minutes": 206.95
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.5561,
+      "val_loss": 1.573,
+      "minutes": 219.08
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.5612,
+      "val_loss": 1.5684,
+      "minutes": 231.2
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.5356,
+      "val_loss": 1.5679,
+      "minutes": 243.33
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She had a big, red ball. Lily loved to play with her ball every day. She would throw it, kick it, and even bounce it high in the air.\nOne day, Lily saw a big tree. She wanted to climb it. She asked her mom, \"Can I climb the tree, please?\" Her mom said, \"Yes, but be careful.\" Lily climbed the tree and saw a big, red ball. She was so happy!\nLily played with the ball all day. She threw it up and down, and it made her very happy. When it was time to go home, Lily said, \"Thank you, Mom, for letting me climb the tree.\" Her mom smiled and said, \"You're welcome, Lily. I'm glad you had fun.\""
+}

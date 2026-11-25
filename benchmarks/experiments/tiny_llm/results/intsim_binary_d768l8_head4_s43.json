@@ -1,0 +1,31 @@
+{
+  "run": "binary_d768l8_head4_s43",
+  "weights": "binary",
+  "kv_bits": 8,
+  "kv": {
+    "k_bits": 8,
+    "v_bits": 8,
+    "k_mode": "token",
+    "v_mode": "token",
+    "qjl_m": 128,
+    "keep_first": false,
+    "qjl_seed": 0,
+    "k_scale": 1.0,
+    "v_scale": 1.0,
+    "recent": 0,
+    "p_cut": null
+  },
+  "kv_tag": "kv8",
+  "trained_kv": [
+    8,
+    8,
+    1.0
+  ],
+  "val_windows": 1024,
+  "val_loss_float": 1.5822,
+  "val_loss_integer": 1.5822,
+  "val_perplexity_float": 4.865,
+  "val_perplexity_integer": 4.865,
+  "next_token_agreement_float_vs_integer": 0.9897,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and have fun. One day, she found a big box in her room. She was very excited and wanted to see what was inside.\nLily tried to open the box, but it was too heavy. She tried and tried, but the box was too heavy. She felt sad and asked her mom for help. Her mom came into the room and saw Lily trying to open the box. She said, \"Don't worry, Lily. We can try together.\"\nLily and her mom tried to open the box,"
+}

@@ -1,0 +1,31 @@
+{
+  "run": "binary_d768l8_head4_s42",
+  "weights": "binary",
+  "kv_bits": 8,
+  "kv": {
+    "k_bits": 8,
+    "v_bits": 8,
+    "k_mode": "token",
+    "v_mode": "token",
+    "qjl_m": 128,
+    "keep_first": false,
+    "qjl_seed": 0,
+    "k_scale": 1.0,
+    "v_scale": 1.0,
+    "recent": 0,
+    "p_cut": null
+  },
+  "kv_tag": "kv8",
+  "trained_kv": [
+    8,
+    8,
+    1.0
+  ],
+  "val_windows": 1024,
+  "val_loss_float": 1.5759,
+  "val_loss_integer": 1.576,
+  "val_perplexity_float": 4.835,
+  "val_perplexity_integer": 4.835,
+  "next_token_agreement_float_vs_integer": 0.988,
+  "sample_integer": "Once upon a time, there was a little girl named Lily. She had a big, red ball that she loved to play with. One day, she went to the park with her mom. Lily saw a big tree with a hole in it. She wanted to see what was inside.\nLily tried to fit the hole in the tree. She pushed and pushed, but the hole was too big. She felt sad. Then, she had an idea. She asked her mom to help her. Her mom said, \"Let's try together!\"\nThey tried to fit the hole in the tree. It was hard,"
+}

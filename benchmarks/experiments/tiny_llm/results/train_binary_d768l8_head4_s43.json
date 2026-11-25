@@ -1,0 +1,180 @@
+{
+  "weights": "binary",
+  "seed": 43,
+  "args": {
+    "weights": "binary",
+    "seeds": [
+      43
+    ],
+    "head": "int4",
+    "int8_blocks": [],
+    "acts": 8,
+    "ste": "identity",
+    "ste_k": 2.0,
+    "learn_thr": false,
+    "a8_inputs": [],
+    "a8_blocks": [],
+    "w2_acts": "same",
+    "hadamard": [],
+    "ffn_act": "silu",
+    "k_bits": 8,
+    "v_bits": 8,
+    "k_scale": 1.0,
+    "attn_temp": false,
+    "kv_recent": 0,
+    "q_bits": 8,
+    "k_unit": false,
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "d768l8_head4",
+    "dim": 384,
+    "layers": 8,
+    "repeat": 1,
+    "heads": 6,
+    "hidden": 768,
+    "seq": 256,
+    "batch": 128,
+    "microbatch": 16,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": false,
+    "test": false
+  },
+  "parameters": 13375872,
+  "quantized_linear_parameters": 11796480,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.5717,
+  "val_perplexity": 4.815,
+  "minutes": 332.09,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.3733,
+      "val_loss": 2.3113,
+      "minutes": 13.48
+    },
+    {
+      "step": 1000,
+      "train_loss": 2.0454,
+      "val_loss": 2.0109,
+      "minutes": 26.98
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.8786,
+      "val_loss": 1.9025,
+      "minutes": 40.28
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.8405,
+      "val_loss": 1.8382,
+      "minutes": 53.24
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.8319,
+      "val_loss": 1.7962,
+      "minutes": 66.14
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.7149,
+      "val_loss": 1.77,
+      "minutes": 78.9
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.7197,
+      "val_loss": 1.744,
+      "minutes": 91.49
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.6798,
+      "val_loss": 1.7176,
+      "minutes": 104.48
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.674,
+      "val_loss": 1.6974,
+      "minutes": 117.27
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.6351,
+      "val_loss": 1.6828,
+      "minutes": 129.85
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.5804,
+      "val_loss": 1.665,
+      "minutes": 142.55
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.6595,
+      "val_loss": 1.649,
+      "minutes": 155.66
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.6104,
+      "val_loss": 1.6379,
+      "minutes": 175.71
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.5953,
+      "val_loss": 1.6223,
+      "minutes": 256.4
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.5843,
+      "val_loss": 1.6086,
+      "minutes": 268.92
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.6272,
+      "val_loss": 1.5946,
+      "minutes": 281.34
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.5975,
+      "val_loss": 1.5882,
+      "minutes": 294.06
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.5592,
+      "val_loss": 1.5789,
+      "minutes": 307.03
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.5935,
+      "val_loss": 1.5723,
+      "minutes": 319.62
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.5501,
+      "val_loss": 1.5717,
+      "minutes": 332.09
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She loved to play with her toys and have fun. One day, she found a big box in her room. She was very excited and wanted to see what was inside.\nLily tried to open the box, but it was too heavy. She tried and tried, but the box was too heavy. She felt sad and asked her mom for help. Her mom came into the room and saw Lily trying to open the box. She said, \"Don't worry, Lily. We can try together.\"\nLily and her mom tried to open the box, but it was too heavy for them. They tried and tried, but they could not open it. Then, Lily had an idea. She found a long stick and used it to help her open the box. Inside the box, they found a big, shiny toy. Lily was so happy and surprised. She played with the toy all day long and had lots of fun."
+}

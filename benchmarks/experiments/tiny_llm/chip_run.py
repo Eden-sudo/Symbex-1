@@ -60,7 +60,7 @@ def model_sum(data):
 def write_check_data(run, windows, path, p_cut=None):
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
-    dev = "cuda"
+    dev = T.pick_device(allow_mps=False)
     sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, "tok4096.model"))
     model, a = I.load_model(run, sp.get_piece_size(), dev)
     P = I.to_device(I.integerize(model, a["weights"]), dev)
@@ -102,6 +102,9 @@ def main():
     ap.add_argument("--port", default="/dev/ttyACM0")
     ap.add_argument("--windows", type=int, default=2, help="validation windows of 256 tokens checked on the chip")
     ap.add_argument("--no-upload", dest="upload", action="store_false")
+    ap.add_argument("--before", choices=("default_reset", "usb_reset"), default="default_reset",
+                    help="esptool reset before writing model.bin; usb_reset for boards wired to the S3's own USB port "
+                         "(USB-Serial/JTAG), where the default reset leaves no serial data")
     ap.add_argument("--linear", choices=("lut8", "symbex"), default="lut8",
                     help="1-bit linear layers: lut8 (tinylm.c's table) or symbex (lib_symbex's 8-bit x 1-bit kernel)")
     ap.add_argument("--p-cut", type=float, help="attention weights p < p_max e^-n are 0 (README 'Reading the cache'): "
@@ -135,11 +138,13 @@ def main():
         if args.p_cut is not None:
             flags.append(f"-DTINYLM_P_CUT={min(2048, round(args.p_cut * 128))}")
         env = dict(os.environ, PLATFORMIO_BUILD_FLAGS=" ".join(flags))
+        if args.before == "usb_reset":  # the flasher stub gets no serial data over USB-Serial/JTAG
+            env["PLATFORMIO_UPLOAD_FLAGS"] = "--no-stub"
         subprocess.run(["pio", "run", "-d", proj, "-t", "upload", "--upload-port", args.port], check=True,
                        capture_output=True, env=env)
         print("writing model.bin to the model partition...")
         subprocess.run(["pio", "pkg", "exec", "-p", "tool-esptoolpy", "--", "esptool.py", "--port", args.port,
-                        "write_flash", hex(MODEL_OFFSET), os.path.abspath(os.path.join(run, "model.bin"))],
+                        "--before", args.before, "write_flash", hex(MODEL_OFFSET), os.path.abspath(os.path.join(run, "model.bin"))],
                        check=True, capture_output=True, cwd="/tmp")
         time.sleep(2)
 

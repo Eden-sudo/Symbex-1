@@ -27,7 +27,7 @@ def main():
     args = ap.parse_args()
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
-    dev = "cuda"
+    dev = T.pick_device(allow_mps=False)
     sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, "tok4096.model"))
     val = T.load_split("val", dev)
     out_path = os.path.join(HERE, "results", "attn_cut.json")

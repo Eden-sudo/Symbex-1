@@ -26,7 +26,8 @@ Everything is integer arithmetic (int64), no floating point after the export:
                         its 1 / sqrt(n) goes into the per-row multiplier (model.bin version 2 for the C)
 The output is z = (int8 embedding row . int8 final state) * m_row (int64): its argmax is the next token. For the loss
 on the PC, z is turned into float logits with the final state's integer max and RMS.
-Matrix products run as float64 on the GPU: every product here stays below 2^53, so they are exact (checked).
+Matrix products run as float64 on CUDA or CPU, never MPS: every product here stays below 2^53, so they are exact
+(checked). Without CUDA, both the float reference and integer simulation run on CPU.
 """
 import argparse
 import json
@@ -409,7 +410,7 @@ def float_argmax_agreement(model, P, data, seq, n_windows, bsz):
     for i in range(0, n_windows, bsz):
         rows = torch.arange(i, i + bsz, device=data.device)
         w = data[rows[:, None] * seq + torch.arange(seq, device=data.device)].long()
-        with torch.autocast("cuda", dtype=torch.bfloat16):
+        with T.autocast(data.device):
             fa = model(w).argmax(-1)
         z, _ = forward(P, w)
         agree += (z.argmax(-1) == fa).sum().item()
@@ -547,7 +548,7 @@ def main():
         ap.error("--windows must be a multiple of 32 (float and integer losses use the same windows)")
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
-    dev = "cuda"
+    dev = T.pick_device(allow_mps=False)
     sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, "tok4096.model"))
     model, a = load_model(args.run, sp.get_piece_size(), dev)
     kind = a["weights"]

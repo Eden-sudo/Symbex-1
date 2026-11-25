@@ -47,6 +47,9 @@ w / scale to -1, 0, 1, binary takes the sign) and 8-bit inputs (absmax per token
 straight-through estimator. The token embedding (tied to the output layer), the norms and attention's softmax stay in
 floating point here: an int8 embedding and the integer attention are for the chip stage.
 
+Device: CUDA, then Apple's GPU (MPS), then CPU. CUDA keeps bfloat16 autocast and torch.compile; MPS runs eagerly
+and MPS/CPU use float32 without autocast. Integer simulation and check data use CUDA or CPU, never MPS.
+
 Choices on the validation split only (train.py keeps the checkpoint with the lowest validation loss); --test reads the
 test split once, for the final numbers. Writes runs/<weights>_<name>_s<seed>/{model.pt, train.json}: the loss history,
 the best validation loss and perplexity, the parameter counts, the time and a sample story.
@@ -56,6 +59,7 @@ import json
 import math
 import os
 import time
+from contextlib import nullcontext
 
 import numpy as np
 import torch
@@ -65,6 +69,22 @@ import torch.utils.checkpoint
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "..", "..", "data", "tinystories")
+
+
+def pick_device(allow_mps: bool):
+    """Prefer CUDA; integer/float64 callers must pass allow_mps=False for an exact CPU fallback."""
+    if torch.cuda.is_available():
+        return "cuda"
+    if allow_mps and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+def autocast(device):
+    """Keep CUDA's bfloat16 recipe; no mixed precision or bfloat16 requirement on MPS/CPU."""
+    if torch.device(device).type == "cuda":
+        return torch.autocast("cuda", dtype=torch.bfloat16)
+    return nullcontext()
 
 
 # ---- quantization --------------------------------------------------------------------------------------------------
@@ -278,15 +298,23 @@ class TinyLM(nn.Module):
 
 # ---- data, evaluation, sampling ------------------------------------------------------------------------------------
 
-def load_split(name, device):
-    arr = np.fromfile(os.path.join(DATA, f"{name}.bin"), dtype=np.uint16)
-    return torch.from_numpy(arr.astype(np.int16)).to(device)
+def data_device(device):
+    """CUDA keeps the splits on the GPU; MPS/CPU read them from disk so the 1 GB corpus never sits in memory."""
+    return device if torch.device(device).type == "cuda" else "cpu"
 
 
-def batch(data, n, seq, gen):
+def load_split(name, device, from_disk=False):
+    """from_disk reads the split lazily on the CPU (token ids < 4096 read as the same int16 values, never copied)."""
+    path = os.path.join(DATA, f"{name}.bin")
+    if from_disk:
+        return torch.from_numpy(np.memmap(path, dtype=np.int16, mode="c"))
+    return torch.from_numpy(np.fromfile(path, dtype=np.uint16).astype(np.int16)).to(device)
+
+
+def batch(data, n, seq, gen, device=None):
     start = torch.randint(0, len(data) - seq - 1, (n,), device=data.device, generator=gen)
     idx = start[:, None] + torch.arange(seq + 1, device=data.device)
-    w = data[idx].long()
+    w = data[idx].long().to(device or data.device)
     return w[:, :-1], w[:, 1:]
 
 
@@ -294,13 +322,14 @@ def batch(data, n, seq, gen):
 def evaluate(model, data, seq, n_batches, bsz):
     """Mean loss over fixed, non-overlapping windows from the start of the split (the same windows every time)."""
     model.eval()
+    device = next(model.parameters()).device
     usable = min(n_batches * bsz, (len(data) - 1) // seq)
     total, count = 0.0, 0
     for i in range(0, usable, bsz):
         rows = torch.arange(i, min(i + bsz, usable), device=data.device)
         idx = rows[:, None] * seq + torch.arange(seq + 1, device=data.device)
-        w = data[idx].long()
-        with torch.autocast("cuda", dtype=torch.bfloat16):
+        w = data[idx].long().to(device)
+        with autocast(device):
             logits = model(w[:, :-1])
         total += F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), w[:, 1:].reshape(-1),
                                  reduction="sum").item()
@@ -330,10 +359,11 @@ W2_ACTS = {"same": None, "1": 1, "t": "t", "2": 2}
 
 def run(args, seed):
     import sentencepiece as spm
-    device = "cuda"
+    device = pick_device(allow_mps=True)
     torch.manual_seed(seed)
-    gen = torch.Generator(device=device).manual_seed(seed)
-    train, val = load_split("train", device), load_split("val", device)
+    gen = torch.Generator(device=data_device(device)).manual_seed(seed)
+    from_disk = data_device(device) == "cpu"
+    train, val = load_split("train", device, from_disk), load_split("val", device, from_disk)
     sp = spm.SentencePieceProcessor(model_file=os.path.join(DATA, "tok4096.model"))
     model = TinyLM(sp.get_piece_size(), args.dim, args.layers, args.heads, args.hidden, args.seq,
                    args.weights, args.head, tuple(args.int8_blocks), args.acts,
@@ -365,8 +395,9 @@ def run(args, seed):
     decay = [p for p in model.parameters() if p.dim() >= 2]
     rest = [p for p in model.parameters() if p.dim() < 2]
     opt = torch.optim.AdamW([{"params": decay, "weight_decay": args.wd}, {"params": rest, "weight_decay": 0.0}],
-                            lr=args.lr, betas=(0.9, 0.95), fused=True)
-    step_fn = torch.compile(model) if args.compile else model
+                            lr=args.lr, betas=(0.9, 0.95), fused=device == "cuda")
+    # Inductor's Metal backend fails on this model; keep MPS eager, even with the default --compile.
+    step_fn = torch.compile(model) if args.compile and device != "mps" else model
     in_blocks = {id(p) for blk in model.blocks for p in blk.parameters()}
     clip_groups = [list(blk.parameters()) for blk in model.blocks] + [
         [p for p in model.parameters() if id(p) not in in_blocks]]
@@ -375,26 +406,34 @@ def run(args, seed):
     os.makedirs(out, exist_ok=True)
     print(f"{name}: {n_all / 1e6:.2f} M parameters, {n_lin / 1e6:.2f} M in the quantized linear layers")
 
+    micro = args.microbatch or args.batch
+    if args.batch % micro:
+        raise ValueError("[TRAIN]: --batch must be a multiple of --microbatch")
     hist, best, t0 = [], float("inf"), time.time()
     for step in range(1, args.steps + 1):
         lr = args.lr * min(1.0, step / args.warmup) * (
             0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * min(1.0, step / args.steps))))
         for g in opt.param_groups:
             g["lr"] = lr
-        x, y = batch(train, args.batch, args.seq, gen)
-        with torch.autocast("cuda", dtype=torch.bfloat16):
-            logits = step_fn(x)
-        loss = F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), y.reshape(-1))
-        if teacher is not None:
-            with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
-                t_logits = teacher(x)
-            t = args.distill_t
-            kl = F.kl_div(F.log_softmax(logits.float().reshape(-1, logits.shape[-1]) / t, -1),
-                          F.log_softmax(t_logits.float().reshape(-1, t_logits.shape[-1]) / t, -1),
-                          log_target=True, reduction="batchmean") * t * t
-            loss = (1 - args.distill_alpha) * loss + args.distill_alpha * kl
+        x_all, y_all = batch(train, args.batch, args.seq, gen, device)
         opt.zero_grad(set_to_none=True)
-        loss.backward()
+        loss_sum = 0.0
+        for x, y in zip(x_all.split(micro), y_all.split(micro)):
+            with autocast(device):
+                logits = step_fn(x)
+            loss = F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), y.reshape(-1))
+            if teacher is not None:
+                with torch.no_grad(), autocast(device):
+                    t_logits = teacher(x)
+                t = args.distill_t
+                kl = F.kl_div(F.log_softmax(logits.float().reshape(-1, logits.shape[-1]) / t, -1),
+                              F.log_softmax(t_logits.float().reshape(-1, t_logits.shape[-1]) / t, -1),
+                              log_target=True, reduction="batchmean") * t * t
+                loss = (1 - args.distill_alpha) * loss + args.distill_alpha * kl
+            # equal-size chunks: the mean of the chunk means is the full-batch mean, so the gradient is unchanged
+            (loss * (x.shape[0] / args.batch)).backward()
+            loss_sum += loss.item() * x.shape[0]
+        loss = torch.tensor(loss_sum / args.batch)
         if args.clip_groups:
             for group in clip_groups:
                 torch.nn.utils.clip_grad_norm_(group, 1.0)
@@ -402,7 +441,7 @@ def run(args, seed):
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
         if step % args.eval_every == 0 or step == args.steps:
-            vl = evaluate(model, val, args.seq, args.eval_batches, args.batch)
+            vl = evaluate(model, val, args.seq, args.eval_batches * args.batch // micro, micro)
             hist.append({"step": step, "train_loss": round(loss.item(), 4), "val_loss": round(vl, 4),
                          "minutes": round((time.time() - t0) / 60, 2)})
             print(f"  step {step:6d}  train {loss.item():.3f}  val {vl:.3f}  ({(time.time() - t0) / 60:.1f} min)",
@@ -412,7 +451,7 @@ def run(args, seed):
                 torch.save({"model": model.state_dict(), "step": step, "args": vars(args)},
                            os.path.join(out, "model.pt"))
 
-    ckpt = torch.load(os.path.join(out, "model.pt"))
+    ckpt = torch.load(os.path.join(out, "model.pt"), map_location=device)
     model.load_state_dict(ckpt["model"])
     res = {"weights": args.weights, "seed": seed, "args": vars(args),
            "parameters": n_all, "quantized_linear_parameters": n_lin,
@@ -422,7 +461,7 @@ def run(args, seed):
            "minutes": round((time.time() - t0) / 60, 2), "history": hist,
            "sample": sample(model, sp, "Once upon a time", args.seq, 200, device)}
     if args.test:
-        tl = evaluate(model, load_split("test", device), args.seq, 10 ** 9, args.batch)
+        tl = evaluate(model, load_split("test", device, from_disk), args.seq, 10 ** 9, micro)
         res.update(test_loss=round(tl, 4), test_perplexity=round(math.exp(tl), 3))
     with open(os.path.join(out, "train.json"), "w") as f:
         json.dump(res, f, indent=2)
@@ -472,6 +511,9 @@ def main():
     ap.add_argument("--hidden", type=int, default=1024)
     ap.add_argument("--seq", type=int, default=256)
     ap.add_argument("--batch", type=int, default=128)
+    ap.add_argument("--microbatch", type=int, default=0,
+                    help="split each --batch into chunks of this size and accumulate gradients (same update, less "
+                         "memory; 0 = the whole batch at once)")
     ap.add_argument("--steps", type=int, default=10000)
     ap.add_argument("--warmup", type=int, default=500)
     ap.add_argument("--lr", type=float, default=1.5e-3)
