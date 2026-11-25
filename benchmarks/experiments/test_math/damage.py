@@ -14,12 +14,14 @@ and the clean output margin (top logit - second) of the samples that change and 
     resnet8   the CDT runs conv2d/cnn_cifar_resnet8/runs/w1_base_s<seed> (validation: the 2000 saved images)
     har, ecg  the fragility.py runs conv1d/<bench>/runs/<net>_binary_e100_s<seed>[_rr] (the whole validation split)
     mlp       mlp/mlp_fashion/runs/sizing/h128_512_s<seed>_nodistill (784-128-512-10, labels only; 2000 saved images)
+              --depth n: deep_mlp.py's runs/deep_mlp/d<n>_s<seed> (784-128-512 x (n - 1)-10, same recipe)
 Training data: the first 5000 samples of each run's own training split. The test set is never read.
 
     python damage.py resnet8 --seeds 42 43 44 --out results/damage.json
     python damage.py har --nets max --seeds 42 43 44 --out results/damage.json
     python damage.py ecg --nets m --seeds 42 43 44 --out results/damage.json
     python damage.py mlp --seeds 42 43 44 --out results/damage.json
+    python damage.py mlp --depth 3 --seeds 42 43 44 --out results/damage.json
 """
 import argparse
 import json
@@ -222,20 +224,23 @@ def study_1d(bench, nets, seeds):
     return out
 
 
-def study_mlp(seeds):
+def study_mlp(seeds, depth=None):
     import cdt
     from compiler_core.export import dense
     folder = os.path.join(BENCH, "mlp", "mlp_fashion")
     sys.path.insert(0, folder)
     import model as M
+    import deep_mlp
     out = {}
     for seed in seeds:
-        run = os.path.join(folder, "runs", "sizing", f"h128_512_s{seed}_nodistill")
+        run = deep_mlp.run_dir(depth, seed) if depth else os.path.join(folder, "runs", "sizing", f"h128_512_s{seed}_nodistill")
+        tag = f"mlp_d{depth}" if depth else "mlp"
         cfg = tomllib.load(open(os.path.join(run, "config_used.toml"), "rb"))
         xs, u8t, yt, train = _cdt_train_u8(cfg, TRAIN_SAMPLES, folder)
         plan = json.load(open(os.path.join(run, "train.json")))["plan"]
         est = {"rows": [{"name": next(iter(plan))}]}           # load_trained reads only the first layer's name
-        model = cdt.load_trained(getattr(M, cfg["model"]["definition"].split(":")[1])(), train, est, cfg, run)["model"]
+        base = getattr(deep_mlp if depth else M, cfg["model"]["definition"].split(":")[1])()
+        model = cdt.load_trained(base, train, est, cfg, run)["model"]
         layers = dense.fold(dense.analyze(model, xs[:2]), cfg["data"]["mean"], cfg["data"]["std"])
         xv = np.fromfile(os.path.join(run, "validation_x.u8"), np.uint8).reshape(-1, u8t.shape[1])
         yv = np.fromfile(os.path.join(run, "validation_y.u8"), np.uint8)
@@ -248,8 +253,8 @@ def study_mlp(seeds):
             res[split], p0 = compare(trace, x, y, 0, 255)
             if split == "validation":
                 assert (p0 == ref).all(), "the clean pass is not the CDT simulation"
-            show(f"mlp s{seed} {split[:5]}", res[split])
-        out[f"mlp_s{seed}"] = res
+            show(f"{tag} s{seed} {split[:5]}", res[split])
+        out[f"{tag}_s{seed}"] = res
     return out
 
 
@@ -258,12 +263,13 @@ def main():
     ap.add_argument("bench", choices=("resnet8", "har", "ecg", "mlp"))
     ap.add_argument("--nets", nargs="+", default=[], help="har: min max max5 max10; ecg: s m l")
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
+    ap.add_argument("--depth", type=int, help="mlp: the DeepMLP_<n> runs of deep_mlp.py instead of the 784-128-512-10")
     ap.add_argument("--out", help="JSON to add these results to (e.g. results/damage.json)")
     args = ap.parse_args()
     if args.bench == "resnet8":
         res = study_resnet8(args.seeds)
     elif args.bench == "mlp":
-        res = study_mlp(args.seeds)
+        res = study_mlp(args.seeds, args.depth)
     else:
         if not args.nets:
             ap.error(f"{args.bench}: --nets is required")

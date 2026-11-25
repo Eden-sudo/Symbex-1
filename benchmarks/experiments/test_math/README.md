@@ -150,3 +150,52 @@ python damage.py har --nets max --seeds 42 43 44 --out results/damage.json
 python damage.py ecg --nets m --seeds 42 43 44 --out results/damage.json
 python damage.py mlp --seeds 42 43 44 --out results/damage.json
 ```
+
+## 4. Convolution or depth? (`deep_mlp.py` + `damage.py --depth`, rule Nov 25, 2026, before measuring)
+
+**Question.** In section 3 the damage grows through the convolutional networks and stays in the MLP, but that MLP
+also has fewer binary layers (2 against 3 and 7). Does a deeper MLP grow the damage too?
+
+**What.** The same MLP made deeper with more 512-wide layers: 784-128-512-512-10 (3 binary layers, like HAR and ECG)
+and 784-128-512 x 6-10 (7, like ResNet-8). Same recipe as the section 3 MLP: its own FP32 model (30 epochs, seed 42),
+then the CDT, every layer 1 bit, 15 epochs, labels only, seeds 42, 43, 44. Then `damage.py`, the same two
+perturbations and measures as section 3.
+
+**Rule** (means over 3 seeds, validation):
+1. Depth, input noise: changed bits last / first layer. If both deep MLPs stay below 2 (as the 2-layer MLP, 1.6),
+   depth does not make the damage grow: the convolution does. If they reach the convolutional range (5.6 or more),
+   depth explains it. In between: both play a part.
+2. Inside 1 %: if the predictions changed by each deep MLP are less than half of those of the convolutional networks
+   with the same number of binary layers (HAR / ECG 15.1-16.9 % for 3, ResNet-8 17.9 % for 7), the architecture
+   matters at equal depth.
+
+**Result** (mean ± sd over 3 seeds, validation; data: `results/damage.json`, keys `mlp_d3_*` / `mlp_d7_*`):
+
+| Network | Binary layers | Validation accuracy | Changed bits, last / first (input ±1) | Largest / first | Predictions changed: input ±1 / inside 1 % |
+|---|---|---|---|---|---|
+| MLP 784-128-512-10 (section 3) | 2 | 88.27 ± 0.35 | 1.60 ± 0.02 | 1.60 | 0.9 / 3.3 % |
+| MLP 784-128-512-512-10 | 3 | 88.30 ± 0.35 | **2.61 ± 0.09** | 2.61 | 1.4 / **3.9** % |
+| MLP 784-128-512 x 6-10 | 7 | 87.95 ± 0.36 | **0.78 ± 0.11** | 2.29 | 1.7 / **4.2** % |
+| HAR max / ECG m (section 3) | 3 | 68.6 / 65.6 | 13.6 / 6.6 | — | 13.0-14.0 / 15.1-16.9 % |
+| ResNet-8 base (section 3) | 7 | 70.9 | 5.6 | — | 18.5 / 17.9 % |
+
+In the 7-layer MLP the changed bits rise to 2.3x the first layer by the third, then fall: 0.26 -> 0.38 -> 0.58 ->
+0.54 -> 0.44 -> 0.24 -> 0.22 % (seed 42). Training data give the same numbers. The output margin ratio is 0.11 and
+0.15 (section 3: 0.09-0.26). Both deep MLPs are exact (compiled C = simulation, 100 %).
+
+**Answer.**
+1. Depth, by the rule: in between. One more layer raises the growth from 1.6x to 2.6x, but at 7 layers the damage
+   rises to 2.3x and then fades back to 0.8x. No MLP comes near the convolutional networks (5.6-13.6x).
+2. At equal depth the convolutional networks change 4x more predictions (3 layers: 3.9 % vs 15.1-16.9 %; 7 layers:
+   4.2 % vs 17.9 %): the architecture matters, not only the depth.
+
+So the growth of the damage comes mainly from the convolution; depth adds a little. A likely cause, not measured:
+a convolutional bit is read by every window that covers it (9 positions in 3x3, plus the next layer's channels),
+so one changed bit reaches many neurons of the next layer, and each of those neurons sums few terms (section 1).
+In the MLP every neuron sums 512 bits, so one changed bit moves each sum by only 2 out of up to 512.
+
+```
+python deep_mlp.py --depths 3 7 --seeds 42 43 44
+python damage.py mlp --depth 3 --seeds 42 43 44 --out results/damage.json
+python damage.py mlp --depth 7 --seeds 42 43 44 --out results/damage.json
+```
