@@ -1,4 +1,4 @@
-# Synthesis: what makes a binary network lose, and what wins it back (Nov 20, 2026)
+# Synthesis: what makes a binary network lose, and what wins it back (Nov 20, 2026; updated Nov 26, 2026)
 
 A summary of the measured results so far, and the conjectures they suggest. **Measured** means 3 seeds and validation
 unless the text says otherwise; **conjecture** means not tested yet. Sources: this folder's README / LOGBOOK, and
@@ -115,8 +115,24 @@ The table compares different tasks and networks: it shows a correlation, not a p
 
 C is the strongest. It held (Nov 26, 3 seeds, validation): at 260K and a fixed parameter count, choose width over
 depth for binary weights. On the chips without PSRAM the wide binary shape is also the fastest and needs the least
-RAM (ESP32 46.49 vs base 40.60 tok/s; the deep shape does not fit the ESP32). Caveat: the non-binary token embedding
-is larger in the wide shape (49K vs 25K values); not separated. Not yet checked at other sizes or on vision nets.
+RAM (the deep shape does not fit the ESP32). Caveat: the non-binary token embedding is larger in the wide shape
+(49K vs 25K values); not separated. Not yet checked at other sizes or on vision nets.
+
+Test C on the chips (Nov 26, 2026; weights in flash, exact 100 %, README "Test C"):
+
+| binary shape (260K budget, 3 seeds) | val loss | model.bin (flash) | KV cache int8 + scales (computed) | RAM free ESP32 / M33 / Hazard3 | tok/s ESP32 / M33 / Hazard3 |
+|---|---|---|---|---|---|
+| deep-narrow d48 l9 | 2.1144 | 96,480 B | 221 + 111 KB | does not fit / 152 / 145 KB | does not fit / 25.86 / 29.11 |
+| base d64 l5 | 2.0613 | 93,120 B | 164 + 82 KB | 72 / 235 / 228 KB | 40.60 / 31.88 / 34.80 |
+| shallow-wide d96 l2 | **2.0514** | 100,896 B | **98 + 49 KB** | **164 / 327 / 320 KB** | **46.49 / 41.12 / 41.92** |
+
+What each shape gains (+) and loses (-) against the base:
+
+| vs base | loss | flash | RAM free | speed |
+|---|---|---|---|---|
+| shallow-wide | + 0.0099 nats better (just above the larger sd, 0.0086) | - 7,776 B more (+8.4 %) | + 92 KB more on every core | + 1.15x ESP32, 1.29x M33, 1.20x Hazard3 |
+| deep-narrow | - 0.0531 nats worse | - 3,360 B more (+3.6 %) | - 83 KB less (M33, Hazard3); ESP32 does not fit | - 0.81x M33, 0.84x Hazard3 |
+
 
 ## 6. Pending: place the findings in the literature and confirm them (not started)
 
