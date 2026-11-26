@@ -19,7 +19,9 @@ The three seeds together (the result, not this one model): F1 31.2 ± 0.7 % SYMB
 
 > [!NOTE]
 > This model was trained on the earlier split (its threshold calibrated on the last 1,000 training images, Oct 23).
-> It will be replaced when FOMO is retrained on the current validation split.
+> FOMO has been retrained on the current split and measured on the classic ESP32
+> ([results](../README.md#retrained-on-the-current-split-classic-esp32)); this reference will be replaced once the
+> other boards are measured too.
 
 ## On the boards (seed 42, weights in flash, median of 1000 images)
 
