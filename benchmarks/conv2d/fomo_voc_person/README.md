@@ -19,10 +19,14 @@ test (4,952 images, 4,528 persons). Score: precision, recall and F1 of the detec
 person whose center is within 1.5 cells). Each model gets its own decision threshold, calibrated on 1,000 training images
 kept out of the training, chosen at random with a fixed seed (`model.SPLIT_SEED`): the same images for every model and
 seed, binary and INT8. On the chip the binary threshold costs nothing (it is folded into the integer bias of the head).
-The published results were calibrated on the previous split (the last 1,000 training images, all from VOC 2012) and are
-to be re-measured with this one.
+The binary detector has been retrained on this split and measured on the classic ESP32
+([below](#retrained-on-the-current-split-classic-esp32)); the INT8 reference, the ESP32-S3 and Pico 2 results and the
+sizing study are still from the previous split (the last 1,000 training images, all from VOC 2012).
 
 ## Results (ESP32-S3, 240 MHz)
+
+Models of the previous split; the current split, on the classic ESP32:
+[below](#retrained-on-the-current-split-classic-esp32).
 
 | | Original shape (32-64-128) | | **Resized for binary (32-32-128)** | |
 |---|---|---|---|---|
@@ -37,11 +41,12 @@ to be re-measured with this one.
 \* measured on the classic ESP32 with the same setting (no counting table): the buffers depend only on the shape.
 
 **On the classic ESP32** (ESP32-D0WD-V3, 240 MHz, one core, no PSRAM) the resized binary detector runs in **226.3 ms**
-(32-32-128, 3 seeds: 226.31-226.35 ms; lut16 counting, weights in flash, 143 KB of RAM), every seed 100 % equal to its
+(32-32-128, 3 seeds: 226.31-226.34 ms; lut16 counting, weights in flash, 143 KB of RAM), every seed 100 % equal to its
 simulation on 1,000 test images; the original shape, in **296.2 ms** with the same setting. With the weights in RAM:
-210.72 ± 0.02 / 275.0 ms (184 / 197 KB of RAM); without the 64 KB counting table (swar): 274.48 ± 0.02 / 364.6 ms
-(79 / 81 KB); the 32-32-128 figures over 3 seeds. Flash is the number to report (a real deployment keeps the weights
-there); RAM is 7 % faster. Step by step (`tools/dev/fine_profile.py --plain`, seed 42, 100 images; captures for
+210.74 ± 0.02 / 275.05 ± 0.02 ms (184 / 197 KB of RAM); without the 64 KB counting table (swar): 274.50 ± 0.02 /
+364.68 ± 0.02 ms (79 / 81 KB); both shapes over 3 seeds, retrained on the current split. Flash is the number to
+report (a real deployment keeps the weights there); RAM is 7 % faster. Step by step (previous-split models, seed 42,
+`tools/dev/fine_profile.py --plain`, 100 images; captures for
 32-32-128 in [flash](results/symbex/fine_profile_esp32_lut16_flash_c32-32-128_b1-2-2_w40_e100_s42.txt) and
 [RAM](results/symbex/fine_profile_esp32_lut16_ram_c32-32-128_b1-2-2_w40_e100_s42.txt), for 32-64-128 in
 [flash](results/symbex/fine_profile_esp32_lut16_flash_c32-64-128_b1-2-2_w40_e100_s42.txt) and
@@ -60,6 +65,30 @@ limit is the task, the same for every precision.
 **On the Raspberry Pi Pico 2** (RP2350, 150 MHz, weights in flash, 3 seeds, every seed 100 % equal to its simulation):
 32-32-128 runs in **338.5 ms** on the Hazard3 RISC-V cores (native popcount, 79 KB of RAM) and **416.4 ms** on the
 Cortex-M33 (64 KB counting table, 143 KB). TFLite INT8 on the Pico 2 (CMSIS-NN on the M33) is not measured yet.
+
+### Retrained on the current split (classic ESP32)
+
+Both shapes trained again from scratch with the fixed split (`model.SPLIT_SEED`), seeds 42, 43 and 44, the same recipe
+(person weight 40, 100 epochs), on a CPU (PyTorch 2.14.1, 16 threads; the previous models were trained on a GPU), and
+measured with `fomo_symbex.py` on 1,000 test images (`results/symbex/symbex_seeds_esp32_*`):
+
+| | 32-32-128 / 1-2-2 | 32-64-128 / 1-2-2 |
+|---|---|---|
+| Test F1 (calibrated threshold) | 29.8 ± 0.8 % (29.75, 28.98, 30.55) | **31.6 ± 0.1 %** (31.72, 31.54, 31.58) |
+| Validation F1 | 31.9 ± 0.6 % | 32.5 ± 1.5 % |
+| lut16, weights in flash | **226.32 ± 0.02 ms** | 296.21 ± 0.02 ms |
+| lut16, weights in RAM | 210.74 ± 0.02 ms | 275.05 ± 0.02 ms |
+| swar, weights in flash | 274.50 ± 0.02 ms | 364.68 ± 0.02 ms |
+| Flash (weights + thresholds) | 41.2 KB | 52.3 KB |
+| RAM (lut16 flash / lut16 RAM / swar) | 142.8 / 184.1 / 78.8 KB | 145.1 / 197.4 / 81.1 KB |
+| Same result as the simulation | 100 %, every seed and setting | 100 %, every seed and setting |
+
+Latency and memory are those of the previous models of the same shapes, within 0.1 ms. The F1 changed: 32-32-128 is
+1.4 points below its previous-split result (31.2 ± 0.7 %), and 32-64-128 is now ahead of it on the test images by
+1.9 points. On the validation images, the only ones allowed to choose the shape, the gap is 0.6 points with a seed
+spread of up to 1.5: not enough by itself to change the sizing choice below, made with one seed on the previous split.
+In every run 4.0-4.9 % of the 1-bit latent weights end frozen (|w| > 1, `binary_health` in `train.json`). The INT8
+reference is still from the previous split, so the binary vs INT8 comparison above is not updated here.
 
 ### Why detection binarizes so well here
 
@@ -129,6 +158,7 @@ python ../../../tools/dev/fine_profile.py runs/c32-32-128_b1-2-2_w40_e100_s42 --
 python fomo_symbex.py --channels 32-32-128 --seeds 3 --board esp32 --port /dev/ttyUSB0                   # train (if needed) + export + chip
 python fomo_symbex.py --channels 32-32-128 --seeds 3 --board esp32 --port /dev/ttyUSB0 --weights ram
 python fomo_symbex.py --channels 32-32-128 --seeds 3 --board esp32 --port /dev/ttyUSB0 --popcount swar
+python fomo_symbex.py --channels 32-64-128 --seeds 3 --board esp32 --port /dev/ttyUSB0   # also: --weights ram, swar
 python fomo_symbex.py --channels 32-32-128 --seeds 3 --board s3 --port /dev/ttyACM0 --usb --popcount swar  # native USB
 python fomo_symbex.py --channels 32-32-128 --seeds 3 --board pico2_riscv --port /dev/ttyACM0             # Pico 2 (Hazard3)
 python fomo_symbex.py --channels 32-32-128 --seeds 3 --board pico2_arm --port /dev/ttyACM0               # Pico 2 (M33)
