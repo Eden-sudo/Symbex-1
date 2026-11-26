@@ -120,18 +120,22 @@ RAM (the deep shape does not fit the ESP32). Caveat: the non-binary token embedd
 
 Test C on the chips (Nov 26, 2026; weights in flash, exact 100 %, README "Test C"):
 
-| binary shape (260K budget, 3 seeds) | val loss | model.bin (flash) | KV cache int8 + scales (computed) | RAM free ESP32 / M33 / Hazard3 | tok/s ESP32 / M33 / Hazard3 |
-|---|---|---|---|---|---|
-| deep-narrow d48 l9 | 2.1144 | 96,480 B | 221 + 111 KB | does not fit / 152 / 145 KB | does not fit / 25.86 / 29.11 |
-| base d64 l5 | 2.0613 | 93,120 B | 164 + 82 KB | 72 / 235 / 228 KB | 40.60 / 31.88 / 34.80 |
-| shallow-wide d96 l2 | **2.0514** | 100,896 B | **98 + 49 KB** | **164 / 327 / 320 KB** | **46.49 / 41.12 / 41.92** |
+| shape (binary) | val loss | flash (model.bin) | chip | RAM free | ms per token | tok/s |
+|---|---|---|---|---|---|---|
+| deep-narrow d48 l9 | 2.1144 ± 0.0099 | 96,480 B | ESP32 | does not fit | — | — |
+| | | | Pico 2 M33 | 152 KB | 38.67 ± 0.03 | 25.86 ± 0.02 |
+| | | | Pico 2 Hazard3 | 145 KB | 34.36 ± 0.02 | 29.11 ± 0.01 |
+| base d64 l5 | 2.0613 ± 0.0086 | 93,120 B | ESP32 | 72 KB | 24.63 ± 0.01 | 40.60 ± 0.02 |
+| | | | Pico 2 M33 | 235 KB | 31.37 ± 0.07 | 31.88 ± 0.07 |
+| | | | Pico 2 Hazard3 | 228 KB | 28.73 ± 0.08 | 34.80 ± 0.10 |
+| shallow-wide d96 l2 | **2.0514 ± 0.0050** | 100,896 B | ESP32 | **164 KB** | **21.51 ± 0.01** | **46.49 ± 0.02** |
+| | | | Pico 2 M33 | **327 KB** | **24.32 ± 0.05** | **41.12 ± 0.09** |
+| | | | Pico 2 Hazard3 | **320 KB** | **23.86 ± 0.07** | **41.92 ± 0.12** |
 
-What each shape gains (+) and loses (-) against the base:
-
-| vs base | loss | flash | RAM free | speed |
-|---|---|---|---|---|
-| shallow-wide | + 0.0099 nats better (just above the larger sd, 0.0086) | - 7,776 B more (+8.4 %) | + 92 KB more on every core | + 1.15x ESP32, 1.29x M33, 1.20x Hazard3 |
-| deep-narrow | - 0.0531 nats worse | - 3,360 B more (+3.6 %) | - 83 KB less (M33, Hazard3); ESP32 does not fit | - 0.81x M33, 0.84x Hazard3 |
+In short: the wide shape is the most accurate, the fastest (1.15x the base on the ESP32, 1.29x on the M33, 1.20x on
+Hazard3) and leaves ~92 KB more RAM free, for 7.8 KB more flash (+8 %). The deep shape is the slowest, leaves ~83 KB
+less RAM and does not fit the classic ESP32. RAM differs because the int8 KV cache grows with the layer count
+(computed, not measured: deep 221 + 111 KB of scales, base 164 + 82, wide 98 + 49).
 
 
 ## 6. Pending: place the findings in the literature and confirm them (not started)
