@@ -19,7 +19,7 @@ extern "C" {
 }
 #include "check_data.h"
 
-extern "C" uint64_t tinylm_prof[19];       /* tinylm_esp.c: cycles per part of a token */
+extern "C" uint64_t tinylm_prof[25];       /* tinylm_esp.c: cycles per part of a token */
 extern "C" void tinylm_prof_start(void);
 extern "C" uintptr_t tinylm_big_lo, tinylm_big_hi;   /* tinylm_esp.c: the PSRAM range of the state (KV cache) */
 #ifdef TINYLM_REPEAT_PROBE
@@ -113,7 +113,7 @@ void setup() {
         }
     }
     /* microseconds per part over every token of the windows: "P:part,us" */
-    for (int k = 0; k < 19; k++) Serial.printf("P:%d,%llu\n", k, tinylm_prof[k] / getCpuFrequencyMhz());
+    for (int k = 0; k < 25; k++) Serial.printf("P:%d,%llu\n", k, tinylm_prof[k] / getCpuFrequencyMhz());
 #ifdef TINYLM_REPEAT_PROBE
     /* microseconds of block copies over every token of the windows, 1 if some layer found no internal RAM */
     Serial.printf("RC:%llu,%d\n", tinylm_repeat_copy_cycles / getCpuFrequencyMhz(), tinylm_repeat_failed);

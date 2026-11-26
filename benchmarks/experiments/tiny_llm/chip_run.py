@@ -47,7 +47,8 @@ RESET = {"s3": "usb", "esp32": "rts", "pico2_arm": "pico", "pico2_riscv": "pico"
 PARTS = ("embedding_norms", "qkv", "attention_values", "o", "w1_w3", "swiglu", "w2", "output_head",
          "attention_rope_cache", "attention_scores", "attention_softmax", "attention_division",  # TINYLM_PROF in tinylm.c
          "values_pack", "values_decode_2bit", "values_copy_window", "values_weight_bytes",       # --fine-prof only
-         "scores_window_int8", "scores_subset_table", "values_wide_plain_c")
+         "scores_window_int8", "scores_subset_table", "values_wide_plain_c",
+         "linear_prepare", "linear_sum_scales", "in_quant", "linear_kernel", "rope", "kv_cache_write")
 
 
 def out_hash(z, hm):

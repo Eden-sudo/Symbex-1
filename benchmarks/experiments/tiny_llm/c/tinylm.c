@@ -12,7 +12,9 @@
    TINYLM_FINE_PROF: also the parts inside the attention, taken out of the parts above (12 values: pack p and the
    scales, 13 values: decode the kept 2-bit groups, 14 values: copy the int8 window, 15 values: weights split in
    bytes, 16 scores: int8 window products, 17 scores: subset-sum table of q, 18 values: plain sums of a head with a
-   weight past 32 bits; 2 is then the value products only). */
+   weight past 32 bits; 2 is then the value products only; 19 linear layers: prepare the 8-bit input, 20 linear
+   layers: input sum and the per-row scales, 21 in_quant (the norm stays in 0), 22 linear layers: the row kernel, 23
+   rope of q and k, 24 k / v into the int8 cache). */
 #ifndef TINYLM_PROF
 #define TINYLM_PROF(k)
 #endif
@@ -218,11 +220,14 @@ static void linear(const TinyLinear *L, const TinyState *s, const int8_t *q, int
     (void)s;
     int32_t total = 0;
     for (int i = 0; i < L->n_in; i++) total += q[i];
+    TINYLM_PROF_FINE(20);
     TINYLM_U8_SUM_ROWS(L->n_in, L->w, L->words_in, L->n_out, out);
+    TINYLM_PROF_FINE(22);
     for (int r = 0; r < L->n_out; r++) {
         int64_t acc = 2 * (int64_t)(out[r] - 128 * L->ones[r]) - total;
         out[r] = (int32_t)((acc * hmax * L->m[r] + ((int64_t)1 << (MSH - 1))) >> MSH);
     }
+    TINYLM_PROF_FINE(20);
 }
 #elif defined(TINYLM_REFERENCE)
 static void prepare(TinyState *s, const int8_t *q, int n_in) { (void)s; (void)q; (void)n_in; }
@@ -497,9 +502,13 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
         int8_t *kq = s->kq + lk * m->seq * kvd, *vq = s->vq + lk * m->seq * kvd;
         int32_t *km = s->km + lk * m->seq * m->kv_heads, *vm = s->vm + lk * m->seq * m->kv_heads;
 #endif
-        int64_t hm = in_quant(&B->q, s, s->t1, dim, norm_h(x, B->n1, dim, s->t1));   /* q, k, v: one input */
+        const int64_t rms1 = norm_h(x, B->n1, dim, s->t1);
+        TINYLM_PROF_FINE(0);
+        int64_t hm = in_quant(&B->q, s, s->t1, dim, rms1);   /* q, k, v: one input */
+        TINYLM_PROF_FINE(21);
         TINYLM_PROF(0);
         if (B->q.acts == 8) prepare(s, s->iq, dim);
+        TINYLM_PROF_FINE(19);
         run_linear(&B->q, s, hm, s->q);
         run_linear(&B->k, s, hm, s->k);
         run_linear(&B->v, s, hm, s->v);
@@ -514,6 +523,7 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             for (int g = 0; g < m->kv_heads; g++) {
                 int32_t *kh = s->k + g * hd;
                 rope(kh, C, S, hd);
+                TINYLM_PROF_FINE(23);
                 int8_t *kqh = kq + (long)g * m->seq * hd, *vqh = vq + (long)g * m->seq * hd;
                 int32_t *kmh = km + (long)g * m->seq, *vmh = vm + (long)g * m->seq;
                 kmh[t] = quant8(kh, hd, kqh + (long)t * hd);
@@ -526,11 +536,13 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
 #else
                 vmh[t] = quant8(s->v + g * hd, hd, vqh + (long)t * hd);
 #endif
+                TINYLM_PROF_FINE(24);
             }
         for (int h = 0; h < m->heads; h++) {
             int8_t qq[256];
             int32_t *qh = s->q + h * hd;
             rope(qh, C, S, hd);
+            TINYLM_PROF_FINE(23);
             int32_t qm = quant8(qh, hd, qq);
             /* scores u_j = (qq . kq_j) * km_j, softmax through the exp table */
             int64_t *u = (int64_t *)s->t2;  /* t2: >= 2 seq int32 (tinylm_state_init) */
@@ -688,15 +700,21 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             TINYLM_PROF(11);
         }
         int64_t am = in_quant(&B->o, s, s->a, dim, 0);
+        TINYLM_PROF_FINE(21);
         TINYLM_PROF(8);
         if (B->o.acts == 8) prepare(s, s->iq, dim);
+        TINYLM_PROF_FINE(19);
         run_linear(&B->o, s, am, s->t1);
         for (int i = 0; i < dim; i++) x[i] += s->t1[i];
         TINYLM_PROF(3);
 
-        hm = in_quant(&B->w1, s, s->t1, dim, norm_h(x, B->n2, dim, s->t1));          /* w1, w3: one input */
+        const int64_t rms2 = norm_h(x, B->n2, dim, s->t1);
+        TINYLM_PROF_FINE(0);
+        hm = in_quant(&B->w1, s, s->t1, dim, rms2);          /* w1, w3: one input */
+        TINYLM_PROF_FINE(21);
         TINYLM_PROF(0);
         if (B->w1.acts == 8) prepare(s, s->iq, dim);
+        TINYLM_PROF_FINE(19);
         run_linear(&B->w1, s, hm, s->t2);
         run_linear(&B->w3, s, hm, s->t3);
         TINYLM_PROF(4);
@@ -707,9 +725,12 @@ int tinylm_step(const TinyModel *m, TinyState *s, int token, int64_t *z, int64_t
             int64_t silu = ((int64_t)g1 * m->sig_t[idx] + (1 << 14)) >> 15;
             s->t2[i] = (int32_t)((silu * s->t3[i] + (1 << (QF - 1))) >> QF);
         }
+        TINYLM_PROF_FINE(5);
         int64_t fm = in_quant(&B->w2, s, s->t2, m->hidden, 0);
+        TINYLM_PROF_FINE(21);
         TINYLM_PROF(5);
         if (B->w2.acts == 8) prepare(s, s->iq, m->hidden);
+        TINYLM_PROF_FINE(19);
         run_linear(&B->w2, s, fm, s->t1);
         for (int i = 0; i < dim; i++) x[i] += s->t1[i];
         TINYLM_PROF(6);
