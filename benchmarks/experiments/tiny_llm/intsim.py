@@ -84,6 +84,7 @@ def load_model(run, vocab, dev, float_only=False):
     ck = torch.load(os.path.join(run, "model.pt"), map_location=dev)
     a = ck["args"]
     vocab = a.get("vocab", vocab)                        # runs before --vocab have no key: the caller's value
+    assert a["weights"] != "binary_rc", "--weights binary_rc has no integer model yet"   # every caller (chip_run too)
     assert a.get("head", "fp32") in ("fp32", "int4", "int2") and not a.get("int8_blocks"), \
         "--head binary / --int8-blocks runs have no integer model yet"
     assert not a.get("learn_thr") and a.get("w2_acts", "same") == "same" and a.get("ffn_act", "silu") == "silu", \
@@ -431,7 +432,7 @@ def float_argmax_agreement(model, P, data, seq, n_windows, bsz):
     for i in range(0, n_windows, bsz):
         rows = torch.arange(i, i + bsz, device=data.device)
         w = data[rows[:, None] * seq + torch.arange(seq, device=data.device)].long()
-        with torch.autocast("cuda", dtype=torch.bfloat16):
+        with torch.autocast(data.device.type, dtype=torch.bfloat16):
             fa = model(w).argmax(-1)
         z, _ = forward(P, w)
         agree += (z.argmax(-1) == fa).sum().item()
@@ -582,7 +583,7 @@ def main():
         ap.error("--windows must be a multiple of 32 (float and integer losses use the same windows)")
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
-    dev = "cuda"
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
     vocab = torch.load(os.path.join(args.run, "model.pt"), map_location="cpu")["args"].get("vocab", 4096)
     sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, f"tok{vocab}.model"))
     model, a = load_model(args.run, sp.get_piece_size(), dev)

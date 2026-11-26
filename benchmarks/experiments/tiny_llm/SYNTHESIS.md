@@ -159,9 +159,8 @@ be checked: read the PDF and quote the exact claim.
 Findings that look new (NO literature search done yet):
 
 1. **Binary weights make the key cache more robust.** Plain 4-bit key, no retraining: fp32 260K +1.68 vs binary
-   260K +0.100 (~17x). Weak point: our fp32 260K may be under-trained (the reason distillation was dropped). Step 12
-   (Nov 25) trained both 4x longer (80000 steps): fp32 improved (1.2709 -> 1.2255) and its 4-bit key rise grew
-   (+1.68 -> +2.18) while binary stayed (+0.100 -> +0.096): ratio 16.8x -> 22.9x, NOT under-training. Also check whether the effect holds at d128 /
+   260K +0.100 (~17x). Under-training checked (README step 12, 3 seeds): at 80000 steps fp32 +2.18 vs binary
+   +0.096, 22.9x: the fp32 keys get more fragile with training, the claim stands at 260K. Still to check whether the effect holds at d128 /
    d256 (fp32 0.13 / 0.035 vs binary 0.036 / 0.021: the ratio shrinks to ~1.7-3.6x).
 2. **"Bytes, not where" depends on size:** it held at 15.7 M and failed at 260K (int8 W_v gains 3x more than W_k).
    To confirm: the same W_v / W_k control at d128 / d256.

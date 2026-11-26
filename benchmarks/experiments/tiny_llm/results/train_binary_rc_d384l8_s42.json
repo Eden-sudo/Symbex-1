@@ -1,0 +1,171 @@
+{
+  "weights": "binary_rc",
+  "seed": 42,
+  "args": {
+    "weights": "binary_rc",
+    "seeds": [
+      42
+    ],
+    "head": "fp32",
+    "int8_blocks": [],
+    "acts": 8,
+    "ste": "identity",
+    "ste_k": 2.0,
+    "learn_thr": false,
+    "a8_inputs": [],
+    "a8_blocks": [],
+    "w2_acts": "same",
+    "hadamard": [],
+    "ffn_act": "silu",
+    "clip_groups": false,
+    "init_from": "",
+    "distill": "",
+    "distill_alpha": 0.5,
+    "distill_t": 1.0,
+    "name": "d384l8",
+    "dim": 384,
+    "layers": 8,
+    "heads": 6,
+    "hidden": 1024,
+    "seq": 256,
+    "batch": 128,
+    "steps": 10000,
+    "warmup": 500,
+    "lr": 0.0015,
+    "wd": 0.1,
+    "eval_every": 500,
+    "eval_batches": 40,
+    "compile": true,
+    "test": false
+  },
+  "parameters": 15761792,
+  "quantized_linear_parameters": 14155776,
+  "tokens_seen": 327680000,
+  "best_step": 10000,
+  "val_loss": 1.5138,
+  "val_perplexity": 4.544,
+  "minutes": 22.64,
+  "history": [
+    {
+      "step": 500,
+      "train_loss": 2.3436,
+      "val_loss": 2.2792,
+      "minutes": 1.75
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.9667,
+      "val_loss": 1.9766,
+      "minutes": 2.83
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.7951,
+      "val_loss": 1.8613,
+      "minutes": 3.93
+    },
+    {
+      "step": 2000,
+      "train_loss": 1.7668,
+      "val_loss": 1.7906,
+      "minutes": 5.03
+    },
+    {
+      "step": 2500,
+      "train_loss": 1.7853,
+      "val_loss": 1.748,
+      "minutes": 6.13
+    },
+    {
+      "step": 3000,
+      "train_loss": 1.6876,
+      "val_loss": 1.7176,
+      "minutes": 7.22
+    },
+    {
+      "step": 3500,
+      "train_loss": 1.6714,
+      "val_loss": 1.6882,
+      "minutes": 8.32
+    },
+    {
+      "step": 4000,
+      "train_loss": 1.6544,
+      "val_loss": 1.6628,
+      "minutes": 9.42
+    },
+    {
+      "step": 4500,
+      "train_loss": 1.6504,
+      "val_loss": 1.6428,
+      "minutes": 10.51
+    },
+    {
+      "step": 5000,
+      "train_loss": 1.6526,
+      "val_loss": 1.6231,
+      "minutes": 11.62
+    },
+    {
+      "step": 5500,
+      "train_loss": 1.5984,
+      "val_loss": 1.609,
+      "minutes": 12.72
+    },
+    {
+      "step": 6000,
+      "train_loss": 1.5266,
+      "val_loss": 1.5916,
+      "minutes": 13.82
+    },
+    {
+      "step": 6500,
+      "train_loss": 1.6305,
+      "val_loss": 1.5766,
+      "minutes": 14.93
+    },
+    {
+      "step": 7000,
+      "train_loss": 1.6237,
+      "val_loss": 1.5625,
+      "minutes": 16.03
+    },
+    {
+      "step": 7500,
+      "train_loss": 1.5284,
+      "val_loss": 1.5506,
+      "minutes": 17.13
+    },
+    {
+      "step": 8000,
+      "train_loss": 1.4966,
+      "val_loss": 1.5374,
+      "minutes": 18.23
+    },
+    {
+      "step": 8500,
+      "train_loss": 1.48,
+      "val_loss": 1.5266,
+      "minutes": 19.34
+    },
+    {
+      "step": 9000,
+      "train_loss": 1.4826,
+      "val_loss": 1.5191,
+      "minutes": 20.44
+    },
+    {
+      "step": 9500,
+      "train_loss": 1.4955,
+      "val_loss": 1.516,
+      "minutes": 21.54
+    },
+    {
+      "step": 10000,
+      "train_loss": 1.5011,
+      "val_loss": 1.5138,
+      "minutes": 22.64
+    }
+  ],
+  "sample": "Once upon a time, there was a little girl named Lily. She loved to play outside in the sun. One day, she saw a big, red ball. Lily wanted to play with the ball, but she was too small to reach it.\nLily had a friend named Tom. Tom was a good friend. He could help Lily get the ball. Tom said, \"I can help you, Lily!\" Tom climbed the tree and got the ball for Lily. Lily was very happy.\nLily and Tom played with the ball all day. They had so much fun. When it was time to go home, Lily said, \"Thank you for helping me get the ball.\" Tom smiled and said, \"You're welcome, Lily. I'm glad you like it.\" They both went inside to play, and Lily knew she had a new friend."
+}

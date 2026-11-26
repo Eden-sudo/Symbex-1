@@ -200,6 +200,28 @@ Yes: the 1-bit model writes stories with dialogue and a plot, the integer versio
 exact). It costs perplexity against fp32 (4.58 vs 3.67): the binary model
 repeats itself more. Ternary sits between the two at twice the weight memory.
 
+## Row x column scales on the 1-bit weights (rule Nov 18 2026, before training)
+
+**Question:** binary W1A8 keeps one scale per row (mean |w|). Does a scale per row AND per input column (the rank-1
+of |w|, as OneBit) close part of the gap to ternary, with the weights still 1 bit?
+
+**What:** `train.py --weights binary_rc`: sign(w) x a_row x b_col x g_col (b = mean |w| of the column, a = the
+least-squares row scale, g = a learned gain per column, init 1, no weight decay), same recipe as the binary base,
+labels only, 10,000 steps, 3 seeds (42, 43, 44), validation only. Extra memory: one scale per input column per matrix
+(+20 KB as int8-ish, ESTIMATE; the 1-bit weights unchanged). One shot, on trained weights: relative squared error
+0.366 -> 0.362 (fp32 model), 0.471 -> 0.464 (binary model): little to gain without training.
+
+**Rule:** base val loss binary 1.5224 +- 0.0026, ternary 1.4251 +- 0.0026. binary_rc helps if its mean < 1.5224 -
+max(0.0026, its sd). If it helps, the next step is its integer model and C (the column scale goes on the input
+before the 8-bit quantization); if not, row scales stay.
+
+**Result (val loss, 3 seeds, `results/train_binary_rc_d384l8_s*.json`):** binary_rc 1.5105 +- 0.0030 (1.5138, 1.5100,
+1.5078) vs binary 1.5224 +- 0.0026; paired per seed -0.0114 / -0.0119 / -0.0122. Threshold 1.5224 - 0.0030 = 1.5194:
+passes. Ternary (1.4251) stays far ahead: binary_rc closes about 1/8 of the binary -> ternary gap.
+
+**Answer:** yes, a small but steady gain with the weights still 1 bit. Next: its integer model (intsim) and C, then
+the extra memory and speed measured on the S3 (the +20 KB above is an ESTIMATE).
+
 ## KV cache below 8 bits (rule Nov 18 2026, before measuring)
 
 **Question:** the KV cache is int8 (1.5 MB for 256 tokens here; ~328 KB for a 260K-size model with 512 tokens,
@@ -908,6 +930,13 @@ the first to the last token. The story runs 125 positions, so its speed is above
 (seed 42 34.8, 43 36.4, 44 34.9 tokens/s, same code) is code layout under the XIP cache, as seen before with
 SYMBEX on this core.
 
+**Reproduced on a second classic ESP32 (Abraham, #210, Nov 24):** the same 9 runs exact (3432 / 3432 outputs and
+story tokens). The speed depends on the Arduino core: with espressif32 8.0.0 (Arduino 3.3, ESP-IDF 5.5) the binary
+model gives 39.52 ± 0.04 tokens/s (window mean +6 %, +10 % at position 511, 37 KB less free RAM), run.c 6.71 (5.89x);
+rebuilt with the Arduino 2.0.17 / IDF 4.4 core, seed 42 gives our numbers back (40.60, run.c 6.48). Since then the
+platformio.ini files pin `espressif32@7.1.3` (Arduino 2.0.17, the core of every result here) and
+`raspberrypi@1.20.0`, and chip_run.py / chip_fp32.py write the platform into the result JSON.
+
 Tokens per second of the story, per seed (each run's JSON, `tokens_per_second_story`):
 
 | chip | seed 42 | seed 43 | seed 44 | mean ± sd |
@@ -1479,14 +1508,20 @@ windows, 64 calibration windows). The test split is not read.
 below 2x, the 17x was under-training and the claim is withdrawn from SYNTHESIS. In between: reported as partly
 under-training, the claim weakened.
 
-**Result (Nov 25 2026, `runs/logs/q260k_80k_report.txt`, `results/v512d64l5kv4_80k_k_anatomy.json`).** More training
-helps fp32: best validation loss 1.2709 ± 0.0087 at 20000 steps (step 6 runs) -> 1.2255 ± 0.0031 at 80000; binary
-2.0613 ± 0.0086 -> 2.0247 ± 0.0077. The plain 4-bit key rise does not shrink for fp32, it grows:
+**Result** (3 seeds, validation, results/v512d64l5kv4_80k_k_anatomy.json):
 
-| steps | fp32 | binary | ratio |
-|---|---|---|---|
-| 20000 | +1.6817 ± 0.1141 | +0.1002 ± 0.0149 | 16.8x |
-| 80000 | +2.1844 ± 0.0822 | +0.0955 ± 0.0048 | 22.9x |
+| | fp32 20k | fp32 80k | binary 20k | binary 80k |
+|---|---|---|---|---|
+| val loss (best checkpoint) | 1.2709 ± 0.0087 | 1.2255 ± 0.0031 | 2.0613 ± 0.0086 | 2.0247 ± 0.0077 |
+| plain 4-bit key rise | 1.6817 ± 0.1141 | 2.1844 ± 0.0822 | 0.1002 ± 0.0149 | 0.0955 ± 0.0048 |
+| centered 4-bit key rise | 0.0561 ± 0.0069 | 0.0611 ± 0.0031 | 0.0093 ± 0.0027 | 0.0079 ± 0.0004 |
+
+Ratio fp32 / binary of the plain 4-bit rise: 16.8x at 20000 steps, **22.9x at 80000** (> 5x): the claim stands at
+260K. More training made the fp32 keys more fragile, not less: their shared mean grows (mean_share 0.90-0.96 by
+layer vs binary 0.49-0.85) and so do the outlier channels (4.4-5.4 vs 2.3-3.7). Both models gain ~0.04-0.05 nats
+from the longer run; the fp32 / binary loss gap stays ~0.80. Not tested here: why the binary keys absorb the error
+(one candidate, unmeasured: the binary attention is flatter, entropy 4.6 vs 2.3 in layer 0, so a small key error moves
+it less); the ratio still shrinks at d128 / d256 (SYNTHESIS sec. 1).
 
 **Answer.** The ratio stays above 5x: "binary weights make the key cache robust" stands at 260K. The fp32 keys are
 not unsettled by short training; a better trained fp32 260K is even more fragile to a 4-bit key cache.
@@ -1711,3 +1746,25 @@ CMSIS-DSP / ESP-DSP fp32 kernels would narrow the M33 and ESP32 figures (not mea
 - Binarizing more is research: 1-bit activations were measured (above: +0.26 loss with the best recipe, one seed,
   no gain on the chip); a binary embedding and binary attention are not measured: an open question.
 - The test split, once, for the final numbers.
+
+## Memory budget before training
+
+From the repository root, run:
+
+```
+python benchmarks/experiments/tiny_llm/memory_budget.py --dim 384 --layers 8 --heads 6 --hidden 1024 --seq 256 --vocab 4096 --weights binary --head fp32
+```
+
+These are the defaults. The JSON reports `model_bin_bytes` (the exporter layout), `linear_weight_bytes` (packed
+matrix payload, without row multipliers), `embedding_head_bytes` (shared table and row multipliers, counted once),
+`kv_cache_bytes` (including scales and the read guard), `per_token_internal_ram_bytes` (resident working buffers,
+reused each token) and `bits_per_linear_weight` (excluding padding and multipliers). The fp32 training head exports
+an int8 table. Both weight choices use one bit in the current writer: its positive mask loses ternary zeros, and the
+intsim CLI does not support ternary export. This is a size estimate, not a working ternary firmware format.
+
+The model and KV cache live in PSRAM. Internal working buffers include the output array and four static S3 scratch
+arrays, but exclude allocator/alignment overhead, stack, firmware/framework state, profiling counters, model/block
+structs, read-only constants and optional-kernel allocations. These numbers are not total internal RAM or a complete
+PSRAM budget, and do not prove that a model fits. Exportable shapes are not necessarily firmware-compatible: current
+C requires 64-wide heads, dim and hidden multiples of 8, seq <= 258, hidden >= 2*seq, and the S3 unsigned-attention
+path requires max(dim, hidden) >= 4*seq; optional kernels impose additional limits.
