@@ -1,0 +1,32 @@
+{
+  "run": "binary_v512d96l2kv6_lr3e-3_20k_s42",
+  "board": "esp32 (classic, no PSRAM)",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": "int8",
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | ram 350764 bytes free",
+  "loaded": "LOADED 100896 bytes in 17 ms | ram free 163860",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 27.732,
+  "ms_per_token_at_position": {
+    "0": 18.033,
+    "63": 21.475,
+    "127": 23.579,
+    "255": 27.677,
+    "511": 35.9
+  },
+  "ms_per_token_story_mean": 21.498,
+  "tokens_per_second_story": 46.515,
+  "ms_per_token_by_part": {},
+  "story": "Once upon a time, there was a little boy named Tim. Tim lived in a big box. Tim lived in a big box. Tim loved to play with his friends. He was very happy. He loved to play with his friends. Tim was very happy. He was very happy. He was very happy. He was very happy. He was very happy. He was very happy. He was so happy. He was so happy. He was so happy. He was so happy. He was so happy. He was so"
+}

@@ -105,16 +105,18 @@ Three families (LLM, conv1d, conv2d) point the same way. The fixes that worked w
 
 The table compares different tasks and networks: it shows a correlation, not a proof.
 
-## 5. Tests that would confirm or refute section 4 (not started)
+## 5. Tests that would confirm or refute section 4 (C done Nov 26, A and B not started)
 
 | test | cost | prediction if the pattern holds |
 |---|---|---|
 | A. per-layer damage vs fan-in, inside one network, from existing JSONs (ResNet-8 drop table, llm_layers.py) | no GPU, ~1 h (estimate) | lower fan-in -> more damage, within the same net |
 | B. step 10: wider heads at the same parameter count (head width 8 -> 16 -> 32, fewer heads) | 9 runs | the key cache suffers less; loss about the same |
-| C. deep-narrow vs shallow-wide at the same parameter count, fp32 and binary | 12 runs | fp32 prefers deep-narrow (MobileLLM); binary reverses or ties |
+| C. deep-narrow vs shallow-wide at the same parameter count, fp32 and binary | 12 runs | fp32 prefers deep-narrow (MobileLLM); binary reverses or ties. **DONE Nov 26: confirmed, strongly** (README "Test C"): fp32 deep 1.2796 vs wide 1.3055, binary deep 2.1144 vs wide 2.0514 |
 
-C is the strongest. If it holds, it gives a design rule of our own for binary networks: at a fixed budget, choose
-width over depth.
+C is the strongest. It held (Nov 26, 3 seeds, validation): at 260K and a fixed parameter count, choose width over
+depth for binary weights. On the chips without PSRAM the wide binary shape is also the fastest and needs the least
+RAM (ESP32 46.49 vs base 40.60 tok/s; the deep shape does not fit the ESP32). Caveat: the non-binary token embedding
+is larger in the wide shape (49K vs 25K values); not separated. Not yet checked at other sizes or on vision nets.
 
 ## 6. Pending: place the findings in the literature and confirm them (not started)
 
@@ -134,14 +136,16 @@ be checked: read the PDF and quote the exact claim.
 Findings that look new (NO literature search done yet):
 
 1. **Binary weights make the key cache more robust.** Plain 4-bit key, no retraining: fp32 260K +1.68 vs binary
-   260K +0.100 (~17x). Weak point: our fp32 260K may be under-trained (the reason distillation was dropped). To
-   confirm: train fp32 longer or with a tuned recipe and measure again. Also check whether the effect holds at d128 /
+   260K +0.100 (~17x). Weak point: our fp32 260K may be under-trained (the reason distillation was dropped). Step 12
+   (Nov 25) trained both 4x longer (80000 steps): fp32 improved (1.2709 -> 1.2255) and its 4-bit key rise grew
+   (+1.68 -> +2.18) while binary stayed (+0.100 -> +0.096): ratio 16.8x -> 22.9x, NOT under-training. Also check whether the effect holds at d128 /
    d256 (fp32 0.13 / 0.035 vs binary 0.036 / 0.021: the ratio shrinks to ~1.7-3.6x).
 2. **"Bytes, not where" depends on size:** it held at 15.7 M and failed at 260K (int8 W_v gains 3x more than W_k).
    To confirm: the same W_v / W_k control at d128 / d256.
 3. **Additivity depends on the statistic** (ResNet-8: accuracy 0.45, clipped 0.81-0.86, mean loss 0.92-0.98, median
    2.1-3.1). To confirm: the median for tiny_llm (never measured).
-4. **Binary may prefer width over depth** (test C, section 5). To confirm: test C itself.
+4. **Binary prefers width over depth** at 260K (test C, section 5: confirmed strongly Nov 26; embedding caveat).
+   To confirm: other sizes (d128 / d256 budgets) and a vision net.
 
 Order proposed (Edén decides): systematic literature search for 1-4 (OpenAlex / arXiv); test A (no GPU); then B /
 C and the fp32 recipe check for finding 1.

@@ -1,0 +1,32 @@
+{
+  "run": "binary_v512d96l2kv6_lr3e-3_20k_s44",
+  "board": "rp2350 Hazard3",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": "int8",
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 150,
+  "ready": "TINYLM ready | cpu 150 MHz | ram 506928 bytes free",
+  "loaded": "LOADED 100896 bytes in 13 ms | ram free 320216",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 30.688,
+  "ms_per_token_at_position": {
+    "0": 20.825,
+    "63": 23.879,
+    "127": 26.364,
+    "255": 30.701,
+    "511": 39.042
+  },
+  "ms_per_token_story_mean": 23.881,
+  "tokens_per_second_story": 41.874,
+  "ms_per_token_by_part": {},
+  "story": "Once upon a time, there was a little boy named Tim. Tim was very happy. He wanted to play with his toys together. He was very happy. He wanted to be an idea. He was very happy. He wanted to be anyways feeling scared. He was very happy to be careful. He was very happy to be able to help his friends. He was very happy to be happy to be careful."
+}

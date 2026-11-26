@@ -1414,6 +1414,91 @@ buffers it adds) for +0.021 of validation loss, and is 11-17 % slower (2-bit val
 timing of Nov 21 said). It is the memory option, not the speed one: on the classic ESP32 it leaves 184 KB, enough
 (estimate, not tried) for the weights in RAM or a longer context.
 
+### Step 12: is the fp32 260K just under-trained? (rule Nov 24 2026, before measuring)
+
+**Question.** At 260K the plain 4-bit key cache costs fp32 1.68 nats but binary 0.100 (17x less, step 7b). One
+explanation is that binary weights make the keys robust; another is that the fp32 260K is under-trained (its loss
+still falls at 20000 steps) and its keys are not settled yet. More training separates the two.
+
+**What.** fp32 and binary, the same shape and lr 3e-3, 80000 steps (4x, ~5 passes over the training tokens; best
+checkpoint on validation as always), seeds 42, 43, 44; then `k_anatomy.py` with the step 7b settings (256 validation
+windows, 64 calibration windows). The test split is not read.
+
+**Rule.** The ratio fp32 / binary of the plain 4-bit key rise (mean over 3 seeds) is compared at 80000 steps with
+17x at 20000 steps. If it stays above 5x, "binary weights make the key cache robust" stands at 260K. If it falls
+below 2x, the 17x was under-training and the claim is withdrawn from SYNTHESIS. In between: reported as partly
+under-training, the claim weakened.
+
+**Result (Nov 25 2026, `runs/logs/q260k_80k_report.txt`, `results/v512d64l5kv4_80k_k_anatomy.json`).** More training
+helps fp32: best validation loss 1.2709 ± 0.0087 at 20000 steps (step 6 runs) -> 1.2255 ± 0.0031 at 80000; binary
+2.0613 ± 0.0086 -> 2.0247 ± 0.0077. The plain 4-bit key rise does not shrink for fp32, it grows:
+
+| steps | fp32 | binary | ratio |
+|---|---|---|---|
+| 20000 | +1.6817 ± 0.1141 | +0.1002 ± 0.0149 | 16.8x |
+| 80000 | +2.1844 ± 0.0822 | +0.0955 ± 0.0048 | 22.9x |
+
+**Answer.** The ratio stays above 5x: "binary weights make the key cache robust" stands at 260K. The fp32 keys are
+not unsettled by short training; a better trained fp32 260K is even more fragile to a 4-bit key cache.
+
+### Test C: deep-narrow or shallow-wide at the same size? (rule Nov 26 2026, before measuring)
+
+**Question.** MobileLLM finds that small fp32 language models gain from depth at a fixed parameter count. SYNTHESIS
+(finding 4) suggests binary may prefer width instead. Is that so at 260K?
+
+**What.** Three shapes of about the same parameter count, head width 8, half as many key / value heads as query
+heads, hidden about 2.69 x dim, the 260K recipe (lr 3e-3, 20000 steps, best checkpoint on validation), fp32 and
+binary, seeds 42, 43, 44, one run at a time:
+
+| shape | dim | layers | heads / kv heads | hidden | parameters |
+|---|---|---|---|---|---|
+| deep-narrow | 48 | 9 | 6 / 3 | 128 | 253,584 (-2.5 %) |
+| base (runs of step 6, not retrained) | 64 | 5 | 8 / 4 | 172 | 260,032 |
+| shallow-wide | 96 | 2 | 12 / 6 | 258 | 253,536 (-2.5 %) |
+
+The test split is not read. Not a widening for accuracy: the three shapes have the same size.
+
+**Rule.** For each kind of weights, D = mean validation loss of the wide shape minus that of the deep shape
+(negative: wide wins), and a shape "wins" when it beats the other by more than the larger sd. Finding 4 is
+**confirmed** if D(binary) is below D(fp32) by more than the sum of the larger sd of each kind (binary leans
+toward width more than fp32 does); **strongly** if, in addition, wide wins in binary and deep wins in fp32.
+Otherwise it is **not confirmed** and SYNTHESIS says so. The base shape is reported alongside, outside the rule.
+
+**Result (Nov 26 2026, queue `runs/logs/qtestc.sh`; best validation loss, 3 seeds, mean ± sd).**
+
+| shape | fp32 | binary |
+|---|---|---|
+| deep-narrow d48 l9 | **1.2796 ± 0.0032** | 2.1144 ± 0.0099 |
+| base d64 l5 (outside the rule) | 1.2709 ± 0.0087 | 2.0613 ± 0.0086 |
+| shallow-wide d96 l2 | 1.3055 ± 0.0045 | **2.0514 ± 0.0050** |
+| D = wide - deep | +0.0259 (deep wins) | -0.0629 (wide wins) |
+
+D(binary) - D(fp32) = -0.0888, beyond the threshold 0.0045 + 0.0099 = 0.0144; wide wins in binary (0.0629 > 0.0099)
+and deep wins in fp32 (0.0259 > 0.0045).
+
+**Answer.** Finding 4 is **confirmed, strongly**: at 260K fp32 prefers depth (as MobileLLM) and binary prefers
+width. Caveat: the token embedding is not binary and is larger in the wide shape (512 x 96 = 49K vs 512 x 48 = 25K
+values), so part of the wide shape's binary gain may come from more non-binary weights; not separated here. In
+fp32 the base shape ties the deep one (1.2709 vs 1.2796, difference = the larger sd).
+
+**On the chips (Nov 26 2026, the binary runs; `intsim.py --export`, `chip_run.py`, queue
+`runs/logs/chip_testc_queue.sh`, results/chip_<board>_binary_<shape>_lr3e-3_20k_s*.json).** Weights in flash, int8
+KV cache in internal RAM. C on the PC equal to the integer simulation 2048 / 2048 tokens, every seed; on the chips
+1024 / 1024 every run that fits. Integer validation loss (export) deep / base / wide: 2.1257 / 2.0736 / 2.0624
+(+0.011-0.012 over the trained model). RAM = free after loading; tok/s = story generation, 3 seeds.
+
+| shape | model.bin | ESP32 tok/s (RAM free) | M33 tok/s (RAM free) | Hazard3 tok/s (RAM free) |
+|---|---|---|---|---|
+| deep-narrow d48 l9 | 96,480 B | does not fit ("not enough RAM") | 25.86 ± 0.02 (152 KB) | 29.11 ± 0.01 (145 KB) |
+| base d64 l5 | 93,120 B | 40.60 ± 0.02 (72 KB) | 31.88 ± 0.07 (235 KB) | 34.80 ± 0.10 (228 KB) |
+| shallow-wide d96 l2 | 100,896 B | **46.49 ± 0.02** (164 KB) | **41.12 ± 0.09** (327 KB) | **41.92 ± 0.12** (320 KB) |
+
+ms per token (story) ESP32 / M33 / Hazard3: deep — / 38.67 / 34.36, base 24.63 / 31.37 / 28.73, wide 21.51 / 24.32 /
+23.86. On chips without PSRAM the wide binary shape is also the fastest (1.15-1.29x the base) and needs the least
+RAM, because the KV cache grows with the layer count; it costs 7.8 KB more flash (+8 %). The deep shape does not fit
+the classic ESP32: its int8 KV cache is about 221 KB + 110 KB of scales (computed, not measured) against ~279 KB
+of byte heap.
+
 ### Speed of each cache method, one at a time (Nov 21 2026; a timing, no decision rule)
 
 **Question.** Each trick of steps 7-9b changes the attention code differently. What does each one cost or save on

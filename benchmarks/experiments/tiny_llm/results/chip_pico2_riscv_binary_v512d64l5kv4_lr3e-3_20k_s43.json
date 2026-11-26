@@ -1,0 +1,32 @@
+{
+  "run": "binary_v512d64l5kv4_lr3e-3_20k_s43",
+  "board": "rp2350 Hazard3",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": "int8",
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 150,
+  "ready": "TINYLM ready | cpu 150 MHz | ram 506928 bytes free",
+  "loaded": "LOADED 93120 bytes in 12 ms | ram free 228128",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 40.124,
+  "ms_per_token_at_position": {
+    "0": 23.718,
+    "63": 28.753,
+    "127": 32.689,
+    "255": 40.347,
+    "511": 54.002
+  },
+  "ms_per_token_story_mean": 28.75,
+  "tokens_per_second_story": 34.782,
+  "ms_per_token_by_part": {},
+  "story": "Once upon a time, there was a little boy named Tim. He lived a big tree. He lived in a big park. He was very scared. He was very scared. He was very happy. He was very happy. He was very happy. He was very scared and said, \"I don't know, Tim. I will go to the park. I will go to the park. I will go to the park"
+}

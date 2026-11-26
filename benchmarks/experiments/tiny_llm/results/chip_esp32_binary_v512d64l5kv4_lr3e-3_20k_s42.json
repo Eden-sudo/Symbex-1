@@ -1,0 +1,32 @@
+{
+  "run": "binary_v512d64l5kv4_lr3e-3_20k_s42",
+  "board": "esp32 (classic, no PSRAM)",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": "int8",
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | ram 350764 bytes free",
+  "loaded": "LOADED 93120 bytes in 16 ms | ram free 71672",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 35.074,
+  "ms_per_token_at_position": {
+    "0": 19.732,
+    "63": 24.639,
+    "127": 28.073,
+    "255": 35.108,
+    "511": 48.791
+  },
+  "ms_per_token_story_mean": 24.616,
+  "tokens_per_second_story": 40.624,
+  "ms_per_token_by_part": {},
+  "story": "Once upon a time, there was a little boy named Tim. Tim loved to play with his friends. Tim loved to play with his friends. One day, Tim went to the park. He was very happy. Tim was very happy. Tim and his friends were very happy. Tim looked at their mom and played with the park. Tim was happy and they played with their friends. They played with their friends. Tim and Spot were happy. They played"
+}

@@ -1,0 +1,32 @@
+{
+  "run": "binary_v512d48l9kv3_lr3e-3_20k_s43",
+  "board": "rp2350 Hazard3",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": "int8",
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 150,
+  "ready": "TINYLM ready | cpu 150 MHz | ram 506928 bytes free",
+  "loaded": "LOADED 96480 bytes in 13 ms | ram free 144784",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 49.895,
+  "ms_per_token_at_position": {
+    "0": 27.45,
+    "63": 34.511,
+    "127": 39.879,
+    "255": 50.183,
+    "511": 69.267
+  },
+  "ms_per_token_story_mean": 34.343,
+  "tokens_per_second_story": 29.118,
+  "ms_per_token_by_part": {},
+  "story": "Once upon a time, there was a little girl named Amy. Amy loved to play with her toys. One day, she saw a big box of cat. She was very happy. She was very happy. She was very happy. She was very happy. She was very happy. She was very happy. She was very happy. She was very happy. \nThen, Amy went to the box. She saw a big box offt and careful"
+}
