@@ -768,6 +768,56 @@ the flash) rebooted the board in a loop: not saved.
 The estimate before measuring was -19 ms; measured -12 on the linears. Weak point: the ROM cache functions are marked
 "do not call in your SDK application"; they work on this Arduino core (ESP-IDF 4.4) and may change with another.
 
+## Where a token's time goes, part by part, and the second core (Nov 26 2026; a timing, no decision rule)
+
+**Question.** The 15.7 M model with the int4 head runs at 10.96 tokens/s on the S3 (101.6 ms per token, one core,
+autoload 3). Which parts are waiting on the PSRAM, and which are computation that a second core could share?
+
+**What.** Two measurements, seed 42, both exact:
+
+1. `chip_run.py runs/binary_d384l8_head4_s42 --linear symbex --autoload 3 --fine-prof`: new marks inside the linear
+   layers (prepare the 8-bit input / the row kernel / input sum + per-row scales), `in_quant` apart from the norm,
+   RoPE apart from the int8 cache write (`tinylm.c` parts 19-24, `TINYLM_FINE_PROF` only; the integers do not change:
+   PC 1,024 / 1,024 with and without the marks, chip 512 / 512 + story 120 / 120). The marks cost 1.6 ms (103.2 vs
+   101.6 ms per token). `results/chip_s3_binary_d384l8_head4_s42_symbex_prof_al3.json`.
+2. `../chip_kernels/psram_dualcore_bench.py`: the model's three linear shapes with the rows split over both cores
+   (rule written before measuring: into the firmware only at >= 1.25x on all three shapes, exact).
+
+**Result 1: one token, ms (the validation check pass, 512 tokens).** MB/s = bytes read per token (computed from the
+shapes) / measured time.
+
+| Part | ms | Limited by |
+|---|---|---|
+| linear layers: the row kernel (1.77 MB of 1-bit weights) | 31.5 | PSRAM: 56 MB/s, the 1-core autoload ceiling |
+| attention values (PIE products 12.5 + weights split in bytes 2.0) | 14.4 | computation |
+| output head (int4, 786 KB) | 13.4 | PSRAM: 59 MB/s |
+| linear layers: input sum + per-row scales | 10.1 | computation + reading `ones` / `m` (254 KB per token, int32, in PSRAM) |
+| `in_quant` (int8 input of every linear) | 9.2 | computation |
+| attention scores (K cache) | 7.8 | PSRAM |
+| K / V into the int8 cache | 5.6 | computation + writes |
+| softmax + division | 3.7 | computation |
+| prepare the 8-bit input, SwiGLU, norms, RoPE, rest | 7.5 | computation |
+| **total** | **103.2** | |
+
+**Result 2: the linear layers on two cores, MB/s** (`results/psram_dualcore_bench_s3.json`, best of 7, exact on
+every variant):
+
+| Shape | 1 core, autoload 3 | 2 cores, autoload (best) | gain | internal RAM, 1 / 2 cores |
+|---|---|---|---|---|
+| 384 -> 384 | 55.8 | 62.2 | 1.11x | 68.9 / 92.6 (1.34x) |
+| 384 -> 1024 | 55.9 | 62.1 | 1.11x | 69.0 / 92.8 (1.34x) |
+| 1024 -> 384 | 56.7 | 62.1 | 1.10x | 75.5 / 100.9 (1.34x) |
+
+Both cores share one data cache and one PSRAM bus: together they top out at ~62 MB/s. Rule fails (1.10-1.11x <
+1.25x): the second core stays out of the linear layers.
+
+**Answer.** About half of a token (31.5 + 13.4 + 7.8 = 53 ms) is reading the PSRAM, already at the bus ceiling: a
+second core adds ~10 % there at most. The other half (~50 ms) is computation. Of it, `in_quant`, the per-row scales and
+the cache write (~25 ms) look like overhead that one core can cut: `quant8` divides in 64 bits once per number and the
+scales multiply in 64 bits once per row, both in software on this core (read from the code, not measured apart). The
+attention values, softmax and SwiGLU (~20 ms) are the parts a second core could share. ESTIMATE, not measured: half of
+the 25 ms gone plus the values on two cores would be ~80 ms per token, ~12.5 tokens/s.
+
 ## A 260K model for chips without PSRAM (rule Nov 19 2026, before measuring)
 
 **Question.** The 15.7 M model needs PSRAM (KV cache 1.67 MB): the classic ESP32 (346 KB heap, no PSRAM) and the
