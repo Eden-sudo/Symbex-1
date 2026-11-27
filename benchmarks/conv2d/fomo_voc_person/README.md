@@ -19,8 +19,8 @@ test (4,952 images, 4,528 persons). Score: precision, recall and F1 of the detec
 person whose center is within 1.5 cells). Each model gets its own decision threshold, calibrated on 1,000 training images
 kept out of the training, chosen at random with a fixed seed (`model.SPLIT_SEED`): the same images for every model and
 seed, binary and INT8. On the chip the binary threshold costs nothing (it is folded into the integer bias of the head).
-The binary detector has been retrained on this split and measured on the classic ESP32
-([below](#retrained-on-the-current-split-classic-esp32)); the INT8 reference, the ESP32-S3 and Pico 2 results and the
+The binary detector and the INT8 reference have been retrained on this split (binary measured on the classic ESP32,
+INT8 F1 on the PC: [below](#retrained-on-the-current-split-classic-esp32)); the ESP32-S3 and Pico 2 results and the
 sizing study are still from the previous split (the last 1,000 training images, all from VOC 2012).
 
 ## Results (ESP32-S3, 240 MHz)
@@ -82,13 +82,21 @@ measured with `fomo_symbex.py` on 1,000 test images (`results/symbex/symbex_seed
 | Flash (weights + thresholds) | 41.2 KB | 52.3 KB |
 | RAM (lut16 flash / lut16 RAM / swar) | 142.8 / 184.1 / 78.8 KB | 145.1 / 197.4 / 81.1 KB |
 | Same result as the simulation | 100 %, every seed and setting | 100 %, every seed and setting |
+| TFLite INT8, test F1 (PC) | 28.9 ± 0.8 % (29.44, 27.92, 29.28) | 30.2 % (one seed) |
+| TFLite INT8, validation F1 | 29.6 ± 1.0 % | 30.0 % |
 
 Latency and memory are those of the previous models of the same shapes, within 0.1 ms. The F1 changed: 32-32-128 is
 1.4 points below its previous-split result (31.2 ± 0.7 %), and 32-64-128 is now ahead of it on the test images by
 1.9 points. On the validation images, the only ones allowed to choose the shape, the gap is 0.6 points with a seed
 spread of up to 1.5: not enough by itself to change the sizing choice below, made with one seed on the previous split.
-In every run 4.0-4.9 % of the 1-bit latent weights end frozen (|w| > 1, `binary_health` in `train.json`). The INT8
-reference is still from the previous split, so the binary vs INT8 comparison above is not updated here.
+In every run 4.0-4.9 % of the 1-bit latent weights end frozen (|w| > 1, `binary_health` in `train.json`).
+
+The INT8 reference was retrained the same way (its own recipe: person weight 20, 60 epochs; `fomo_tflite.py`, TensorFlow
+2.21 on the CPU; `results/tflite/tflite_pc_*`). It does not fit the classic ESP32, so only its F1 on the PC is new; its
+S3 latency and agreement with the PC above are from the previous-split models (the size, 236.1 / 315.7 KB, is the same).
+It lost about as much as the binary detector: 32-32-128 is 1.3 points below its previous-split result (30.2 ± 0.2 %).
+On the current split the binary detector stays ahead, by 0.9 points on 32-32-128 (29.8 ± 0.8 vs 28.9 ± 0.8 %, about
+one seed spread) and 1.4 on 32-64-128 (one INT8 seed); on the validation images, by 2.3 and 2.5 points.
 
 ### Why detection binarizes so well here
 
