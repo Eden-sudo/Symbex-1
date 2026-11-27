@@ -76,6 +76,9 @@ def summary(layers):
     def stats(l):
         v = l["live"]
         gm = lambda a: float(np.exp(np.log(a[v]).mean()))                                    # noqa: E731
+        # near_moving is a mean over the moving neurons; near_constant is NOT a mean over the constant ones but their
+        # contribution to near (divided by ALL neurons), so near = near_moving * (1 - constant / 100) + near_constant.
+        # Dividing by the constant count instead would give 0 / 0 on the convolutions (no constant neurons).
         return dict(near=100 * float(l["near"].mean()), pred=100 * float(l["pred"].mean()),
                     near_moving=100 * float(l["near"][v].mean()), near_constant=100 * float(l["near"][~v].sum() / len(v)),
                     constant=100 * float(1 - v.mean()), sigma=gm(l["sigma"]), sqrt_n=gm(np.sqrt(l["n"])),
