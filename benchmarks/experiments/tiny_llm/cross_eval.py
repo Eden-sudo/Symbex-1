@@ -25,7 +25,7 @@ def main():
     ap.add_argument("--v-bits", type=int, nargs="+", default=[8, 2])
     ap.add_argument("--out", default=os.path.join(HERE, "results", "v512d64l5kv4_cross_eval.json"))
     args = ap.parse_args()
-    dev = "cuda"
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
     res = json.load(open(args.out)) if os.path.exists(args.out) else {}
     vals = {}
     for run in args.runs:

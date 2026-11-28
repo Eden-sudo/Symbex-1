@@ -10,7 +10,9 @@ int main(int argc, char **argv) {
     FILE *f = fopen(argv[1], "rb");
     if (!f) { perror(argv[1]); return 1; }
     fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+    if (n <= 0) { fprintf(stderr, "%s: empty file\n", argv[1]); return 1; }
     void *buf = malloc(n);
+    if (!buf) { fprintf(stderr, "out of memory\n"); return 1; }
     if (fread(buf, 1, n, f) != (size_t)n) { fprintf(stderr, "short read\n"); return 1; }
     fclose(f);
     int n_new = atoi(argv[2]), n_prompt = argc - 3;

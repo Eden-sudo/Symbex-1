@@ -61,6 +61,8 @@ def set_source(model, linears=(), blocks=None, kv=(8, 8, 1.0), kind="binary"):
 def one_seed(run, seed, n_windows, bsz, dev, kind, kv_bits):
     model, a = I.load_model(os.path.join(T.HERE, "runs", f"{run}_s{seed}"), a_vocab(run), dev)
     assert a["weights"] == "fp32", "error_anatomy.py starts from a trained fp32 model"
+    assert all(blk.kv == (8, 8, 1.0) for blk in model.blocks), \
+        "error_anatomy.py needs a run trained with the int8 KV cache (set_source restores kv=(8, 8, 1.0))"
     val = T.load_split("val", dev, a["vocab"])
     seq = a["seq"]
     rows = torch.arange(n_windows, device=dev)
@@ -109,7 +111,7 @@ def main():
     ap.add_argument("--kv-bits", type=int, choices=[1, 2, 4], default=2)
     ap.add_argument("--out", default="")
     args = ap.parse_args()
-    dev = "cuda"
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
     res = [one_seed(args.run, s, args.windows, args.batch, dev, args.kind, args.kv_bits) for s in args.seeds]
 
     def ms(vals):
