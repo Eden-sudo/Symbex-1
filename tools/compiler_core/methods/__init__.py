@@ -139,7 +139,13 @@ def init_thresholds(model, calibration):
         h.remove()
     for mod in order:
         captured = {}
-        hook = mod.register_forward_pre_hook(lambda m, inputs: captured.setdefault(m, inputs[0].detach()))
+
+        def grab(m, inputs, captured=captured):
+            # store the first input only and return None: a pre-hook that returns a value REPLACES the layer's
+            # input (a module called twice in one pass would get its first input back)
+            captured.setdefault(m, inputs[0].detach())
+
+        hook = mod.register_forward_pre_hook(grab)
         model(calibration)
         hook.remove()
         _set_beta(mod, captured[mod])
