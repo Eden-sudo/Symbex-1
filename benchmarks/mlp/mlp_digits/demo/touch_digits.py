@@ -66,6 +66,11 @@ def build(model=REF):
 
 def check(predict, model=REF):
     """the compiled C against the CDT's integer simulation on the 360 test images exported with the model"""
+    if not os.path.exists(os.path.join(model, "validation_sim.u8")):    # gitignored: the CDT's export writes them
+        how = ("cd benchmarks/mlp/mlp_digits && python ../../../tools/cdt.py demo/symbex_demo.toml --from export "
+               "--to export --no-distill   (augment_data.py first)" if model == MODELS["demo"] else
+               "cd tools && python cdt.py ../benchmarks/mlp/mlp_digits/reference/config.toml --from export --to export")
+        sys.exit(f"[X] {model}/validation_*.u8 missing (not in git), rebuild them from the repository root:\n    {how}")
     x = np.fromfile(os.path.join(model, "validation_x.u8"), dtype=np.uint8).reshape(-1, 64)
     sim = np.fromfile(os.path.join(model, "validation_sim.u8"), dtype=np.uint8)
     y = np.fromfile(os.path.join(model, "validation_y.u8"), dtype=np.uint8)
@@ -224,14 +229,15 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--score", action="store_true", help="accuracy on the saved drawings (samples/), no window")
     ap.add_argument("--pen", type=int, default=32, help="pen width in pixels of the 400x400 canvas (default 32)")
-    ap.add_argument("--thicken", type=int, default=THICKEN,
-                    help=f"stroke thickening before the reduction, max filter in canvas pixels (default {THICKEN}, 0 = off)")
+    ap.add_argument("--thicken", type=int,
+                    help=f"stroke thickening before the reduction, max filter in canvas pixels, 0 = off (default "
+                         f"{THICKEN} for the reference model, 0 for demo: augment_data.py trains it without thickening)")
     ap.add_argument("--model", choices=sorted(MODELS), default="reference",
                     help="reference: the benchmark's model; demo: the same network trained on augmented drawings "
                          "(augment_data.py + symbex_demo.toml)")
     ap.add_argument("--port", help="serial port of the Uno (it answers each drawing; flash it first with chip_test.py)")
     args = ap.parse_args()
-    THICKEN = args.thicken
+    THICKEN = args.thicken if args.thicken is not None else (0 if args.model == "demo" else THICKEN)
     predict = build(MODELS[args.model])
     check(predict, MODELS[args.model])
     if args.score:
