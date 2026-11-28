@@ -84,12 +84,14 @@
 
 /* constants with the U suffix (not UL): on a 64-bit PC, UL would make the product 64 bits wide and the >> 24
    would keep extra bits; on AVR the compiler already widens them to 32 bits because they do not fit in 16 */
+#if defined(PATH_LUT16) || defined(PATH_SWAR)
 static inline int32_t popcount_swar(uint32_t x) {
     x = x - ((x >> 1) & 0x55555555U);
     x = (x & 0x33333333U) + ((x >> 2) & 0x33333333U);
     x = (x + (x >> 4)) & 0x0F0F0F0FU;
     return (int32_t)((uint32_t)(x * 0x01010101U) >> 24);
 }
+#endif
 
 #if defined(PATH_LUT8)
 /* ---- lut8: 256-entry table, in flash on AVR ---- */
