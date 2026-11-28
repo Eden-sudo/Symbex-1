@@ -12,6 +12,7 @@ once the experiments show they really work. One folder per question, each with i
 | [`vertical1d/`](vertical1d/) | does the vertical engine speed up the binary 1D convolutions on the ESP32-S3? | yes on long layers: HAR 1.26-1.87× faster whole network, exact, 1.85-3.52× vs TFLite INT8 (was 1.47-1.90×), for 7-19 KB more RAM |
 | [`tiny_llm/`](tiny_llm/) | does a small language model still write stories with 1-bit weights (int8 activations), integers only, exact in C? | yes on the PC: 15.7 M parameters, 90 % of them 1-bit, perplexity 4.58 (fp32 3.67), integer model = float, C exact on every score; 3.55 MB; ESP32-S3: exact, 8.28 tokens/s on lib_symbex's 8-bit x 1-bit kernel (seed 42) |
 | [`rnn_probe/`](rnn_probe/) | in a fully binary recurrent network, does a flipped bit grow step after step? | no explosion: the damage settles at ~9 % of the state; but 1 % of the state flipped changes 28 % of the predictions (int8 0.07 %) at the same accuracy; a margin loss brings it to 9 %. Binary RNNs stay out of the CDT |
+| [`test_math/`](test_math/) | does the step function's value at zero, H(0), matter in a trained binary network? | yes in convolutions: ~1 % of neurons tie, and H(0) = 0 instead of 1 changes 9-26 % of the predictions (ResNet-8 −4.5 points); the MLP barely moves (0.05 % ties) |
 | [`other_probes/`](other_probes/) | single questions: PopLUT weight codebooks, arithmetics on the GPU | |
 
 Every study follows the rules of the benchmarks: seeds 42, 43 and 44, choices made on a validation split of the

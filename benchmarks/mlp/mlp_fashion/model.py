@@ -79,10 +79,12 @@ def split_indices(n=60000):
     return list(train.indices), list(val.indices)
 
 
-def train_fp32(path, data_dir, epochs=EPOCHS, h1=256, h2=128):
+def train_fp32(path, data_dir, epochs=EPOCHS, h1=256, h2=128, net=None):
     """Trains FashionMLP in FP32 on the training images minus the validation split (split_indices) and saves its
     state_dict to `path`. Prints the validation accuracy per epoch; returns (validation, test) accuracy (%) of the
-    last epoch, the model it saves (the test set is evaluated once, at the end)."""
+    last epoch, the model it saves (the test set is evaluated once, at the end). `net`: another model to train with
+    the same recipe instead of FashionMLP(h1, h2) (e.g. a deeper MLP of experiments/test_math); build it after
+    torch.manual_seed(SEED), or its initial weights are not seeded (the seed below is set after it exists)."""
     import torchvision
     import torchvision.transforms as T
     from torch.utils.data import DataLoader, Subset
@@ -100,7 +102,7 @@ def train_fp32(path, data_dir, epochs=EPOCHS, h1=256, h2=128):
     def accuracy(loader, n):
         with torch.no_grad():
             return 100 * sum((model(x.to(dev)).argmax(1) == y.to(dev)).sum().item() for x, y in loader) / n
-    model = FashionMLP(h1, h2).to(dev)
+    model = (net if net is not None else FashionMLP(h1, h2)).to(dev)
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     acc_val = 0.0
     for ep in range(epochs):
