@@ -1,0 +1,72 @@
+# written by cdt.py on 2026-11-22 09:34:32
+[model]
+file = "models/digits_mlp.pth"
+definition = "model.py:DigitsMLP"
+method = "plain"
+
+[data]
+directory = "../../data/digits_demo_aug"
+format = "npy"
+validation_split = 0.1
+calibration_samples = 64
+split_seed = -1
+mean = [0.306]
+std = [0.3762]
+input_bits = 1
+
+[hardware]
+ram_kb = 2
+flash_kb = 32
+psram_kb = 0
+cpu_bits = 8
+
+[target]
+budget = 0.5
+tolerance = 0.99
+options = ["bin"]
+max_accuracy_drop = 1.0
+search_epochs = 30
+widths = [2.0]
+
+[training]
+epochs = 150
+distill = false
+temperature = 4.0
+alpha = 0.85
+learning_rate = 0.001
+batch_size = 64
+checkpoint = "last"
+seed = 42
+data_on_gpu = false
+compile = ""
+binary_optimizer = "adam"
+bop_gamma = 0.0001
+bop_tau = 1e-08
+clip_latent = false
+
+[output]
+directory = "demo/model"
+verbose = true
+lib_path = "../../../Symbex1_PIO/lib/lib_symbex"
+validation_samples = 360
+arithmetic = "xnor"
+int8_reference = false
+
+[chip]
+board = ""
+port = "/dev/ttyUSB0"
+baud = 921600
+samples = 360
+upload = true
+popcount = "swar"
+weights = "flash"
+compare_arithmetic = false
+usb = false
+engine = "auto"
+code = "flash"
+first_layer = "mask"
+flash_config = "default"
+
+[run]
+from = "export"
+to = "export"
