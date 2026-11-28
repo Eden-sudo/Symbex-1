@@ -240,6 +240,79 @@ The binary network costs 2.3 points against INT8 of the same shape, and is 28x f
   measures every shape instead of predicting it from a per-weight cost: the prediction gave 1.71 ms for 784-128-512.
 - Both recipes agree on the ranking except at x2, where distillation is unstable (sd 0.70).
 
+### 3b. Thresholds calibrated one layer at a time (Nov 25, 2026)
+
+**Question.** Does the network lose accuracy to a bug in its starting thresholds? `init_thresholds` (the CDT, run
+once before training) measured every threshold in ONE pass, while all of them were still 0. After a ReLU that makes
+every input of the second layer +1, so its outputs were constant per unit and those units started dead: 63 % of the
+512 units of 784-128-512-10 (seed 42), and training did not bring them back (benchmarks/experiments/test_math,
+section 7: they can be removed with the logits 100 % equal). The fix calibrates the thresholds one layer at a time.
+
+**Rule (written before training).** Same shape, same FP32 model (sha256 86a2c405...), same recipe (15 epochs, seeds
+42-44, both labels only and distillation); only the threshold start changes. Metric: validation accuracy of the last
+epoch (the "Val" column above: labels only 87.88 +- 0.31, distillation 87.28 +- 0.21). The fix **gains** if its mean
+beats the old one by more than the larger sd; otherwise it is a correct fix with no accuracy gain. The test set is not
+scored again here. Also counted: the share of constant (dead) units after training.
+
+**Result** (validation, 3 seeds; constant = second-layer units whose bit never changes on the 54,000 training images;
+results/sizing/init_thresholds.json; every export exact 100 %, C vs integer simulation):
+
+| 784-128-512-10 | Val, labels only | Val, distillation | Constant units, 2nd layer |
+|---|---|---|---|
+| Thresholds in one pass (before) | 87.88 +- 0.31 | 87.28 +- 0.22 | 60-63 % |
+| **One layer at a time** | 87.91 +- 0.38 | **87.77 +- 0.25** | **7.7-9.2 %** |
+
+- **The fix works:** dead units fall from ~61 % to ~8 %.
+- **Labels only: no gain** (+0.03, within the spread). The live ~200 units were already enough for this task.
+- **Distillation: +0.49, larger than the sd** -> passes the rule. It now ties the labels-only recipe instead of
+  losing 0.6 points to it.
+- The first layer keeps its 4-8 % constant units: it reads pixels, so the bug never touched it.
+- Test not scored again (the table above keeps the test numbers of the old start).
+
+
+### 3c. The low-bit study with the fixed start (Nov 25, 2026)
+
+**Question.** Section 1's SYMBEX and ternary rows (784-256-128-10 and wider) have two binary layers, so the old start
+left their second layer partly dead too (the CDT runs `init_thresholds` for both methods). Does the fix change them?
+
+**Rule (written before training).** Same FP32 model (sha256 d74f32d3...), same recipe as section 1 (15 epochs, seeds
+42-44, both distillation and labels only), only the threshold start changes. Metric: validation accuracy of the last
+epoch (old runs, distillation / labels only: x1 86.36 +- 0.11 / 87.88 +- 0.38, x1.5 87.23 +- 0.18 / 88.17 +- 0.24, x2
+87.78 +- 0.30 / 88.61 +- 0.30, ternary x1 86.86 +- 1.41 / 88.55 +- 0.19, ternary x1.5 87.20 +- 0.09 / 88.81 +- 0.15).
+A row **gains** if its new mean beats the old one by more than the larger sd. The test set is not scored again (the
+CDT's test numbers of the new runs are not read); section 1's table keeps the old test numbers.
+
+**Result** (validation, 3 seeds; results/lowbit/lowbit_initfix.json; every export exact 100 %, C vs integer simulation):
+
+| Model | Val, distillation: before -> fixed | Val, labels only: before -> fixed |
+|---|---|---|
+| SYMBEX 1 bit x1 | 86.36 +- 0.11 -> **87.46 +- 0.34** (+1.11) | 87.88 +- 0.38 -> 88.08 +- 0.23 (+0.20) |
+| SYMBEX 1 bit x1.5 | 87.23 +- 0.18 -> **87.84 +- 0.21** (+0.61) | 88.17 +- 0.24 -> **88.79 +- 0.24** (+0.63) |
+| SYMBEX 1 bit x2 | 87.78 +- 0.30 -> **88.17 +- 0.23** (+0.39) | 88.61 +- 0.30 -> **89.00 +- 0.19** (+0.39) |
+| ternary x1 | 86.86 +- 1.41 -> 88.13 +- 0.32 (+1.28) | 88.55 +- 0.19 -> 88.58 +- 0.40 (+0.03) |
+| ternary x1.5 | 87.20 +- 0.09 -> **88.44 +- 0.23** (+1.24) | 88.81 +- 0.15 -> 88.88 +- 0.04 (+0.07) |
+
+- **Distillation gains 0.4-1.3 points on every row** (4 / 5 pass the rule; ternary x1 gains +1.28 but its old sd is
+  1.41). The old start hurt distillation most, as in section 3b.
+- **Labels only: the wider binary networks gain** (x1.5 +0.63, x2 +0.39, both > sd); x1 and ternary do not.
+- **Per byte against INT2: INT2 still wins, by less.** The INT rows had no validation number (their per-epoch
+  accuracy was on the test images), so `earlier/fashion_int4.py --val-split` (new) retrained them, same recipe,
+  scored on the same CDT validation split only (results/lowbit/int*_e15[_nodistill]_valsplit.json; the integer model
+  agrees with fake-quant within 0.05 points):
+
+| Model | Weights KB | Val, distillation | Val, labels only |
+|---|---|---|---|
+| SYMBEX 1 bit x2, fixed start | 65.3 | 88.17 +- 0.23 | 89.00 +- 0.19 |
+| ternary x1, fixed start | 57.3 | 88.13 +- 0.32 | 88.58 +- 0.40 |
+| INT2 QAT x1 | 57.3 | 89.17 +- 0.04 | 89.66 +- 0.20 |
+| INT4 QAT x1 | 114.6 | 89.22 +- 0.18 | 90.19 +- 0.18 |
+| INT8 QAT x1 | 229.2 | 89.13 +- 0.06 | 90.28 +- 0.08 |
+
+  INT2 (57.3 KB) stays above SYMBEX x2 (65.3 KB): labels only by 0.66 (was 1.05 with the old start), distillation by
+  1.00 (was 1.39). Section 1's conclusion holds; the fix narrows the gap by ~0.4 points. Section 1's table keeps the
+  old test numbers.
+
+
 ## Earlier results (previous FP32 model and library)
 
 These were measured before the fixed validation split, with the earlier FP32 model (5 epochs, 88.17 % on test,
