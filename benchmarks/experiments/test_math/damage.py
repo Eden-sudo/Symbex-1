@@ -184,12 +184,13 @@ def compare(trace, x, y, lo, hi):
         pm = lambda b: [np.where(u, 1.0, -1.0) for u in b]
         rel = rel_error(pm(b0), pm(b1))
         ch = l1.argmax(1) != p0
-        mm, ms = float(np.median(m0[ch])) if ch.any() else None, float(np.median(m0[~ch]))
+        mm = float(np.median(m0[ch])) if ch.any() else None
+        ms = float(np.median(m0[~ch])) if (~ch).any() else None
         out[name] = dict(
             bits_changed=[100 * float((u != v).mean()) for u, v in zip(b0, b1)], rel_error=rel,
-            moved=100 * float(ch.mean()), moved_right=100 * float(ch[right].mean()),
+            moved=100 * float(ch.mean()), moved_right=100 * float(ch[right].mean()) if right.any() else None,
             moved_wrong=100 * float(ch[~right].mean()) if (~right).any() else None,
-            margin_moved=mm, margin_still=ms, margin_ratio=(mm / ms) if mm is not None and ms > 0 else None)
+            margin_moved=mm, margin_still=ms, margin_ratio=(mm / ms) if mm is not None and ms is not None and ms > 0 else None)
     return out, p0
 
 

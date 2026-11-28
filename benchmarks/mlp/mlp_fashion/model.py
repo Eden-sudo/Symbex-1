@@ -83,7 +83,8 @@ def train_fp32(path, data_dir, epochs=EPOCHS, h1=256, h2=128, net=None):
     """Trains FashionMLP in FP32 on the training images minus the validation split (split_indices) and saves its
     state_dict to `path`. Prints the validation accuracy per epoch; returns (validation, test) accuracy (%) of the
     last epoch, the model it saves (the test set is evaluated once, at the end). `net`: another model to train with
-    the same recipe instead of FashionMLP(h1, h2) (e.g. a deeper MLP of experiments/test_math)."""
+    the same recipe instead of FashionMLP(h1, h2) (e.g. a deeper MLP of experiments/test_math); build it after
+    torch.manual_seed(SEED), or its initial weights are not seeded (the seed below is set after it exists)."""
     import torchvision
     import torchvision.transforms as T
     from torch.utils.data import DataLoader, Subset

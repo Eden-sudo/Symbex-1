@@ -46,7 +46,7 @@ def noisy(x, k, lo, hi, seed=0):
 def moves(p0, p1, y):
     """share of predictions that move, among the right and the wrong ones (right = p0 == y)"""
     ch, right = p1 != p0, p0 == y
-    return dict(moved=100 * float(ch.mean()), moved_right=100 * float(ch[right].mean()),
+    return dict(moved=100 * float(ch.mean()), moved_right=100 * float(ch[right].mean()) if right.any() else None,
                 moved_wrong=100 * float(ch[~right].mean()) if (~right).any() else None, accuracy=100 * float(right.mean()))
 
 
