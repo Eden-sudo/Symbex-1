@@ -8,6 +8,8 @@ layers like the convolutional nets of section 3 (HAR / ECG 3, ResNet-8 7). It is
 --no-distill): its own FP32 model (model.train_fp32, 30 epochs, seed 42, the CDT's validation split held out), then
 the CDT: method plain, every layer 1 bit, 15 epochs, labels only, seeds 42, 43, 44. The CDT prints its own held-out
 test accuracy; this study never uses it.
+The FP32 models of section 8 (models/deep_mlp_3.pth, deep_mlp_7.pth) were trained before the seed was set ahead of
+DeepMLP's random init (fixed Nov 28): their training order was seeded, their initial weights were not.
 
     python deep_mlp.py --depths 3 7 --seeds 42 43 44        # -> runs/deep_mlp/d<n>_s<seed> (gitignored)
     python damage.py mlp --depth 3 --seeds 42 43 44 --out results/damage.json
@@ -18,6 +20,7 @@ import re
 import subprocess
 import sys
 
+import torch
 import torch.nn as nn
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -78,6 +81,7 @@ def fp32(depth):
         cwd = os.getcwd()
         os.chdir(FASHION)                                # model.py's paths are relative to its folder
         try:
+            torch.manual_seed(M.SEED)                    # DeepMLP's random init too, not only train_fp32's batches
             acc_val, _ = M.train_fp32(path, M.DATA_DIR, net=DeepMLP(depth))
         finally:
             os.chdir(cwd)
