@@ -1,0 +1,32 @@
+{
+  "run": "binary_v512d48l9kv3_lr3e-3_20k_s44",
+  "board": "rp2350 Cortex-M33",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": "int8",
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 150,
+  "ready": "TINYLM ready | cpu 150 MHz | ram 513944 bytes free",
+  "loaded": "LOADED 96480 bytes in 12 ms | ram free 151800",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 52.361,
+  "ms_per_token_at_position": {
+    "0": 32.713,
+    "63": 38.461,
+    "127": 43.304,
+    "255": 52.492,
+    "511": 69.797
+  },
+  "ms_per_token_story_mean": 38.697,
+  "tokens_per_second_story": 25.842,
+  "ms_per_token_by_part": {},
+  "story": "Once upon a time, there was a little girl named Amy. She liked to play with her friends. One day, she went to the park with her friends. She was very scared and wanted to play with her friends. She was angry. She wanted to play with her friends. She was very happy and angry. She was very happy and said, \"I will go to the park. What is angry?\""
+}

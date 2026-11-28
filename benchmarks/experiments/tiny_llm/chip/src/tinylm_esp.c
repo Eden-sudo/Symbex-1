@@ -15,7 +15,7 @@ static void *tinylm_malloc_big(size_t n) {
 #define TINYLM_MALLOC_BIG(n) tinylm_malloc_big(n)
 /* cycles per part of a token (main.cpp prints them): see TINYLM_PROF in tinylm.c */
 #include "xtensa/hal.h"
-uint64_t tinylm_prof[19];   /* 12..18: TINYLM_FINE_PROF only */
+uint64_t tinylm_prof[25];   /* 12..24: TINYLM_FINE_PROF only */
 uint32_t tinylm_prof_last;
 #define TINYLM_PROF(k) do { uint32_t c_ = xthal_get_ccount(); tinylm_prof[k] += c_ - tinylm_prof_last; \
                             tinylm_prof_last = c_; } while (0)

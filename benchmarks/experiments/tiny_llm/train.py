@@ -37,6 +37,16 @@ head multiplies the scores; BinaryAttention, CVPR 2026: binary similarities flat
 last N keys / values of each query stay unquantized, as intsim.py --kv-recent), --q-bits 1 (the query also
 sign x mean|q|), --k-unit (1-bit keys without the per-token mean|k|: the score is then an integer Hamming count
 times one factor per query, see the README's bucket form). These run attention by hand (no fused kernel).
+--k-center (with --k-bits < 8, README "Step 7"): the low-bit key cache stores key - mean, the mean rotated to the
+key's position (RoPE) and added back when read; the mean is a fixed channel average per key head (pre-RoPE), an
+exponential average of the training batches (momentum 0.99), not learned; it also runs with --attn-temp /
+--kv-recent (README "Step 9"). --int8-linears k (or v, ...): those linear
+kinds get int8 weights in every block (the same-bytes control of README "Step 7"). Neither is in intsim.py / the C.
+Softmax changes against the key's mean (README "Step 8", not in intsim.py / the C): --attn-sink (one learned logit
+per head joins every softmax with a zero value: a query can attend to "nothing" without a key built for it; starts
+at 0 = softmax + 1 in the denominator, Miller 2023 / gpt-oss sinks), --attn-gate (attention output x sigmoid of a
+dim -> heads linear of the block input, one gate per head and token, Qiu et al. 2025 "Gated Attention": removes
+attention sinks; the gate linear has the blocks' weight format).
 
 --weights binary_rc: 1-bit weights with a row x column scale (sign(w) x a_row x b_col, b = mean |w| of the column,
 a = the least-squares row scale; the rank-1 of |w|), times a learned gain per column (OneBit's h, init 1, no weight
@@ -182,45 +192,92 @@ def rope(x, cos, sin):
 
 class Block(nn.Module):
     def __init__(self, dim, heads, hidden, kind, acts=8, act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu",
-                 rotate=(), kv=(8, 8, 1.0), attn=None):
+                 rotate=(), kv=(8, 8, 1.0), attn=None, kv_heads=None, int8_linears=()):
         super().__init__()
         self.heads = heads
+        self.kv_heads = kv_heads or heads      # grouped-query attention: kv_heads keys / values, shared by groups
+        assert heads % self.kv_heads == 0, "--heads must be a multiple of --kv-heads"
         self.kv = kv
         self.attn = attn or {}
         self.tau = nn.Parameter(torch.zeros(heads)) if self.attn.get("temp") else None   # log temperature
+        kc = self.attn.get("k_center")       # fixed key mean per key head (pre-RoPE), exponential average in training
+        assert not kc or self.attn.get("q_bits", 8) == 8, "--k-center does not combine with --q-bits 1"
+        self.register_buffer("kmu", torch.zeros(self.kv_heads, 1, dim // heads) if kc else None)
         self.gate = F.relu if ffn_act == "relu" else F.silu
         self.n1, self.n2 = nn.RMSNorm(dim, eps=1e-5), nn.RMSNorm(dim, eps=1e-5)
 
         def lin(name, n_in, n_out):
-            return QLinear(n_in, n_out, kind, 8 if name in a8_inputs else acts, act_opts, name in rotate)
-        self.q, self.k, self.v, self.o = (lin(n, dim, dim) for n in ("q", "k", "v", "o"))
+            return QLinear(n_in, n_out, "int8" if name in int8_linears else kind, 8 if name in a8_inputs else acts,
+                           act_opts, name in rotate)
+        kv_dim = dim // heads * self.kv_heads
+        self.q, self.k, self.v, self.o = (lin(n, dim, o) for n, o in (("q", dim), ("k", kv_dim), ("v", kv_dim),
+                                                                       ("o", dim)))   # this order: same init as before
         self.w1, self.w3 = lin("w1", dim, hidden), lin("w3", dim, hidden)
         self.w2 = lin("w2", hidden, dim)
         if w2_acts is not None and acts != 8 and "w2" not in a8_inputs:
             self.w2.acts = w2_acts
+        # created last: the other layers keep the same initialization as runs without them
+        self.sink = nn.Parameter(torch.zeros(heads)) if self.attn.get("sink") else None
+        self.g = lin("g", dim, heads) if self.attn.get("gate") else None
+        assert not (self.sink is not None or self.g is not None) or not (
+            self.attn.get("temp") or self.attn.get("recent") or self.attn.get("q_bits", 8) == 1
+            or self.attn.get("k_unit")), "--attn-sink / --attn-gate run on the fused attention path only"
 
     def forward(self, x, cos, sin):
         b, t, d = x.shape
         h = self.n1(x)
-        q, k, v = (m(h).view(b, t, self.heads, -1).transpose(1, 2) for m in (self.q, self.k, self.v))
+        q = self.q(h).view(b, t, self.heads, -1).transpose(1, 2)
+        k, v = (m(h).view(b, t, self.kv_heads, -1).transpose(1, 2) for m in (self.k, self.v))
+        mu = None
+        if self.kmu is not None:
+            if self.training:
+                with torch.no_grad():
+                    self.kmu.lerp_(k.detach().float().mean((0, 2))[:, None], 0.01)
+            mu = self.kmu.to(k.dtype).repeat_interleave(self.heads // self.kv_heads, dim=0).expand(
+                self.heads, t, -1)
+        if self.kv_heads != self.heads:        # each key / value head serves heads / kv_heads query heads in a row
+            k, v = (z.repeat_interleave(self.heads // self.kv_heads, dim=1) for z in (k, v))
         kb, vb, ks = self.kv
         if self.attn.get("temp") or self.attn.get("recent") or self.attn.get("q_bits", 8) == 1 \
                 or self.attn.get("k_unit"):
             a = torch.utils.checkpoint.checkpoint(      # recomputed in backward: the score matrices do not fit
-                self.attend_bits, rope(q, cos, sin), rope(k, cos, sin), v, kb, vb, ks, use_reentrant=False)
+                self.attend_bits, rope(q, cos, sin), rope(k, cos, sin), v, kb, vb, ks,
+                None if mu is None else rope(mu, cos, sin), use_reentrant=False)
+        elif mu is not None:
+            m = rope(mu, cos, sin)
+            a = self.sdpa(rope(q, cos, sin), quant_kv(rope(k, cos, sin) - m, kb, ks) + m, quant_kv(v, vb), h)
         else:
-            a = F.scaled_dot_product_attention(rope(q, cos, sin), quant_kv(rope(k, cos, sin), kb, ks),
-                                               quant_kv(v, vb), is_causal=True)
+            a = self.sdpa(rope(q, cos, sin), quant_kv(rope(k, cos, sin), kb, ks), quant_kv(v, vb), h)
         x = x + self.o(a.transpose(1, 2).reshape(b, t, d))
         h = self.n2(x)
         return x + self.w2(self.gate(self.w1(h)) * self.w3(h))
 
-    def attend_bits(self, q, k, v, kb, vb, ks):
+    def sdpa(self, q, k, v, h):
+        """Causal fused attention, q, k after rope (b, heads, t, hd), with --attn-sink / --attn-gate; h = block input"""
+        if self.sink is None:
+            a = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        else:                                  # a zero key and value in front; its logit is sink * sqrt(hd) (the mask
+                                               # is added after SDPA's 1 / sqrt(hd)): 0 at the start = softmax + 1
+            b, n, t, hd = q.shape
+            z = q.new_zeros(b, n, 1, hd)
+            i = torch.arange(t, device=q.device)
+            causal = torch.zeros(t, t, device=q.device).masked_fill(i[None] > i[:, None], float("-inf"))
+            mask = torch.cat([(self.sink * math.sqrt(hd)).view(n, 1, 1).expand(n, t, 1), causal.expand(n, t, t)], -1)
+            a = F.scaled_dot_product_attention(q, torch.cat([z, k], 2), torch.cat([z, v], 2),
+                                               attn_mask=mask[None].to(q.dtype))
+        if self.g is not None:
+            a = a * torch.sigmoid(self.g(h)).transpose(1, 2)[..., None].to(a.dtype)
+        return a
+
+    def attend_bits(self, q, k, v, kb, vb, ks, m=None):
         """Attention by hand for the bit-attention options (see the docstring); q, k after rope, (b, heads, t, hd)."""
         t, hd = q.shape[-2], q.shape[-1]
         qq = quant_kv(q, 1) if self.attn.get("q_bits", 8) == 1 else q
-        if self.attn.get("k_unit") and kb == 1:
-            kq = ste(k, torch.where(k >= 0, 1.0, -1.0) * ks)
+        if self.attn.get("k_unit") and kb == 1:     # with --k-center: sign(key - RoPE(mean)), the mean added back
+            z = k if m is None else k - m
+            kq = ste(k, torch.where(z >= 0, 1.0, -1.0) * ks + (0.0 if m is None else m))
+        elif m is not None:                          # --k-center: key - RoPE(mean) stored, the mean added back
+            kq = quant_kv(k - m, kb, ks) + m
         else:
             kq = quant_kv(k, kb, ks)
         vq = quant_kv(v, vb)
@@ -242,7 +299,7 @@ class Block(nn.Module):
 class TinyLM(nn.Module):
     def __init__(self, vocab, dim, layers, heads, hidden, seq, kind, head="fp32", int8_blocks=(), acts=8,
                  act_opts=None, a8_inputs=(), w2_acts=None, ffn_act="silu", rotate=(), a8_blocks=(),
-                 kv=(8, 8, 1.0), repeat=1, attn=None):
+                 kv=(8, 8, 1.0), repeat=1, attn=None, kv_heads=None, int8_linears=()):
         super().__init__()
         assert layers % repeat == 0, "--layers must be a multiple of --repeat"
         self.head_kind = head
@@ -250,7 +307,7 @@ class TinyLM(nn.Module):
         self.emb = nn.Embedding(vocab, dim)
         self.blocks = nn.ModuleList(Block(dim, heads, hidden, "int8" if i in int8_blocks else kind, acts, act_opts,
                                           a8_inputs if not a8_blocks or i in a8_blocks else (), w2_acts, ffn_act,
-                                          rotate, kv, attn) for i in range(layers // repeat))
+                                          rotate, kv, attn, kv_heads, int8_linears) for i in range(layers // repeat))
         self.norm = nn.RMSNorm(dim, eps=1e-5)
         hd = dim // heads
         freq = 1.0 / (10000 ** (torch.arange(0, hd, 2).float() / hd))
@@ -278,8 +335,9 @@ class TinyLM(nn.Module):
 
 # ---- data, evaluation, sampling ------------------------------------------------------------------------------------
 
-def load_split(name, device):
-    arr = np.fromfile(os.path.join(DATA, f"{name}.bin"), dtype=np.uint16)
+def load_split(name, device, vocab=4096):
+    """a split as int16 tokens on the device; vocab 512: prepare.py --vocab 512's {name}_v512.bin"""
+    arr = np.fromfile(os.path.join(DATA, f"{name}{'' if vocab == 4096 else f'_v{vocab}'}.bin"), dtype=np.uint16)
     return torch.from_numpy(arr.astype(np.int16)).to(device)
 
 
@@ -328,20 +386,27 @@ def sample(model, sp, prompt, seq, n_tokens, device):
 W2_ACTS = {"same": None, "1": 1, "t": "t", "2": 2}
 
 
+def build_model(args, vocab):
+    """the TinyLM of these arguments (a run's train.json "args" too, through run_args)"""
+    return TinyLM(vocab, args.dim, args.layers, args.heads, args.hidden, args.seq,
+                  args.weights, args.head, tuple(args.int8_blocks), args.acts,
+                  {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
+                  tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
+                  tuple(args.a8_blocks), (args.k_bits, args.v_bits, args.k_scale), args.repeat,
+                  {"temp": args.attn_temp, "recent": args.kv_recent, "q_bits": args.q_bits,
+                   "k_unit": args.k_unit, "k_center": args.k_center, "sink": args.attn_sink,
+                   "gate": args.attn_gate}, args.kv_heads,
+                  tuple(args.int8_linears))
+
+
 def run(args, seed):
     import sentencepiece as spm
     device = "cuda"
     torch.manual_seed(seed)
     gen = torch.Generator(device=device).manual_seed(seed)
-    train, val = load_split("train", device), load_split("val", device)
-    sp = spm.SentencePieceProcessor(model_file=os.path.join(DATA, "tok4096.model"))
-    model = TinyLM(sp.get_piece_size(), args.dim, args.layers, args.heads, args.hidden, args.seq,
-                   args.weights, args.head, tuple(args.int8_blocks), args.acts,
-                   {"ste_mode": args.ste, "ste_k": args.ste_k, "learn_thr": args.learn_thr},
-                   tuple(args.a8_inputs), W2_ACTS[args.w2_acts], args.ffn_act, tuple(args.hadamard),
-                   tuple(args.a8_blocks), (args.k_bits, args.v_bits, args.k_scale), args.repeat,
-                   {"temp": args.attn_temp, "recent": args.kv_recent, "q_bits": args.q_bits,
-                    "k_unit": args.k_unit}).to(device)
+    train, val = load_split("train", device, args.vocab), load_split("val", device, args.vocab)
+    sp = spm.SentencePieceProcessor(model_file=os.path.join(DATA, f"tok{args.vocab}.model"))
+    model = build_model(args, sp.get_piece_size()).to(device)
     if args.init_from:
         init = args.init_from.format(seed=seed)
         miss, extra = model.load_state_dict(torch.load(init, map_location=device)["model"], strict=False)
@@ -422,7 +487,7 @@ def run(args, seed):
            "minutes": round((time.time() - t0) / 60, 2), "history": hist,
            "sample": sample(model, sp, "Once upon a time", args.seq, 200, device)}
     if args.test:
-        tl = evaluate(model, load_split("test", device), args.seq, 10 ** 9, args.batch)
+        tl = evaluate(model, load_split("test", device, args.vocab), args.seq, 10 ** 9, args.batch)
         res.update(test_loss=round(tl, 4), test_perplexity=round(math.exp(tl), 3))
     with open(os.path.join(out, "train.json"), "w") as f:
         json.dump(res, f, indent=2)
@@ -430,7 +495,7 @@ def run(args, seed):
     print(f"  sample: {res['sample'][:300]}")
 
 
-def main():
+def parser():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--weights", choices=["fp32", "ternary", "binary", "binary_rc"], required=True)
     ap.add_argument("--seeds", type=int, nargs="+", default=[42])
@@ -458,6 +523,11 @@ def main():
     ap.add_argument("--kv-recent", type=int, default=0, help="last N keys / values unquantized (see above)")
     ap.add_argument("--q-bits", type=int, choices=[8, 1], default=8, help="1: the query also 1 bit (see above)")
     ap.add_argument("--k-unit", action="store_true", help="1-bit keys without mean|k| (see above)")
+    ap.add_argument("--k-center", action="store_true", help="low-bit key cache minus a fixed key mean (see above)")
+    ap.add_argument("--attn-sink", action="store_true", help="learned sink logit per head in the softmax (see above)")
+    ap.add_argument("--attn-gate", action="store_true", help="sigmoid gate per head on the attention output (see above)")
+    ap.add_argument("--int8-linears", nargs="*", default=[], choices=["q", "k", "v", "o", "w1", "w3", "w2"],
+                    help="these linear kinds int8 in every block (see above)")
     ap.add_argument("--clip-groups", action="store_true",
                     help="clip the gradient norm per block (and the rest apart) instead of the whole model")
     ap.add_argument("--init-from", default="", help="start from this checkpoint ({seed} is replaced): two-step")
@@ -469,6 +539,10 @@ def main():
     ap.add_argument("--layers", type=int, default=8, help="depth run (with --repeat: distinct blocks x repeat)")
     ap.add_argument("--repeat", type=int, default=1, help="each distinct block runs this many times in a row (see above)")
     ap.add_argument("--heads", type=int, default=6)
+    ap.add_argument("--kv-heads", type=int, default=None,
+                    help="key / value heads (grouped-query attention; default: --heads): the KV cache / heads x this")
+    ap.add_argument("--vocab", type=int, choices=[4096, 512], default=4096,
+                    help="512: the 260K shape's tokenizer (prepare.py --vocab 512: tok512.model, *_v512.bin)")
     ap.add_argument("--hidden", type=int, default=1024)
     ap.add_argument("--seq", type=int, default=256)
     ap.add_argument("--batch", type=int, default=128)
@@ -480,7 +554,16 @@ def main():
     ap.add_argument("--eval-batches", type=int, default=40, help="validation windows = this x --batch")
     ap.add_argument("--no-compile", dest="compile", action="store_false")
     ap.add_argument("--test", action="store_true", help="also score the test split (once, final numbers only)")
-    args = ap.parse_args()
+    return ap
+
+
+def run_args(d):
+    """a run's train.json "args" as an argparse.Namespace, flags added after that run filled with their defaults"""
+    return argparse.Namespace(**{**{a.dest: a.default for a in parser()._actions if a.dest != "help"}, **d})
+
+
+def main():
+    args = parser().parse_args()
     for seed in args.seeds:
         run(args, seed)
 

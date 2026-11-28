@@ -1,0 +1,20 @@
+{
+  "run": "fp32_v512d64l5kv4_lr3e-3_20k_s44",
+  "board": "rp2350 Hazard3",
+  "kernel": "llama2.c run.c fp32 (commit 350e04f, unchanged, plain C, -O2)",
+  "model_in": "flash",
+  "model_bytes": 1056540,
+  "kv_cache": "fp32",
+  "kv_cache_in": "internal ram",
+  "context": 127,
+  "cpu_mhz": 150,
+  "ready": "L2C ready | cpu 150 MHz | ram 500920 bytes free",
+  "loaded": "LOADED 1056540 bytes, context 127, in 0 ms | ram free 329768",
+  "pc_vs_torch_equal": 120,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "first_diverging_story_token": null,
+  "ms_per_token_story_mean": 415.959,
+  "tokens_per_second_story": 2.404,
+  "story": "Once upon a time, there was a little girl named Lily. She had a big, red ball that she loved very much. One day, she went to the park with her mom. She saw a big box with a big, red ball. Lily wanted to play with the ball, but she was too small.\nLily's mom said, \"Mom, can I play with you?\" Lily was surprised, but she said, \"No"
+}

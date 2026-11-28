@@ -184,6 +184,25 @@ python psram_bw_bench.py --port /dev/ttyACM0                 # PSRAM at 80 MHz (
 python psram_bw_bench.py --port /dev/ttyACM0 --speed 120     # experimental 120 MHz, flash at 120 too
 ```
 
+## Two cores on the PSRAM: tiny_llm's linear layers (`psram_dualcore_bench.py`, Nov 26)
+
+The rows of each linear layer split in two halves, core 0 and a task pinned to core 1 (core 1 parked, spinning or
+woken per job), every variant exact against the 1-core plain kernel (`results/psram_dualcore_bench_s3.json`, best of 7):
+
+| Shape | 1 core, autoload 3 | 2 cores, autoload (best) | internal RAM, 1 / 2 cores |
+|---|---|---|---|
+| 384 -> 384 | 55.8 MB/s | 62.2 MB/s (1.11x) | 68.9 / 92.6 MB/s (1.34x) |
+| 384 -> 1024 | 55.9 | 62.1 (1.11x) | 69.0 / 92.8 (1.34x) |
+| 1024 -> 384 | 56.7 | 62.1 (1.10x) | 75.5 / 100.9 (1.34x) |
+
+Both cores share the data cache and the PSRAM bus: ~62 MB/s together. Rule (before measuring): >= 1.25x on all three
+shapes; it fails, so the firmware keeps one core for the linears. The whole token part by part: `../tiny_llm` README,
+"Where a token's time goes".
+
+```
+python psram_dualcore_bench.py --port /dev/ttyACM0
+```
+
 ## Vertical dense layers (`dense_vertical_bench.py`, Nov 13)
 
 **Question.** The vertical engine puts 128 output pixels in the lanes of a PIE register. A dense layer has no pixels:

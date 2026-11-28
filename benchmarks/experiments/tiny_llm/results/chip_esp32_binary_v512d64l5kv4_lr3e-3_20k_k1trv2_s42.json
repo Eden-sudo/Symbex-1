@@ -1,0 +1,37 @@
+{
+  "run": "binary_v512d64l5kv4_lr3e-3_20k_k1trv2_s42",
+  "board": "esp32 (classic, no PSRAM)",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": {
+    "k_bits": 1,
+    "v_bits": 2,
+    "k_scale": 1.0,
+    "recent": 32
+  },
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | ram 350764 bytes free",
+  "loaded": "LOADED 93304 bytes in 16 ms | ram free 183504",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 40.356,
+  "ms_per_token_at_position": {
+    "0": 21.291,
+    "63": 27.73,
+    "127": 31.708,
+    "255": 40.023,
+    "511": 53.781
+  },
+  "ms_per_token_story_mean": 27.809,
+  "tokens_per_second_story": 35.96,
+  "ms_per_token_by_part": {},
+  "story": "Once upon a time, in a small, boy named Tim. He loved to play with his friends. One day, a little boy named Tim went to the park. He saw a big boy. He was very happy. He wanted to play with his toys. He was very happy. He wanted to help his friends. He was very happy. He wanted to play with his toys. He was very happy. He was very happy. He wanted to help his friends"
+}

@@ -1,0 +1,338 @@
+{
+ "what": "260K KV cache methods: validation loss (3 seeds), KV RAM (computed, ctx 512), attention speed (kv260k_bench, full context, ms per token), flash: model data (computed) + attention code (measured, nm -S of kv260k_bench's functions at -O2)",
+ "model_bin_bytes": 93120,
+ "center_format": "not defined yet (no integer model): counted as int32",
+ "rows": [
+  {
+   "method": "int8 (base)",
+   "key": "i8",
+   "value": "i8",
+   "window": 0,
+   "temperature": false,
+   "center": false,
+   "val_loss": 2.0613,
+   "val_sd": 0.0086,
+   "vs_int8_cache": 0.0,
+   "kv_ram_bytes": 245760,
+   "flash_data_bytes": 0,
+   "ops": [
+    "s_i8",
+    "sm_base",
+    "v_i8"
+   ],
+   "ms_per_token": {
+    "esp32": 27.18,
+    "pico2_arm": 23.96,
+    "pico2_riscv": 28.25
+   },
+   "code_bytes": {
+    "esp32": 935,
+    "pico2_arm": 856,
+    "pico2_riscv": 964
+   },
+   "code_vs_base_bytes": {
+    "esp32": 0,
+    "pico2_arm": 0,
+    "pico2_riscv": 0
+   }
+  },
+  {
+   "method": "+ temperature",
+   "key": "i8",
+   "value": "i8",
+   "window": 0,
+   "temperature": true,
+   "center": false,
+   "val_loss": 2.051,
+   "val_sd": 0.008,
+   "vs_int8_cache": -0.0103,
+   "kv_ram_bytes": 245760,
+   "flash_data_bytes": 160,
+   "ops": [
+    "s_i8",
+    "sm_temp",
+    "v_i8"
+   ],
+   "ms_per_token": {
+    "esp32": 29.76,
+    "pico2_arm": 27.56,
+    "pico2_riscv": 36.25
+   },
+   "code_bytes": {
+    "esp32": 1082,
+    "pico2_arm": 980,
+    "pico2_riscv": 1114
+   },
+   "code_vs_base_bytes": {
+    "esp32": 147,
+    "pico2_arm": 124,
+    "pico2_riscv": 150
+   }
+  },
+  {
+   "method": "k1",
+   "key": "1",
+   "value": "i8",
+   "window": 0,
+   "temperature": false,
+   "center": false,
+   "val_loss": 2.8593,
+   "val_sd": 0.0045,
+   "vs_int8_cache": 0.798,
+   "kv_ram_bytes": 174080,
+   "flash_data_bytes": 24,
+   "ops": [
+    "s_k1",
+    "sm_base",
+    "v_i8"
+   ],
+   "ms_per_token": {
+    "esp32": 18.07,
+    "pico2_arm": 17.01,
+    "pico2_riscv": 20.68
+   },
+   "code_bytes": {
+    "esp32": 1045,
+    "pico2_arm": 960,
+    "pico2_riscv": 1048
+   },
+   "code_vs_base_bytes": {
+    "esp32": 110,
+    "pico2_arm": 104,
+    "pico2_riscv": 84
+   }
+  },
+  {
+   "method": "k1c",
+   "key": "1",
+   "value": "i8",
+   "window": 0,
+   "temperature": false,
+   "center": true,
+   "val_loss": 2.1415,
+   "val_sd": 0.0119,
+   "vs_int8_cache": 0.0802,
+   "kv_ram_bytes": 174080,
+   "flash_data_bytes": 664,
+   "ops": [
+    "s_k1c",
+    "sm_base",
+    "v_i8"
+   ],
+   "ms_per_token": {
+    "esp32": 25.8,
+    "pico2_arm": 26.35,
+    "pico2_riscv": 30.58
+   },
+   "code_bytes": {
+    "esp32": 1216,
+    "pico2_arm": 1168,
+    "pico2_riscv": 1304
+   },
+   "code_vs_base_bytes": {
+    "esp32": 281,
+    "pico2_arm": 312,
+    "pico2_riscv": 340
+   }
+  },
+  {
+   "method": "k1tr",
+   "key": "1",
+   "value": "i8",
+   "window": 32,
+   "temperature": true,
+   "center": false,
+   "val_loss": 2.0854,
+   "val_sd": 0.007,
+   "vs_int8_cache": 0.0241,
+   "kv_ram_bytes": 181760,
+   "flash_data_bytes": 184,
+   "ops": [
+    "s_k1_win",
+    "sm_temp",
+    "v_i8"
+   ],
+   "ms_per_token": {
+    "esp32": 21.26,
+    "pico2_arm": 21.09,
+    "pico2_riscv": 29.18
+   },
+   "code_bytes": {
+    "esp32": 1280,
+    "pico2_arm": 1166,
+    "pico2_riscv": 1302
+   },
+   "code_vs_base_bytes": {
+    "esp32": 345,
+    "pico2_arm": 310,
+    "pico2_riscv": 338
+   }
+  },
+  {
+   "method": "k1ctr",
+   "key": "1",
+   "value": "i8",
+   "window": 32,
+   "temperature": true,
+   "center": true,
+   "val_loss": 2.0915,
+   "val_sd": 0.0102,
+   "vs_int8_cache": 0.0302,
+   "kv_ram_bytes": 181760,
+   "flash_data_bytes": 824,
+   "ops": null,
+   "ms_per_token": {},
+   "code_bytes": {},
+   "code_vs_base_bytes": {}
+  },
+  {
+   "method": "k1uctr",
+   "key": "u",
+   "value": "i8",
+   "window": 32,
+   "temperature": true,
+   "center": true,
+   "val_loss": 2.0943,
+   "val_sd": 0.0219,
+   "vs_int8_cache": 0.033,
+   "kv_ram_bytes": 140800,
+   "flash_data_bytes": 824,
+   "ops": [
+    "s_k1uc_win",
+    "sm_temp",
+    "v_i8"
+   ],
+   "ms_per_token": {
+    "esp32": 28.35,
+    "pico2_arm": 29.33,
+    "pico2_riscv": 38.2
+   },
+   "code_bytes": {
+    "esp32": 1446,
+    "pico2_arm": 1364,
+    "pico2_riscv": 1556
+   },
+   "code_vs_base_bytes": {
+    "esp32": 511,
+    "pico2_arm": 508,
+    "pico2_riscv": 592
+   }
+  },
+  {
+   "method": "k1utr (step 9c)",
+   "key": "u",
+   "value": "i8",
+   "window": 32,
+   "temperature": true,
+   "center": false,
+   "val_loss": 2.0822,
+   "val_sd": 0.0203,
+   "vs_int8_cache": 0.0209,
+   "kv_ram_bytes": 140800,
+   "flash_data_bytes": 184,
+   "ops": [
+    "s_k1u_win",
+    "sm_temp",
+    "v_i8"
+   ],
+   "ms_per_token": {
+    "esp32": 21.18,
+    "pico2_arm": 21.09,
+    "pico2_riscv": 29.06
+   },
+   "code_bytes": {
+    "esp32": 1258,
+    "pico2_arm": 1156,
+    "pico2_riscv": 1302
+   },
+   "code_vs_base_bytes": {
+    "esp32": 323,
+    "pico2_arm": 300,
+    "pico2_riscv": 338
+   }
+  },
+  {
+   "method": "k2c (step 7)",
+   "key": "2",
+   "value": "i8",
+   "window": 0,
+   "temperature": false,
+   "center": true,
+   "val_loss": 2.1101,
+   "val_sd": 0.0184,
+   "vs_int8_cache": 0.0488,
+   "kv_ram_bytes": 184320,
+   "flash_data_bytes": 664,
+   "ops": null,
+   "ms_per_token": {},
+   "code_bytes": {},
+   "code_vs_base_bytes": {}
+  },
+  {
+   "method": "k1trv2 (step 9b)",
+   "key": "1",
+   "value": "2",
+   "window": 32,
+   "temperature": true,
+   "center": false,
+   "val_loss": 2.072,
+   "val_sd": 0.004,
+   "vs_int8_cache": 0.0107,
+   "kv_ram_bytes": 128000,
+   "flash_data_bytes": 184,
+   "ops": [
+    "s_k1_win",
+    "sm_temp",
+    "v2_win"
+   ],
+   "ms_per_token": {
+    "esp32": 31.84,
+    "pico2_arm": 33.74,
+    "pico2_riscv": 40.62
+   },
+   "code_bytes": {
+    "esp32": 1409,
+    "pico2_arm": 1298,
+    "pico2_riscv": 1544
+   },
+   "code_vs_base_bytes": {
+    "esp32": 474,
+    "pico2_arm": 442,
+    "pico2_riscv": 580
+   }
+  },
+  {
+   "method": "k1uctrv2 (step 9b)",
+   "key": "u",
+   "value": "2",
+   "window": 32,
+   "temperature": true,
+   "center": true,
+   "val_loss": 2.1091,
+   "val_sd": 0.0133,
+   "vs_int8_cache": 0.0478,
+   "kv_ram_bytes": 87040,
+   "flash_data_bytes": 824,
+   "ops": [
+    "s_k1uc_win",
+    "sm_temp",
+    "v2_win"
+   ],
+   "ms_per_token": {
+    "esp32": 38.93,
+    "pico2_arm": 41.99,
+    "pico2_riscv": 49.64
+   },
+   "code_bytes": {
+    "esp32": 1575,
+    "pico2_arm": 1496,
+    "pico2_riscv": 1798
+   },
+   "code_vs_base_bytes": {
+    "esp32": 640,
+    "pico2_arm": 640,
+    "pico2_riscv": 834
+   }
+  }
+ ]
+}

@@ -16,6 +16,14 @@
 #ifndef TINYLM_MALLOC_BIG
 #define TINYLM_MALLOC_BIG(n) malloc(n)
 #endif
+/* WORDS: int32 buffers of the cache only (its scales), read and written as whole words: the classic ESP32 puts them
+   in its 32-bit-only IRAM heap. TINYLM_KV_SPLIT: the int8 cache allocated per layer (blocks of seq x kv_heads x head
+   size bytes) instead of one block per array, for heaps split in regions (classic ESP32: 279 KB of byte memory, the
+   largest block 115 KB). Same integers either way. */
+#ifndef TINYLM_MALLOC_WORDS
+#define TINYLM_MALLOC_WORDS(n) TINYLM_MALLOC_BIG(n)
+#endif
+#define TINYLM_KV_SPLIT_MAX 32
 #define TINYLM_EXP_N 2048
 #define TINYLM_SIG_N 1024
 
@@ -34,6 +42,9 @@ typedef struct {
 
 typedef struct {
     int vocab, dim, hidden, layers, heads, seq;
+    int kv_heads;            /* cached key / value heads (grouped-query attention: each serves heads / kv_heads query
+                                heads in a row; model.bin's heads field = kv_heads << 16 | heads), else heads */
+    int att_d;               /* score divisor of the head width (intsim.att_div): exp index = dist qm / (att_d << 20) */
     const int8_t *emb_q;     /* vocab x dim */
     const int32_t *emb_m;    /* vocab */
     const uint8_t *emb_p;    /* model.bin version 3: the int4 table packed (vocab x dim / 2, see intsim.pack_nibbles);
@@ -55,9 +66,13 @@ typedef struct {
 } TinyModel;
 
 typedef struct {
-    int8_t *kq, *vq;         /* layers x heads x seq x head size (vq with TINYLM_DOT_ROWS_U8: ... x head size x seq,
-                                value + 128) */
-    int32_t *km, *vm;        /* layers x heads x seq (NULL, as kq / vq, with the low-bit cache) */
+    int8_t *kq, *vq;         /* layers x kv_heads x seq x head size (vq with TINYLM_DOT_ROWS_U8: ... x head size x
+                                seq, value + 128) */
+    int32_t *km, *vm;        /* layers x kv_heads x seq (NULL, as kq / vq, with the low-bit cache) */
+#ifdef TINYLM_KV_SPLIT
+    int8_t *kql[TINYLM_KV_SPLIT_MAX], *vql[TINYLM_KV_SPLIT_MAX];   /* the same per layer (kq, vq, km, vm NULL) */
+    int32_t *kml[TINYLM_KV_SPLIT_MAX], *vml[TINYLM_KV_SPLIT_MAX];
+#endif
     /* the low-bit cache (kv_recent > 0), per layer and head: key signs seq x head size / 8 bytes (bit k of byte g =
        key 8g + k >= 0), values transposed head size x seq / 4 bytes (position j of row i in bits 2 (j % 4) of byte
        j / 4: c + 2), their scales seq; the int8 window kv_recent x head size (+ scales), position j in slot
@@ -67,11 +82,11 @@ typedef struct {
     int8_t *k8, *v8;
     uint8_t *vdec;           /* head size x seq + 16 (or seq x head size): one head's values as int8 for the kernels */
     int32_t *vmj;            /* seq: their scales */
-    int32_t *x, *t1, *t2, *t3; /* dim, dim, hidden, hidden scratch */
-    int32_t *q, *k, *v, *a;  /* dim */
+    int32_t *x, *t1, *t2, *t3; /* dim, then max(dim, hidden, 2 seq) scratch each (the attention uses them too) */
+    int32_t *q, *k, *v, *a;  /* dim (k, v: kv_heads x head size used) */
     int8_t *iq;              /* max(dim, hidden) */
     uint16_t *p;             /* seq */
-    int16_t *lut;            /* max(dim, hidden) / 8 x 256: sums of every subset of 8 inputs (lut8 kernel) */
+    int16_t *lut;            /* ceil(max(dim, hidden) / 8) x 256: sums of every subset of 8 inputs (lut8 kernel) */
     int64_t *r;              /* max(dim, hidden): the input rotated by the Hadamard block */
     uint32_t *xb;            /* max(dim, hidden) / 32: the 1-bit input, bit i of word j = input 32*j + i, 1 = +1 */
     int pos;

@@ -1,0 +1,37 @@
+{
+  "run": "binary_v512d64l5kv4_lr3e-3_20k_k1trv2_s43",
+  "board": "rp2350 Cortex-M33",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": {
+    "k_bits": 1,
+    "v_bits": 2,
+    "k_scale": 1.0,
+    "recent": 32
+  },
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 150,
+  "ready": "TINYLM ready | cpu 150 MHz | ram 513944 bytes free",
+  "loaded": "LOADED 93304 bytes in 12 ms | ram free 346888",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 51.162,
+  "ms_per_token_at_position": {
+    "0": 28.631,
+    "63": 35.888,
+    "127": 40.357,
+    "255": 50.919,
+    "511": 64.754
+  },
+  "ms_per_token_story_mean": 36.162,
+  "tokens_per_second_story": 27.653,
+  "ms_per_token_by_part": {},
+  "story": "Once upon a time, there was a little girl named Spot. Spot was very scared. He liked to play with his friends. One day, Sue saw a big, but then, something unexpected happened. The ball was very happy. The ball was very happy. The ball was very happy. The ball was very happy. The bird was very happy. The bird was very happy. The bird was very happy. The"
+}

@@ -1,16 +1,21 @@
 """
-chip_run.py -- tiny_llm on the ESP32-S3 (N16R8, native USB port): exactness against intsim.py and tokens per second.
+chip_run.py -- tiny_llm on a chip: exactness against intsim.py and tokens per second. Default the ESP32-S3 (N16R8,
+native USB port, model and KV cache in PSRAM, chip/); --board esp32|pico2_arm|pico2_riscv: chips without PSRAM
+(chip_mcu/: model.bin a const array in flash, the KV cache in internal RAM; small models such as the 260K one).
 
     python chip_run.py runs/binary_d384l8_s42 --port /dev/ttyACM0
     python chip_run.py runs/binary_d384l8_s42 --port /dev/ttyACM0 --no-upload     # firmware and model already there
     python chip_run.py runs/binary_d384l8_head4_s42 --linear symbex --repeat-probe copy   # timing of a --repeat 2 model
+    python chip_run.py runs/binary_v512d64l5kv4_s42 --board esp32 --port /dev/ttyUSB0       # classic ESP32
+    python chip_run.py runs/binary_v512d64l5kv4_s42 --board pico2_arm --port /dev/ttyACM1   # Pico 2, Cortex-M33
 
 Needs runs/<run>/model.bin (python intsim.py <run> --export). Steps: writes chip/src/check_data.h (the validation
 windows, a hash of every output of intsim.py, the greedy story), builds and uploads chip/ with PlatformIO, writes
 model.bin to the "model" partition (0x310000) with esptool, then reads the board:
     every token of the windows: the hash of its 4096 outputs + final max equal to intsim.py's (must be 100 %)
     the greedy story: every token equal to intsim.py's, time per token (attention grows with the position)
-Writes results/chip_s3_<run>.json and prints the story the chip wrote.
+Writes results/chip_s3_<run>.json (chip_<board>_<run>.json) and prints the story the chip wrote. On the boards
+without PSRAM model.bin goes into the firmware (chip_mcu/src/model_data.h) instead of a partition.
 --repeat-probe psram|copy: layers 2i and 2i + 1 run on block 2i's weights (the schedule of a train.py --repeat 2
 model; psram = read again from PSRAM, copy = copied to internal RAM before layer 2i, see chip/src/tinylm_esp.c).
 Timing only: the outputs then differ from intsim.py, so the exactness check is skipped and the JSON says so
@@ -31,14 +36,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "tools"))
 import intsim as I  # noqa: E402
 import train as T  # noqa: E402
-from compiler_core.chip.core import open_port, read_line  # noqa: E402
+from compiler_core.chip.core import BOARD_MHZ, open_port, read_line  # noqa: E402
 
 MODEL_OFFSET = 0x310000
 PROMPT = "Once upon a time"
+BOARDS = ("s3", "esp32", "pico2_arm", "pico2_riscv")
+BOARD_NAMES = {"s3": "esp32s3 N16R8", "esp32": "esp32 (classic, no PSRAM)", "pico2_arm": "rp2350 Cortex-M33",
+               "pico2_riscv": "rp2350 Hazard3"}
+RESET = {"s3": "usb", "esp32": "rts", "pico2_arm": "pico", "pico2_riscv": "pico"}   # compiler_core.chip.open_port
 PARTS = ("embedding_norms", "qkv", "attention_values", "o", "w1_w3", "swiglu", "w2", "output_head",
          "attention_rope_cache", "attention_scores", "attention_softmax", "attention_division",  # TINYLM_PROF in tinylm.c
          "values_pack", "values_decode_2bit", "values_copy_window", "values_weight_bytes",       # --fine-prof only
-         "scores_window_int8", "scores_subset_table", "values_wide_plain_c")
+         "scores_window_int8", "scores_subset_table", "values_wide_plain_c",
+         "linear_prepare", "linear_sum_scales", "in_quant", "linear_kernel", "rope", "kv_cache_write")
 
 
 def out_hash(z, hm):
@@ -57,11 +67,33 @@ def model_sum(data):
     return s
 
 
+def write_model_data(run, path, name="model.bin"):
+    """model.bin (or runs/<run>/<name>) as a 16-byte aligned const array (the boards without PSRAM read it in place
+    from flash)"""
+    with open(os.path.join(run, name), "rb") as f:
+        mb = f.read()
+    lines = ["/* written by chip_run.py: do not edit */", "#pragma once", "#include <stdint.h>",
+             f"static const uint8_t model_bin[{len(mb)}] __attribute__((aligned(16))) = {{"]
+    lines += ["  " + ",".join(str(b) for b in mb[i:i + 32]) + "," for i in range(0, len(mb), 32)]
+    lines += ["};", ""]
+    with open(path, "w") as f:
+        f.write("\n".join(lines))
+
+
+def pio_platform(proj, env):
+    """the platform (name@version) platformio.ini pins for this env: the toolchain is part of a timing result"""
+    import configparser
+    c = configparser.ConfigParser(inline_comment_prefixes=(";",))
+    c.read(os.path.join(proj, "platformio.ini"))
+    return c.get(f"env:{env}", "platform", fallback=c.get("env", "platform", fallback=None))
+
+
 def write_check_data(run, windows, path, p_cut=None):
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
-    dev = "cuda"
-    sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, "tok4096.model"))
+    dev = "cuda" if torch.cuda.is_available() else "cpu"    # the integer reference is exact on either
+    vocab = torch.load(os.path.join(run, "model.pt"), map_location="cpu")["args"].get("vocab", 4096)
+    sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, f"tok{vocab}.model"))
     model, a = I.load_model(run, sp.get_piece_size(), dev)
     P = I.to_device(I.integerize(model, a["weights"]), dev)
     kv = I.read_kv_trailer(os.path.join(run, "model.bin"), a["layers"], a["heads"])
@@ -70,7 +102,7 @@ def write_check_data(run, windows, path, p_cut=None):
         P["kv"] = {k: kv[k] for k in ("k_bits", "v_bits", "k_scale", "recent")}
     if p_cut is not None:   # the attention cut: the firmware is built with -DTINYLM_P_CUT (the ID proves the pair)
         P["kv"] = dict(P.get("kv") or {}, p_cut=p_cut)
-    val = T.load_split("val", dev)
+    val = T.load_split("val", dev, vocab)
     w = val[torch.arange(windows, device=dev)[:, None] * a["seq"] + torch.arange(a["seq"], device=dev)].long()
     z, hm = I.forward(P, w)
     h = out_hash(z.cpu().numpy(), hm.cpu().numpy())
@@ -99,8 +131,10 @@ def write_check_data(run, windows, path, p_cut=None):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("run")
+    ap.add_argument("--board", choices=sorted(BOARDS), default="s3",
+                    help="s3 (PSRAM, chip/) or a chip without PSRAM (chip_mcu/: model in flash, KV cache in RAM)")
     ap.add_argument("--port", default="/dev/ttyACM0")
-    ap.add_argument("--windows", type=int, default=2, help="validation windows of 256 tokens checked on the chip")
+    ap.add_argument("--windows", type=int, default=2, help="validation windows of seq tokens checked on the chip")
     ap.add_argument("--no-upload", dest="upload", action="store_false")
     ap.add_argument("--linear", choices=("lut8", "symbex"), default="lut8",
                     help="1-bit linear layers: lut8 (tinylm.c's table) or symbex (lib_symbex's 8-bit x 1-bit kernel)")
@@ -117,10 +151,15 @@ def main():
     args = ap.parse_args()
     if args.autoload_kv and args.autoload is None:
         ap.error("--autoload-kv needs --autoload")
+    s3 = args.board == "s3"
+    if not s3 and (args.linear != "lut8" or args.autoload is not None or args.repeat_probe or args.fine_prof):
+        ap.error("--board " + args.board + ": lut8 linear only, no --autoload / --repeat-probe / --fine-prof (S3 options)")
     run = os.path.normpath(args.run)
-    proj = os.path.join(HERE, "chip")
+    proj = os.path.join(HERE, "chip" if s3 else "chip_mcu")
     ids, n_prompt, sp, check_id, seq, kv = write_check_data(run, args.windows, os.path.join(proj, "src", "check_data.h"),
                                                           args.p_cut)
+    if not s3:
+        write_model_data(run, os.path.join(proj, "src", "model_data.h"))
     if args.upload:
         print("building and uploading the firmware...")
         flags = ["-DTINYLM_SYMBEX_LINEAR"] if args.linear == "symbex" else []
@@ -135,8 +174,9 @@ def main():
         if args.p_cut is not None:
             flags.append(f"-DTINYLM_P_CUT={min(2048, round(args.p_cut * 128))}")
         env = dict(os.environ, PLATFORMIO_BUILD_FLAGS=" ".join(flags))
-        subprocess.run(["pio", "run", "-d", proj, "-t", "upload", "--upload-port", args.port], check=True,
-                       capture_output=True, env=env)
+        subprocess.run(["pio", "run", "-d", proj, "-e", args.board, "-t", "upload", "--upload-port", args.port],
+                       check=True, capture_output=True, env=env)
+    if args.upload and s3:
         print("writing model.bin to the model partition...")
         subprocess.run(["pio", "pkg", "exec", "-p", "tool-esptoolpy", "--", "esptool.py", "--port", args.port,
                         "write_flash", hex(MODEL_OFFSET), os.path.abspath(os.path.join(run, "model.bin"))],
@@ -144,10 +184,14 @@ def main():
         time.sleep(2)
 
     hashes, gen, info, prof = [], [], {}, {}
-    with open_port(args.port, 115200, "usb") as s:
-        t0 = time.time()
+    with open_port(args.port, 115200, RESET[args.board]) as s:
+        t0 = last = time.time()
         while True:
             line = read_line(s)
+            if line:
+                last = time.time()
+            elif time.time() - last > 300:
+                raise RuntimeError("chip: no line from the board for 5 minutes (serial link or firmware stuck)")
             if not line:
                 s.write(b"\x55")
             elif line.startswith("ERROR"):
@@ -157,6 +201,10 @@ def main():
                     raise RuntimeError("the board was built for another run or reference set (run without "
                                        "--no-upload)")
                 info["id"] = True
+            elif line.startswith("BOARD:"):
+                if line[6:] != args.board:
+                    raise RuntimeError(f"the board runs the {line[6:]} firmware, not {args.board}")
+                info["board"] = True
             elif line.startswith("LINEAR:"):
                 if line[7:] != args.linear:
                     raise RuntimeError(f"the board runs the {line[7:]} linear kernel, not {args.linear}")
@@ -172,6 +220,9 @@ def main():
             elif line.startswith("RAM:"):
                 print("  " + line)
                 info["ram"] = line
+            elif line.startswith("CORE:"):
+                print("  core on the board: " + line[5:])
+                info["core"] = line[5:]
             elif line.startswith("TINYLM ready") or line.startswith("LOADED"):
                 print("  " + line)
                 info[line.split()[0].lower()] = line
@@ -199,6 +250,8 @@ def main():
     problems = []
     if not info.get("id"):
         problems.append("no ID line from the board")
+    if not s3 and not info.get("board"):
+        problems.append("no BOARD line from the board")
     if len(hashes) != len(expected) or {(h[0], h[1]) for h in hashes} != expected:
         problems.append(f"{len(hashes)} validation records, expected each of {len(expected)} once")
     if len(gen) != len(ids) - n_prompt:
@@ -221,19 +274,20 @@ def main():
     us_tok = np.array([h[3] for h in hashes])
     us_gen = np.array([g[2] for g in gen])
     story = sp.decode(ids[1:n_prompt] + [g[0] for g in gen])
-    res = {"run": os.path.basename(run), "board": "esp32s3 N16R8", "kernel": ("lut8" if args.linear == "lut8" else "lib_symbex u8 x 1-bit (PIE)")
-           + ({4: " linear, PIE int4 dot (output), PIE s8 dot (scores)",
+    res = {"run": os.path.basename(run), "board": BOARD_NAMES[args.board], "kernel": ("lut8" if args.linear == "lut8" else "lib_symbex u8 x 1-bit (PIE)")
+           + (({4: " linear, PIE int4 dot (output), PIE s8 dot (scores)",
                2: " linear, PIE int2 dot (output), PIE s8 dot (scores)"}.get(I.head_bits_of(run),
-                                                                              " linear, PIE s8 dot (output, scores)")),
-           "model_in": "psram",
-           "kv_cache": kv or "int8", "p_cut_nats": args.p_cut, "fine_prof": args.fine_prof, "dcache_autoload": args.autoload, "dcache_autoload_kv_bytes": info.get("autoload_kv_bytes"), "kv_cache_in": "psram", "cpu_mhz": 240, "ready": info.get("tinylm"), "loaded": info.get("loaded"),
+                                                                              " linear, PIE s8 dot (output, scores)")
+              if s3 else " linear, plain C (output, scores, values)")),
+           "model_in": "psram" if s3 else "flash",
+           "kv_cache": kv or "int8", "p_cut_nats": args.p_cut, "fine_prof": args.fine_prof, "dcache_autoload": args.autoload, "dcache_autoload_kv_bytes": info.get("autoload_kv_bytes"), "kv_cache_in": "psram" if s3 else "internal ram", "cpu_mhz": BOARD_MHZ[args.board], "platform": pio_platform(proj, "s3" if s3 else args.board), "core_on_board": info.get("core"), "ready": info.get("tinylm"), "loaded": info.get("loaded"),
            "check_tokens": len(hashes), "check_equal": int(sum(h[2] for h in hashes)),
            "equal_percent": round(100 * sum(h[2] for h in hashes) / max(1, len(hashes)), 3),
            "story_tokens": len(gen), "story_equal": int(sum(g[1] for g in gen)),
            "ms_per_token_check_mean": round(us_tok.mean() / 1000, 3),
            "ms_per_token_at_position": {str(p): round(float(np.mean(us_tok[[i for i, h in enumerate(hashes)
                                                                             if h[1] == p]])) / 1000, 3)
-                                        for p in (0, 63, 127, 255)},
+                                        for p in (0, 63, 127, 255, 511) if p < seq},
            "ms_per_token_story_mean": round(us_gen.mean() / 1000, 3),
            "tokens_per_second_story": round(1e6 / us_gen.mean(), 3),
            "ms_per_token_by_part": {k: round(v / max(1, len(hashes)) / 1000, 3) for k, v in prof.items()},
@@ -247,7 +301,7 @@ def main():
                                                                       if args.repeat_probe else "") \
         + (f"_c{args.p_cut:g}" if args.p_cut is not None else "") + ("_prof" if args.fine_prof else "") \
         + (f"_al{args.autoload}" if args.autoload is not None else "") + ("kv" if args.autoload_kv else "")
-    out = os.path.join(HERE, "results", f"chip_s3_{os.path.basename(run)}{suffix}.json")
+    out = os.path.join(HERE, "results", f"chip_{args.board}_{os.path.basename(run)}{suffix}.json")
     with open(out, "w") as f:
         json.dump(res, f, indent=2)
     print(json.dumps({k: v for k, v in res.items() if k != "story"}, indent=2))

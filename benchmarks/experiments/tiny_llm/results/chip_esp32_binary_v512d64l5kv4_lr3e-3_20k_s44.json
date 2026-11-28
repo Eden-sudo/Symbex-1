@@ -1,0 +1,32 @@
+{
+  "run": "binary_v512d64l5kv4_lr3e-3_20k_s44",
+  "board": "esp32 (classic, no PSRAM)",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": "int8",
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | ram 350764 bytes free",
+  "loaded": "LOADED 93120 bytes in 16 ms | ram free 71672",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 35.091,
+  "ms_per_token_at_position": {
+    "0": 19.738,
+    "63": 24.58,
+    "127": 28.182,
+    "255": 35.105,
+    "511": 48.869
+  },
+  "ms_per_token_story_mean": 24.645,
+  "tokens_per_second_story": 40.577,
+  "ms_per_token_by_part": {},
+  "story": "Once upon a time, there was a little girl named Lucy. Lucy was very pretty. She lived in a small house. Lucy was very happy. She went to the park. Lucy was very happy to play with her friends. Amy was very happy. She loved to play with her friends. Amy was very happy to get the park. Amy was happy to get the park. "
+}

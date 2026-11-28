@@ -1,0 +1,130 @@
+{
+  "binary_v512d64l5kv4": {
+    "val_loss": [
+      2.1567,
+      2.1279,
+      2.1365
+    ],
+    "mean": 2.1404,
+    "sd": 0.0148,
+    "minutes": [
+      4.9,
+      4.9,
+      4.91
+    ],
+    "best_step": [
+      9000,
+      9500,
+      9500
+    ],
+    "lr": 0.0015,
+    "steps": 10000
+  },
+  "binary_v512d64l5kv4_lr1e-3": {
+    "val_loss": [
+      2.1688,
+      2.1617,
+      2.1642
+    ],
+    "mean": 2.1649,
+    "sd": 0.0036,
+    "minutes": [
+      4.48,
+      4.87,
+      4.9
+    ],
+    "best_step": [
+      9500,
+      9500,
+      9500
+    ],
+    "lr": 0.001,
+    "steps": 10000
+  },
+  "binary_v512d64l5kv4_lr3e-3": {
+    "val_loss": [
+      2.1007,
+      2.0956,
+      2.1003
+    ],
+    "mean": 2.0989,
+    "sd": 0.0028,
+    "minutes": [
+      4.88,
+      4.88,
+      4.9
+    ],
+    "best_step": [
+      8000,
+      9500,
+      10000
+    ],
+    "lr": 0.003,
+    "steps": 10000
+  },
+  "binary_v512d64l5kv4_lr3e-3_20k": {
+    "val_loss": [
+      2.0632,
+      2.0519,
+      2.0688
+    ],
+    "mean": 2.0613,
+    "sd": 0.0086,
+    "minutes": [
+      9.72,
+      9.71,
+      9.68
+    ],
+    "best_step": [
+      19500,
+      20000,
+      16500
+    ],
+    "lr": 0.003,
+    "steps": 20000
+  },
+  "fp32_v512d64l5kv4": {
+    "val_loss": [
+      1.3433,
+      1.3542,
+      1.3417
+    ],
+    "mean": 1.3464,
+    "sd": 0.0068,
+    "minutes": [
+      4.35,
+      4.64,
+      4.65
+    ],
+    "best_step": [
+      10000,
+      10000,
+      10000
+    ],
+    "lr": 0.0015,
+    "steps": 10000
+  },
+  "fp32_v512d64l5kv4_lr3e-3_20k": {
+    "val_loss": [
+      1.2616,
+      1.2787,
+      1.2725
+    ],
+    "mean": 1.2709,
+    "sd": 0.0087,
+    "minutes": [
+      9.19,
+      9.21,
+      9.19
+    ],
+    "best_step": [
+      20000,
+      20000,
+      20000
+    ],
+    "lr": 0.003,
+    "steps": 20000
+  },
+  "note": "260K recipe screen (README Step 4), validation only, seeds 42/43/44",
+  "sample_binary_20k_s42": "Once upon a time, there was a little boy named Tim. Tim loved to play with his friends. Tim loved to play with his friends. One day, Tim went to the park. He was very happy. He was very happy. Tim and his friends. Tim looked at their mom and played with the park. They played together and had a lot of fun.\nTim and Spot were very happy. They played with their friends. Tim looked at their mom and said, \"What is a good?\"\nTim and Spot were very happy. Tim and Spot were happy. They played with their friends. They all looked at their paper. Tim and Spot were happy. They played with"
+}

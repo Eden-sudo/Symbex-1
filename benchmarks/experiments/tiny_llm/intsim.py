@@ -10,7 +10,9 @@ Everything is integer arithmetic (int64), no floating point after the export:
                         (or ternary) weights, one int multiplier per output row: out = acc * max * m >> 30
     rotary positions    cos / sin tables in Q14
     attention           q, k, v quantized to int8 per token and head (the KV cache: int8 + one int32 max), softmax
-                        with a 2048-entry exp table (uint16), output = sum p * v / sum p
+                        with a 2048-entry exp table (uint16), output = sum p * v / sum p; any head width (the score
+                        scale 1 / sqrt(hd) is the integer divisor att_div(hd) << 20) and grouped-query attention
+                        (train.py --kv-heads: one cached key / value head serves heads / kv_heads query heads in a row)
     SwiGLU              sigmoid from a 1024-entry table (Q15)
     embedding / output  int8 per row with one int multiplier per row (the output layer is the same table); --head
                         int4 runs: int4 (absmax / 7 per row, train.py's levels), packed two per byte (model.bin
@@ -33,6 +35,7 @@ import json
 import math
 import os
 import struct
+import sys
 
 import numpy as np
 import torch
@@ -75,28 +78,35 @@ def isqrt(n):
     return r
 
 
-def load_model(run, vocab, dev):
-    """The trained float model of runs/<run> (train.py's options that have an integer model) and its args."""
+def load_model(run, vocab, dev, float_only=False):
+    """The trained float model of runs/<run> (train.py's options that have an integer model) and its args;
+    float_only: also --attn-sink / --attn-gate runs (float studies such as k_anatomy.py, no integer model)"""
     ck = torch.load(os.path.join(run, "model.pt"), map_location=dev)
     a = ck["args"]
+    vocab = a.get("vocab", vocab)                        # runs before --vocab have no key: the caller's value
     assert a["weights"] != "binary_rc", "--weights binary_rc has no integer model yet"   # every caller (chip_run too)
     assert a.get("head", "fp32") in ("fp32", "int4", "int2") and not a.get("int8_blocks"), \
         "--head binary / --int8-blocks runs have no integer model yet"
     assert not a.get("learn_thr") and a.get("w2_acts", "same") == "same" and a.get("ffn_act", "silu") == "silu", \
         "--learn-thr / --w2-acts / --ffn-act relu runs have no integer model yet"
     assert a.get("repeat", 1) == 1, "--repeat runs have no integer model yet"
+    assert not a.get("int8_linears") and not a.get("k_center"), \
+        "--int8-linears / --k-center runs have no integer model yet"
     assert a.get("q_bits", 8) == 8 and not a.get("k_unit"), "--q-bits 1 / --k-unit runs have no integer model yet"
+    assert float_only or not a.get("attn_sink") and not a.get("attn_gate"), "--attn-sink / --attn-gate runs have no integer model yet"
     for group in (("q", "k", "v"), ("w1", "w3")):        # forward() quantizes each group's input once
         for opt in ("a8_inputs", "hadamard") if a.get("acts", 8) != 8 else ("hadamard",):   # --acts 8: all 8 bits
             assert len({n in (a.get(opt) or []) for n in group}) == 1, \
                 f"--{opt.replace('_', '-')} must list all of {'/'.join(group)} or none (they share one input)"
     model = T.TinyLM(vocab, a["dim"], a["layers"], a["heads"], a["hidden"], a["seq"], a["weights"],
+                     kv_heads=a.get("kv_heads"),
                      head=a.get("head", "fp32"), acts=a.get("acts", 8), act_opts={"ste_mode": a.get("ste", "identity"), "ste_k": a.get("ste_k", 2.0)},
                      a8_inputs=tuple(a.get("a8_inputs", [])), rotate=tuple(a.get("hadamard", [])),
                      a8_blocks=tuple(a.get("a8_blocks", [])),
                      kv=(a.get("k_bits", 8), a.get("v_bits", 8), a.get("k_scale", 1.0)),   # as trained
                      attn={"temp": a.get("attn_temp", False), "recent": a.get("kv_recent", 0), "q_bits": 8,
-                           "k_unit": False}).to(dev)
+                           "k_unit": False, "sink": a.get("attn_sink", False),
+                           "gate": a.get("attn_gate", False)}).to(dev)
     model.load_state_dict(ck["model"])
     model.eval()
     return model, a
@@ -139,6 +149,7 @@ def integerize(model, kind):
     P["cos"] = torch.from_numpy(np.round(np.cos(ang) * 2 ** 14).astype(np.int64))
     P["sin"] = torch.from_numpy(np.round(np.sin(ang) * 2 ** 14).astype(np.int64))
     P["heads"] = model.blocks[0].heads
+    P["kv_heads"] = model.blocks[0].kv_heads
     return P
 
 
@@ -286,9 +297,21 @@ def rope(x, C, S):
     return torch.stack((r1, r2), -1).flatten(-2)
 
 
-def attention(q, k, v, heads, C, S, exp_t, kv=None, tq=None):
+def att_div(hd):
+    """The integer score divisor of a head width: the exp-table index is floor(dist x qm / (att_div(hd) << 20)), dist
+    in units of 127^2 x 2^24 (int8 q, k in Q12), 128 steps per nat: 127^2 x 2^24 x sqrt(hd) / 128 = (16129 sqrt(hd) / 8)
+    << 20, rounded as (isqrt(16129^2 hd) + 4) >> 3 (the same in the C). 64-wide heads: 16129 exactly."""
+    return (math.isqrt(16129 * 16129 * hd) + 4) >> 3
+
+
+def attention(q, k, v, heads, C, S, exp_t, kv=None, tq=None, kv_heads=None):
     b, t, d = q.shape
-    q, k, v = (z.view(b, t, heads, -1).transpose(1, 2) for z in (q, k, v))       # b, h, t, hd
+    kvh = kv_heads or heads
+    q = q.view(b, t, heads, -1).transpose(1, 2)                                    # b, h, t, hd
+    k, v = (z.view(b, t, kvh, -1).transpose(1, 2) for z in (k, v))
+    if kvh != heads:     # grouped-query attention as train.py: every cached head serves heads / kv_heads in a row
+        k, v = (z.repeat_interleave(heads // kvh, dim=1) for z in (k, v))      # per-token quantization: the same
+    ad = att_div(q.shape[-1])
     kv = kv or {}
     kpre = k
     q, k = rope(q, C[:t], S[:t]), rope(k, C[:t], S[:t])
@@ -326,11 +349,11 @@ def attention(q, k, v, heads, C, S, exp_t, kv=None, tq=None):
     u = torch.where(causal, u, torch.iinfo(torch.int64).min)
     umax = u.amax(-1, keepdim=True)
     dist = torch.where(causal, umax - u, 0)
-    # 16129 << 20 = 127^2 (int8 q, k) * 2^24 (Q12 x Q12) * sqrt(64) / 128 (exp table step): 64-wide heads only
+    # att_div(hd) << 20 = 127^2 (int8 q, k) * 2^24 (Q12 x Q12) * sqrt(hd) / 128 (exp table step); 64-wide: 16129 << 20
     if tq is None:
-        x = check(dist * qm[..., None], 62, "score distance") // (16129 << 20)
+        x = check(dist * qm[..., None], 62, "score distance") // (ad << 20)
     else:           # learned temperature: the index in 2^-10 steps, times tq (Q16), then >> 26
-        x = check(check(dist * qm[..., None], 62, "score distance") // (16129 << 10) * tq.view(1, -1, 1, 1), 62,
+        x = check(check(dist * qm[..., None], 62, "score distance") // (ad << 10) * tq.view(1, -1, 1, 1), 62,
                   "tempered distance") >> 26
     # experiment (attn_cut.py): kv["p_cut"] = n drops the keys with p < p_max e^-n (exp-table index >= 128 n)
     cut = EXP_N if kv.get("p_cut") is None else min(EXP_N, round(kv["p_cut"] * 2 ** EXP_Q))
@@ -357,7 +380,7 @@ def forward(P, idx):
         h, rms = norm_h(x, B["n1"])
         hq, hm = quant_in(h, B["q"], rms)                                                # q, k, v: one input
         q, k, v = (linear(hq, hm, B[n]) for n in ("q", "k", "v"))
-        a = attention(q, k, v, P["heads"], C, S, exp_t, P.get("kv"), B.get("tq"))
+        a = attention(q, k, v, P["heads"], C, S, exp_t, P.get("kv"), B.get("tq"), P.get("kv_heads"))
         aq, am = quant_in(a, B["o"])
         x = check(x + linear(aq, am, B["o"]), 31, "residual")
         h, rms = norm_h(x, B["n2"])
@@ -409,7 +432,7 @@ def float_argmax_agreement(model, P, data, seq, n_windows, bsz):
     for i in range(0, n_windows, bsz):
         rows = torch.arange(i, i + bsz, device=data.device)
         w = data[rows[:, None] * seq + torch.arange(seq, device=data.device)].long()
-        with torch.autocast("cuda", dtype=torch.bfloat16):
+        with torch.autocast(data.device.type, dtype=torch.bfloat16):
             fa = model(w).argmax(-1)
         z, _ = forward(P, w)
         agree += (z.argmax(-1) == fa).sum().item()
@@ -463,7 +486,8 @@ def pack_nibbles(q):
 
 
 def write_model(P, cfg, path):
-    """model.bin: little-endian header of int32 (magic, dims), then the arrays in a fixed order (see tinylm.c)."""
+    """model.bin: little-endian header of int32 (magic, dims), then the arrays in a fixed order (see tinylm.c). The
+    heads field holds kv_heads << 16 | heads with grouped-query attention (kv_heads < heads), else heads (as before)."""
     vocab, dim = P["emb_q"].shape
     blk = P["blocks"][0]
     hidden, layers, seq = blk["w1"]["w"].shape[0], len(P["blocks"]), P["cos"].shape[0]
@@ -475,7 +499,9 @@ def write_model(P, cfg, path):
     if P.get("head_bits", 8) == 2:  # version 4: version 2 + the int2 table packed (pack_crumbs)
         version = 4
     with open(path, "wb") as f:
-        f.write(struct.pack("<8i", 0x4D4C5954, version, vocab, dim, hidden, layers, P["heads"], seq))
+        kvh = P.get("kv_heads") or P["heads"]
+        heads_field = P["heads"] if kvh == P["heads"] else kvh << 16 | P["heads"]
+        f.write(struct.pack("<8i", 0x4D4C5954, version, vocab, dim, hidden, layers, heads_field, seq))
         if version == 3:
             f.write(pack_nibbles(P["emb_q"]).tobytes())
         elif version == 4:
@@ -518,10 +544,20 @@ def read_kv_trailer(path, layers, heads):
             "tq": np.frombuffer(tr[24:], dtype="<i4").reshape(layers, heads)}
 
 
+def kv_mismatch(a, kb, vb, k_scale, recent):
+    """The cache settings of this run that differ from the model's training (train.py --k-bits / --v-bits / --k-scale /
+    --kv-recent): the integer cache takes them from the command line only, so a model trained with a low-bit cache
+    and simulated with the defaults gives a loss that is not the model's (a run once wrote intsim_wrong_kv8.json)."""
+    trained = {"k-bits": a.get("k_bits", 8), "v-bits": a.get("v_bits", 8), "k-scale": a.get("k_scale", 1.0),
+               "kv-recent": a.get("kv_recent", 0)}
+    now = {"k-bits": kb, "v-bits": vb, "k-scale": k_scale, "kv-recent": recent}
+    return [f"--{k} {now[k]:g} (trained {trained[k]:g})" for k in trained if now[k] != trained[k]]
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("run", help="runs/<weights>_<name>_s<seed>")
-    ap.add_argument("--windows", type=int, default=1024, help="validation windows of 256 tokens (same as train.py)")
+    ap.add_argument("--windows", type=int, default=1024, help="validation windows of the run's --seq tokens (same as train.py)")
     ap.add_argument("--export", action="store_true", help="write model.bin and check.bin for the C check")
     ap.add_argument("--kv-bits", type=int, choices=[8, 4, 3, 2, 1], default=8,
                     help="bits of the KV cache (experiment, PC only: see quant_kv); result in intsim_kv<b>.json")
@@ -547,16 +583,19 @@ def main():
         ap.error("--windows must be a multiple of 32 (float and integer losses use the same windows)")
     import sentencepiece as spm
     torch.backends.cuda.matmul.allow_tf32 = False
-    dev = "cuda"
-    sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, "tok4096.model"))
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    vocab = torch.load(os.path.join(args.run, "model.pt"), map_location="cpu")["args"].get("vocab", 4096)
+    sp = spm.SentencePieceProcessor(model_file=os.path.join(T.DATA, f"tok{vocab}.model"))
     model, a = load_model(args.run, sp.get_piece_size(), dev)
     kind = a["weights"]
     assert kind in ("binary", "ternary"), "the integer model needs quantized weights"
-    assert a["dim"] // a["heads"] == 64 and a["dim"] % a["heads"] == 0, \
-        "the integer attention scale (16129 << 20) assumes 64-wide heads"
+    assert a["dim"] % a["heads"] == 0 and (a["dim"] // a["heads"]) % 2 == 0, "heads of an even width (rotary pairs)"
     P = to_device(integerize(model, kind), dev)
     kb = args.kv_bits if args.k_bits is None else args.k_bits
     vb = args.kv_bits if args.v_bits is None else args.v_bits
+    diff = kv_mismatch(a, kb, vb, args.k_scale, args.kv_recent)
+    if diff:      # allowed (the no-training cache studies do it on purpose), never silent
+        print("WARNING: cache differs from training: " + ", ".join(diff), file=sys.stderr)
     P["kv"] = {"k_bits": kb, "v_bits": vb, "k_mode": args.k_mode, "v_mode": args.v_mode, "qjl_m": args.qjl_m,
                "keep_first": args.keep_first, "qjl_seed": args.qjl_seed, "k_scale": args.k_scale,
                "v_scale": args.v_scale, "recent": args.kv_recent, "p_cut": args.p_cut}
@@ -576,14 +615,15 @@ def main():
     if args.export and not a.get("attn_temp") and \
             ((kb, vb) != (8, 8) or args.k_scale != 1.0 or args.v_scale != 1.0 or args.kv_recent):
         ap.error("--export: the C keeps an int8 KV cache (--kv-bits 8); low-bit only for --attn-temp models")
-    val = T.load_split("val", dev)
+    val = T.load_split("val", dev, vocab)
 
     fl = T.evaluate(model, val, a["seq"], args.windows // 32, 32)
     il = int_loss(P, val, a["seq"], args.windows, 16)
     agree = float_argmax_agreement(model, P, val, a["seq"], 64, 16)
     ids = generate(P, sp, "Once upon a time", 120, a["seq"], dev)
     res = {"run": os.path.basename(os.path.normpath(args.run)), "weights": kind, "kv_bits": args.kv_bits, "kv": P["kv"], "kv_tag": tag,
-           "trained_kv": [a.get("k_bits", 8), a.get("v_bits", 8), a.get("k_scale", 1.0)], "val_windows": args.windows,
+           "trained_kv": [a.get("k_bits", 8), a.get("v_bits", 8), a.get("k_scale", 1.0)],
+           "trained_kv_recent": a.get("kv_recent", 0), "cache_differs_from_training": diff, "val_windows": args.windows,
            "val_loss_float": round(fl, 4), "val_loss_integer": round(il, 4),
            "val_perplexity_float": round(math.exp(fl), 3), "val_perplexity_integer": round(math.exp(il), 3),
            "next_token_agreement_float_vs_integer": round(agree, 4), "sample_integer": sp.decode(ids[1:])}

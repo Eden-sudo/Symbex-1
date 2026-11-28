@@ -595,3 +595,187 @@ only way low-bit KV also gives speed on the S3, ESTIMATE); the ESP32 966 vs 629 
   section "Reading the weights while computing". Classic ESP32 question (Edén): this model does not fit (no PSRAM,
   346 KB heap; KV 0.60-1.67 MB); the 260K model is the line there. My chat figure "~160 KB int8 KV" for 260K was
   with GQA (4 KV heads); with 8 heads, seq 512, 5 layers, d 64: 5 x 512 x 64 x 2 = 328 KB int8 (computed).
+
+## Nov 19 2026 — 260K shape for the classic ESP32 / Pico 2 (step 1: training)
+- Branch exp/llm-260k. train.py: `--vocab 512` (tok512.model, *_v512.bin) and `--kv-heads` (GQA: k / v project to
+  kv_heads x hd, repeat_interleave to the query heads; q, k, v, o still created in that order, so the old runs' init
+  is unchanged). README rule "A 260K model for chips without PSRAM" written before the runs.
+- Smoke (300 steps, s42): 0.26 M params (0.23 M in the quantized linears); fp32 val 2.82, binary 3.26.
+- Queue runs/logs/q260k.sh -> q260k.log: fp32 + binary x 42/43/44, 10000 steps, same recipe.
+- Step 2 blockers seen: intsim.py:554 asserts 64-wide heads (attention scale 16129 << 20 assumes sqrt(64));
+  260K heads are 8 wide -> the scale must become general in intsim.py and c/tinylm.c; tinylm.c:859 hidden >= 2 seq
+  (172 < 1024) must go; GQA in both.
+- Result (3 seeds, val): fp32 1.3464 ± 0.0068, binary 2.1404 ± 0.0148, gap +0.794 (15.7 M: +0.222). Binary flat
+  from step ~4000. Stories are sentences -> rule: step 2. ~4.7 min per run.
+
+## Nov 19 2026 — 260K step 2: intsim.py + c/tinylm.c (Edén: "si adelante")
+- intsim.py: kv_heads (GQA: repeat_interleave after the view, per-token quantization the same), att_div(hd) instead of
+  16129 (equal for hd 64), tok{vocab}.model + load_split(vocab), heads field kv_heads << 16 | heads in model.bin.
+- tinylm.c: kv_heads + att_d at load (hd % 8, hd <= 256), cache stored once per kv head, scores per query head on
+  head h / grp; ragged last lut group (hidden 172); int32 value sums in runs of 256 keys (seq 512); t1-t3 sized
+  max(big, 2 seq) (the hidden >= 2 seq check removed); low-bit cache refuses hd != 64 / GQA / seq > 258.
+- 3 seeds: integer +0.0005 nats; C exact 2048 / 2048 + story, lut / symbex / symbex + DOT_ROWS_C, ASan + UBSan. Old
+  runs (d384l8, head4, head2, a1x, k1v2_tau_r32) exact with the new C; S3 firmware builds; pytest 865 passed.
+- KV RAM computed: 164 KB int8 + 80 KB scales = 244 KB (the 164 KB figure forgot the scales). Next: step 3 firmware.
+
+## Nov 19 2026 — 260K step 3: classic ESP32 + Pico 2 (Edén: "sigue con eso")
+- chip_mcu/ (esp32, pico2_arm, pico2_riscv envs), model.bin as a const array (flash, read in place), KV in RAM.
+  chip_run.py --board (s3 default, unchanged); BOARD line checked; results/chip_<board>_<run>.json.
+- First ESP32 run: "state: not enough RAM". heap_caps_print_heap_info: byte heap 279 KB free, largest block 115 KB
+  (+ 110 KB, rest small); the other 72 KB is 32-bit-only IRAM. Fix (opt-in, tinylm.h / tinylm.c):
+  TINYLM_KV_SPLIT (cache per layer) + TINYLM_MALLOC_WORDS (int32 scales -> MALLOC_CAP_32BIT | MALLOC_CAP_EXEC).
+  PC exact with and without (ASan + UBSan, 260K + d384l8); S3 build OK; pytest 865 passed.
+- 3 seeds x 3 cores, all exact (1024 / 1024 + story 120 / 120 each). Story tokens/s: ESP32 40.15 ± 0.06,
+  M33 31.84 ± 0.06, Hazard3 35.38 ± 0.88 (150 MHz). Position 0 -> 511: ESP32 19.9 -> 49.1 ms.
+- Nov 19 evening: README step 3 got per-seed tok/s and a memory table (RAM used 279 092 B ESP32 / 278 800 B Pico 2
+  = KV 163 840 + scales 81 920 + scratch ~33 KB, from the firmware's free-heap lines).
+- Nov 19 night, step 4 (recipe): binary lr 1e-3 2.1649, lr 3e-3 2.0989, lr 3e-3 20k 2.0613 ± 0.0086 (base 2.1404);
+  fp32 lr 3e-3 20k 1.2709 ± 0.0087 (base 1.3464). Both rules pass, but the gap stays +0.790 (was +0.794): recipe
+  helps both alike; the gap is the size. New recipe = lr 3e-3, 20k for the next screens (~10 min per run).
+- Step 5 (ternary, new recipe, 3 seeds): 1.8375 ± 0.0053 vs binary 2.0613: -0.224, gap 0.790 -> 0.567 (28 % closed).
+  C has no ternary linear yet (needed to put it on the chips).
+
+## Nov 19-20 2026 — night roadmap (Edén asleep: "analizar mejor K, descomponerla, buscar una mejor adaptación a las binarias")
+Order (GPU: the step 6 temperature queue runs until ~04:40, estimate; analyses below are no-training and tiny):
+- N1 step 6 temperature queue (running): finish, apply the rule, JSON + README.
+- N2 `error_anatomy.py` (no training, 260K, 3 seeds): which variable hurts most and whether the residual sum
+  accumulates errors. On the fp32 260K model, one source at a time in every block (W1A8 on q, k, v, o, w1, w3, w2;
+  K cache 2-bit; V cache 2-bit): val loss rise and the residual error after each block; all W1A8 together vs the sum;
+  one block binarized at a time: does its error grow or shrink through the later blocks (gain per block).
+- N3 `k_anatomy.py` (no training): K in the binary and fp32 260K models per layer / KV head (head width 8): share of
+  the token mean (softmax ignores q . mean only before RoPE-free parts; measured, not assumed), outlier channels,
+  effective rank, attention entropy (flat attention?), which channels carry the score. One-shot K adaptations on
+  the fp32 model (only W_k changed): sign x mean|w| (now), centered rows, two binary bases, ternary, Hadamard input.
+- N4 (GPU after N1, rule in README before): QAT, binary 260K, lr 3e-3 / 20k, 3 seeds: int8 W_k in every block vs int8
+  W_v (same bytes, control: is K special in training?), `--hadamard k`; plus the best N3 one-shot if it needs no new
+  inference op.
+- N5 write everything (README section, results JSON, LOGBOOK), pytest + C tests, commit + push exp/llm-260k.
+- Nov 20 ~00:10, N2 + N3 done (3 seeds, results/v512d64l5kv4_error_anatomy_{int4,binary}.json, _k_anatomy.json,
+  README "Step 7"). K CACHE is the variable: 4-bit +1.68 (fp32) vs V cache +0.011; W_k weights ordinary (int4 0.027
+  like W_q); W_v / W_2 the worst weights. Errors combine like independent ones (joint / rss 0.98-1.01), loss 1.32x the
+  sum. An error in block 0 is 2.0x larger at the last block (amplified, Edén's hypothesis supported for the LLM).
+  Key = mostly its mean (41-96 % of the energy); via RoPE the mean is a position-only score term (22-87 % of score
+  variance). Center (key - RoPE(mean), fixed mean from training windows) cuts the binary 4-bit cache rise 0.100 ->
+  0.009, 2-bit 0.80 -> 0.13; Hadamard / smooth do little. One-shot W1A8 of the fp32 260K saturates (ranking only).
+- Smoke OOM: the GPU holds the temperature run (8.8 GB) -> train.py --k-center / --int8-linears checked on CPU
+  (forward / backward, kmu moves, old checkpoint loads strict). intsim.load_model refuses both.
+- N4 queue chained after the temperature queue (runs/logs/chain_k.sh waits by PID 803655 -> q260k_k.sh -> q260k_k.log):
+  k2c, k2, k4c, k4, i8k, i8v x 42/43/44 (~3 h, estimate).
+- Nov 20 03:39, step 6 done: binary + temp 2.0510 ± 0.0080 (vs 2.0613 ± 0.0086, -0.0103, passes just), ternary + temp
+  1.8199 ± 0.0059 (vs 1.8375 ± 0.0053, -0.0176, passes). ~56 min per run (attend_bits by hand). results/v512d64l5kv4_temp.json.
+- Nov 20 06:42, step 7 training done (3 seeds, results/v512d64l5kv4_k_train.json, README "Step 7"): key cache 2 bits
+  plain 2.4004 ± 0.0490 vs center 2.1101 ± 0.0184; 4 bits plain 2.1108 ± 0.0103 vs center 2.0738 ± 0.0100 (int8 cache
+  2.0613) -> center kept at both widths. int8 W_k 2.0339 ± 0.0116 vs int8 W_v 1.9757 ± 0.0172 -> K not special;
+  "bytes, not where" fails at 260K (W_v gains 3x more). Next (Edén decides): W_v int8 + center 2-4 bit K + temp +
+  ternary together; center into intsim / C / chips; growth measure on ResNet-8's OR shortcuts.
+- Nov 20, step 7b (README, results/v512d64l5kv4_k_anatomy.json + d384l8_k_anatomy.json, 3 seeds, no training):
+  k_anatomy.py + `sage` mode + `mean_slow`. Key mean lives in slow RoPE pairs at both sizes (58-92 %). Plain 4-bit key
+  cache: 260K fp32 +1.68, 15.7 M fp32 +0.0094 (~180x less fragile). center / pre-center work at both sizes; sage
+  (free) 2-4x at 4 bits only; Hadamard helps 64-wide heads, not 8-wide. PDFs read: KVQuant, SageAttention, rotary
+  offset features, massive spikes = bias vectors, Bondarenko 2023, HAD, BinaryAttention. Next (Edén decides): size
+  ladder d128 / d256 to find where the key stops being fragile; Edén's own K idea still to hear.
+- Nov 20 08:49, step 8 started (rules in README "Step 8" first): train.py --attn-sink (learned sink logit per head,
+  zero value) / --attn-gate (sigmoid gate per head, Qiu 2025), binary 260K 3 seeds; then width ladder d128 / d256
+  (head width 16 / 32), fp32 + binary, 3 seeds; k_anatomy on all. Queue runs/logs/step8_queue.sh (resumable, log
+  step8_queue.log, ends "STEP8 QUEUE DONE"). Run time ESTIMATE ~6-7 h (200-step smokes: d256 ~2.5x the 260K).
+  intsim.load_model: vocab from the checkpoint, float_only for k_anatomy (sink / gate have no integer model).
+- Nov 20, 1-bit key probe (scratch /tmp/kbits/k_bits_probe.py, NOT in the repo; 260K, 3 seeds, 256 val windows, no
+  training): binary model, sign of the post-RoPE key = sign of the (rotated) mean on 84 % of the bits (61-97 % by
+  layer); bit entropy 0.46 bit per stored bit plain, 0.98 after center. 1-bit key cache (sign x mean|k|) rise plain
+  +1.29 vs center +0.39 (fp32 model 4.10 vs 2.23); x pi/2 worse. KV bytes 260K (computed): 164 KB int8 + 80 KB int32
+  scales (33 % of the cache is scales). For Edén's "how Q K V are read / stored / computed" question.
+- Nov 20 09:30, step 9 queued (rule in README "Step 9" first; Edén away, said "sigue avanzando"): 1-bit key cache at
+  260K, k1 / k1c / k1uctr / k1ctr / k1tr x 3 seeds, waits for step 8 (runs/logs/step9_queue.sh, log step9_queue.log,
+  ends "STEP9 QUEUE DONE"). train.py: --k-center now also on the bit-attention path (--attn-temp / --kv-recent) and
+  with --k-unit (sign of key - mean, mean added back). Run time ESTIMATE ~8 h after step 8 (bit path ~57 min a run).
+- Nov 20 10:55, step 8 part 1 DONE (README "Step 8" Result 1): sink 2.0547 ± 0.0058, gate 2.0339 ± 0.0198 (base
+  2.0613); plain 4-bit key rise 0.155 / 0.136 vs 0.100: rule 1 FAILS for both, mean not reduced. Gate: loss -0.027
+  (side result). Width ladder running.
+- Nov 20 15:14, step 8 part 2 DONE (README "Step 8" Result 2, results/v512_width_k_anatomy.json): width ladder,
+  3 seeds, validation. fp32 / binary / gap: d64 1.2709 / 2.0613 / 0.79, d128 0.9677 / 1.4943 / 0.53, d256 0.7946 /
+  1.0985 / 0.30. Plain 4-bit key cache, binary: 0.100 / 0.036 / 0.021 -> rule 2: limit = d256 (3.76 M). fp32 1.68 /
+  0.13 / 0.035. 2-bit key (center) not usable at any width (0.08-0.13). KV int8 + scales at ctx 512 (computed):
+  246 / 410 / 737 KB -> on chips without PSRAM the cache sets the size. Step 9 queue started 15:15.
+- Nov 20 ~17:00, chip comparison point (Edén: "adelante"; README "The comparison point on the chip", rule first):
+  llama2.c run.c (commit 350e04f, unchanged, chip_l2c/llama2c/ + LICENSE) with our fp32 260K exported to its v0
+  format (chip_fp32.py; tied head, RoPE layout identical: PC run.c = PyTorch greedy 120/120, chips = PC 120/120, 9 runs).
+  Story tok/s fp32 vs binary: ESP32 6.48 vs 40.15 (6.2x), M33 8.89 vs 31.84 (3.6x), Hazard3 2.40 vs 35.38 (14.7x, no
+  FPU). Flash 1.06 MB vs 93 KB. fp32 KV at ctx 512 = 655 KB fits neither chip: fp32 ran at context 127. Quality price:
+  0.79 nats. Not measured: CMSIS-DSP / ESP-DSP fp32 kernels.
+- Nov 20 night, SYNTHESIS.md (Edén asked to write down the conclusions): key cache damage removed 74-96 % by
+  centering; width vs fixed-width levers; how to binarize a model without changing its design (QAT, not one-shot);
+  cross-benchmark conjecture "binary loses where each sum has few terms (fan-in) or a mean dominates" (LLM ladder,
+  ECG s/m/l, HAR, ResNet-8 stem), with the cases against it and tests A (per-layer, no GPU) / B (step 10) / C (deep
+  vs wide at same parameters) to confirm it. Not started; Edén decides.
+- Nov 21 04:37, step 9 DONE (README "Step 9" Result / Answer, results/v512d64l5kv4_k1_train.json, 3 seeds, val):
+  k1 2.8593, k1c 2.1415, k1tr 2.0854 ± 0.0070 (+0.024, passes the 0.03 rule), k1ctr 2.0915 (+0.030), k1uctr
+  2.0943 ± 0.0219 (+0.033, ties k2c 2.1101 at 1 byte -> rule 3 passes). Rule 1 FAILS: center helps a 1-bit key only
+  without the int8 window + temperature; with them it adds nothing. SYNTHESIS.md section 1 corrected (the 96 % row
+  credited center; the window does the work). Next (Edén decides): k1tr / k1uctr into intsim / C / chips.
+- Nov 21 morning: README memory table per step 9 row (computed: int8 246 KB, k1tr 182, k1uctr 141, k2c 184; flash
+  unchanged, model.bin 93.1 KB). Step 9b queued (k1uctrv2 / k1trv2: 2-bit values, rule in README first; runs/logs/
+  step9b_queue.sh, PID 3209961). chip_kernels/kv260k_bench.py (one 260K head, 512 positions, each method alone, exact
+  on ESP32 / M33 / Hazard3): 1-bit scores 4.1-6.2x faster; center +190-230 us per head (drop it); temperature softmax
+  1.4 / 1.5 / 1.9x slower (Hazard3: k1tr 29.2 vs base 28.3 ms per token); 2-bit values 2x slower with tinylm.c's
+  decoding. Best: k1tr ESP32 21.3 vs 27.2 ms, M33 21.1 vs 24.0 (full context, attention only).
+- Nov 21 midday: cache_methods_table.py -> results/v512d64l5kv4_cache_methods.json + README "The cache methods in one
+  table" (loss, KV RAM computed, speed kv260k_bench, flash data computed, code measured with nm -S per core: methods
+  add 84-834 bytes of code). Under the rule in use (usable < +0.03, then fewest bytes) k1tr wins; also fastest on
+  ESP32 / M33, not on Hazard3 (temperature). Step 9b README cache figure fixed: k1trv2 128 KB (was written 120).
+- Nov 21 13:40: step 9b k1uctrv2 done, 3 seeds: 2.1091 ± 0.0133 vs k1uctr 2.0943 (+0.0148, paired +0.005 / +0.001 /
+  +0.038): passes rule 1 on the mean, cache 87 KB; +0.048 vs the int8 cache (not usable under 0.03, like k1uctr).
+  Queue paused at Edén's request (GPU needed); k1trv2 3 seeds left: relaunch step9b_queue.sh (skips done runs).
+- Nov 22 00:23: queue resumed (night_queue_1122.sh): k1trv2 3 seeds, then step 9c k1utr (unit keys, no center, window +
+  temp; rule in README before measuring). ~9 h.
+
+## Nov 22 2026, 04:50 — step 9b done: k1trv2 wins on bytes
+
+- k1trv2 (k1tr + 2-bit values), 3 seeds, validation: 2.0728 / 2.0677 / 2.0756 = 2.0720 ± 0.0040. Paired vs k1tr
+  -0.0048 / -0.0234 / -0.0119 (lower on every seed). Rule 1 passes. +0.011 vs the int8 cache: usable at 128 KB ->
+  new winner under the bytes rule (was k1tr 181.8 KB). Slower: 31.8 / 33.7 / 40.6 ms per token vs 21.3 / 21.1 / 29.2.
+- Why 2-bit values beat int8 values in training is not known (regularization? not tested).
+- Step 9c premise changed: k1utr (140.8 KB) cannot win on bytes any more; reported as written.
+- k1utr s42 started 04:48 (queue PID 1794355), s43 / s44 after.
+
+## Nov 22 2026, 08:50 — step 9c done, night queue done (GPU free)
+
+- k1utr (unit 1-bit keys, no scale / center, window 32 + temp), 3 seeds: 2.1022 / 2.0617 / 2.0828 = 2.0822 ± 0.0203,
+  +0.021 vs int8 cache: usable (rule passes). Ties k1tr (paired -0.003), same speed, 140.8 vs 181.8 KB -> the fast
+  option. Bytes winner stays k1trv2 (128 KB, +0.011, ~1.5x slower).
+- Next (agreed with Edén Nov 22 morning): cross test "2-bit values better than int8?" (rule in README first).
+
+## Nov 22 2026, ~09:30 — step 9d cross test (no training)
+
+- cross_eval.py (new; train.py build_model() factored out of run(), same model): 4 models x 3 seeds x values 8 / 2.
+  Own width reproduces train.json 12 / 12. k1trv2 with unquantized values 2.0742 (+0.0022 vs its 2-bit): rule 1 ->
+  gain from TRAINING. k1uctrv2 +0.0043 (rule 1, near the line). Values at 2 bits after training: free, even -0.001
+  on k1tr / k1uctr. Why coarse values help: not known (guess: clipping large values; untested).
+
+## Nov 22 2026, 09:09 — step 10 started (Edén: "adelante, vamos con los ganadores")
+
+- Rule in README "Step 10" before measuring. Queue runs/logs/step10_queue.sh (PID 3365763, log step10_queue.log):
+  ternary k1trv2 x 3 seeds, then ternary k1utr x 3 seeds; ~1.5 h per run (estimate) -> ~9 h. Ends "STEP10 QUEUE DONE".
+
+## Nov 22 2026, 10:40 — step 10 queue relaunched from a worktree
+
+- Ternary k1trv2 s42 done: best val 1.8674 (step 17000). The other 5 runs died at once at 10:39: the main folder had
+  been switched to demo/digits-touch, whose older train.py has no --kv-heads / --vocab. Lesson: long queues run from
+  their own worktree (~/Proyectos/Symbex1_llm on exp/llm-260k, runs/ and data/tinystories symlinked to the main
+  folder). Relaunched 10:40 (queue PID 3642439, skips s42); end ~18:10 (estimate).
+
+## Nov 23 2026, 07:44 — step 10 done (night queue, relaunched 00:39)
+
+- ternary k1trv2 1.8657 ± 0.0042 (+0.046), ternary k1utr 1.8633 ± 0.0022 (+0.043) vs 1.8199: both fail rule 1
+  (< +0.03). Rule 2: ternary keeps the int8 cache, binary k1trv2 (2.0720, +0.021) goes to intsim / C / chips.
+  Small caches cost ternary ~2x what they cost binary; ternary + small cache still 0.21 below binary + small cache
+  (more weight bytes: not covered by the rule). results/v512d64l5kv4_step10_train.json.
+
+## Nov 23 2026, ~11:00 — step 11: binary k1trv2 in intsim / C / chips (Edén: "si adelante")
+
+- First intsim runs had no cache flags (simulated the int8 cache: +0.04); renamed intsim_wrong_kv8.json, rerun with
+  --k-bits 1 --v-bits 2 --kv-recent 32: +0.0004 / +0.0010 / +0.0003. intsim does not warn when the flags differ
+  from the trained cache (to fix).
+- tinylm.c low-bit cache: any head width up to 64 (att_d), GQA (store per key head, score per query head),
+  seq <= 1024. PC exact 3 seeds x 3 kernels (ASan + UBSan); old 260K int8 and 15.7 M low-bit still exact.
+- Chips, 3 seeds each, all exact: ESP32 35.88 vs 40.15 tok/s, 184 vs 72 KB free; M33 27.75 vs 31.84, 347 vs 235;
+  Hazard3 29.22 vs 35.38, 340 vs 228. main.cpp fail("step") now built and run on the boards.

@@ -1,0 +1,52 @@
+== binary_v512d64l5kv4_s43  2026-11-24T16:49:03-05:00  commit 8169461
+-- step 1: data files
+-- step 2: build (pio), flash at 115200 (esptool; pio's 460800 fails on this CP2102)
+RAM:   [=         ]   7.0% (used 22836 bytes from 327680 bytes)
+Flash: [===       ]  29.5% (used 386300 bytes from 1310720 bytes)
+========================= [SUCCESS] Took 1.91 seconds =========================
+esp32          SUCCESS   00:00:01.909
+Hash of data verified.
+Hash of data verified.
+Hash of data verified.
+Hash of data verified.
+-- step 2b: throwaway open + reset + drain (the first open after an upload floods)
+drained 10464 bytes
+-- step 3: board
+  TINYLM ready | cpu 240 MHz | ram 331076 bytes free
+  LOADED 93120 bytes in 14 ms | ram free 34420
+  window 0: 512/512 tokens equal, 37.7 ms per token
+  window 1: 512/512 tokens equal, 37.7 ms per token
+, there was a little boy named Tim. Tim lived a little boy named Tim. Tim was very happy. He wanted to play with his friend, he saw a big ball. He was happy and said, "Tim, I am a little boy named Tim. Tim. Tim, help you go to the park and asked his mom. Tim and his mom were very happy. They played with Tim and played with Tim and played with Tim. They played with Tim and the b
+{
+  "run": "binary_v512d64l5kv4_s43",
+  "board": "esp32 (classic, no PSRAM)",
+  "kernel": "lut8 linear, plain C (output, scores, values)",
+  "model_in": "flash",
+  "kv_cache": "int8",
+  "p_cut_nats": null,
+  "fine_prof": false,
+  "dcache_autoload": null,
+  "dcache_autoload_kv_bytes": null,
+  "kv_cache_in": "internal ram",
+  "cpu_mhz": 240,
+  "ready": "TINYLM ready | cpu 240 MHz | ram 331076 bytes free",
+  "loaded": "LOADED 93120 bytes in 14 ms | ram free 34420",
+  "check_tokens": 1024,
+  "check_equal": 1024,
+  "equal_percent": 100.0,
+  "story_tokens": 120,
+  "story_equal": 120,
+  "ms_per_token_check_mean": 37.689,
+  "ms_per_token_at_position": {
+    "0": 19.887,
+    "63": 25.244,
+    "127": 29.424,
+    "255": 37.588,
+    "511": 53.769
+  },
+  "ms_per_token_story_mean": 25.326,
+  "tokens_per_second_story": 39.486,
+  "ms_per_token_by_part": {}
+}
+wrote benchmarks/experiments/tiny_llm/results/chip_esp32_binary_v512d64l5kv4_s43.json
+EXIT 0
