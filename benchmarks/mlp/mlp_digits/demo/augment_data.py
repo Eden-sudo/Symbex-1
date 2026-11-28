@@ -51,6 +51,8 @@ def main():
     ap.add_argument("--copies", type=int, default=10, help="augmented copies of every training image")
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
+    if args.copies < 1:
+        ap.error("--copies must be at least 1 (the copies are the point of this script)")
     T.THICKEN = 0                                           # the stroke width comes from the random ink level
     x = np.load(os.path.join(SRC, "x.npy"))
     y, val, test = (np.load(os.path.join(SRC, f)) for f in ("y.npy", "val.npy", "test.npy"))
